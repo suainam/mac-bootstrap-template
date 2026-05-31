@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.local.mac-bootstrap.cache-cleanup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>{{BOOTSTRAP}}/scripts/clean-cache.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>0</integer>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/mac-bootstrap-cache-cleanup.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/mac-bootstrap-cache-cleanup.err</string>
+</dict>
+</plist>

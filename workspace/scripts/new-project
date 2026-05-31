@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$HOME/work/config/mac-bootstrap"
+if [ -n "${NAME:-}" ]; then
+  export PROJECT_NAME="$NAME"
+fi
+if [ -n "${DESC:-}" ]; then
+  export PROJECT_DESC="$DESC"
+fi
+
+exec ./scripts/new-project.sh "$@"

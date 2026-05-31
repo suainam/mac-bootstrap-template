@@ -1,0 +1,23 @@
+# Files excluded from public template exports.
+#
+# Current origin is allowed to be private and may track personal machine config.
+# Public sharing must go through scripts/export-public-template.sh, which applies
+# this denylist before copying files.
+
+private/
+.agents/
+.code-review-graph/
+skills-lock.json
+
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*_key
+
+clash/Merge.yaml
+handoff-*.md
+python/odps_config.py
+*.local.yaml

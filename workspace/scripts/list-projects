@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECTS_DIR="$HOME/work/projects"
+
+if [ ! -d "$PROJECTS_DIR" ]; then
+  echo "Projects directory not found: $PROJECTS_DIR" >&2
+  exit 1
+fi
+
+found=0
+while IFS= read -r dir; do
+  found=1
+  name="$(basename "$dir")"
+  if [ -d "$dir/.git" ]; then
+    echo "$name  [git]"
+  else
+    echo "$name"
+  fi
+done < <(find "$PROJECTS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+
+if [ "$found" -eq 0 ]; then
+  echo "No projects under $PROJECTS_DIR"
+fi

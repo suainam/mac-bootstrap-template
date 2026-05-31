@@ -1,0 +1,36 @@
+# Skill promotion lists — single source of truth for agent skill whitelisting.
+# Format: one skill name per line, grouped by upstream source section.
+# Consumers: manifest.yaml, sync-agent-upstreams.sh
+# Edit this file, then re-run `make agent-sync` + `make agent-tools`.
+
+# ── everything-claude-code ──────────────────────────────────────────────────
+python-patterns
+python-testing
+pytorch-patterns
+mle-workflow
+postgres-patterns
+clickhouse-io
+docker-patterns
+database-migrations
+data-throughput-accelerator
+data-scraper-agent
+tdd-workflow
+verification-loop
+search-first
+documentation-lookup
+
+# ── mattpocock-skills ───────────────────────────────────────────────────────
+skills/engineering/setup-matt-pocock-skills
+skills/engineering/diagnose
+skills/engineering/tdd
+skills/engineering/grill-with-docs
+skills/engineering/zoom-out
+skills/engineering/improve-codebase-architecture
+skills/productivity/handoff
+skills/productivity/write-a-skill
+
+# ── personal ─────────────────────────────────────────────────────────────────
+python-data-analysis
+sql-analysis
+marimo-analysis
+docker-data-project

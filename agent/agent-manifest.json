@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "canonical": {
+    "rules_file": "agent/rules/12-rules.md",
+    "rules_common_dir": "agent/rules/common",
+    "rules_python_dir": "agent/rules/python",
+    "personal_skills_dir": "agent/skills/personal",
+    "personal_extensions_dir": "agent/extensions/personal"
+  },
+  "shared": {
+    "upstream_skills_root": "~/.agent/skills",
+    "cross_agent_skills_dir": "~/.agents/skills"
+  },
+  "mcp_servers": {
+    "context-mode": {
+      "command": "context-mode",
+      "args": [],
+      "approved_tools": [
+        "ctx_stats",
+        "ctx_search",
+        "ctx_index",
+        "ctx_doctor"
+      ]
+    },
+    "code-review-graph": {
+      "command": "code-review-graph",
+      "args": [
+        "serve"
+      ],
+      "approved_tools": [
+        "get_minimal_context_tool",
+        "traverse_graph_tool",
+        "get_review_context_tool",
+        "get_impact_radius_tool",
+        "get_architecture_overview_tool",
+        "list_communities_tool",
+        "list_flows_tool",
+        "get_hub_nodes_tool",
+        "list_graph_stats_tool",
+        "get_knowledge_gaps_tool",
+        "get_suggested_questions_tool",
+        "cross_repo_search_tool"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "api_key_env": "CONTEXT7_API_KEY",
+      "api_key_args": [
+        "--api-key"
+      ]
+    }
+  },
+  "agents": {
+    "claude": {
+      "binary": "claude",
+      "official_docs": [
+        "https://code.claude.com/docs/en/configuration",
+        "https://code.claude.com/docs/en/hooks"
+      ],
+      "paths": {
+        "settings": "~/.claude/settings.json",
+        "mcp": "~/.claude.json",
+        "instructions": "~/.claude/CLAUDE.md",
+        "rules_12": "~/.claude/12-rules.md",
+        "rules_common": "~/.claude/rules/common",
+        "rules_python": "~/.claude/rules/python",
+        "skills": "~/.claude/skills",
+        "agents": "~/.claude/agents"
+      }
+    },
+    "codex": {
+      "binary": "codex",
+      "official_docs": [
+        "https://developers.openai.com/learn/docs-mcp",
+        "https://openai.com/index/unrolling-the-codex-agent-loop/"
+      ],
+      "paths": {
+        "config": "~/.codex/config.toml",
+        "instructions": "~/.codex/AGENTS.md",
+        "hooks": "~/.codex/hooks.json",
+        "skills": "~/.codex/skills"
+      }
+    },
+    "opencode": {
+      "binary": "opencode",
+      "official_docs": [
+        "https://opencode.ai/docs/config",
+        "https://opencode.ai/docs/en/skills",
+        "https://open-code.ai/en/docs/rules"
+      ],
+      "paths": {
+        "config": "~/.config/opencode/opencode.json",
+        "instructions": "~/.config/opencode/AGENTS.md",
+        "skills": "~/.config/opencode/skills",
+        "plugins": "~/.config/opencode/plugins"
+      }
+    },
+    "pi": {
+      "binary": "pi",
+      "official_docs": [
+        "https://pi.dev/docs/latest/settings",
+        "https://pi.dev/docs/latest/skills",
+        "https://pi.dev/docs/latest/extensions",
+        "https://pi.dev/docs/latest/prompt-templates",
+        "https://pi.dev/docs/latest/mcp"
+      ],
+      "paths": {
+        "settings": "~/.pi/agent/settings.json",
+        "mcp": "~/.pi/agent/mcp.json",
+        "models_json": "~/.pi/agent/models.json",
+        "instructions": "~/.pi/agent/AGENTS.md",
+        "skills": "~/.pi/agent/skills",
+        "extensions": "~/.pi/agent/extensions",
+        "local_provider_extension": "~/.pi/agent/extensions/local-openai-provider.ts",
+        "prompts": "~/.pi/agent/prompts"
+      }
+    },
+    "reasonix": {
+      "binary": "reasonix",
+      "official_docs": [
+        "https://esengine.github.io/DeepSeek-Reasonix/configuration.html"
+      ],
+      "paths": {
+        "config": "~/.reasonix/config.json",
+        "settings": "~/.reasonix/settings.json",
+        "skills": "~/.reasonix/skills"
+      }
+    },
+    "antigravity": {
+      "binary": "agy",
+      "official_docs": [
+        "https://antigravity.google/docs/cli-settings",
+        "https://antigravity.google/docs/cli-plugins",
+        "https://www.antigravity.google/docs/hooks"
+      ],
+      "paths": {
+        "settings": "~/.gemini/antigravity-cli/settings.json",
+        "mcp": "~/.gemini/antigravity-cli/mcp_config.json",
+        "skills": "~/.gemini/antigravity-cli/skills",
+        "plugins": "~/.gemini/antigravity-cli/plugins",
+        "hooks": "~/.gemini/config/hooks.json",
+        "workspace_mcp": ".agents/mcp_config.json"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+pandas
+polars
+duckdb
+pyarrow
+openpyxl
+xlsxwriter
+matplotlib
+plotly
+jupyter
+marimo
+requests
+sqlalchemy
+ruff
+pyodps

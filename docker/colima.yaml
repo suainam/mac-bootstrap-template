@@ -1,0 +1,29 @@
+cpu: 2
+disk: 100
+memory: 2
+arch: aarch64
+runtime: docker
+vmType: vz
+mountType: virtiofs
+mountInotify: true
+rosetta: false
+binfmt: true
+autoActivate: true
+forwardAgent: false
+portForwarder: ssh
+sshConfig: true
+kubernetes:
+  enabled: false
+network:
+  address: false
+  mode: shared
+  dns: null
+  dnsHosts: {}
+docker:
+  log-driver: json-file
+  log-opts:
+    max-size: 10m
+    max-file: "3"
+provision: null
+mounts: []
+env: {}

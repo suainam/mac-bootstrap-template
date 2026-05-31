@@ -1,0 +1,19 @@
+[user]
+  name = Your Name
+  email = you@example.com
+
+[init]
+  defaultBranch = main
+
+[core]
+  autocrlf = input
+
+[push]
+  autoSetupRemote = true
+
+[alias]
+  s = status
+  l = log --oneline --graph --decorate --all
+  c = commit
+  p = push
+  a = add

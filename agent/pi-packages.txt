@@ -1,0 +1,9 @@
+# Pi packages — installed via `pi install <ref>` during bootstrap.
+# Format: one package reference per line (e.g. npm:<name>).
+# This is the single source of truth; scripts read from this file.
+
+npm:pi-mcp-extension
+npm:pi-web-access
+npm:pi-mcp-adapter
+npm:pi-subagents
+npm:context-mode

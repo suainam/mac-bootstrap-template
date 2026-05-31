@@ -1,0 +1,32 @@
+[project]
+name = "my-analysis"
+version = "0.1.0"
+description = ""
+requires-python = ">=3.12"
+dependencies = [
+    "pandas",
+    "polars",
+    "duckdb",
+    "pyarrow",
+    "openpyxl",
+    "xlsxwriter",
+    "matplotlib",
+    "plotly",
+    "marimo",
+    "jupyter",
+    "requests",
+    "sqlalchemy",
+    "pyodps",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "double"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

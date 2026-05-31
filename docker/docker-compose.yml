@@ -1,0 +1,19 @@
+services:
+  9router:
+    image: decolua/9router:latest
+    container_name: 9router
+    restart: unless-stopped
+    ports:
+      - "20128:20128"
+    volumes:
+      - ~/.9router:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: 3
+    environment:
+      - DATA_DIR=/app/data
+      - HOSTNAME=0.0.0.0
+      - PORT=20128
+      - NODE_ENV=production

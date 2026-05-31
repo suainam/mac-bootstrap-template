@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Sensitive (if any)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*_key
+
+# Generated agent runtime output
+.agents/
+.code-review-graph/
+skills-lock.json
+
+# Private overlay (template → rendered configs)
+private/
+*.local.yaml

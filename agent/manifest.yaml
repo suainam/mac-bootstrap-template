@@ -1,0 +1,75 @@
+version: 1
+
+# Skill promotion lists live in agent/skills-promote.txt (canonical source).
+# This file mirrors those lists for documentation; edit skills-promote.txt, not here.
+# See scripts/sync-agent-upstreams.sh for the authoritative consumer.
+
+home: "~/.agent"
+
+upstreams:
+  everything-claude-code:
+    repo: "https://github.com/affaan-m/everything-claude-code.git"
+    path: "upstream/everything-claude-code"
+    mode: "material-library"
+    sync: "fast-forward"
+    promote:
+      skills:
+        - "python-patterns"
+        - "python-testing"
+        - "pytorch-patterns"
+        - "mle-workflow"
+        - "postgres-patterns"
+        - "clickhouse-io"
+        - "docker-patterns"
+        - "database-migrations"
+        - "data-throughput-accelerator"
+        - "data-scraper-agent"
+        - "tdd-workflow"
+        - "verification-loop"
+        - "search-first"
+        - "documentation-lookup"
+      hooks: []
+      mcp: []
+  mattpocock-skills:
+    repo: "https://github.com/mattpocock/skills.git"
+    path: "upstream/mattpocock-skills"
+    mode: "skill-library"
+    sync: "fast-forward"
+    promote:
+      skills:
+        - "skills/engineering/setup-matt-pocock-skills"
+        - "skills/engineering/diagnose"
+        - "skills/engineering/tdd"
+        - "skills/engineering/grill-with-docs"
+        - "skills/engineering/zoom-out"
+        - "skills/engineering/improve-codebase-architecture"
+        - "skills/productivity/handoff"
+        - "skills/productivity/write-a-skill"
+
+personal_skills:
+  - "python-data-analysis"
+  - "sql-analysis"
+  - "marimo-analysis"
+  - "docker-data-project"
+
+agents:
+  claude:
+    reads:
+      - "~/.agent/agents/claude/CLAUDE.md"
+      - "~/.agent/skills"
+    notes:
+      - "Hooks are Claude-specific; render adapters from ~/.agent/hooks."
+  codex:
+    reads:
+      - "~/.agent/agents/codex/AGENTS.md"
+      - "~/.agent/skills"
+    notes:
+      - "Keep MCP rendered separately from Claude settings."
+  opencode:
+    reads:
+      - "~/.agent/agents/opencode/AGENTS.md"
+      - "~/.agent/skills"
+  pi:
+    reads:
+      - "~/.agent/agents/pi/AGENTS.md"
+      - "~/.agent/skills"

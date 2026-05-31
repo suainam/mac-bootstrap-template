@@ -1,0 +1,118 @@
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# Suppress p10k instant prompt warning for any console I/O during init
+typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
+
+# Zshrc — Mac 版，适配自 AuroraOps
+# Shared environment
+[[ -f ~/.shell_env ]] && source ~/.shell_env
+
+setopt NO_NOMATCH
+
+# ---------- Zinit ----------
+ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
+if [[ ! -f $ZINIT_HOME/zinit.zsh ]]; then
+    command mkdir -p "${ZINIT_HOME%/*}"
+    command git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+fi
+source "$ZINIT_HOME/zinit.zsh"
+autoload -Uz _zinit
+(( ${+_comps} )) && _comps[zinit]=_zinit
+
+# Annexes
+zinit light-mode for \
+    zdharma-continuum/zinit-annex-as-monitor \
+    zdharma-continuum/zinit-annex-bin-gem-node \
+    zdharma-continuum/zinit-annex-patch-dl \
+    zdharma-continuum/zinit-annex-rust
+
+# OMZ libs & plugins
+zinit snippet OMZ::lib/completion.zsh
+zinit snippet OMZ::lib/history.zsh
+zinit snippet OMZ::lib/key-bindings.zsh
+zinit snippet OMZ::lib/theme-and-appearance.zsh
+zinit snippet OMZ::plugins/colored-man-pages/colored-man-pages.plugin.zsh
+zinit snippet OMZP::command-not-found
+zinit snippet OMZP::extract
+zinit snippet OMZP::git
+
+# Powerlevel10k
+zinit ice depth=1
+zinit light romkatv/powerlevel10k
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# Turbo: history-substring-search
+zinit wait lucid for \
+    atload"bindkey '^[[A' history-substring-search-up; bindkey '^[[B' history-substring-search-down; bindkey \"$terminfo[kcuu1]\" history-substring-search-up; bindkey \"$terminfo[kcud1]\" history-substring-search-down" \
+    zsh-users/zsh-history-substring-search
+
+# Turbo: autosuggestions + z.lua
+zinit wait lucid for \
+    atload"_zsh_autosuggest_start" \
+    zsh-users/zsh-autosuggestions \
+    skywind3000/z.lua
+
+# Turbo: syntax highlighting
+zinit wait lucid for \
+    zdharma-continuum/fast-syntax-highlighting
+
+# Turbo: vi-mode
+zinit wait lucid for jeffreytse/zsh-vi-mode
+
+# Turbo: completions
+zinit wait lucid for \
+    atinit"ZINIT[COMPINIT_OPTS]=-C; zicompinit; zicdreplay" \
+    zsh-users/zsh-completions
+
+# ---------- Aliases ----------
+alias ls='ls -G'
+alias ll='ls -AFhlt'
+alias la='ll'
+alias tree='tree -C --dirsfirst'
+alias cls='clear'
+alias ping='ping -c 5'
+alias ports='lsof -iTCP -sTCP:LISTEN -P -n'
+alias sj='date +"%Y-%m-%d %T"'
+alias grc1="grep -inrE -C1 --color=auto"
+alias grc2="grep -inrE -C2 --color=auto"
+alias grp="grep -inrE --color=auto"
+alias rsync-copy="rsync -avz --progress -h"
+alias rsync-move="rsync -avz --progress -h --remove-source-files"
+alias rsync-update="rsync -avzu --progress -h"
+alias rsync-synchronize="rsync -avzu --delete --progress -h"
+alias cip="curl cip.cc"
+
+# User local overrides
+source ~/.zshrc.local 2>/dev/null || true
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/opt/homebrew/Caskroom/miniforge/base/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh" ]; then
+        . "/opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh"
+    else
+        export PATH="/opt/homebrew/Caskroom/miniforge/base/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+
+# direnv
+eval "$(direnv hook zsh)"
+
+# User-level tools installed by agent helpers such as code-review-graph.
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
+# Added by code-review-graph install
+export PATH="$HOME/.local/bin:$PATH"

@@ -1,0 +1,27 @@
+# Shared shell environment — macOS, sourced by bash and zsh
+
+export EDITOR=code
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
+
+# Proxy
+export http_proxy=http://127.0.0.1:7897
+export https_proxy=http://127.0.0.1:7897
+export HTTP_PROXY=$http_proxy
+export HTTPS_PROXY=$https_proxy
+export ALL_PROXY=$http_proxy
+export no_proxy="localhost,127.0.0.1,::1"
+
+alias setproxy='export http_proxy=http://127.0.0.1:7897 https_proxy=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 HTTPS_PROXY=http://127.0.0.1:7897 ALL_PROXY=http://127.0.0.1:7897'
+alias unsetproxy='unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY no_proxy'
+
+# Conda (Miniforge3 via Homebrew)
+if [ -f "/opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh" ]; then
+    . "/opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh"
+elif [ -f "$HOME/miniforge3/etc/profile.d/conda.sh" ]; then
+    . "$HOME/miniforge3/etc/profile.d/conda.sh"
+fi
+
+# pipx
+[ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
