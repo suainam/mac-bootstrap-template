@@ -1,0 +1,18 @@
+# SSH host config snippet — place in private/shell/ssh_config.d/<host>
+#
+# After adding, run `make install` to deploy to ~/.ssh/config.d/.
+#
+# Example for a bastion host behind Clash HTTP CONNECT proxy:
+#
+# Host bastion
+#   HostName     your-bastion.example.com
+#   User         your-username
+#   Port         22
+#   PubkeyAuthentication no
+#   PreferredAuthentications password,keyboard-interactive
+#   ProxyCommand ~/.ssh/connect-proxy.py %h %p
+#   HostKeyAlgorithms +ssh-rsa
+#   PubkeyAcceptedAlgorithms +ssh-rsa
+#   KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
+#   Ciphers +aes128-cbc,aes256-cbc
+#   MACs +hmac-sha1

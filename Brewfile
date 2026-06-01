@@ -35,6 +35,7 @@ cask "clash-verge-rev"
 cask "uuremote"
 cask "claude-code"
 cask "wechatwork"
+cask "cc-switch"
 
 # ========== 字体 ==========
 cask "font-sf-mono-nerd-font-ligaturized"
