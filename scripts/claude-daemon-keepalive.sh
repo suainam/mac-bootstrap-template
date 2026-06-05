@@ -22,14 +22,21 @@ mkdir -p "$LOG_DIR"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG"; }
 
-# Working hours: 8:00~19:00 or 23:30~00:30
+# 时间策略：23:50~00:20 每 10 分钟发送一次；8:00 和 19:00 整点发送一次
 HOUR=$(date +%H)
 MIN=$(date +%M)
-if ! ( \
-    ([ "$HOUR" -ge 8 ] && [ "$HOUR" -lt 19 ]) \
-    || ([ "$HOUR" -eq 23 ] && [ "$MIN" -ge 30 ]) \
-    || ([ "$HOUR" -eq 0 ] && [ "$MIN" -le 30 ]) \
-); then
+RUN=false
+CURRENT_THRESHOLD=$THRESHOLD
+
+if ( [ "$HOUR" -eq 8 ] || [ "$HOUR" -eq 19 ] ) && [ "$MIN" -eq 0 ]; then
+    RUN=true
+    CURRENT_THRESHOLD=0
+elif ( [ "$HOUR" -eq 23 ] && [ "$MIN" -ge 50 ] ) || ( [ "$HOUR" -eq 0 ] && [ "$MIN" -le 20 ] ); then
+    RUN=true
+    CURRENT_THRESHOLD=600
+fi
+
+if [ "$RUN" = false ]; then
     exit 0
 fi
 
@@ -52,7 +59,7 @@ else
     IDLE=$(( $(date +%s) - LAST_MSG ))
 fi
 
-if [ "$IDLE" -ge "$THRESHOLD" ]; then
+if [ "$IDLE" -ge "$CURRENT_THRESHOLD" ]; then
     TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
     if tmux send-keys -t "$PANE_ID" "# cache_check: $TIMESTAMP" Enter 2>/dev/null; then
         log "SENT cache_check at $TIMESTAMP (idle ${IDLE}s, pane $PANE_ID, last_project: ${LAST_PROJECT:-none})"
