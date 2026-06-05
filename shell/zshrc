@@ -51,11 +51,10 @@ zinit wait lucid for \
     atload"bindkey '^[[A' history-substring-search-up; bindkey '^[[B' history-substring-search-down; bindkey \"$terminfo[kcuu1]\" history-substring-search-up; bindkey \"$terminfo[kcud1]\" history-substring-search-down" \
     zsh-users/zsh-history-substring-search
 
-# Turbo: autosuggestions + z.lua
+# Turbo: autosuggestions
 zinit wait lucid for \
     atload"_zsh_autosuggest_start" \
-    zsh-users/zsh-autosuggestions \
-    skywind3000/z.lua
+    zsh-users/zsh-autosuggestions
 
 # Turbo: syntax highlighting
 zinit wait lucid for \
@@ -68,6 +67,14 @@ zinit wait lucid for jeffreytse/zsh-vi-mode
 zinit wait lucid for \
     atinit"ZINIT[COMPINIT_OPTS]=-C; zicompinit; zicdreplay" \
     zsh-users/zsh-completions
+
+# ---------- Command Line Tools ----------
+# Fzf integration
+eval "$(fzf --zsh)"
+
+# Zoxide (Rust replacement for z/z.lua)
+eval "$(zoxide init zsh)"
+alias zi="zoxide query -i"
 
 # ---------- Aliases ----------
 alias ls='ls -G'

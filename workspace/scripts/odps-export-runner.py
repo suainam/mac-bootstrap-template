@@ -141,7 +141,8 @@ def _fetch_query_to_parquet(sql: str, output: Path) -> tuple[int, list[str]]:
                 batch_columns[col] = []
             return writer
 
-        first_row = next(iter(reader), None)
+        reader_iter = iter(reader)
+        first_row = next(reader_iter, None)
         if first_row is None:
             empty_table = pa.Table.from_pydict(
                 {col: pa.array([], type=pa.string()) for col in columns},
@@ -155,7 +156,7 @@ def _fetch_query_to_parquet(sql: str, output: Path) -> tuple[int, list[str]]:
         total_rows += 1
 
         writer = None
-        for record in reader:
+        for record in reader_iter:
             append_record(record)
             total_rows += 1
             if len(batch_columns[columns[0]]) >= PARQUET_BATCH_SIZE:
