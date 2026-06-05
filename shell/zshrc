@@ -116,3 +116,10 @@ esac
 
 # Added by code-review-graph install
 export PATH="$HOME/.local/bin:$PATH"
+
+# Auto-attach to _daemon_ tmux session (if available)
+if [[ -z "$TMUX" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && (( $+commands[tmux] )); then
+    if tmux has-session -t "${CLAUDE_SESSION:-_daemon_}" 2>/dev/null; then
+        exec tmux attach-session -t "${CLAUDE_SESSION:-_daemon_}"
+    fi
+fi

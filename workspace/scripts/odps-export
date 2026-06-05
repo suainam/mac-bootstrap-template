@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE="${ODPS_EXPORT_IMAGE:-marimo-odps:latest}"
+CONFIG_FILE="${ODPS_EXPORT_CONFIG:-odps_export_config.py}"
+ENV_FILE="${ODPS_ENV_FILE:-$HOME/work/projects/www/marimo/merchandise/.env}"
+PROJECT_DIR="${ODPS_PROJECT_DIR:-$PWD}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ ! -f "$PROJECT_DIR/$CONFIG_FILE" ]; then
+  echo "missing config: $PROJECT_DIR/$CONFIG_FILE" >&2
+  exit 1
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "missing env file: $ENV_FILE" >&2
+  exit 1
+fi
+
+docker run --rm -i \
+  --entrypoint python \
+  --env-file "$ENV_FILE" \
+  -e ODPS_EXPORT_CONFIG="/project/$CONFIG_FILE" \
+  -v "$PROJECT_DIR:/project" \
+  -v "$SCRIPT_DIR:/workspace-tools:ro" \
+  -w /project \
+  "$IMAGE" \
+  /workspace-tools/odps-export-runner.py --config "/project/$CONFIG_FILE" "$@"

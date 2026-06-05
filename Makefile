@@ -1,9 +1,53 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
+.PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public
+
+help:
+	@echo "Usage: make <target>"
+	@echo ""
+	@echo "── Bootstrap ──"
+	@echo "  install / bootstrap    Full install (Homebrew + shell + agent tooling)"
+	@echo "  check                  Syntax-check all scripts + run doctor"
+	@echo "  doctor                 System health check"
+	@echo "  doctor-agent           Agent tooling health check"
+	@echo ""
+	@echo "── Cleanup ──"
+	@echo "  clean-cache            Clean Homebrew/Library/LaTeX caches"
+	@echo "  clean-cache-aggressive More aggressive cache cleanup"
+	@echo "  cache-report           Show cache sizes"
+	@echo ""
+	@echo "── Agent ──"
+	@echo "  agent-tools            Install/configure agent tooling"
+	@echo "  agent-sync             Sync agent upstreams"
+	@echo "  security-scan          Security scan + fix"
+	@echo "  instinct-sync          Sync instinct files"
+	@echo ""
+	@echo "── Claude Daemon ──"
+	@echo "  claude-daemon-install    Install & start all daemon services"
+	@echo "  claude-daemon-unload     Stop all daemon services"
+	@echo "  claude-daemon-status     Show daemon status"
+	@echo "  claude-daemon-logs       Show daemon logs"
+	@echo "  claude-keepalive-enable  Enable keepalive only"
+	@echo "  claude-keepalive-disable Disable keepalive only"
+	@echo "  claude-keepalive-status  Show keepalive status only"
+	@echo ""
+	@echo "── Config ──"
+	@echo "  render-configs         Render config templates"
+	@echo "  private-sync           Sync private overlay"
+	@echo "  privacy-audit          Scan for secrets"
+	@echo "  privacy-audit-history  Scan with git history"
+	@echo "  export-public DEST=…   Export public template"
+	@echo "  publish-public         Publish public template"
+	@echo ""
+	@echo "── Other ──"
+	@echo "  pi-packages            Install Pi packages"
+	@echo "  pm-detect              Detect package manager"
+	@echo "  pm-set                 Set global package manager"
+	@echo "  mcp-profiles           Setup MCP profiles"
+	@echo "  hook-matchers          Add hook matchers"
 
 bootstrap install:
 	./install.sh --yes --with-vim --with-tmux --cleanup
@@ -31,6 +75,8 @@ check:
 	bash -n vscode/install-extensions.sh
 	bash -n vim/install.sh
 	bash -n tmux/install.sh
+	bash -n scripts/claude-daemon-tmux.sh
+	bash -n scripts/claude-daemon-keepalive.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
 
@@ -104,3 +150,54 @@ mcp-profiles:
 
 hook-matchers:
 	./scripts/add-hook-matchers.sh
+
+# ── Claude Code Daemon ─────────────────────────────────────
+claude-daemon-install:
+	@mkdir -p "$(HOME)/Library/LaunchAgents"
+	for plist in launchd/io.local.mac-bootstrap.claude-daemon.plist launchd/io.local.mac-bootstrap.claude-keepalive.plist; do \
+		name="$$(basename "$$plist")"; \
+		cp "$$plist" "$(HOME)/Library/LaunchAgents/$$name"; \
+		sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/$$name"; \
+		echo "  $$name -> ~/Library/LaunchAgents/"; \
+	done
+	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || \
+		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon
+	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || \
+		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive
+	@echo "=== Claude daemon installed. Logs: ~/Library/Logs/claude-daemon/ ==="
+
+claude-daemon-status:
+	@echo "=== claude-daemon ==="
+	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon 2>&1 | head -20
+	@echo ""
+	@echo "=== claude-keepalive ==="
+	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive 2>&1 | head -20
+
+claude-daemon-logs:
+	@echo "=== Tmux daemon ==="
+	tail -20 "$(HOME)/Library/Logs/claude-daemon/tmux.log" 2>/dev/null || echo "(no tmux.log)"
+	@echo ""
+	@echo "=== Keepalive ==="
+	tail -20 "$(HOME)/Library/Logs/claude-daemon/keepalive.log" 2>/dev/null || echo "(no keepalive.log)"
+
+claude-daemon-unload:
+	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || true
+	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || true
+	@echo "=== Claude daemon unloaded ==="
+
+# ── Keepalive granular controls ────────────────────────────
+claude-keepalive-enable:
+	@mkdir -p "$(HOME)/Library/LaunchAgents"
+	cp launchd/io.local.mac-bootstrap.claude-keepalive.plist "$(HOME)/Library/LaunchAgents/"
+	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist"
+	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || \
+		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive
+	@echo "=== claude-keepalive enabled ==="
+
+claude-keepalive-disable:
+	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || true
+	@echo "=== claude-keepalive disabled ==="
+
+claude-keepalive-status:
+	@echo "=== claude-keepalive ==="
+	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive 2>&1 | head -20 || echo "(not loaded)"

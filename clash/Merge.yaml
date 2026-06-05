@@ -1,0 +1,159 @@
+# ============================================================
+# 多订阅合并（模板版 — 替换 {{PLACEHOLDERS}} 为你自己的值）
+# ============================================================
+#
+# 使用方式：
+#   1. Put real config in private/clash/Merge.yaml, or copy this file locally
+#      to clash/Merge.yaml.
+#   2. Replace {{PROVIDER_*}} with your subscription URLs.
+#   3. Keep real domains, LAN details, and subscription URLs out of git.
+#
+# 如果你的私人仓库有 clash/Merge.yaml，则脚本会自动使用它
+# 而非此模板。
+# ============================================================
+
+enable-process: true
+find-process-mode: always
+
+_x: &provider_default
+  type: http
+  interval: 86400
+  health-check:
+    enable: true
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+
+# ===== 规则集 =====
+rule-providers:
+  ai-services:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/category-ai-!cn.mrs"
+    path: ./rule_providers/ai-services.mrs
+    interval: 86400
+
+  proxy-domains:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/geolocation-!cn.mrs"
+    path: ./rule_providers/proxy-domains.mrs
+    interval: 86400
+
+proxy-providers:
+  provider-a:
+    <<: *provider_default
+    url: "{{PROVIDER_A_URL}}"
+    path: "./proxy_providers/provider-a.yaml"
+    override:
+      additional-prefix: "[A] "
+
+  provider-b:
+    <<: *provider_default
+    url: "{{PROVIDER_B_URL}}"
+    path: "./proxy_providers/provider-b.yaml"
+    override:
+      additional-prefix: "[B] "
+
+  provider-c:
+    <<: *provider_default
+    url: "{{PROVIDER_C_URL}}"
+    path: "./proxy_providers/provider-c.yaml"
+    override:
+      additional-prefix: "[C] "
+
+# ===== 代理组 =====
+proxy-groups:
+  - name: ⚡ 低延迟
+    type: fallback
+    url: "https://www.gstatic.com/generate_204"
+    interval: 300
+    tolerance: 50
+    use:
+      - provider-a
+      - provider-c
+    exclude-filter: "(重置|过滤|剩余流量|套餐到期|官网|请每月|ipv6|Relay|cf-best)"
+
+  - name: 🤖 AI服务
+    type: select
+    use:
+      - provider-b
+      - provider-a
+      - provider-c
+    filter: '(解锁GPT|美国|土耳其)'
+    exclude-filter: "(Relay|cf-best)"
+    proxies:
+      - DIRECT
+
+  - name: 🎯 默认
+    type: select
+    proxies:
+      - DIRECT
+      - ⚡ 低延迟
+
+  - name: ☁️ provider-a
+    type: select
+    use:
+      - provider-a
+    proxies:
+      - DIRECT
+
+  - name: 🌸 provider-b
+    type: select
+    use:
+      - provider-b
+    proxies:
+      - DIRECT
+
+  - name: 🎫 provider-c
+    type: select
+    use:
+      - provider-c
+    exclude-filter: "(广告|去广告|剩余流量|套餐到期|官网|ipv6免流|请每月)"
+    proxies:
+      - DIRECT
+
+dns:
+  fake-ip-filter:
+    - geosite:cn
+    - +.example.lan
+    - +.example.internal
+
+tun:
+  enable: true
+  stack: gvisor
+  auto-route: true
+  auto-detect-interface: true
+  route-exclude-address:
+    - 172.16.0.0/12
+
+rules:
+  - GEOSITE,category-ads-all,REJECT
+  - DOMAIN,ad.com,REJECT
+  - DOMAIN-SUFFIX,doubleclick.net,REJECT
+  - DOMAIN-KEYWORD,tracker,REJECT
+
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,224.0.0.0/4,DIRECT,no-resolve
+  - IP-CIDR,::1/128,DIRECT,no-resolve
+  - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+  - DOMAIN,localhost,DIRECT
+  - DST-PORT,22,DIRECT
+
+  - RULE-SET,ai-services,🤖 AI服务
+  - RULE-SET,proxy-domains,⚡ 低延迟
+
+  - GEOSITE,CN,DIRECT
+  - GEOIP,CN,DIRECT
+  - DOMAIN-SUFFIX,cn,DIRECT
+
+  - NETWORK,udp,DIRECT
+
+  - MATCH,🎯 默认
+
+profile:
+  store-selected: true
