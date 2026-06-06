@@ -215,11 +215,27 @@ To scaffold a new project:
 ./scripts/new-project.sh
 ```
 
+To scaffold a new analysis subproject inside an existing repo:
+
+```bash
+~/work/scripts/new-analysis-subproject \
+  ~/work/projects/analysis-program \
+  sales \
+  demand_forecast
+```
+
 The scaffold creates:
 - project-local `.envrc` with `dotenv_if_exists .env`
 - `.env.example` and `.env`
 - a fresh git repository on `main`
 - a conservative `.gitignore` for data files, Office docs, images, caches, and temp outputs
+
+The analysis-subproject scaffold creates:
+
+- `docs/`, `scripts/`, `sql/`, `data/`, `outputs/`, `notebooks/`, `skills/`
+- `Makefile` with a standard `odps-export` entrypoint
+- `odps_export_config.py` for project-local export specs
+- a README that assumes repo-level `uv` management and shared Docker/ODPS helpers
 
 Data directories in the Docker Compose setup:
 

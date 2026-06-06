@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ "$#" -ne 3 ]; then
+  echo "Usage: $0 <project-root> <container-dir> <subproject-name>"
+  echo "Example: $0 \$HOME/work/projects/analysis-program sales demand_forecast"
+  exit 1
+fi
+
+project_root="$1"
+container_dir="$2"
+subproject_name="$3"
+target_dir="$project_root/$container_dir/$subproject_name"
+
+if [ ! -d "$project_root" ]; then
+  echo "Project root does not exist: $project_root" >&2
+  exit 1
+fi
+
+if [ -e "$target_dir" ]; then
+  echo "Target already exists: $target_dir" >&2
+  exit 1
+fi
+
+mkdir -p \
+  "$target_dir/docs" \
+  "$target_dir/scripts" \
+  "$target_dir/skills" \
+  "$target_dir/sql" \
+  "$target_dir/data/raw" \
+  "$target_dir/data/staging" \
+  "$target_dir/data/sample" \
+  "$target_dir/exports" \
+  "$target_dir/outputs/reports" \
+  "$target_dir/outputs/tables" \
+  "$target_dir/outputs/charts" \
+  "$target_dir/notebooks"
+
+cat > "$target_dir/README.md" <<EOF
+# $subproject_name
+
+## 目标
+
+- 待补充
+
+## 输入
+
+- 项目私有数据位于 \`data/\`
+- 共享数据通过 \`SHARED_DATA_DIR\` 只读访问
+
+## 输出
+
+- 导出表默认放在 \`exports/\`
+- 表格输出默认放在 \`outputs/tables/\`
+- 报告输出默认放在 \`outputs/reports/\`
+
+## 运行方式
+
+\`\`\`bash
+make export
+\`\`\`
+
+## 环境约定
+
+- 不在子项目内单独维护 \`.venv/\`
+- Python 依赖默认由仓库根目录的 \`pyproject.toml\` 和 \`uv.lock\` 管理
+- Docker / ODPS 连接能力优先复用仓库的 \`shared/\`
+EOF
+
+cat > "$target_dir/Makefile" <<'EOF'
+include ../../shared/make/odps_export.mk
+EOF
+
+cat > "$target_dir/odps_export_config.py" <<'EOF'
+EXPORTS = [
+    {
+        "name": "example_export",
+        "sql": """
+            select *
+            from some_table
+        """,
+        "sheet_name": "example_export",
+        "output": "exports/example_export.xlsx",
+        # "rename": {
+        #     "raw_col": "中文列名",
+        # },
+    }
+]
+EOF
+
+echo "Created analysis subproject: $target_dir"

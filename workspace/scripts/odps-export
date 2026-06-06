@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE="${ODPS_EXPORT_IMAGE:-marimo-odps:latest}"
 CONFIG_FILE="${ODPS_EXPORT_CONFIG:-odps_export_config.py}"
-ENV_FILE="${ODPS_ENV_FILE:-$HOME/work/projects/www/marimo/merchandise/.env}"
 PROJECT_DIR="${ODPS_PROJECT_DIR:-$PWD}"
+ENV_FILE="${ODPS_ENV_FILE:-$PROJECT_DIR/.env}"
+IMAGE="${ODPS_EXPORT_IMAGE:-odps-export:latest}"
+CONTAINER="${ODPS_EXPORT_CONTAINER:-merchandise-dashboard}"
+MODE="${ODPS_EXPORT_MODE:-exec}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -15,15 +17,48 @@ fi
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "missing env file: $ENV_FILE" >&2
+  echo "set ODPS_ENV_FILE to a project-specific env file before running export" >&2
   exit 1
 fi
 
-docker run --rm -i \
-  --entrypoint python \
-  --env-file "$ENV_FILE" \
-  -e ODPS_EXPORT_CONFIG="/project/$CONFIG_FILE" \
-  -v "$PROJECT_DIR:/project" \
-  -v "$SCRIPT_DIR:/workspace-tools:ro" \
-  -w /project \
-  "$IMAGE" \
-  /workspace-tools/odps-export-runner.py --config "/project/$CONFIG_FILE" "$@"
+run_via_exec() {
+  local temp_dir
+  temp_dir="$(docker exec "$CONTAINER" sh -lc 'tmpdir=$(mktemp -d /tmp/odps-export-XXXXXX) && printf "%s" "$tmpdir"')"
+  if [ -z "$temp_dir" ]; then
+    echo "failed to allocate temp dir in container: $CONTAINER" >&2
+    return 1
+  fi
+
+  docker cp "$PROJECT_DIR/$CONFIG_FILE" "$CONTAINER:$temp_dir/$CONFIG_FILE" >/dev/null
+
+  docker exec -i \
+    -e ODPS_EXPORT_CONFIG="$temp_dir/$CONFIG_FILE" \
+    -w "$temp_dir" \
+    "$CONTAINER" \
+    python - --config "$temp_dir/$CONFIG_FILE" "$@" < "$SCRIPT_DIR/odps-export-runner.py"
+
+  docker cp "$CONTAINER:$temp_dir/." "$PROJECT_DIR/" >/dev/null
+  docker exec "$CONTAINER" rm -rf "$temp_dir" >/dev/null
+}
+
+run_via_run() {
+  docker run --rm -i \
+    --entrypoint python \
+    --env-file "$ENV_FILE" \
+    -e ODPS_EXPORT_CONFIG="/project/$CONFIG_FILE" \
+    -v "$PROJECT_DIR:/project" \
+    -v "$SCRIPT_DIR:/workspace-tools:ro" \
+    -w /project \
+    "$IMAGE" \
+    /workspace-tools/odps-export-runner.py --config "/project/$CONFIG_FILE" "$@"
+}
+
+if [ "$MODE" = "exec" ]; then
+  if docker ps --format '{{.Names}}' | grep -Fxq "$CONTAINER"; then
+    run_via_exec "$@"
+    exit $?
+  fi
+  echo "running container not found: $CONTAINER, fallback to docker run" >&2
+fi
+
+run_via_run "$@"
