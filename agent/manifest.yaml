@@ -51,6 +51,7 @@ personal_skills:
   - "sql-analysis"
   - "marimo-analysis"
   - "docker-data-project"
+  - "daily-claude-battle-boost"
 
 agents:
   claude:

@@ -33,6 +33,10 @@ help:
 	@echo "  claude-keepalive-enable  Enable keepalive only"
 	@echo "  claude-keepalive-disable Disable keepalive only"
 	@echo "  claude-keepalive-status  Show keepalive status only"
+	@echo "  claude-daily-drill-enable  Enable daily drill with catch-up checks"
+	@echo "  claude-daily-drill-disable Disable daily drill with catch-up checks"
+	@echo "  claude-daily-drill-status  Show daily drill status"
+	@echo "  claude-daily-drill-run     Trigger one drill immediately"
 	@echo ""
 	@echo "── Config ──"
 	@echo "  render-configs         Render config templates"
@@ -77,6 +81,7 @@ check:
 	bash -n tmux/install.sh
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/claude-daemon-keepalive.sh
+	bash -n scripts/claude-daily-drill.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
 
@@ -154,7 +159,7 @@ hook-matchers:
 # ── Claude Code Daemon ─────────────────────────────────────
 claude-daemon-install:
 	@mkdir -p "$(HOME)/Library/LaunchAgents"
-	for plist in launchd/io.local.mac-bootstrap.claude-daemon.plist launchd/io.local.mac-bootstrap.claude-keepalive.plist; do \
+	for plist in launchd/io.local.mac-bootstrap.claude-daemon.plist launchd/io.local.mac-bootstrap.claude-keepalive.plist launchd/io.local.mac-bootstrap.claude-daily-drill.plist; do \
 		name="$$(basename "$$plist")"; \
 		cp "$$plist" "$(HOME)/Library/LaunchAgents/$$name"; \
 		sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/$$name"; \
@@ -164,6 +169,8 @@ claude-daemon-install:
 		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon
 	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || \
 		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive
+	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || \
+		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill
 	@echo "=== Claude daemon installed. Logs: ~/Library/Logs/claude-daemon/ ==="
 
 claude-daemon-status:
@@ -172,6 +179,9 @@ claude-daemon-status:
 	@echo ""
 	@echo "=== claude-keepalive ==="
 	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive 2>&1 | head -20
+	@echo ""
+	@echo "=== claude-daily-drill ==="
+	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill 2>&1 | head -20
 
 claude-daemon-logs:
 	@echo "=== Tmux daemon ==="
@@ -179,10 +189,14 @@ claude-daemon-logs:
 	@echo ""
 	@echo "=== Keepalive ==="
 	tail -20 "$(HOME)/Library/Logs/claude-daemon/keepalive.log" 2>/dev/null || echo "(no keepalive.log)"
+	@echo ""
+	@echo "=== Daily drill ==="
+	tail -20 "$(HOME)/Library/Logs/claude-daemon/daily-drill.log" 2>/dev/null || echo "(no daily-drill.log)"
 
 claude-daemon-unload:
 	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || true
 	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || true
+	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || true
 	@echo "=== Claude daemon unloaded ==="
 
 # ── Keepalive granular controls ────────────────────────────
@@ -201,3 +215,23 @@ claude-keepalive-disable:
 claude-keepalive-status:
 	@echo "=== claude-keepalive ==="
 	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive 2>&1 | head -20 || echo "(not loaded)"
+
+# ── Daily drill controls ──────────────────────────────────
+claude-daily-drill-enable:
+	@mkdir -p "$(HOME)/Library/LaunchAgents"
+	cp launchd/io.local.mac-bootstrap.claude-daily-drill.plist "$(HOME)/Library/LaunchAgents/"
+	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist"
+	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || \
+		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill
+	@echo "=== claude-daily-drill enabled ==="
+
+claude-daily-drill-disable:
+	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || true
+	@echo "=== claude-daily-drill disabled ==="
+
+claude-daily-drill-status:
+	@echo "=== claude-daily-drill ==="
+	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill 2>&1 | head -20 || echo "(not loaded)"
+
+claude-daily-drill-run:
+	./scripts/claude-daily-drill.sh

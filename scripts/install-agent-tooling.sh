@@ -857,13 +857,23 @@ fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
   # (--list-models only lists built-in providers + auth.json entries.)
   PI_LOCAL_BASE_URL="${PI_LOCAL_PROVIDER_BASE_URL:-http://localhost:20128/v1}"
   SKIP_MODELS="asr|tts|voiceclone|voicedesign|omni"
-  if curl -sf --max-time 3 "$PI_LOCAL_BASE_URL/models" -o /tmp/pi_models_raw.json 2>/dev/null; then
+  if curl -sf --max-time 3 "$PI_LOCAL_BASE_URL/models" -o /tmp/pi_models_raw.json 2>/dev/null && [ -s /tmp/pi_models_raw.json ]; then
     python3 - "$PI_MODELS_JSON" "$PI_LOCAL_BASE_URL" "$SKIP_MODELS" < /tmp/pi_models_raw.json <<'PY'
 import json, re, sys
 from pathlib import Path
 
 dst, base_url, skip_pat = Path(sys.argv[1]), sys.argv[2], re.compile(sys.argv[3])
-raw = json.load(sys.stdin)
+payload = sys.stdin.read().strip()
+if not payload:
+    print(f"  Pi: models endpoint returned empty payload from {base_url} — models.json unchanged")
+    raise SystemExit(0)
+
+try:
+    raw = json.loads(payload)
+except json.JSONDecodeError:
+    print(f"  Pi: models endpoint returned invalid JSON from {base_url} — models.json unchanged")
+    raise SystemExit(0)
+
 models = [{"id": m["id"]} for m in raw.get("data", []) if not skip_pat.search(m["id"])]
 config = {
     "providers": {
@@ -882,7 +892,7 @@ dst.write_text(json.dumps(config, indent=2) + "\n")
 print(f"  Pi: models.json written ({len(models)} models from {base_url})")
 PY
   else
-    echo "  Pi: local server $PI_LOCAL_BASE_URL offline — models.json unchanged"
+    echo "  Pi: local server $PI_LOCAL_BASE_URL offline or empty — models.json unchanged"
   fi
   rm -f /tmp/pi_models_raw.json
 

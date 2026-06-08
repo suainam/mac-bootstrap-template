@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Claude Code keepalive — macOS launchd-timer
 # Periodically sends a comment to the tmux pane to prevent Claude's
-# 300s cache TTL from expiring during idle periods.
+# 300s cache TTL from expiring during active work periods.
 # Override defaults via env vars (set in ~/.zshrc.local or private overlay):
-#   CLAUDE_SESSION    — tmux session name (default: _daemon_)
-#   CLAUDE_THRESHOLD  — idle seconds before sending cache_check (default: 230)
+#   CLAUDE_SESSION     — tmux session name (default: _daemon_)
+#   CLAUDE_THRESHOLD   — idle seconds before sending cache_check (default: 230)
+#   CLAUDE_WORK_WINDOWS — comma-separated office windows (default: 09:00-12:30,13:30-18:30)
+#   CLAUDE_ACTIVE_MAX_IDLE — stop pinging after this much inactivity (default: 5400)
 #   CLAUDE_PROJECT_DIR — project directory (default: $HOME/work)
 #
-# Safety: threshold(230) + timer_interval(60) = 290 < cache_TTL(300) = 10s margin
+# Safety inside the active window:
+# threshold(230) + timer_interval(60) = 290 < cache_TTL(300) = 10s margin
 set -euo pipefail
 
 # launchd runs with minimal PATH; ensure Homebrew & local bin are available
@@ -22,23 +25,38 @@ mkdir -p "$LOG_DIR"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG"; }
 
-# 时间策略：23:50~00:20 每 10 分钟发送一次；8:00 和 19:00 整点发送一次
-HOUR=$(date +%H)
-MIN=$(date +%M)
-RUN=false
-CURRENT_THRESHOLD=$THRESHOLD
+# Work-hours strategy:
+# - weekdays only
+# - keep the session warm during normal office windows
+# - stop pinging if the user has been away too long
+WORK_WINDOWS="${CLAUDE_WORK_WINDOWS:-09:00-12:30,13:30-18:30}"
+ACTIVE_MAX_IDLE="${CLAUDE_ACTIVE_MAX_IDLE:-5400}"
 
-if ( [ "$HOUR" -eq 8 ] || [ "$HOUR" -eq 19 ] ) && [ "$MIN" -eq 0 ]; then
-    RUN=true
-    CURRENT_THRESHOLD=0
-elif ( [ "$HOUR" -eq 23 ] && [ "$MIN" -ge 50 ] ) || ( [ "$HOUR" -eq 0 ] && [ "$MIN" -le 20 ] ); then
-    RUN=true
-    CURRENT_THRESHOLD=600
-fi
+to_minutes() {
+    local hhmm="$1"
+    local hour="${hhmm%:*}"
+    local minute="${hhmm#*:}"
+    echo $((10#$hour * 60 + 10#$minute))
+}
 
-if [ "$RUN" = false ]; then
-    exit 0
-fi
+in_work_window() {
+    local weekday now range start end
+    weekday="$(date +%u)"
+    [ "$weekday" -le 5 ] || return 1
+
+    now=$((10#$(date +%H) * 60 + 10#$(date +%M)))
+    IFS=',' read -r -a ranges <<< "$WORK_WINDOWS"
+    for range in "${ranges[@]}"; do
+        start="${range%-*}"
+        end="${range#*-}"
+        if [ "$now" -ge "$(to_minutes "$start")" ] && [ "$now" -le "$(to_minutes "$end")" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+in_work_window || exit 0
 
 # Find latest jsonl activity across all claude projects
 LATEST_JSONL=$(find "${HOME}/.claude/projects" -maxdepth 3 -name '*.jsonl' \
@@ -59,7 +77,12 @@ else
     IDLE=$(( $(date +%s) - LAST_MSG ))
 fi
 
-if [ "$IDLE" -ge "$CURRENT_THRESHOLD" ]; then
+if [ "$IDLE" -gt "$ACTIVE_MAX_IDLE" ]; then
+    log "SKIP idle ${IDLE}s exceeds active window ${ACTIVE_MAX_IDLE}s"
+    exit 0
+fi
+
+if [ "$IDLE" -ge "$THRESHOLD" ]; then
     TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
     if tmux send-keys -t "$PANE_ID" "# cache_check: $TIMESTAMP" Enter 2>/dev/null; then
         log "SENT cache_check at $TIMESTAMP (idle ${IDLE}s, pane $PANE_ID, last_project: ${LAST_PROJECT:-none})"
