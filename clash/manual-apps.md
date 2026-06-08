@@ -16,3 +16,10 @@
 
 - `microsoft-edge` — 本机手动安装，brew 未接管
 - `clash-verge-rev` — 本机手动安装（DMG），brew 未接管
+
+## 豆包输入法 (Doubao Input Method)
+
+- 路径：`~/Library/Input Methods/DoubaoIme.app`
+- 下载：从官网 [shurufa.doubao.com](https://shurufa.doubao.com/) 下载，解压缩后运行其中的安装器应用（`DoubaoImeInstaller_v*.app`）进行安装。
+- 说明：目前无官方 Homebrew cask。必须运行官方 GUI 安装器进行安装，以确保系统服务（如设置界面 `DoubaoImeSettings.app`）正常注册，不建议直接进行文件拷贝。
+
