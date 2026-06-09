@@ -115,10 +115,27 @@ proxy-groups:
       - DIRECT
 
 dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.19.0.0/16
+  respect-rules: true
+  use-hosts: true
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  fallback:
+    - https://1.1.1.1/dns-query
+    - https://8.8.8.8/dns-query
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
   fake-ip-filter:
     - geosite:cn
     - +.example.lan
     - +.example.internal
+    # 公司内网后缀放这里，避免 fake-ip 误伤内网站点
+    # - +.corp.example
 
 tun:
   enable: true
@@ -143,6 +160,8 @@ rules:
   - IP-CIDR6,fe80::/10,DIRECT,no-resolve
   - DOMAIN,localhost,DIRECT
   - DST-PORT,22,DIRECT
+
+  - DOMAIN-SUFFIX,github.io,⚡ 低延迟
 
   - RULE-SET,ai-services,🤖 AI服务
   - RULE-SET,proxy-domains,⚡ 低延迟

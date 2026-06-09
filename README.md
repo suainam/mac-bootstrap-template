@@ -8,13 +8,30 @@ New-machine bootstrap for this Mac setup.
 make bootstrap
 ```
 
-This installs Homebrew dependencies from `Brewfile`, links shell/git/vim/tmux
+This installs Homebrew dependencies from `Brewfile`, links shell/git/vim/Zellij
 configuration, configures Docker/npm proxy settings, and runs safe cache cleanup.
 It does not delete project virtual environments or files under `~/work`.
 If Microsoft Edge or Clash Verge already exists under `/Applications` from a
 manual install, bootstrap skips that cask instead of forcing a reinstall.
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
+
+Migration note: this bootstrap now also installs Zellij and a starter layout.
+Local interactive shells prefer Zellij now. Hammerspoon is the global tier:
+reload, window placement, clipboard helpers, and terminal launcher hotkeys
+live there. `zj` is terminal-local only.
+
+Quick verify:
+
+```bash
+make zellij-workspace
+zellij list-sessions
+zj list-keys
+```
+
+For verification, `~` is the most general entrypoint. It is fine for shell
+syntax and auto-attach checks, and keeps the workflow closer to a normal new
+terminal session.
 
 AI coding CLIs are managed from this Brewfile where possible: `claude-code` and
 `pi-coding-agent` are Homebrew packages, while Reasonix is installed as a global
@@ -53,6 +70,16 @@ Optional private overlay files mirror repo-relative paths, for example:
 private/clash/Merge.yaml
 private/python/odps_config.py
 ```
+
+Clash profile flow:
+
+- `template/clash/Merge.yaml` is the checked-in public working default.
+- `template/clash/Merge.yaml.template` is the lower-level fallback seed.
+- `private/clash/Merge.yaml` is the private machine-specific override.
+- Runtime profiles under `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/` are generated state.
+- Refreshing a Clash subscription does not rewrite `clash/Merge.yaml`; it only
+  updates app-managed runtime state.
+- Full notes: [`docs/clash-profile-flow.md`](docs/clash-profile-flow.md)
 
 Use `make export-public DEST=/path/to/mac-bootstrap-public` to produce a
 history-free public template copy. If this private repo history ever contained
@@ -116,7 +143,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 ## Full setup (including agent tools)
 
 ```bash
-make bootstrap       # Brewfile + shell/vim/tmux
+make bootstrap       # Brewfile + shell/vim/Zellij
 make agent-sync      # Clone upstream skills (ECC + Matt Pocock) 
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
 make doctor-agent    # Verify all configs (contains AgentShield scan)
@@ -163,7 +190,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 
 | Target | What |
 |--------|------|
-| `make bootstrap` | Brewfile + shell/vim/tmux config |
+| `make bootstrap` | Brewfile + shell/vim/Zellij config |
 | `make agent-tools` | Wire all agent tools |
 | `make check` | Syntax + tool validation |
 | `make doctor` | Machine health check |

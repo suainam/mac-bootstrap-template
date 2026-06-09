@@ -15,3 +15,6 @@ private/
 
 Keep real subscription URLs, access keys, personal domains, local hostnames, and
 machine-specific notes in `private/`, not in tracked template files.
+Do not treat Clash Verge Rev files under
+`~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/`
+as source files; they are generated runtime state.
