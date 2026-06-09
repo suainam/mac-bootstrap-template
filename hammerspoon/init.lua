@@ -19,6 +19,7 @@ hs.grid.setGrid("3x2")
 local clipboard_tool = hs.loadSpoon("ClipboardTool")
 if clipboard_tool then
   spoon.ClipboardTool.hist_size = 80
+  spoon.ClipboardTool.show_copied_alert = false
   spoon.ClipboardTool:bindHotkeys({
     show_clipboard = { hyper, "V" },
   })
