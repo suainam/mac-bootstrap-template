@@ -2,7 +2,7 @@ theme "gruvbox-dark"
 default_layout "ai-work"
 
 default_mode "normal"
-pane_frames false
+pane_frames true
 mouse_mode true
 copy_command "pbcopy"
 copy_clipboard "system"
@@ -143,7 +143,7 @@ themes {
             emphasis_3 "#B16286"
         }
         frame_selected {
-            base "#98971A"
+            base "#665C54"
             background "#000000"
             emphasis_0 "#D65D0E"
             emphasis_1 "#689D6A"
@@ -159,7 +159,7 @@ themes {
             emphasis_3 "#D65D0E"
         }
         frame_unselected {
-            base "#504945"
+            base "#3C3836"
             background "#000000"
             emphasis_0 "#D65D0E"
             emphasis_1 "#689D6A"
