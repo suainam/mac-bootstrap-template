@@ -5,6 +5,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 ASSUME_YES=0
 RUN_VIM=0
 RUN_TMUX=0
+RUN_ZELLIJ=0
 RUN_PROXY=1
 RUN_BREW_UPDATE=1
 RUN_CLEANUP=0
@@ -21,6 +22,7 @@ Options:
   --git-email EMAIL      Configure git user.email.
   --with-vim             Install/link Vim config and plugins.
   --with-tmux            Install/link tmux config and TPM.
+  --with-zellij          Install/link Zellij config and layouts.
   --skip-proxy           Do not configure Docker/npm proxy.
   --skip-brew-update     Do not run brew update before brew bundle.
   --cleanup              Run safe cache cleanup after install.
@@ -51,6 +53,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     --with-tmux)
       RUN_TMUX=1
+      ;;
+    --with-zellij)
+      RUN_ZELLIJ=1
       ;;
     --skip-proxy)
       RUN_PROXY=0
@@ -150,6 +155,9 @@ for f in zprofile zshenv zshrc shell_env bash_profile; do
   fi
 done
 
+echo "=== Install Hammerspoon config ==="
+"$DIR/hammerspoon/install.sh"
+
 echo "=== Setup SSH config ==="
 SSH_SRC="$DIR/shell/ssh_config.d"
 PRIVATE_SSH_SRC=""
@@ -219,6 +227,17 @@ if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_TMUX" -eq 0 ]; then
 fi
 if [ "$RUN_TMUX" -eq 1 ]; then
   "$DIR/tmux/install.sh"
+fi
+
+if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_ZELLIJ" -eq 0 ]; then
+  echo "=== Install Zellij config? [y/N] ==="
+  read -r do_zellij
+  if [[ "$do_zellij" =~ ^[Yy]$ ]]; then
+    RUN_ZELLIJ=1
+  fi
+fi
+if [ "$RUN_ZELLIJ" -eq 1 ]; then
+  "$DIR/zellij/install.sh"
 fi
 
 echo "=== Install VS Code extensions if available ==="

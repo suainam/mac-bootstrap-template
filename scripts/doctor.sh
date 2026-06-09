@@ -9,11 +9,11 @@ fi
 missing=0
 
 has_formula() {
-  brew list --formula "$1" >/dev/null 2>&1
+  brew list --formula | grep -qx "$1"
 }
 
 has_cask() {
-  brew list --cask "$1" >/dev/null 2>&1
+  brew list --cask | grep -qx "$1"
 }
 
 has_app() {

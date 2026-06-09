@@ -4,7 +4,7 @@
 
 ```bash
 # From bootstrap repo root:
-make bootstrap   # Brewfile deps + shell/vim/tmux config
+make bootstrap   # Brewfile deps + shell/vim/Zellij config
 make agent-sync  # Clone upstream skills (ECC + Matt Pocock → ~/.agent/skills/)
 make agent-tools # Configure RTK, caveman, CRG, context7 + wire skills for all agents
 make doctor-agent # Verify all configs

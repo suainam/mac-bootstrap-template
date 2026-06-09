@@ -1,0 +1,9 @@
+layout {
+    tab name="AI-Work" {
+        pane command="claude"
+        pane split_direction="vertical" {
+            pane
+            pane command="htop"
+        }
+    }
+}

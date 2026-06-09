@@ -38,6 +38,7 @@ help:
 	@echo "  claude-daily-drill-status  Show daily drill status"
 	@echo "  claude-daily-drill-run     Trigger one drill immediately"
 	@echo "  claude-daily-drill-export  Export today's drill result to markdown"
+	@echo "  zellij-workspace           Start the Zellij AI workspace"
 	@echo ""
 	@echo "── Config ──"
 	@echo "  render-configs         Render config templates"
@@ -55,7 +56,7 @@ help:
 	@echo "  hook-matchers          Add hook matchers"
 
 bootstrap install:
-	./install.sh --yes --with-vim --with-tmux --cleanup
+	./install.sh --yes --with-vim --with-zellij --cleanup
 	./scripts/install-agent-tooling.sh --configure
 
 check:
@@ -80,10 +81,15 @@ check:
 	bash -n vscode/install-extensions.sh
 	bash -n vim/install.sh
 	bash -n tmux/install.sh
+	bash -n zellij/install.sh
+	bash -n hammerspoon/install.sh
+	luac -p hammerspoon/init.lua
+	bash -n scripts/zellij-workspace.sh
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/claude-daemon-keepalive.sh
 	bash -n scripts/claude-daily-drill.sh
 	bash -n scripts/claude-daily-drill-export.sh
+	bash -n scripts/zellij-workspace.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
 
@@ -240,3 +246,6 @@ claude-daily-drill-run:
 
 claude-daily-drill-export:
 	./scripts/claude-daily-drill-export.sh
+
+zellij-workspace:
+	./scripts/zellij-workspace.sh

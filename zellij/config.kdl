@@ -1,0 +1,67 @@
+default_layout "ai-work"
+default_mode "normal"
+pane_frames true
+mouse_mode true
+copy_command "pbcopy"
+copy_clipboard "system"
+copy_on_select true
+keybinds {
+    normal {
+        bind "Ctrl a" { SwitchToMode "pane"; }
+        bind "[" { SwitchToMode "scroll"; }
+    }
+    pane {
+        bind "Ctrl a" { SwitchToMode "normal"; }
+        bind "[" { SwitchToMode "scroll"; }
+        bind "h" "Left" { MoveFocus "Left"; SwitchToMode "normal"; }
+        bind "j" "Down" { MoveFocus "Down"; SwitchToMode "normal"; }
+        bind "k" "Up" { MoveFocus "Up"; SwitchToMode "normal"; }
+        bind "l" "Right" { MoveFocus "Right"; SwitchToMode "normal"; }
+        bind "\\" { NewPane "Right"; SwitchToMode "normal"; }
+        bind "-" { NewPane "Down"; SwitchToMode "normal"; }
+        bind "c" { NewTab; SwitchToMode "normal"; }
+        bind "z" { ToggleFocusFullscreen; SwitchToMode "normal"; }
+        bind "x" { CloseFocus; SwitchToMode "normal"; }
+        bind "," { GoToPreviousTab; SwitchToMode "normal"; }
+        bind "." { GoToNextTab; SwitchToMode "normal"; }
+        bind "d" { Detach; }
+    }
+    scroll {
+        bind "Ctrl a" { SwitchToMode "pane"; }
+        bind "Esc" { SwitchToMode "normal"; }
+        bind "Ctrl c" { ScrollToBottom; SwitchToMode "normal"; }
+        bind "j" "Down" { ScrollDown; }
+        bind "k" "Up" { ScrollUp; }
+        bind "h" "Left" { PageScrollUp; }
+        bind "l" "Right" { PageScrollDown; }
+        bind "Ctrl f" "PageDown" { PageScrollDown; }
+        bind "Ctrl b" "PageUp" { PageScrollUp; }
+        bind "d" { HalfPageScrollDown; }
+        bind "u" { HalfPageScrollUp; }
+        bind "y" { Copy; SwitchToMode "normal"; }
+        bind "Alt c" { Copy; SwitchToMode "normal"; }
+        bind "s" { SwitchToMode "EnterSearch"; SearchInput 0; }
+    }
+    search {
+        bind "Ctrl s" { SwitchToMode "normal"; }
+        bind "Ctrl c" { ScrollToBottom; SwitchToMode "normal"; }
+        bind "j" "Down" { ScrollDown; }
+        bind "k" "Up" { ScrollUp; }
+        bind "h" "Left" { PageScrollUp; }
+        bind "l" "Right" { PageScrollDown; }
+        bind "Ctrl f" "PageDown" { PageScrollDown; }
+        bind "Ctrl b" "PageUp" { PageScrollUp; }
+        bind "d" { HalfPageScrollDown; }
+        bind "u" { HalfPageScrollUp; }
+        bind "n" { Search "down"; }
+        bind "p" { Search "up"; }
+        bind "c" { SearchToggleOption "CaseSensitivity"; }
+        bind "w" { SearchToggleOption "Wrap"; }
+        bind "o" { SearchToggleOption "WholeWord"; }
+    }
+    entersearch {
+        bind "Ctrl s" { SwitchToMode "normal"; }
+        bind "Ctrl c" { ScrollToBottom; SwitchToMode "normal"; }
+        bind "Enter" { SwitchToMode "Search"; }
+    }
+}
