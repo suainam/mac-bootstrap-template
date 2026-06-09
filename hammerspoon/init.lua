@@ -104,11 +104,7 @@ hs.hotkey.bind(hyper, "E", function()
 end)
 
 hs.hotkey.bind(hyper, "C", function()
-  hs.task.new("/usr/sbin/screencapture", function(exitCode)
-    if exitCode == 0 then
-      hs.alert.show("Screenshot copied")
-    end
-  end, {"-i", "-c"}):start()
+  hs.task.new("/usr/sbin/screencapture", nil, {"-i", "-c"}):start()
 end)
 
 hs.hotkey.bind(hyper, "P", function()
