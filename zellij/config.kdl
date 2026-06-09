@@ -1,3 +1,5 @@
+theme_dir "~/.config/zellij/themes"
+theme "gruvbox-dark"
 default_layout "ai-work"
 default_mode "normal"
 pane_frames true
