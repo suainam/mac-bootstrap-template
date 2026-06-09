@@ -34,4 +34,39 @@ with open(plist_path, 'wb') as f:
 print('  Color preset registered in iTerm2 plist')
 "
 echo "  $PRESETS_DIR/$PRESET_NAME.itermcolors"
+
+echo "=== Set iTerm2 as default terminal ==="
+python3 -c "
+import plistlib
+from pathlib import Path
+
+plist_path = Path.home() / 'Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist'
+entry = {
+    'LSHandlerURLScheme': 'terminal',
+    'LSHandlerRoleAll': 'com.googlecode.iterm2',
+}
+
+try:
+    with open(plist_path, 'rb') as f:
+        config = plistlib.load(f)
+except Exception:
+    config = {'LSHandlers': []}
+
+handlers = config.setdefault('LSHandlers', [])
+exists = any(
+    h.get('LSHandlerURLScheme') == 'terminal' and h.get('LSHandlerRoleAll') == 'com.googlecode.iterm2'
+    for h in handlers
+)
+
+if not exists:
+    # Remove any other terminal handler first
+    handlers[:] = [h for h in handlers if h.get('LSHandlerURLScheme') != 'terminal']
+    handlers.append(entry)
+    with open(plist_path, 'wb') as f:
+        plistlib.dump(config, f)
+    print('  iTerm2 registered as default terminal')
+else:
+    print('  iTerm2 already default terminal')
+"
+
 echo "Done. Restart iTerm2 and select $PRESET_NAME in Profiles → Colors → Color Presets."
