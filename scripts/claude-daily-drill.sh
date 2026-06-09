@@ -10,6 +10,7 @@ SKILL_NAME="${CLAUDE_DAILY_SKILL_NAME:-daily-claude-battle-boost}"
 TARGET_TIME="${CLAUDE_DAILY_TARGET_TIME:-09:35}"
 LAST_RUN_FILE="${CLAUDE_DAILY_LAST_RUN_FILE:-$HOME/Library/Application Support/claude-daemon/daily-drill.last}"
 FORCE_RUN="${CLAUDE_DAILY_FORCE:-0}"
+EXPORT_SCRIPT="${CLAUDE_DAILY_EXPORT_SCRIPT:-$HOME/work/config/mac-bootstrap/template/scripts/claude-daily-drill-export.sh}"
 LOG_DIR="${HOME}/Library/Logs/claude-daemon"
 LOG="${LOG_DIR}/daily-drill.log"
 mkdir -p "$LOG_DIR" "$(dirname "$LAST_RUN_FILE")"
@@ -51,6 +52,19 @@ due_now() {
 
 mark_ran_today() {
     date '+%Y-%m-%d' > "$LAST_RUN_FILE"
+}
+
+spawn_exporter() {
+    local today
+    today="$(date '+%Y-%m-%d')"
+    if [ -x "$EXPORT_SCRIPT" ]; then
+        (
+            "$EXPORT_SCRIPT" --date "$today" >/dev/null 2>&1
+        ) &
+        disown || true
+    else
+        log "WARN export script not executable: $EXPORT_SCRIPT"
+    fi
 }
 
 build_prompt() {
@@ -98,6 +112,7 @@ main() {
     tmux paste-buffer -t "$pane_id"
     tmux send-keys -t "$pane_id" Enter
     mark_ran_today
+    spawn_exporter
 
     log "SENT daily drill to ${pane_id} (focus: $(get_focus_label), skill: ${SKILL_NAME}, force=${FORCE_RUN})"
 }

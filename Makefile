@@ -37,6 +37,7 @@ help:
 	@echo "  claude-daily-drill-disable Disable daily drill with catch-up checks"
 	@echo "  claude-daily-drill-status  Show daily drill status"
 	@echo "  claude-daily-drill-run     Trigger one drill immediately"
+	@echo "  claude-daily-drill-export  Export today's drill result to markdown"
 	@echo ""
 	@echo "── Config ──"
 	@echo "  render-configs         Render config templates"
@@ -82,6 +83,7 @@ check:
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/claude-daemon-keepalive.sh
 	bash -n scripts/claude-daily-drill.sh
+	bash -n scripts/claude-daily-drill-export.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
 
@@ -235,3 +237,6 @@ claude-daily-drill-status:
 
 claude-daily-drill-run:
 	./scripts/claude-daily-drill.sh
+
+claude-daily-drill-export:
+	./scripts/claude-daily-drill-export.sh

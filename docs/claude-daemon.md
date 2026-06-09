@@ -25,7 +25,8 @@ launchd: io.local.mac-bootstrap.claude-daily-drill (every 15m + boot catch-up)
       ├─ Reuses the daemon tmux pane
       ├─ Retries after reboot until Claude is ready
       ├─ Explicitly invokes daily-claude-battle-boost
-      └─ Generates one daily practice card
+      ├─ Generates one daily practice card
+      └─ Spawns an exporter that writes markdown to ~/work/logs/claude-daily-drill/
 ```
 
 Safety margin: `threshold(230) + timer(60) = 290 < TTL(300) = 10s`
@@ -71,6 +72,9 @@ tail -f ~/Library/Logs/claude-daemon/keepalive.log
 # Daily drill
 tail -f ~/Library/Logs/claude-daemon/daily-drill.log
 
+# Exporter
+tail -f ~/Library/Logs/claude-daemon/daily-drill-export.log
+
 # launchd stdout/stderr (also in unified log)
 cat /tmp/claude-daemon-tmux.log
 cat /tmp/claude-daemon-keepalive.log
@@ -104,6 +108,7 @@ make claude-daily-drill-enable
 make claude-daily-drill-disable
 make claude-daily-drill-status
 make claude-daily-drill-run
+make claude-daily-drill-export
 ```
 
 ## Health check
