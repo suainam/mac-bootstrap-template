@@ -8,7 +8,6 @@
 local hyper = { "cmd", "alt", "ctrl" }
 local terminal_app = "iTerm2"
 local clipboard_dir = os.getenv("HOME") .. "/Pictures/ClipboardShots"
-local shottr_scheme = "shottr://grab/fullscreen?then=%s"
 local shottr_app = "/Applications/Shottr.app/Contents/MacOS/Shottr"
 
 local function ensure_dir(path)
@@ -94,27 +93,68 @@ local function launch_shottr_then_open(url)
   end)
 end
 
-local function open_shottr_action(action)
-  local url = string.format(shottr_scheme, action)
-  launch_shottr_then_open(url)
-  hs.alert.show("Shottr: " .. action)
-end
-
 hs.hotkey.bind(hyper, "E", function()
-  open_shottr_action("edit")
+  local path = "/tmp/shottr-edit.png"
+  hs.task.new("/usr/sbin/screencapture", function(exitCode)
+    if exitCode == 0 then
+      hs.execute(string.format("open -a Shottr %q", path))
+      hs.alert.show("Shottr: edit")
+    end
+  end, {"-i", path}):start()
 end)
 
 hs.hotkey.bind(hyper, "C", function()
-  open_shottr_action("copy")
+  hs.task.new("/usr/sbin/screencapture", function(exitCode)
+    if exitCode == 0 then
+      hs.alert.show("Screenshot copied")
+    end
+  end, {"-i", "-c"}):start()
 end)
 
 hs.hotkey.bind(hyper, "P", function()
-  open_shottr_action("pin")
+  hs.task.new("/usr/sbin/screencapture", function(exitCode)
+    if exitCode == 0 then
+      hs.task.new(shottr_app, nil, {}):start()
+      hs.timer.doAfter(0.7, function()
+        hs.execute("open 'shottr://load/clipboard'")
+        hs.timer.doAfter(0.5, function()
+          hs.osascript.applescript([[
+            tell application id "cc.ffitch.shottr"
+              activate
+            end tell
+            delay 0.2
+            tell application "System Events"
+              tell process "Shottr"
+                click menu item "Pin to Screen" of menu 1 of menu bar item "File" of menu bar 1
+              end tell
+            end tell
+          ]])
+        end)
+      end)
+      hs.alert.show("Shottr: pin")
+    end
+  end, {"-i", "-c"}):start()
 end)
 
 hs.hotkey.bind(hyper, "O", function()
   launch_shottr_then_open("shottr://settings")
   hs.alert.show("Shottr settings")
+end)
+
+hs.hotkey.bind(hyper, "I", function()
+  hs.task.new(shottr_app, nil, {}):start()
+  hs.timer.doAfter(0.7, function()
+    hs.execute("open 'shottr://ocr'")
+  end)
+  hs.alert.show("Shottr: ocr")
+end)
+
+hs.hotkey.bind(hyper, "U", function()
+  hs.task.new(shottr_app, nil, {}):start()
+  hs.timer.doAfter(0.7, function()
+    hs.execute("open 'shottr://grab/scrolling?then=pin'")
+  end)
+  hs.alert.show("Shottr: scrolling")
 end)
 
 hs.hotkey.bind(hyper, "Left", function()
