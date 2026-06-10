@@ -36,4 +36,6 @@ echo "=== Installing official Spoons ==="
 install_spoon "ClipboardTool"
 install_spoon "HSKeybindings"
 
+
+
 echo "Done. Reload Hammerspoon after opening the app once."

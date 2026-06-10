@@ -16,6 +16,44 @@ end
 
 hs.grid.setGrid("3x2")
 
+-- === Auto-switch input method by app ===
+local en = "com.apple.keylayout.ABC"
+local zh = "com.bytedance.inputmethod.doubaoime.pinyin"
+
+local function press_cmd_twice()
+  hs.timer.doAfter(0.3, function()
+    hs.eventtap.keyStroke({}, "escape")
+    hs.timer.doAfter(0.05, function()
+      hs.eventtap.keyStroke({}, "f17")
+      hs.timer.doAfter(0.05, function()
+        hs.eventtap.keyStroke({}, "f17")
+      end)
+    end)
+  end)
+end
+
+local input_watcher = hs.application.watcher.new(function(app_name, event)
+  if event ~= hs.application.watcher.activated then return end
+  local app = hs.application.find(app_name)
+  if not app then return end
+  local bid = app:bundleID()
+  if not bid then return end
+
+  local en_apps = {
+    ["com.googlecode.iterm2"] = true,
+    ["com.microsoft.VSCode"] = true,
+    ["com.sonny.visualstudiocode"] = true,
+  }
+
+  if bid == "com.aliyun.wuying.osx" then
+    hs.keycodes.currentSourceID(en)
+    press_cmd_twice()
+  elseif en_apps[bid] then
+    hs.keycodes.currentSourceID(en)
+  end
+end)
+input_watcher:start()
+
 local clipboard_tool = hs.loadSpoon("ClipboardTool")
 if clipboard_tool then
   spoon.ClipboardTool.hist_size = 80
@@ -73,6 +111,11 @@ end)
 hs.hotkey.bind(hyper, "T", function()
   hs.application.launchOrFocus(terminal_app)
   hs.timer.doAfter(0.4, function()
+    local win = hs.application.find("iTerm2"):mainWindow()
+    if win then
+      local screen = win:screen():frame()
+      win:setFrame({ x = 100, y = 280, w = screen.w * 0.76, h = screen.h * 0.73 })
+    end
     hs.osascript.applescript([[
       tell application "iTerm2"
         activate
