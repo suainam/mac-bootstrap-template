@@ -4,7 +4,7 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ASSUME_YES=0
 RUN_VIM=0
-RUN_TMUX=0
+RUN_TMUX=0 # deprecated - tmux removed from bootstrap
 RUN_ZELLIJ=0
 RUN_PROXY=1
 RUN_BREW_UPDATE=1
@@ -21,7 +21,7 @@ Options:
   --git-name NAME        Configure git user.name.
   --git-email EMAIL      Configure git user.email.
   --with-vim             Install/link Vim config and plugins.
-  --with-tmux            Install/link tmux config and TPM.
+    # --with-tmux            (removed)
   --with-zellij          Install/link Zellij config and layouts.
   --skip-proxy           Do not configure Docker/npm proxy.
   --skip-brew-update     Do not run brew update before brew bundle.
@@ -51,9 +51,9 @@ while [ "$#" -gt 0 ]; do
     --with-vim)
       RUN_VIM=1
       ;;
-    --with-tmux)
-      RUN_TMUX=1
-      ;;
+    # --with-tmux)           (removed)
+    #   RUN_TMUX=1
+    #   ;;
     --with-zellij)
       RUN_ZELLIJ=1
       ;;
@@ -221,16 +221,7 @@ if [ "$RUN_VIM" -eq 1 ]; then
   "$DIR/vim/install.sh"
 fi
 
-if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_TMUX" -eq 0 ]; then
-  echo "=== Install tmux config? [y/N] ==="
-  read -r do_tmux
-  if [[ "$do_tmux" =~ ^[Yy]$ ]]; then
-    RUN_TMUX=1
-  fi
-fi
-if [ "$RUN_TMUX" -eq 1 ]; then
-  "$DIR/tmux/install.sh"
-fi
+# tmux install removed from bootstrap
 
 if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_ZELLIJ" -eq 0 ]; then
   echo "=== Install Zellij config? [y/N] ==="

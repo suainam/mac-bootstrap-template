@@ -126,26 +126,17 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # Terminal auto-attach
 # - local interactive shells prefer Zellij
-# - tmux remains a fallback for old habits or hosts without Zellij
 # - SSH shells stay untouched
 zjwork() {
     if [[ -n "$ZELLIJ" || -n "$TMUX" ]]; then
         return 0
     fi
 
-    if [[ -n "${MAC_BOOTSTRAP_FORCE_TMUX:-}" ]] && (( $+commands[tmux] )); then
-        if tmux has-session -t "${CLAUDE_SESSION:-_daemon_}" 2>/dev/null; then
-            exec tmux attach-session -t "${CLAUDE_SESSION:-_daemon_}"
-        fi
-    elif (( $+commands[zellij] )); then
+    if (( $+commands[zellij] )); then
         local session="${ZELLIJ_SESSION:-ai-work}"
         export ZELLIJ_AUTO_ATTACH=true
         export ZELLIJ_AUTO_EXIT=false
         exec zellij attach -c "$session"
-    elif (( $+commands[tmux] )); then
-        if tmux has-session -t "${CLAUDE_SESSION:-_daemon_}" 2>/dev/null; then
-            exec tmux attach-session -t "${CLAUDE_SESSION:-_daemon_}"
-        fi
     fi
 }
 

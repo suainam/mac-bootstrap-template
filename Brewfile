@@ -10,7 +10,7 @@ brew "htop"
 brew "ripgrep"
 brew "fd"
 brew "fzf"
-brew "tmux"
+# brew "tmux"  — decommissioned
 brew "zellij"
 brew "lua"
 brew "uv"
