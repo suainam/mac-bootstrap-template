@@ -56,13 +56,15 @@ local function on_wuying_enter()
 end
 
 local input_watcher = hs.application.watcher.new(function(app_name, event, app)
-  -- Catch missed activation: when any app is deactivated, check if wuying is now frontmost
+  -- Catch missed activation: when any app loses focus, frontmostApplication()
+  -- hasn't updated yet (macOS event order). Wait 50ms before checking.
   if event == hs.application.watcher.deactivated then
-    local front = hs.application.frontmostApplication()
-    if front then
+    hs.timer.doAfter(0.05, function()
+      local front = hs.application.frontmostApplication()
+      if not front then return end
       local bid = front:bundleID()
       if bid and is_wuying(bid) then on_wuying_enter() end
-    end
+    end)
     return
   end
 
