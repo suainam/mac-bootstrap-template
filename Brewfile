@@ -42,7 +42,7 @@ cask "claude-code"
 # ========== 终端 & 系统增强 ==========
 cask "iterm2"
 cask "hammerspoon"
-cask "linearmouse"
+cask "mos"
 cask "shottr"
 cask "cc-switch"
 

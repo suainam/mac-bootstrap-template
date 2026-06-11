@@ -37,10 +37,10 @@ local wuying_bids = {
   ["com.aliyun.wuying.viewer"] = true,
 }
 
-local en_apps = {
+local en_apps = {}
+local zh_apps = {
   ["com.googlecode.iterm2"] = true,
   ["com.microsoft.VSCode"] = true,
-  ["com.sonny.visualstudiocode"] = true,
 }
 
 local function is_wuying(bid)
@@ -63,7 +63,11 @@ local input_watcher = hs.application.watcher.new(function(app_name, event, app)
       local front = hs.application.frontmostApplication()
       if not front then return end
       local bid = front:bundleID()
-      if bid and is_wuying(bid) then on_wuying_enter() end
+      if bid and is_wuying(bid) then
+        on_wuying_enter()
+      else
+        in_wuying = false
+      end
     end)
     return
   end
@@ -78,11 +82,26 @@ local input_watcher = hs.application.watcher.new(function(app_name, event, app)
   elseif en_apps[bid] then
     in_wuying = false
     hs.keycodes.currentSourceID(en)
+  elseif zh_apps[bid] then
+    in_wuying = false
+    hs.keycodes.currentSourceID(zh)
   else
     in_wuying = false
   end
 end)
 input_watcher:start()
+
+-- Safety net: check every 5s if wuying is frontmost, reset in_wuying if not
+hs.timer.doEvery(5, function()
+  local front = hs.application.frontmostApplication()
+  if not front then return end
+  local bid = front:bundleID()
+  if bid and is_wuying(bid) then
+    on_wuying_enter()
+  else
+    in_wuying = false
+  end
+end)
 
 local clipboard_tool = hs.loadSpoon("ClipboardTool")
 if clipboard_tool then
