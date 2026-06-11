@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # zellij-host.sh — launchd-managed zellij session host
-# If no attached client exists, opens iTerm2 with zellij.
-# If already attached (e.g. user is in iTerm2), just stays alive.
+# If no attached client exists, opens Ghostty with zellij.
+# If already attached (e.g. user is in Ghostty), just stays alive.
 set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -21,24 +21,36 @@ if zellij --session "$SESSION" action list-panes --json >/dev/null 2>&1; then
     exec sleep 86400
 fi
 
-# Session exists but detached — open terminal to attach
-if zellij list-sessions 2>/dev/null | grep -q "$SESSION"; then
-    ZJ_CMD="zellij attach $SESSION"
-else
-    ZJ_CMD="zellij attach --create $SESSION --layout $LAYOUT"
-fi
+ZJ_CMD="env -i HOME=\"$HOME\" PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin\" TERM=\"${TERM:-xterm}\" /opt/homebrew/bin/zellij --session \"$SESSION\" --layout \"$LAYOUT\""
 
-# Open iTerm2 (default terminal on this machine)
-if [ -d "/Applications/iTerm.app" ]; then
-    osascript -e "
-        tell application \"iTerm\"
-            activate
-            set newWindow to (create window with default profile)
-            tell current session of newWindow
-                write text \"${ZJ_CMD}\"
-            end tell
-        end tell
-    "
+APPLESCRIPT_INPUT="$(ZJ_CMD="$ZJ_CMD" python3 - <<'PY'
+import json
+import os
+
+print(json.dumps("exec " + os.environ["ZJ_CMD"] + "\n"))
+PY
+)"
+APPLESCRIPT_WORKDIR="$(HOME="$HOME" python3 - <<'PY'
+import json
+import os
+
+print(json.dumps(os.path.join(os.environ["HOME"], "work")))
+PY
+)"
+
+# Open Ghostty (default terminal on this machine)
+if [ -d "/Applications/Ghostty.app" ]; then
+    osascript <<EOF
+tell application "Ghostty"
+    set cfg to new surface configuration
+    set command of cfg to "/bin/zsh"
+    set initial working directory of cfg to ${APPLESCRIPT_WORKDIR}
+    set initial input of cfg to ${APPLESCRIPT_INPUT}
+    set wait after command of cfg to true
+    set newWindow to new window with configuration cfg
+    activate window newWindow
+end tell
+EOF
 elif [ -d "/Applications/Terminal.app" ]; then
     osascript -e "
         tell application \"Terminal\"

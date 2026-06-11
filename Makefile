@@ -82,6 +82,7 @@ check:
 	bash -n vim/install.sh
 	bash -n tmux/install.sh
 	bash -n zellij/install.sh
+	bash -n ghostty/install.sh
 	bash -n hammerspoon/install.sh
 	luac -p hammerspoon/init.lua
 	bash -n scripts/zellij-workspace.sh

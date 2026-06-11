@@ -40,7 +40,7 @@ cask "codex-app"
 cask "claude-code"
 
 # ========== 终端 & 系统增强 ==========
-cask "iterm2"
+cask "ghostty"
 cask "hammerspoon"
 cask "mos"
 cask "shottr"

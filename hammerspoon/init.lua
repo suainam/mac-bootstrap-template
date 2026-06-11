@@ -6,7 +6,7 @@
 -- - No shared prefix with zj. Use Hyper for system actions.
 
 local hyper = { "cmd", "alt", "ctrl" }
-local terminal_app = "iTerm2"
+local terminal_app = "Ghostty"
 local clipboard_dir = os.getenv("HOME") .. "/Pictures/ClipboardShots"
 local shottr_app = "/Applications/Shottr.app/Contents/MacOS/Shottr"
 
@@ -39,8 +39,10 @@ local wuying_bids = {
 
 local en_apps = {}
 local zh_apps = {
-  ["com.googlecode.iterm2"] = true,
   ["com.microsoft.VSCode"] = true,
+}
+local zh_app_names = {
+  ["Ghostty"] = true,
 }
 
 local function is_wuying(bid)
@@ -82,7 +84,7 @@ local input_watcher = hs.application.watcher.new(function(app_name, event, app)
   elseif en_apps[bid] then
     in_wuying = false
     hs.keycodes.currentSourceID(en)
-  elseif zh_apps[bid] then
+  elseif zh_apps[bid] or zh_app_names[app_name] then
     in_wuying = false
     hs.keycodes.currentSourceID(zh)
   else
@@ -158,19 +160,39 @@ hs.hotkey.bind({ "ctrl", "shift" }, "V", function()
 end)
 
 hs.hotkey.bind(hyper, "T", function()
-  hs.application.launchOrFocus(terminal_app)
-  hs.timer.doAfter(0.4, function()
-    local win = hs.application.find("iTerm2"):mainWindow()
+  local cmd = "exec /opt/homebrew/bin/zellij --session ai-work --layout ai-work"
+  local script = [[
+    tell application "Ghostty"
+      if (count of windows) > 0 then
+        input text %q to focused terminal of selected tab of front window
+        send key "enter" to focused terminal of selected tab of front window
+        activate window front window
+      else
+        set cfg to new surface configuration
+        set command of cfg to "/bin/zsh"
+        set initial working directory of cfg to (POSIX path of (path to home folder)) & "work"
+        set initial input of cfg to %q
+        set wait after command of cfg to true
+        set newWindow to new window with configuration cfg
+        activate window newWindow
+      end if
+    end tell
+  ]]
+  local ok, _, err = hs.osascript.applescript(string.format(script, cmd, cmd .. "\n"))
+  if not ok then
+    hs.alert.show("Ghostty automation blocked; launch Ghostty once and allow automation")
+    if err then
+      print("Ghostty launch failed: " .. tostring(err))
+    end
+    return
+  end
+  hs.timer.doAfter(0.6, function()
+    local app = hs.application.find(terminal_app)
+    local win = app and app:mainWindow()
     if win then
       local screen = win:screen():frame()
       win:setFrame({ x = 100, y = 280, w = screen.w * 0.76, h = screen.h * 0.73 })
     end
-    hs.osascript.applescript([[
-      tell application "iTerm2"
-        activate
-        tell current session of current window to write text "zj"
-      end tell
-    ]])
   end)
 end)
 

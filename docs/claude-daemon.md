@@ -35,7 +35,7 @@ make claude-daily-drill-export
 - Default session: `ai-work`
 - Default layout: `ai-work`
 - Claude pane: the pane running `claude`
-- Companion pane: `htop`
+- Side panes: `SSH` and `Zsh`
 
 ## Verification
 

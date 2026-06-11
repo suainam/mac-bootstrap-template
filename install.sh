@@ -158,8 +158,8 @@ done
 echo "=== Install Hammerspoon config ==="
 "$DIR/hammerspoon/install.sh"
 
-echo "=== Install iTerm2 color preset ==="
-"$DIR/iterm2/install.sh"
+echo "=== Configure Ghostty ==="
+"$DIR/ghostty/install.sh"
 
 echo "=== Setup SSH config ==="
 SSH_SRC="$DIR/shell/ssh_config.d"
