@@ -1,23 +1,32 @@
 #!/usr/bin/env bash
-# Claude Code keepalive — macOS launchd-timer
-# Periodically sends a comment to the tmux pane to prevent Claude's
-# 300s cache TTL from expiring during active work periods.
-# Override defaults via env vars (set in ~/.zshrc.local or private overlay):
-#   CLAUDE_SESSION     — tmux session name (default: _daemon_)
-#   CLAUDE_THRESHOLD   — idle seconds before sending cache_check (default: 230)
-#   CLAUDE_WORK_WINDOWS — comma-separated office windows (default: 09:00-12:30,13:30-18:30)
-#   CLAUDE_ACTIVE_MAX_IDLE — stop pinging after this much inactivity (default: 5400)
-#   CLAUDE_PROJECT_DIR — project directory (default: $HOME/work)
+# ⚠️  DEPRECATED — 2026-06-11
+# This service is intentionally disabled.
+# Reason: user decided keepalive is unnecessary; Claude cache TTL
+# is handled by active usage, not background pings.
+# DO NOT re-enable this launchd service.
+# Plist moved to: ~/.local/share/mackup/.../io.local.mac-bootstrap.claude-keepalive.plist.disabled
 #
-# Safety inside the active window:
-# threshold(230) + timer_interval(60) = 290 < cache_TTL(300) = 10s margin
+# Claude Code keepalive — zellij backend
+# Periodically sends a cache_check to the zellij Claude pane to prevent
+# Claude's 300s cache TTL from expiring during active work periods.
+#
+# Override defaults via env vars:
+#   ZELLIJ_SESSION         — zellij session name (default: ai-work)
+#   CLAUDE_THRESHOLD       — idle seconds before sending (default: 230)
+#   CLAUDE_WORK_WINDOWS    — comma-separated windows (default: 09:00-12:30,13:30-18:30)
+#   CLAUDE_ACTIVE_MAX_IDLE — stop pinging after this much inactivity (default: 5400)
+#
+# Safety: threshold(230) + interval(60) = 290 < cache_TTL(300) = 10s margin
+# Unset ZELLIJ to avoid socket discovery issues when run outside zellij.
+unset ZELLIJ 2>/dev/null || true
 set -euo pipefail
 
-# launchd runs with minimal PATH; ensure Homebrew & local bin are available
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-SESSION="${CLAUDE_SESSION:-_daemon_}"
+SESSION="${ZELLIJ_SESSION:-ai-work}"
 THRESHOLD="${CLAUDE_THRESHOLD:-230}"
+WORK_WINDOWS="${CLAUDE_WORK_WINDOWS:-09:00-12:30,13:30-18:30}"
+ACTIVE_MAX_IDLE="${CLAUDE_ACTIVE_MAX_IDLE:-5400}"
 
 LOG_DIR="${HOME}/Library/Logs/claude-daemon"
 LOG="${LOG_DIR}/keepalive.log"
@@ -25,13 +34,7 @@ mkdir -p "$LOG_DIR"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG"; }
 
-# Work-hours strategy:
-# - weekdays only
-# - keep the session warm during normal office windows
-# - stop pinging if the user has been away too long
-WORK_WINDOWS="${CLAUDE_WORK_WINDOWS:-09:00-12:30,13:30-18:30}"
-ACTIVE_MAX_IDLE="${CLAUDE_ACTIVE_MAX_IDLE:-5400}"
-
+# ── work-hours gate ──────────────────────────────────────────────
 to_minutes() {
     local hhmm="$1"
     local hour="${hhmm%:*}"
@@ -58,18 +61,34 @@ in_work_window() {
 
 in_work_window || exit 0
 
-# Find latest jsonl activity across all claude projects
+# ── zellij wrapper (clean env for socket discovery) ──────────────
+zj() {
+    env -i HOME="$HOME" PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
+        TERM="${TERM:-xterm}" \
+        /opt/homebrew/bin/zellij "$@"
+}
+
+# ── verify zellij session + claude pane ──────────────────────────
+if ! zj --session "$SESSION" action list-panes --json >/dev/null 2>&1; then
+    log "WAIT zellij session $SESSION not reachable (no attached client?)"
+    exit 0
+fi
+
+PANE_ID=$(zj --session "$SESSION" action list-panes --json 2>/dev/null |
+    jq -r '[ .[] | select(
+        (.is_plugin == false) and
+        (.terminal_command == "claude") and
+        (.exited == false)
+    ) ] | first | .id // empty' 2>/dev/null)
+
+[ -n "$PANE_ID" ] || { log "WAIT no claude pane in session $SESSION"; exit 0; }
+
+# ── calculate idle time from jsonl ───────────────────────────────
 LATEST_JSONL=$(find "${HOME}/.claude/projects" -maxdepth 3 -name '*.jsonl' \
     -exec stat -f '%m %N' {} \; 2>/dev/null | sort -rn | head -1)
 LAST_MSG=$(echo "$LATEST_JSONL" | awk '{print $1}')
 LAST_PROJECT=$(echo "$LATEST_JSONL" | awk '{print $2}' | sed 's|.*/projects/||; s|/[^/]*$||')
 
-# Verify tmux session and pane exist
-tmux has-session -t "$SESSION" 2>/dev/null || { log "ERROR: session $SESSION not found"; exit 1; }
-PANE_ID=$(tmux list-panes -t "$SESSION" -F '#{pane_id}' 2>/dev/null | head -1)
-[ -z "$PANE_ID" ] && { log "ERROR: no pane found in session $SESSION"; exit 1; }
-
-# Calculate idle time
 if [ -z "$LAST_MSG" ]; then
     log "WARN: no jsonl found, sending cache_check anyway"
     IDLE=999
@@ -84,10 +103,11 @@ fi
 
 if [ "$IDLE" -ge "$THRESHOLD" ]; then
     TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-    if tmux send-keys -t "$PANE_ID" "# cache_check: $TIMESTAMP" Enter 2>/dev/null; then
+    if zj --session "$SESSION" action write-chars -p "$PANE_ID" "# cache_check: $TIMESTAMP" 2>/dev/null &&
+       zj --session "$SESSION" action send-keys -p "$PANE_ID" Enter 2>/dev/null; then
         log "SENT cache_check at $TIMESTAMP (idle ${IDLE}s, pane $PANE_ID, last_project: ${LAST_PROJECT:-none})"
     else
-        log "ERROR: failed to send to $PANE_ID (idle ${IDLE}s, last_project: ${LAST_PROJECT:-none})"
+        log "ERROR: failed to write to pane $PANE_ID (idle ${IDLE}s)"
         exit 1
     fi
 fi

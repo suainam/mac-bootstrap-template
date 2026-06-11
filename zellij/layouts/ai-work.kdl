@@ -1,6 +1,8 @@
 layout {
     tab name="AI-Work" {
-        pane command="claude"
+        pane command="claude" cwd="/Users/suai/work" {
+            name "Claude"
+        }
         pane split_direction="vertical" {
             pane
             pane command="htop"

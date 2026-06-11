@@ -37,23 +37,47 @@ local wuying_bids = {
   ["com.aliyun.wuying.viewer"] = true,
 }
 
+local en_apps = {
+  ["com.googlecode.iterm2"] = true,
+  ["com.microsoft.VSCode"] = true,
+  ["com.sonny.visualstudiocode"] = true,
+}
+
+local function is_wuying(bid)
+  return wuying_bids[bid] or bid:find("com.aliyun.wuying.", 1, true)
+end
+
+local in_wuying = false
+local function on_wuying_enter()
+  if in_wuying then return end
+  in_wuying = true
+  hs.keycodes.currentSourceID(en)
+  press_cmd_twice()
+end
+
 local input_watcher = hs.application.watcher.new(function(app_name, event, app)
+  -- Catch missed activation: when any app is deactivated, check if wuying is now frontmost
+  if event == hs.application.watcher.deactivated then
+    local front = hs.application.frontmostApplication()
+    if front then
+      local bid = front:bundleID()
+      if bid and is_wuying(bid) then on_wuying_enter() end
+    end
+    return
+  end
+
   if event ~= hs.application.watcher.activated then return end
   if not app then return end
   local bid = app:bundleID()
   if not bid then return end
 
-  local en_apps = {
-    ["com.googlecode.iterm2"] = true,
-    ["com.microsoft.VSCode"] = true,
-    ["com.sonny.visualstudiocode"] = true,
-  }
-
-  if wuying_bids[bid] or bid:find("com.aliyun.wuying.", 1, true) then
-    hs.keycodes.currentSourceID(en)
-    press_cmd_twice()
+  if is_wuying(bid) then
+    on_wuying_enter()
   elseif en_apps[bid] then
+    in_wuying = false
     hs.keycodes.currentSourceID(en)
+  else
+    in_wuying = false
   end
 end)
 input_watcher:start()

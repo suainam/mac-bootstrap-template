@@ -1,28 +1,25 @@
 #!/usr/bin/env bash
 # Inject one daily Claude battle drill into the Zellij Claude pane.
+# Unset ZELLIJ to avoid socket discovery issues when run outside zellij.
+unset ZELLIJ 2>/dev/null || true
 set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-SESSION="${ZELLIJ_SESSION:-${CLAUDE_SESSION:-ai-work}}"
+SESSION="${ZELLIJ_SESSION:-ai-work}"
 LAYOUT="${ZELLIJ_DEFAULT_LAYOUT:-ai-work}"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$HOME/work}"
 SKILL_NAME="${CLAUDE_DAILY_SKILL_NAME:-daily-claude-battle-boost}"
 TARGET_TIME="${CLAUDE_DAILY_TARGET_TIME:-09:35}"
 LAST_RUN_FILE="${CLAUDE_DAILY_LAST_RUN_FILE:-$HOME/Library/Application Support/claude-daemon/daily-drill.last}"
 FORCE_RUN="${CLAUDE_DAILY_FORCE:-0}"
-EXPORT_SCRIPT="${CLAUDE_DAILY_EXPORT_SCRIPT:-$HOME/work/config/mac-bootstrap/template/scripts/claude-daily-drill-export.sh}"
-BACKEND="${CLAUDE_DAILY_BACKEND:-zellij}"
 LOG_DIR="${HOME}/Library/Logs/claude-daemon"
 LOG="${LOG_DIR}/daily-drill.log"
 mkdir -p "$LOG_DIR" "$(dirname "$LAST_RUN_FILE")"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG"; }
 
-get_pane_id() {
-    tmux list-panes -t "$SESSION:1.0" -F '#{pane_id}' 2>/dev/null | head -1
-}
-
+# ── helpers ──────────────────────────────────────────────────────
 get_focus_label() {
     case "$(date +%u)" in
         1) echo "驾驭力" ;;
@@ -32,28 +29,6 @@ get_focus_label() {
         5) echo "综合实战" ;;
         *) echo "复盘+补短板" ;;
     esac
-}
-
-ensure_zellij_session() {
-    if zellij --session "$SESSION" action list-panes --json >/dev/null 2>&1; then
-        return 0
-    fi
-
-    zellij attach --create-background "$SESSION" options --default-layout "$LAYOUT" >/dev/null 2>&1 || true
-    sleep 1
-}
-
-get_zellij_pane_id() {
-    zellij --session "$SESSION" action list-panes --json -c -s -t 2>/dev/null |
-        jq -r '
-          .. | objects
-          | select((.command? == "claude") and (((.state? // "") | tostring | ascii_downcase) != "exited"))
-          | (.pane_id // .id // empty)
-        ' | head -1
-}
-
-ensure_tmux_session() {
-    tmux has-session -t "$SESSION" 2>/dev/null
 }
 
 to_minutes() {
@@ -78,19 +53,38 @@ mark_ran_today() {
     date '+%Y-%m-%d' > "$LAST_RUN_FILE"
 }
 
-spawn_exporter() {
-    local today
-    today="$(date '+%Y-%m-%d')"
-    if [ -x "$EXPORT_SCRIPT" ]; then
-        (
-            "$EXPORT_SCRIPT" --date "$today" >/dev/null 2>&1
-        ) &
-        disown || true
-    else
-        log "WARN export script not executable: $EXPORT_SCRIPT"
-    fi
+# ── zellij wrapper (clean env for socket discovery) ──────────────
+# Some env vars in the user's shell interfere with zellij's socket
+# discovery. Running zellij action commands in a clean env avoids this.
+zj() {
+    env -i HOME="$HOME" PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
+        TERM="${TERM:-xterm}" \
+        /opt/homebrew/bin/zellij "$@"
 }
 
+# ── zellij pane detection ────────────────────────────────────────
+ensure_zellij_session() {
+    if zj --session "$SESSION" action list-panes --json >/dev/null 2>&1; then
+        return 0
+    fi
+    zj --session "$SESSION" --layout "$LAYOUT" 2>/dev/null &
+    disown || true
+    sleep 2
+    zj --session "$SESSION" action list-panes --json >/dev/null 2>&1
+}
+
+get_claude_pane_id() {
+    zj --session "$SESSION" action list-panes --json 2>/dev/null |
+        jq -r '
+          [ .[] | select(
+            (.is_plugin == false) and
+            (.terminal_command == "claude") and
+            (.exited == false)
+          ) ] | first | .id // empty
+        ' 2>/dev/null
+}
+
+# ── prompt ───────────────────────────────────────────────────────
 build_prompt() {
     local today focus
     today="$(date '+%Y-%m-%d')"
@@ -116,53 +110,33 @@ Requirements:
 EOF
 }
 
+# ── main ─────────────────────────────────────────────────────────
 main() {
     if [ "$FORCE_RUN" != "1" ]; then
         due_now || exit 0
         already_ran_today && exit 0
     fi
 
-    local pane_id prompt
+    if ! command -v zellij >/dev/null 2>&1; then
+        log "WAIT zellij not found"
+        exit 0
+    fi
+
+    ensure_zellij_session || { log "WAIT cannot reach zellij session $SESSION"; exit 0; }
+
+    local pane_id
+    pane_id="$(get_claude_pane_id)"
+    [ -n "$pane_id" ] || { log "WAIT no claude pane found in session $SESSION"; exit 0; }
+
+    local prompt
     prompt="$(build_prompt)"
 
-    case "$BACKEND" in
-        zellij)
-            if ! command -v zellij >/dev/null 2>&1; then
-                log "WAIT zellij not found"
-                exit 0
-            fi
-
-            ensure_zellij_session
-            pane_id="$(get_zellij_pane_id)"
-            [ -n "$pane_id" ] || { log "WAIT no claude pane found in session $SESSION"; exit 0; }
-
-            zellij --session "$SESSION" action paste --pane-id "$pane_id" "$prompt"
-            zellij --session "$SESSION" action send-keys --pane-id "$pane_id" Enter
-            ;;
-        tmux)
-            tmux has-session -t "$SESSION" 2>/dev/null || { log "WAIT session $SESSION not found"; exit 0; }
-
-            pane_id="$(get_pane_id)"
-            [ -n "$pane_id" ] || { log "WAIT no pane found in session $SESSION"; exit 0; }
-
-            local pane_cmd
-            pane_cmd="$(tmux display-message -p -t "$pane_id" '#{pane_current_command}' 2>/dev/null || echo "")"
-            [ "$pane_cmd" = "claude" ] || { log "WAIT pane $pane_id is running '$pane_cmd'"; exit 0; }
-
-            tmux set-buffer -- "$prompt"
-            tmux paste-buffer -t "$pane_id"
-            tmux send-keys -t "$pane_id" Enter
-            ;;
-        *)
-            log "WAIT unsupported backend $BACKEND"
-            exit 0
-            ;;
-    esac
+    zj --session "$SESSION" action write-chars -p "$pane_id" "$prompt"
+    zj --session "$SESSION" action send-keys -p "$pane_id" Enter
 
     mark_ran_today
-    spawn_exporter
 
-    log "SENT daily drill to ${pane_id} via ${BACKEND} (focus: $(get_focus_label), skill: ${SKILL_NAME}, force=${FORCE_RUN})"
+    log "SENT daily drill to pane $pane_id (focus: $(get_focus_label), skill: ${SKILL_NAME}, force=${FORCE_RUN})"
 }
 
 main "$@"
