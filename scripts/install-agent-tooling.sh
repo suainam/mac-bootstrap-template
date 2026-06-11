@@ -506,6 +506,32 @@ console.log("  Caveman config merged (defaultMode=" + cfg.defaultMode + ")");
 NODE
   fi
 
+  # Normalize hardcoded Cellar node paths in settings.json (survives Homebrew upgrades)
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "DRY-RUN: normalize Cellar node paths in ~/.claude/settings.json"
+  else
+    node - "$HOME/.claude/settings.json" <<'NODE'
+const fs = require("fs"), path = process.argv[1];
+if (!fs.existsSync(path)) process.exit(0);
+const data = JSON.parse(fs.readFileSync(path, "utf8"));
+const HARDCODED = /\/opt\/homebrew\/Cellar\/node\/[^/]+\/bin\/node/g;
+function fixCmd(obj) {
+  if (!obj || typeof obj !== "object") return;
+  if (Array.isArray(obj)) { obj.forEach(fixCmd); return; }
+  if (obj.command && HARDCODED.test(obj.command)) {
+    obj.command = obj.command.replace(HARDCODED, "/opt/homebrew/bin/node");
+  }
+  if (obj.hooks) obj.hooks.forEach(fixCmd);
+}
+if (data.hooks) Object.values(data.hooks).forEach(fixCmd);
+const json = JSON.stringify(data, null, 2) + "\n";
+if (json !== JSON.stringify(JSON.parse(fs.readFileSync(path,"utf8")), null, 2) + "\n") {
+  fs.writeFileSync(path, json);
+  console.log("  Normalized Cellar node paths in settings.json");
+}
+NODE
+  fi
+
   # Codex: install caveman skills + hooks
   if have codex; then
     CAVEMAN_CACHE="$HOME/.claude/plugins/cache/caveman/caveman"

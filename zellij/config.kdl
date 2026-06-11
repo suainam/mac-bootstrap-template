@@ -7,6 +7,8 @@ mouse_mode true
 copy_command "pbcopy"
 copy_clipboard "system"
 copy_on_select true
+support_kitty_keyboard_protocol false
+
 keybinds {
     normal {
         bind "Ctrl a" { SwitchToMode "pane"; }

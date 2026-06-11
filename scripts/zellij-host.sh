@@ -5,6 +5,7 @@
 set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export TERM="${TERM:-xterm-256color}"
 
 SESSION="${ZELLIJ_SESSION:-ai-work}"
 LAYOUT="${ZELLIJ_DEFAULT_LAYOUT:-ai-work}"
