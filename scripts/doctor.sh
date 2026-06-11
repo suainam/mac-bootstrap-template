@@ -105,6 +105,9 @@ while IFS= read -r line; do
     cask\ \"claude-code\")
       check_cask "claude-code" "Claude Code.app"
       ;;
+    cask\ \"linearmouse\")
+      check_cask "linearmouse" "LinearMouse.app"
+      ;;
     cask\ \"bitwarden\")
       check_cask "bitwarden" "Bitwarden.app"
       ;;

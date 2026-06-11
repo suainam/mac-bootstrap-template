@@ -60,3 +60,13 @@ If you genuinely think a convention is harmful, surface it. Don't fork silently.
 "Completed" is wrong if anything was skipped silently.
 "Tests pass" is wrong if any were skipped.
 Default to surfacing uncertainty, not hiding it.
+
+### Rule 13 — context-mode: no curl/wget/rsync in bash
+`curl`/`wget`/`rsync` in bash triggers context-mode security intercept.
+Use `ctx_execute(language: "shell", code: "curl ...")` instead.
+Raw HTTP bytes burn token budget — derive answer in code, print only result.
+
+### Rule 14 — Hammerspoon reload: killall, not -c
+`hammerspoon -c "hs.reload()"` spawns a NEW process (not IPC), causing
+hotkey registration conflicts (`RegisterEventHotKey failed: -9878`).
+Correct: `killall Hammerspoon && open -a Hammerspoon`.

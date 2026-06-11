@@ -1,48 +1,63 @@
-# ========== CLI 工具链 ==========
+# ========== Tap ==========
 tap "rtk-ai/tap"
 
+# ========== CLI 核心 ==========
 brew "git"
-brew "wget"
 brew "curl"
 brew "jq"
 brew "tree"
-brew "htop"
 brew "ripgrep"
-brew "fd"
+
+# ========== Shell 增强 ==========
 brew "fzf"
-# brew "tmux"  — decommissioned
 brew "zellij"
 brew "lua"
-brew "uv"
 brew "direnv"
 brew "zoxide"
+
+# ========== 语言 & 运行时 ==========
 brew "node"
-brew "gh"
+brew "uv"
+
+# ========== Agent 工具链 ==========
 brew "opencode"
 brew "pi-coding-agent"
 brew "rtk"
+brew "gh"
 
-# ========== 桌面应用 ==========
-cask "microsoft-edge"
-cask "google-chrome"
-cask "visual-studio-code"
-cask "iterm2"
-cask "hammerspoon"
-cask "shottr"
-cask "miniforge"
+# ========== 容器 ==========
 brew "docker"
-brew "docker-compose"
 brew "colima"
-cask "bitwarden"
+
+# ========== 浏览器 ==========
+cask "google-chrome"
+cask "microsoft-edge"
+
+# ========== 开发工具 ==========
+cask "visual-studio-code"
 cask "codex"
 cask "codex-app"
+cask "claude-code"
+
+# ========== 终端 & 系统增强 ==========
+cask "iterm2"
+cask "hammerspoon"
+cask "linearmouse"
+cask "shottr"
+cask "cc-switch"
+
+# ========== 网络 & 安全 ==========
 cask "clash-verge-rev"
 cask "uuremote"
-cask "claude-code"
-cask "wechatwork"
-cask "cc-switch"
+cask "bitwarden"
+
+# ========== 办公 & 沟通 ==========
 cask "wpsoffice"
+cask "wechatwork"
 cask "obsidian"
+
+# ========== 数据科学 ==========
+cask "miniforge"
 
 # ========== 字体 ==========
 cask "font-sf-mono-nerd-font-ligaturized"

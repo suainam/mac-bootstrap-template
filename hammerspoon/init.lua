@@ -32,9 +32,13 @@ local function press_cmd_twice()
   end)
 end
 
-local input_watcher = hs.application.watcher.new(function(app_name, event)
+local wuying_bids = {
+  ["com.aliyun.wuying.osx"] = true,
+  ["com.aliyun.wuying.viewer"] = true,
+}
+
+local input_watcher = hs.application.watcher.new(function(app_name, event, app)
   if event ~= hs.application.watcher.activated then return end
-  local app = hs.application.find(app_name)
   if not app then return end
   local bid = app:bundleID()
   if not bid then return end
@@ -45,7 +49,7 @@ local input_watcher = hs.application.watcher.new(function(app_name, event)
     ["com.sonny.visualstudiocode"] = true,
   }
 
-  if bid == "com.aliyun.wuying.osx" then
+  if wuying_bids[bid] or bid:find("com.aliyun.wuying.", 1, true) then
     hs.keycodes.currentSourceID(en)
     press_cmd_twice()
   elseif en_apps[bid] then
