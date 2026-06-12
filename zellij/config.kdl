@@ -21,6 +21,12 @@ keybinds {
         bind "j" "Down" { MoveFocus "Down"; SwitchToMode "normal"; }
         bind "k" "Up" { MoveFocus "Up"; SwitchToMode "normal"; }
         bind "l" "Right" { MoveFocus "Right"; SwitchToMode "normal"; }
+        bind "H" { Resize "Increase Left"; }
+        bind "J" { Resize "Increase Down"; }
+        bind "K" { Resize "Increase Up"; }
+        bind "L" { Resize "Increase Right"; }
+        bind "<" { MovePane "Left"; }
+        bind ">" { MovePane "Right"; }
         bind "\\" { NewPane "Right"; SwitchToMode "normal"; }
         bind "-" { NewPane "Down"; SwitchToMode "normal"; }
         bind "c" { NewTab; SwitchToMode "normal"; }

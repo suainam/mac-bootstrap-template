@@ -7,6 +7,7 @@
 
 local hyper = { "cmd", "alt", "ctrl" }
 local terminal_app = "Ghostty"
+local terminal_app_backup = "iTerm2"
 local clipboard_dir = os.getenv("HOME") .. "/Pictures/ClipboardShots"
 local shottr_app = "/Applications/Shottr.app/Contents/MacOS/Shottr"
 
@@ -42,7 +43,7 @@ local zh_apps = {
   ["com.microsoft.VSCode"] = true,
 }
 local zh_app_names = {
-  ["Ghostty"] = true,
+  ["iTerm2"] = true,
 }
 
 local function is_wuying(bid)
@@ -160,38 +161,43 @@ hs.hotkey.bind({ "ctrl", "shift" }, "V", function()
 end)
 
 hs.hotkey.bind(hyper, "T", function()
-  local cmd = "exec /opt/homebrew/bin/zellij --session ai-work --layout ai-work"
-  local script = [[
-    tell application "Ghostty"
-      if (count of windows) > 0 then
-        input text %q to focused terminal of selected tab of front window
-        send key "enter" to focused terminal of selected tab of front window
-        activate window front window
-      else
-        set cfg to new surface configuration
-        set command of cfg to "/bin/zsh"
-        set initial working directory of cfg to (POSIX path of (path to home folder)) & "work"
-        set initial input of cfg to %q
-        set wait after command of cfg to true
-        set newWindow to new window with configuration cfg
-        activate window newWindow
-      end if
-    end tell
-  ]]
-  local ok, _, err = hs.osascript.applescript(string.format(script, cmd, cmd .. "\n"))
-  if not ok then
-    hs.alert.show("Ghostty automation blocked; launch Ghostty once and allow automation")
-    if err then
-      print("Ghostty launch failed: " .. tostring(err))
-    end
-    return
-  end
-  hs.timer.doAfter(0.6, function()
-    local app = hs.application.find(terminal_app)
+  hs.application.launchOrFocus(terminal_app)
+  hs.timer.doAfter(0.4, function()
+    local app = hs.application.find("Ghostty")
     local win = app and app:mainWindow()
     if win then
       local screen = win:screen():frame()
       win:setFrame({ x = 100, y = 280, w = screen.w * 0.76, h = screen.h * 0.73 })
+    end
+  end)
+end)
+
+hs.hotkey.bind(hyper, "I", function()
+  hs.application.launchOrFocus(terminal_app_backup)
+  hs.timer.doAfter(0.4, function()
+    local app = hs.application.find("iTerm2")
+    local win = app and app:mainWindow()
+    if win then
+      local screen = win:screen():frame()
+      win:setFrame({ x = 100, y = 280, w = screen.w * 0.76, h = screen.h * 0.73 })
+    end
+    -- Only launch zj if not already running
+    local output, status = hs.execute("pgrep -x zellij")
+    if status then
+      -- zellij running, just focus
+      hs.osascript.applescript([[
+        tell application "iTerm2"
+          activate
+        end tell
+      ]])
+    else
+      -- zellij not running, launch it
+      hs.osascript.applescript([[
+        tell application "iTerm2"
+          activate
+          tell current session of current window to write text "zj"
+        end tell
+      ]])
     end
   end)
 end)
@@ -248,11 +254,6 @@ hs.hotkey.bind(hyper, "P", function()
 end)
 
 hs.hotkey.bind(hyper, "O", function()
-  launch_shottr_then_open("shottr://settings")
-  hs.alert.show("Shottr settings")
-end)
-
-hs.hotkey.bind(hyper, "I", function()
   hs.task.new(shottr_app, nil, {}):start()
   hs.timer.doAfter(0.7, function()
     hs.execute("open 'shottr://ocr'")
