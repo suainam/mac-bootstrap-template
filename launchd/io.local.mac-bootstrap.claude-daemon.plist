@@ -2,10 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   DEPRECATED 2026-06-12
-  Replaced by: launchd/io.local.mac-bootstrap.zellij-host.plist
-  Reason: ai-work.kdl zellij layout already launches a claude pane natively;
-          this tmux-based daemon is redundant and conflicts with the zellij session.
-  Do not re-enable. Use `make zellij-host-install` instead.
+  Replaced by: the tmux-based ai-work workspace launcher in scripts/tmux-workspace.sh.
+  Reason: tmux now owns the daemon window and ai-work pane layout directly.
+  Do not re-enable this launch agent.
 -->
 <plist version="1.0">
 <dict>

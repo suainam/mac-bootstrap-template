@@ -138,7 +138,7 @@ git config --global core.autocrlf input
 git config --global push.autoSetupRemote true
 
 echo "=== Link shell config ==="
-for f in zprofile zshenv zshrc shell_env bash_profile; do
+for f in zprofile zshenv zshrc shell_env bash_profile p10k.zsh; do
   if [ -f "$DIR/shell/$f" ]; then
     ln -sf "$DIR/shell/$f" ~/."$f"
     echo "  ~/.$f -> shell/$f"

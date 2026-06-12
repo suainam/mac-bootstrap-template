@@ -4,18 +4,18 @@
 
 macOS development environment bootstrap. Installs CLI tools, desktop apps, agent tooling,
 and configurations via Homebrew + shell scripts. Designed to be rerunnable and idempotent.
-Terminal workflow is in migration: local interactive shells now prefer Zellij.
-The first verification path is `make zellij-workspace`, which enters the AI
-layout through the same shell startup path used by day-to-day work.
-Hammerspoon is the system-control tier. Keep its hotkeys global and Hyper-based;
-keep `zj`/Zellij pane keys local to the terminal so the two layers do not fight.
+Terminal workflow now prefers tmux. The first verification path is
+`make tmux-workspace`, which enters the AI layout through the same shell startup
+path used by day-to-day work. Hammerspoon is the system-control tier. Keep its
+hotkeys global and Hyper-based; keep tmux pane keys local to the terminal so
+the two layers do not fight.
 
 ## Bootstrap Phases
 
 | Phase | Script | What happens |
 |-------|--------|-------------|
 | Brew | `Brewfile` + `brew-bundle.sh` | Homebrew formulae, casks, npm packages, fonts |
-| Shell | `install.sh` | Shell config (zsh), git, vim, Zellij, VS Code |
+| Shell | `install.sh` | Shell config (zsh), git, vim, tmux, VS Code |
 | Docker | `docker/install.sh` | Colima VM, 9Router proxy, Docker Compose |
 | Agent | `install-agent-tooling.sh` | Skills, MCP, RTK, caveman, Pi config, CRG |
 | Pi | `install-pi-packages.sh` | Pi-native packages (from `pi-packages.txt`) |

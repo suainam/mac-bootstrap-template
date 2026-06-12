@@ -1,21 +1,21 @@
-# Claude Daily Drill in Zellij
+# Claude Daily Drill in tmux
 
-This document describes the Zellij-first daily drill path for Claude Code.
+This document describes the tmux-first daily drill path for Claude Code.
 
 ## Recommended workflow
 
 1. Start the AI workspace:
 
 ```bash
-make zellij-workspace
+make tmux-workspace
 ```
 
 2. If you already have a session, attach or switch to it:
 
 ```bash
-zellij list-sessions
-zellij attach -c ai-work
-zellij action switch-session ai-work
+tmux list-sessions
+tmux attach -t ai-work
+tmux switch-client -t ai-work
 ```
 
 3. Use the native daily drill launcher:
@@ -40,13 +40,13 @@ make claude-daily-drill-export
 ## Verification
 
 ```bash
-zj list-keys
-zellij list-sessions
-zellij setup --check
+tmux list-keys
+tmux list-sessions
+tmux show -gv mode-keys
 ```
 
 ## Notes
 
-- `zj` is the terminal entrypoint for this migration track.
-- Daily drill is run against the Zellij Claude pane.
+- `tmux` is the terminal entrypoint for this migration track.
+- Daily drill is run against the tmux Claude pane.
 - Hammerspoon stays at the OS tier for hotkeys, window placement, and clipboard helpers.
