@@ -37,6 +37,10 @@ window-padding-x = 8
 window-padding-y = 8
 macos-titlebar-style = tabs
 macos-option-as-alt = true
+window-new-tab-position = end
+
+# Remap cmd+n to open a new tab instead of a new window
+keybind = cmd+n=new_tab
 
 # Shell integration
 shell-integration = detect

@@ -42,7 +42,7 @@ cask "codex-app"
 cask "claude-code"
 
 # ========== 终端 & 系统增强 ==========
-cask "iterm2"
+# cask "iterm2"  # replaced by ghostty
 cask "hammerspoon"
 cask "mos"
 cask "shottr"

@@ -3,7 +3,9 @@ SHELL := /usr/bin/env bash
 .PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools security-scan instinct-sync \
-	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public
+	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
+	zellij-host-install zellij-host-unload zellij-host-status \
+	reverse-tunnel-install reverse-tunnel-unload reverse-tunnel-status reverse-tunnel-logs
 
 help:
 	@echo "Usage: make <target>"
@@ -25,9 +27,21 @@ help:
 	@echo "  security-scan          Security scan + fix"
 	@echo "  instinct-sync          Sync instinct files"
 	@echo ""
-	@echo "── Claude Daemon ──"
-	@echo "  claude-daemon-install    Install & start all daemon services"
-	@echo "  claude-daemon-unload     Stop all daemon services"
+	@echo "── Zellij ──"
+	@echo "  zellij-host-install    Install & start zellij-host daemon (keeps ai-work session alive)"
+	@echo "  zellij-host-unload     Stop zellij-host daemon"
+	@echo "  zellij-host-status     Show zellij-host daemon status"
+	@echo "  zellij-workspace       Start the Zellij AI workspace manually"
+	@echo ""
+	@echo "── SSH Reverse Tunnel ──"
+	@echo "  reverse-tunnel-install Install & start SSH reverse tunnel (15721 → bastion)"
+	@echo "  reverse-tunnel-unload  Stop SSH reverse tunnel"
+	@echo "  reverse-tunnel-status  Show tunnel daemon status"
+	@echo "  reverse-tunnel-logs    Tail tunnel logs"
+	@echo ""
+	@echo "── Claude Daemon (DEPRECATED — replaced by zellij-host) ──"
+	@echo "  claude-daemon-install    [deprecated] Install tmux-based daemon"
+	@echo "  claude-daemon-unload     Stop daemon services"
 	@echo "  claude-daemon-status     Show daemon status"
 	@echo "  claude-daemon-logs       Show daemon logs"
 	@echo "  claude-keepalive-enable  Enable keepalive only"
@@ -38,7 +52,6 @@ help:
 	@echo "  claude-daily-drill-status  Show daily drill status"
 	@echo "  claude-daily-drill-run     Trigger one drill immediately"
 	@echo "  claude-daily-drill-export  Export today's drill result to markdown"
-	@echo "  zellij-workspace           Start the Zellij AI workspace"
 	@echo ""
 	@echo "── Config ──"
 	@echo "  render-configs         Render config templates"
@@ -82,7 +95,7 @@ check:
 	bash -n vim/install.sh
 	bash -n tmux/install.sh
 	bash -n zellij/install.sh
-	bash -n ghostty/install.sh
+	bash -n iterm2/install.sh
 	bash -n hammerspoon/install.sh
 	luac -p hammerspoon/init.lua
 	bash -n scripts/zellij-workspace.sh
@@ -91,6 +104,7 @@ check:
 	bash -n scripts/claude-daily-drill.sh
 	bash -n scripts/claude-daily-drill-export.sh
 	bash -n scripts/zellij-workspace.sh
+	bash -n scripts/ssh-reverse-tunnel.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
 
@@ -250,3 +264,42 @@ claude-daily-drill-export:
 
 zellij-workspace:
 	./scripts/zellij-workspace.sh
+
+# ── Zellij Host Daemon ─────────────────────────────────────────────
+zellij-host-install:
+	@mkdir -p "$(HOME)/Library/LaunchAgents"
+	cp launchd/io.local.mac-bootstrap.zellij-host.plist "$(HOME)/Library/LaunchAgents/"
+	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.zellij-host.plist"
+	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.zellij-host.plist" 2>/dev/null || \
+		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.zellij-host
+	@echo "=== zellij-host installed ==="
+
+zellij-host-unload:
+	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.zellij-host.plist" 2>/dev/null || true
+	@echo "=== zellij-host unloaded ==="
+
+zellij-host-status:
+	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.zellij-host 2>&1 | head -20 || echo "(not loaded)"
+
+# ── SSH Reverse Tunnel ─────────────────────────────────────────────
+# Exposes local cc-switch proxy (127.0.0.1:15721) on bastion localhost.
+# Requires an active ControlMaster socket for dsliam (interactive login first).
+# On bastion: export ANTHROPIC_BASE_URL=http://127.0.0.1:15721
+reverse-tunnel-install:
+	@mkdir -p "$(HOME)/Library/LaunchAgents"
+	cp launchd/io.local.mac-bootstrap.ssh-reverse-tunnel.plist "$(HOME)/Library/LaunchAgents/"
+	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.ssh-reverse-tunnel.plist"
+	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.ssh-reverse-tunnel.plist" 2>/dev/null || \
+		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.ssh-reverse-tunnel
+	@echo "=== ssh-reverse-tunnel installed. Log: ~/Library/Logs/claude-daemon/ssh-reverse-tunnel.log ==="
+	@echo "=== On bastion: export ANTHROPIC_BASE_URL=http://127.0.0.1:15721 ==="
+
+reverse-tunnel-unload:
+	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.ssh-reverse-tunnel.plist" 2>/dev/null || true
+	@echo "=== ssh-reverse-tunnel unloaded ==="
+
+reverse-tunnel-status:
+	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.ssh-reverse-tunnel 2>&1 | head -20 || echo "(not loaded)"
+
+reverse-tunnel-logs:
+	tail -40 "$(HOME)/Library/Logs/claude-daemon/ssh-reverse-tunnel.log" 2>/dev/null || echo "(no log yet)"

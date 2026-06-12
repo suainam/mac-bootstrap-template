@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  DEPRECATED 2026-06-12
+  Replaced by: launchd/io.local.mac-bootstrap.zellij-host.plist
+  Reason: ai-work.kdl zellij layout already launches a claude pane natively;
+          this tmux-based daemon is redundant and conflicts with the zellij session.
+  Do not re-enable. Use `make zellij-host-install` instead.
+-->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
@@ -10,14 +17,16 @@
 		<string>{{BOOTSTRAP}}/scripts/claude-daemon-tmux.sh</string>
 	</array>
 	<key>KeepAlive</key>
-	<true/>
+	<false/>
 	<key>RunAtLoad</key>
-	<true/>
+	<false/>
 	<key>ThrottleInterval</key>
 	<integer>5</integer>
 	<key>StandardOutPath</key>
 	<string>/tmp/claude-daemon-tmux.log</string>
 	<key>StandardErrorPath</key>
 	<string>/tmp/claude-daemon-tmux.err</string>
+	<key>Disabled</key>
+	<true/>
 </dict>
 </plist>
