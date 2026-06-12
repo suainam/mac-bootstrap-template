@@ -28,8 +28,10 @@ brew "cc-switch-cli"
 # brew "devpod"  # Not used anymore
 
 # ========== 容器 ==========
-brew "docker"
-brew "colima"
+# docker + colima 已移除 — 本地不再跑容器，全部走远程堡垒机 (dsliam)
+# 需要恢复时：brew install docker colima && colima start && cd docker && docker compose up -d
+# brew "docker"
+# brew "colima"
 
 # ========== 浏览器 ==========
 cask "google-chrome"
