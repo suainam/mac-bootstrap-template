@@ -10,7 +10,7 @@ brew "ripgrep"
 
 # ========== Shell 增强 ==========
 brew "fzf"
-brew "zellij"
+brew "tmux"
 brew "lua"
 brew "direnv"
 brew "zoxide"
@@ -44,7 +44,7 @@ cask "codex-app"
 cask "claude-code"
 
 # ========== 终端 & 系统增强 ==========
-# cask "iterm2"  # replaced by ghostty
+cask "iterm2"
 cask "hammerspoon"
 cask "mos"
 cask "shottr"

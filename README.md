@@ -8,7 +8,7 @@ New-machine bootstrap for this Mac setup.
 make bootstrap
 ```
 
-This installs Homebrew dependencies from `Brewfile`, links shell/git/vim/Zellij
+This installs Homebrew dependencies from `Brewfile`, links shell/git/vim/tmux
 configuration, configures Docker/npm proxy settings, and runs safe cache cleanup.
 It does not delete project virtual environments or files under `~/work`.
 If Microsoft Edge or Clash Verge already exists under `/Applications` from a
@@ -16,17 +16,16 @@ manual install, bootstrap skips that cask instead of forcing a reinstall.
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 
-Migration note: this bootstrap now also installs Zellij and a starter layout.
-Ghostty is the terminal host for the AI workspace. Hammerspoon is the global
-tier: reload, window placement, clipboard helpers, and terminal launcher
-hotkeys live there. `zj` is terminal-local only.
+Migration note: this bootstrap now uses iTerm2 as the terminal host and tmux
+as the workspace/session layer. Hammerspoon is the global tier: reload, window
+placement, clipboard helpers, and terminal launcher hotkeys live there. `tm`
+is terminal-local only.
 
 Quick verify:
 
 ```bash
-make zellij-workspace
-zellij list-sessions
-zj list-keys
+make tmux-workspace
+tm list-keys
 ```
 
 For verification, `~` is the most general entrypoint. It is fine for shell

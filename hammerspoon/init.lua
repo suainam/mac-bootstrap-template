@@ -1,13 +1,12 @@
 -- Hammerspoon = OS tier only.
--- zj / zellij = terminal tier only.
+-- tmux = terminal tier only.
 -- Keep the boundary clean:
 -- - Hammerspoon owns global hotkeys, window placement, clipboard helpers.
--- - zj owns pane/tab keys inside the terminal.
--- - No shared prefix with zj. Use Hyper for system actions.
+-- - tmux owns pane/tab keys inside the terminal.
+-- - No shared prefix with tmux. Use Hyper for system actions.
 
 local hyper = { "cmd", "alt", "ctrl" }
-local terminal_app = "Ghostty"
-local terminal_app_backup = "iTerm2"
+local terminal_bundle_id = "com.googlecode.iterm2"
 local clipboard_dir = os.getenv("HOME") .. "/Pictures/ClipboardShots"
 local shottr_app = "/Applications/Shottr.app/Contents/MacOS/Shottr"
 
@@ -161,45 +160,7 @@ hs.hotkey.bind({ "ctrl", "shift" }, "V", function()
 end)
 
 hs.hotkey.bind(hyper, "T", function()
-  hs.application.launchOrFocus(terminal_app)
-  hs.timer.doAfter(0.4, function()
-    local app = hs.application.find("Ghostty")
-    local win = app and app:mainWindow()
-    if win then
-      local screen = win:screen():frame()
-      win:setFrame({ x = 100, y = 280, w = screen.w * 0.76, h = screen.h * 0.73 })
-    end
-  end)
-end)
-
-hs.hotkey.bind(hyper, "I", function()
-  hs.application.launchOrFocus(terminal_app_backup)
-  hs.timer.doAfter(0.4, function()
-    local app = hs.application.find("iTerm2")
-    local win = app and app:mainWindow()
-    if win then
-      local screen = win:screen():frame()
-      win:setFrame({ x = 100, y = 280, w = screen.w * 0.76, h = screen.h * 0.73 })
-    end
-    -- Only launch zj if not already running
-    local output, status = hs.execute("pgrep -x zellij")
-    if status then
-      -- zellij running, just focus
-      hs.osascript.applescript([[
-        tell application "iTerm2"
-          activate
-        end tell
-      ]])
-    else
-      -- zellij not running, launch it
-      hs.osascript.applescript([[
-        tell application "iTerm2"
-          activate
-          tell current session of current window to write text "zj"
-        end tell
-      ]])
-    end
-  end)
+  hs.application.launchOrFocusByBundleID(terminal_bundle_id)
 end)
 
 hs.hotkey.bind(hyper, "S", function()

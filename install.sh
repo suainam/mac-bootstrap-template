@@ -4,8 +4,6 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ASSUME_YES=0
 RUN_VIM=0
-RUN_TMUX=0 # deprecated - tmux removed from bootstrap
-RUN_ZELLIJ=0
 RUN_PROXY=1
 RUN_BREW_UPDATE=1
 RUN_CLEANUP=0
@@ -21,8 +19,6 @@ Options:
   --git-name NAME        Configure git user.name.
   --git-email EMAIL      Configure git user.email.
   --with-vim             Install/link Vim config and plugins.
-    # --with-tmux            (removed)
-  --with-zellij          Install/link Zellij config and layouts.
   --skip-proxy           Do not configure Docker/npm proxy.
   --skip-brew-update     Do not run brew update before brew bundle.
   --cleanup              Run safe cache cleanup after install.
@@ -50,12 +46,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --with-vim)
       RUN_VIM=1
-      ;;
-    # --with-tmux)           (removed)
-    #   RUN_TMUX=1
-    #   ;;
-    --with-zellij)
-      RUN_ZELLIJ=1
       ;;
     --skip-proxy)
       RUN_PROXY=0
@@ -155,11 +145,20 @@ for f in zprofile zshenv zshrc shell_env bash_profile; do
   fi
 done
 
+echo "=== Link terminal helpers ==="
+mkdir -p "$HOME/.local/bin"
+ln -sf "$DIR/scripts/tmux-workspace.sh" "$HOME/.local/bin/tmux-workspace.sh"
+chmod +x "$HOME/.local/bin/tmux-workspace.sh"
+echo "  ~/.local/bin/tmux-workspace.sh -> scripts/tmux-workspace.sh"
+
 echo "=== Install Hammerspoon config ==="
 "$DIR/hammerspoon/install.sh"
 
-echo "=== Configure Ghostty ==="
-"$DIR/ghostty/install.sh"
+echo "=== Configure iTerm2 ==="
+"$DIR/iterm2/install.sh"
+
+echo "=== Configure tmux ==="
+"$DIR/tmux/install.sh"
 
 echo "=== Setup SSH config ==="
 SSH_SRC="$DIR/shell/ssh_config.d"
@@ -219,19 +218,6 @@ if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_VIM" -eq 0 ]; then
 fi
 if [ "$RUN_VIM" -eq 1 ]; then
   "$DIR/vim/install.sh"
-fi
-
-# tmux install removed from bootstrap
-
-if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_ZELLIJ" -eq 0 ]; then
-  echo "=== Install Zellij config? [y/N] ==="
-  read -r do_zellij
-  if [[ "$do_zellij" =~ ^[Yy]$ ]]; then
-    RUN_ZELLIJ=1
-  fi
-fi
-if [ "$RUN_ZELLIJ" -eq 1 ]; then
-  "$DIR/zellij/install.sh"
 fi
 
 echo "=== Install VS Code extensions if available ==="

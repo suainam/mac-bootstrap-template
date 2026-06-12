@@ -125,59 +125,55 @@ esac
 export PATH="$HOME/.local/bin:$PATH"
 
 # Terminal auto-attach
-# - Ghostty provides the env contract for the default ai-work session
+# - iTerm2 provides the window shell
+# - tmux owns the session, a persistent _daemon_ window, and ai-work layout
 # - SSH shells stay untouched
-zjwork() {
-    # ZELLIJ is set to session name (new) or "0" (old zellij ≤0.36) when inside a session
-    if [[ -n "$ZELLIJ" || -n "$TMUX" ]]; then
+tmwork() {
+    if [[ -n "$TMUX" ]]; then
         return 0
     fi
 
-    if (( $+commands[zellij] )); then
-        local session="${ZELLIJ_SESSION:-ai-work}"
-        export ZELLIJ_AUTO_ATTACH=true
-        export ZELLIJ_AUTO_EXIT=false
-        exec zellij attach -c "$session"
+    if (( $+commands[tmux] )); then
+        local session="${TMUX_SESSION:-ai-work}"
+        exec "$HOME/.local/bin/tmux-workspace.sh" "$session"
     fi
 }
 
-if [[ "${MAC_BOOTSTRAP_ZJ_AUTO_ATTACH:-0}" == "1" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$ZELLIJ" ]] && [[ -z "$TMUX" ]]; then
-    zjwork
+if [[ "${MAC_BOOTSTRAP_AUTO_ATTACH_TMUX:-1}" == "1" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$TMUX" ]]; then
+    tmwork
 fi
 
-# Zellij owns session/layout routing.
-zj() {
+# tmux owns session/layout routing.
+tm() {
     case "${1:-}" in
         "")
-            local session="${ZELLIJ_SESSION:-ai-work}"
-            if [[ -n "$ZELLIJ" ]]; then
-                command zellij action switch-session "$session"
+            local session="${TMUX_SESSION:-ai-work}"
+            if [[ -n "$TMUX" ]]; then
+                command tmux switch-client -t "$session"
             else
-                command zellij attach -c "$session"
+                tmwork
             fi
             ;;
         list-keys)
             cat <<'EOF'
-Zellij native keys
+tmux keys
 
-Prefix: Ctrl+a -> pane mode
+Prefix: Ctrl+a
 
-- Ctrl+a: toggle normal/pane mode
-- Ctrl+a [: enter scroll mode for native Zellij scrolling and copy
-- In scroll mode: select with mouse/trackpad to copy automatically
-- h/j/k/l: move focus left/down/up/right, then return to normal mode
-- \: split vertically
-- -: split horizontally
-- c: new tab
-- z: toggle full-screen for focused pane
-- x: close focused pane
-- ,: previous tab
-- .: next tab
-- d: detach
+- Ctrl+a \\: split left/right
+- Ctrl+a -: split top/bottom
+- Ctrl+a h/j/k/l: move between panes
+- Ctrl+a H/J/K/L: resize panes
+- Ctrl+a c: new window
+- Ctrl+a n/p: next/previous window
+- Ctrl+a z: zoom current pane
+- Ctrl+a r: reload tmux.conf
+- Ctrl+a [ : copy mode
+- Ctrl+a d: detach
 EOF
             ;;
         *)
-            command zellij "$@"
+            command tmux "$@"
             ;;
     esac
 }

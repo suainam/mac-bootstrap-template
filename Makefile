@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
-	zellij-host-install zellij-host-unload zellij-host-status \
+	tmux-workspace \
 	reverse-tunnel-install reverse-tunnel-unload reverse-tunnel-status reverse-tunnel-logs
 
 help:
@@ -27,11 +27,8 @@ help:
 	@echo "  security-scan          Security scan + fix"
 	@echo "  instinct-sync          Sync instinct files"
 	@echo ""
-	@echo "── Zellij ──"
-	@echo "  zellij-host-install    Install & start zellij-host daemon (keeps ai-work session alive)"
-	@echo "  zellij-host-unload     Stop zellij-host daemon"
-	@echo "  zellij-host-status     Show zellij-host daemon status"
-	@echo "  zellij-workspace       Start the Zellij AI workspace manually"
+	@echo "── Tmux ──"
+	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
 	@echo ""
 	@echo "── SSH Reverse Tunnel ──"
 	@echo "  reverse-tunnel-install Install & start SSH reverse tunnel (15721 → bastion)"
@@ -39,19 +36,11 @@ help:
 	@echo "  reverse-tunnel-status  Show tunnel daemon status"
 	@echo "  reverse-tunnel-logs    Tail tunnel logs"
 	@echo ""
-	@echo "── Claude Daemon (DEPRECATED — replaced by zellij-host) ──"
-	@echo "  claude-daemon-install    [deprecated] Install tmux-based daemon"
+	@echo "── Claude Daemon (tmux) ──"
+	@echo "  claude-daemon-install    Install tmux-based daemon"
 	@echo "  claude-daemon-unload     Stop daemon services"
 	@echo "  claude-daemon-status     Show daemon status"
 	@echo "  claude-daemon-logs       Show daemon logs"
-	@echo "  claude-keepalive-enable  Enable keepalive only"
-	@echo "  claude-keepalive-disable Disable keepalive only"
-	@echo "  claude-keepalive-status  Show keepalive status only"
-	@echo "  claude-daily-drill-enable  Enable daily drill with catch-up checks"
-	@echo "  claude-daily-drill-disable Disable daily drill with catch-up checks"
-	@echo "  claude-daily-drill-status  Show daily drill status"
-	@echo "  claude-daily-drill-run     Trigger one drill immediately"
-	@echo "  claude-daily-drill-export  Export today's drill result to markdown"
 	@echo ""
 	@echo "── Config ──"
 	@echo "  render-configs         Render config templates"
@@ -69,7 +58,7 @@ help:
 	@echo "  hook-matchers          Add hook matchers"
 
 bootstrap install:
-	./install.sh --yes --with-vim --with-zellij --cleanup
+	./install.sh --yes --with-vim --cleanup
 	./scripts/install-agent-tooling.sh --configure
 
 check:
@@ -94,16 +83,11 @@ check:
 	bash -n vscode/install-extensions.sh
 	bash -n vim/install.sh
 	bash -n tmux/install.sh
-	bash -n zellij/install.sh
 	bash -n iterm2/install.sh
 	bash -n hammerspoon/install.sh
 	luac -p hammerspoon/init.lua
-	bash -n scripts/zellij-workspace.sh
 	bash -n scripts/claude-daemon-tmux.sh
-	bash -n scripts/claude-daemon-keepalive.sh
-	bash -n scripts/claude-daily-drill.sh
-	bash -n scripts/claude-daily-drill-export.sh
-	bash -n scripts/zellij-workspace.sh
+	bash -n scripts/tmux-workspace.sh
 	bash -n scripts/ssh-reverse-tunnel.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
@@ -182,7 +166,7 @@ hook-matchers:
 # ── Claude Code Daemon ─────────────────────────────────────
 claude-daemon-install:
 	@mkdir -p "$(HOME)/Library/LaunchAgents"
-	for plist in launchd/io.local.mac-bootstrap.claude-daemon.plist launchd/io.local.mac-bootstrap.claude-keepalive.plist launchd/io.local.mac-bootstrap.claude-daily-drill.plist; do \
+	for plist in launchd/io.local.mac-bootstrap.claude-daemon.plist; do \
 		name="$$(basename "$$plist")"; \
 		cp "$$plist" "$(HOME)/Library/LaunchAgents/$$name"; \
 		sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/$$name"; \
@@ -190,96 +174,23 @@ claude-daemon-install:
 	done
 	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || \
 		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon
-	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || \
-		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive
-	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || \
-		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill
 	@echo "=== Claude daemon installed. Logs: ~/Library/Logs/claude-daemon/ ==="
 
 claude-daemon-status:
 	@echo "=== claude-daemon ==="
 	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon 2>&1 | head -20
-	@echo ""
-	@echo "=== claude-keepalive ==="
-	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive 2>&1 | head -20
-	@echo ""
-	@echo "=== claude-daily-drill ==="
-	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill 2>&1 | head -20
 
 claude-daemon-logs:
 	@echo "=== Tmux daemon ==="
 	tail -20 "$(HOME)/Library/Logs/claude-daemon/tmux.log" 2>/dev/null || echo "(no tmux.log)"
-	@echo ""
-	@echo "=== Keepalive ==="
-	tail -20 "$(HOME)/Library/Logs/claude-daemon/keepalive.log" 2>/dev/null || echo "(no keepalive.log)"
-	@echo ""
-	@echo "=== Daily drill ==="
-	tail -20 "$(HOME)/Library/Logs/claude-daemon/daily-drill.log" 2>/dev/null || echo "(no daily-drill.log)"
 
 claude-daemon-unload:
 	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || true
-	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || true
-	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || true
 	@echo "=== Claude daemon unloaded ==="
 
-# ── Keepalive granular controls ────────────────────────────
-claude-keepalive-enable:
-	@mkdir -p "$(HOME)/Library/LaunchAgents"
-	cp launchd/io.local.mac-bootstrap.claude-keepalive.plist "$(HOME)/Library/LaunchAgents/"
-	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist"
-	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || \
-		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive
-	@echo "=== claude-keepalive enabled ==="
-
-claude-keepalive-disable:
-	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-keepalive.plist" 2>/dev/null || true
-	@echo "=== claude-keepalive disabled ==="
-
-claude-keepalive-status:
-	@echo "=== claude-keepalive ==="
-	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-keepalive 2>&1 | head -20 || echo "(not loaded)"
-
-# ── Daily drill controls ──────────────────────────────────
-claude-daily-drill-enable:
-	@mkdir -p "$(HOME)/Library/LaunchAgents"
-	cp launchd/io.local.mac-bootstrap.claude-daily-drill.plist "$(HOME)/Library/LaunchAgents/"
-	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist"
-	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || \
-		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill
-	@echo "=== claude-daily-drill enabled ==="
-
-claude-daily-drill-disable:
-	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daily-drill.plist" 2>/dev/null || true
-	@echo "=== claude-daily-drill disabled ==="
-
-claude-daily-drill-status:
-	@echo "=== claude-daily-drill ==="
-	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daily-drill 2>&1 | head -20 || echo "(not loaded)"
-
-claude-daily-drill-run:
-	./scripts/claude-daily-drill.sh
-
-claude-daily-drill-export:
-	./scripts/claude-daily-drill-export.sh
-
-zellij-workspace:
-	./scripts/zellij-workspace.sh
-
-# ── Zellij Host Daemon ─────────────────────────────────────────────
-zellij-host-install:
-	@mkdir -p "$(HOME)/Library/LaunchAgents"
-	cp launchd/io.local.mac-bootstrap.zellij-host.plist "$(HOME)/Library/LaunchAgents/"
-	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.zellij-host.plist"
-	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.zellij-host.plist" 2>/dev/null || \
-		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.zellij-host
-	@echo "=== zellij-host installed ==="
-
-zellij-host-unload:
-	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.zellij-host.plist" 2>/dev/null || true
-	@echo "=== zellij-host unloaded ==="
-
-zellij-host-status:
-	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.zellij-host 2>&1 | head -20 || echo "(not loaded)"
+# ── Tmux Workspace ───────────────────────────────────────────────
+tmux-workspace:
+	"$(HOME)/.local/bin/tmux-workspace.sh"
 
 # ── SSH Reverse Tunnel ─────────────────────────────────────────────
 # Exposes local cc-switch proxy (127.0.0.1:15721) on bastion localhost.
