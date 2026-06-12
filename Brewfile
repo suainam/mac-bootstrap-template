@@ -24,6 +24,8 @@ brew "opencode"
 brew "pi-coding-agent"
 brew "rtk"
 brew "gh"
+brew "cc-switch-cli"
+# brew "devpod"  # Not used anymore
 
 # ========== 容器 ==========
 brew "docker"
@@ -40,7 +42,7 @@ cask "codex-app"
 cask "claude-code"
 
 # ========== 终端 & 系统增强 ==========
-cask "ghostty"
+cask "iterm2"
 cask "hammerspoon"
 cask "mos"
 cask "shottr"
