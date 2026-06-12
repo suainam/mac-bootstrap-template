@@ -125,9 +125,10 @@ esac
 export PATH="$HOME/.local/bin:$PATH"
 
 # Terminal auto-attach
-# - local interactive shells prefer Zellij
+# - Ghostty provides the env contract for the default ai-work session
 # - SSH shells stay untouched
 zjwork() {
+    # ZELLIJ is set to session name (new) or "0" (old zellij ≤0.36) when inside a session
     if [[ -n "$ZELLIJ" || -n "$TMUX" ]]; then
         return 0
     fi
@@ -140,13 +141,21 @@ zjwork() {
     fi
 }
 
-if [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$ZELLIJ" ]] && [[ -z "$TMUX" ]]; then
+if [[ "${MAC_BOOTSTRAP_ZJ_AUTO_ATTACH:-0}" == "1" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$ZELLIJ" ]] && [[ -z "$TMUX" ]]; then
     zjwork
 fi
 
-# Zellij entrypoint for the migration track.
+# Zellij owns session/layout routing.
 zj() {
     case "${1:-}" in
+        "")
+            local session="${ZELLIJ_SESSION:-ai-work}"
+            if [[ -n "$ZELLIJ" ]]; then
+                command zellij action switch-session "$session"
+            else
+                command zellij attach -c "$session"
+            fi
+            ;;
         list-keys)
             cat <<'EOF'
 Zellij native keys

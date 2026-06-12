@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_PATH="/Applications/Ghostty.app"
 PLIST_PATH="$APP_PATH/Contents/Info.plist"
 LAUNCHSERVICES_PLIST="$HOME/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
+CONFIG_DIR="$HOME/.config/ghostty"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+echo "=== Linking Ghostty config ==="
+mkdir -p "$CONFIG_DIR"
+ln -sf "$DIR/config" "$CONFIG_FILE"
+echo "  $CONFIG_FILE -> ghostty/config"
 
 echo "=== Configure Ghostty as default terminal ==="
 

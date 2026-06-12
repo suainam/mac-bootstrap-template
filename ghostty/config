@@ -45,6 +45,8 @@ keybind = cmd+n=new_tab
 # Shell integration
 shell-integration = detect
 shell-integration-features = cursor,sudo,title
+term = xterm-256color
 
-# Auto-launch zellij on startup
-command = /bin/zsh -l -c "zj || exec $SHELL"
+# Ghostty owns terminal startup only.
+# Session/layout routing stays in shell + zellij via these env defaults.
+command = /bin/zsh -l -c "export ZELLIJ_SESSION=ai-work ZELLIJ_DEFAULT_LAYOUT=ai-work MAC_BOOTSTRAP_ZJ_AUTO_ATTACH=1; exec /bin/zsh -l"

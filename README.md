@@ -17,9 +17,9 @@ VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 
 Migration note: this bootstrap now also installs Zellij and a starter layout.
-Local interactive shells prefer Zellij now. Hammerspoon is the global tier:
-reload, window placement, clipboard helpers, and terminal launcher hotkeys
-live there. `zj` is terminal-local only.
+Ghostty is the terminal host for the AI workspace. Hammerspoon is the global
+tier: reload, window placement, clipboard helpers, and terminal launcher
+hotkeys live there. `zj` is terminal-local only.
 
 Quick verify:
 

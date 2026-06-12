@@ -13,33 +13,28 @@ LAYOUT="${ZELLIJ_DEFAULT_LAYOUT:-ai-work}"
 # Ensure work dir exists (layout cwd). zellij fails silently if cwd missing.
 mkdir -p "$HOME/work"
 
-# Ensure work dir exists (layout cwd). zellij fails silently if cwd missing.
-mkdir -p "$HOME/work"
-
 # Already reachable (client attached)? Just keep the launchd job alive.
 if zellij --session "$SESSION" action list-panes --json >/dev/null 2>&1; then
     exec sleep 86400
 fi
 
-ZJ_CMD="env -i HOME=\"$HOME\" PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin\" TERM=\"${TERM:-xterm}\" /opt/homebrew/bin/zellij --session \"$SESSION\" --layout \"$LAYOUT\""
-
-APPLESCRIPT_INPUT="$(ZJ_CMD="$ZJ_CMD" python3 - <<'PY'
+# Open Ghostty (default terminal on this machine)
+if [ -d "/Applications/Ghostty.app" ]; then
+    ZJ_CMD="env -i HOME=\"$HOME\" PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin\" TERM=\"${TERM:-xterm-256color}\" ZELLIJ_SESSION=\"$SESSION\" ZELLIJ_DEFAULT_LAYOUT=\"$LAYOUT\" MAC_BOOTSTRAP_ZJ_AUTO_ATTACH=1 /bin/zsh -l"
+    APPLESCRIPT_INPUT="$(ZJ_CMD="$ZJ_CMD" python3 - <<'PY'
 import json
 import os
 
 print(json.dumps("exec " + os.environ["ZJ_CMD"] + "\n"))
 PY
 )"
-APPLESCRIPT_WORKDIR="$(HOME="$HOME" python3 - <<'PY'
+    APPLESCRIPT_WORKDIR="$(HOME="$HOME" python3 - <<'PY'
 import json
 import os
 
 print(json.dumps(os.path.join(os.environ["HOME"], "work")))
 PY
 )"
-
-# Open Ghostty (default terminal on this machine)
-if [ -d "/Applications/Ghostty.app" ]; then
     osascript <<EOF
 tell application "Ghostty"
     set cfg to new surface configuration
@@ -52,6 +47,11 @@ tell application "Ghostty"
 end tell
 EOF
 elif [ -d "/Applications/Terminal.app" ]; then
+    if zellij list-sessions 2>/dev/null | grep -q "$SESSION"; then
+        ZJ_CMD="zellij attach $SESSION"
+    else
+        ZJ_CMD="zellij attach --create $SESSION --layout $LAYOUT"
+    fi
     osascript -e "
         tell application \"Terminal\"
             activate
