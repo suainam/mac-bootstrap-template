@@ -102,7 +102,7 @@ and runtime state.
 ## Public template + private overlay
 
 This working repo is expected to stay private. It may track real
-machine-specific configs such as `clash/Merge.yaml`.
+machine-specific configs such as `proxy/clash/Merge.yaml`.
 
 Public sharing must go through `make export-public`, which copies a fresh tree
 without git history and excludes everything listed in `.publicignore`.
