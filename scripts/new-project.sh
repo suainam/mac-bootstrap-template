@@ -26,7 +26,7 @@ fi
 mkdir -p "$target/.devcontainer" "$target/notebooks" "$target/src" "$target/data"
 
 # pyproject.toml
-cp "$DIR/python/pyproject.template.toml" "$target/pyproject.toml"
+cp "$DIR/infra/python/pyproject.template.toml" "$target/pyproject.toml"
 sed -i '' "s/my-analysis/$name/; s/description = \"\"/description = \"$desc\"/" "$target/pyproject.toml"
 
 # README

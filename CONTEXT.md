@@ -16,7 +16,7 @@ the two layers do not fight.
 |-------|--------|-------------|
 | Brew | `Brewfile` + `brew-bundle.sh` | Homebrew formulae, casks, npm packages, fonts |
 | Shell | `install.sh` | Shell config (zsh), git, vim, tmux, VS Code |
-| Docker | `docker/install.sh` | Colima VM, 9Router proxy, Docker Compose |
+| Docker | `infra/docker/install.sh` | Colima VM, 9Router proxy, Docker Compose |
 | Agent | `install-agent-tooling.sh` | Skills, MCP, RTK, caveman, Pi config, CRG |
 | Pi | `install-pi-packages.sh` | Pi-native packages (from `pi-packages.txt`) |
 
@@ -30,8 +30,8 @@ This is the pattern established by `pi-packages.txt` and `skills-promote.txt`.
 | `Brewfile` | Homebrew formula/cask/npm manifest |
 | `agent/pi-packages.txt` | Pi package references |
 | `agent/skills-promote.txt` | Agent skill promotion whitelist |
-| `python/requirements-common.txt` | Python data-analysis dependencies |
-| `vscode/extensions.txt` | VS Code extension IDs |
+| `infra/python/requirements-common.txt` | Python data-analysis dependencies |
+| `editors/vscode/extensions.txt` | VS Code extension IDs |
 
 ## Agent Architecture
 

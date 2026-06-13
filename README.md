@@ -128,11 +128,11 @@ private/python/odps_config.py
 
 Clash profile flow:
 
-- `template/clash/Merge.yaml` is the checked-in public working default.
-- `template/clash/Merge.yaml.template` is the lower-level fallback seed.
+- `template/proxy/clash/Merge.yaml` is the checked-in public working default.
+- `template/proxy/clash/Merge.yaml.template` is the lower-level fallback seed.
 - `private/clash/Merge.yaml` is the private machine-specific override.
 - Runtime profiles under `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/` are generated state.
-- Refreshing a Clash subscription does not rewrite `clash/Merge.yaml`; it only
+- Refreshing a Clash subscription does not rewrite `proxy/clash/Merge.yaml`; it only
   updates app-managed runtime state.
 - Full notes: [`docs/clash-profile-flow.md`](docs/clash-profile-flow.md)
 

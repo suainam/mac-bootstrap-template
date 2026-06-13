@@ -65,20 +65,24 @@ label_path() {
 }
 
 resolve_config() {
-  local rel="$1"  # e.g. clash/Merge.yaml
+  local rel="$1"  # e.g. proxy/clash/Merge.yaml
+  # Strip category prefix for private overlay lookup (proxy/clash/ -> clash/)
+  local stripped="${rel#*/}"
+  if [ "$stripped" = "$rel" ]; then stripped="$rel"; fi
+
   # Priority 1: external private overlay (private repo parent can pass this)
-  if [ -n "$EXTERNAL_PRIVATE_DIR" ] && [ -f "$EXTERNAL_PRIVATE_DIR/$rel" ]; then
-    printf '%s\n' "$EXTERNAL_PRIVATE_DIR/$rel"
+  if [ -n "$EXTERNAL_PRIVATE_DIR" ] && [ -f "$EXTERNAL_PRIVATE_DIR/$stripped" ]; then
+    printf '%s\n' "$EXTERNAL_PRIVATE_DIR/$stripped"
     return 0
   fi
   # Priority 2: private parent layout: private-repo/template + private-repo/private
-  if [ -f "$PARENT_DIR/private/$rel" ]; then
-    printf '%s\n' "$PARENT_DIR/private/$rel"
+  if [ -f "$PARENT_DIR/private/$stripped" ]; then
+    printf '%s\n' "$PARENT_DIR/private/$stripped"
     return 0
   fi
   # Priority 3: local private overlay
-  if [ -f "$DIR/private/$rel" ]; then
-    printf '%s\n' "$DIR/private/$rel"
+  if [ -f "$DIR/private/$stripped" ]; then
+    printf '%s\n' "$DIR/private/$stripped"
     return 0
   fi
   # Priority 4: real config
@@ -115,8 +119,8 @@ render_config() {
 }
 
 echo "=== Rendered configs ==="
-render_config "clash/Merge.yaml"
-render_config "python/odps_config.py"
+render_config "proxy/clash/Merge.yaml"
+render_config "infra/python/odps_config.py"
 
 # ── LaunchAgent plists ──────────────────────────────────────
 echo "=== LaunchAgent plists ==="

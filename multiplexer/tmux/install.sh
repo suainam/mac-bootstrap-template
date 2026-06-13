@@ -19,4 +19,4 @@ if [ ! -d "$TPM_DIR" ]; then
 fi
 
 echo "Done. Enter tmux and press prefix+I to install plugins."
-echo "To switch themes: tmux/switch-theme.sh <catppuccin-mocha|gruvbox-dark>"
+echo "To switch themes: multiplexer/tmux/switch-theme.sh <catppuccin-mocha|gruvbox-dark>"

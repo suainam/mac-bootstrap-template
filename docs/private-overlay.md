@@ -23,6 +23,10 @@ private/clash/Merge.yaml
 private/python/odps_config.py
 ```
 
+Note: Private paths stay as `private/clash/` and `private/python/` (not the new
+public paths `proxy/clash/` or `infra/python/`) to avoid breaking existing
+private overlays.
+
 `make render-configs` resolves each config in this order:
 
 1. `$MAC_BOOTSTRAP_PRIVATE_DIR/<path>`

@@ -81,15 +81,15 @@ check:
 	bash -n scripts/new-project.sh
 	bash -n scripts/sync-agent-upstreams.sh
 	bash -n scripts/agent-doctor.sh
-	bash -n vscode/install-extensions.sh
-	bash -n vim/install.sh
-	bash -n vim/switch-theme.sh
-	bash -n tmux/install.sh
-	bash -n tmux/switch-theme.sh
-	bash -n iterm2/install.sh
-	bash -n iterm2/switch-theme.sh
-	bash -n hammerspoon/install.sh
-	luac -p hammerspoon/init.lua
+	bash -n editors/vscode/install-extensions.sh
+	bash -n editors/vim/install.sh
+	bash -n editors/vim/switch-theme.sh
+	bash -n multiplexer/tmux/install.sh
+	bash -n multiplexer/tmux/switch-theme.sh
+	bash -n terminals/iterm2/install.sh
+	bash -n terminals/iterm2/switch-theme.sh
+	bash -n desktop/hammerspoon/install.sh
+	luac -p desktop/hammerspoon/init.lua
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/tmux-workspace.sh
 	bash -n scripts/ssh-reverse-tunnel.sh

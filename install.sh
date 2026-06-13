@@ -156,13 +156,13 @@ chmod +x "$HOME/.local/bin/tmux-workspace.sh"
 echo "  ~/.local/bin/tmux-workspace.sh -> scripts/tmux-workspace.sh"
 
 echo "=== Install Hammerspoon config ==="
-"$DIR/hammerspoon/install.sh"
+"$DIR/desktop/hammerspoon/install.sh"
 
 echo "=== Configure iTerm2 ==="
-"$DIR/iterm2/install.sh"
+"$DIR/terminals/iterm2/install.sh"
 
 echo "=== Configure tmux ==="
-"$DIR/tmux/install.sh"
+"$DIR/multiplexer/tmux/install.sh"
 
 echo "=== Setup SSH config ==="
 SSH_SRC="$DIR/shell/ssh_config.d"
@@ -221,11 +221,11 @@ if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_VIM" -eq 0 ]; then
   fi
 fi
 if [ "$RUN_VIM" -eq 1 ]; then
-  "$DIR/vim/install.sh"
+  "$DIR/editors/vim/install.sh"
 fi
 
 echo "=== Install VS Code extensions if available ==="
-"$DIR/vscode/install-extensions.sh"
+"$DIR/editors/vscode/install-extensions.sh"
 
 if [ "$RUN_PROXY" -eq 1 ]; then
   echo "=== Configure proxy for Docker & npm ==="
@@ -233,7 +233,7 @@ if [ "$RUN_PROXY" -eq 1 ]; then
 fi
 
 echo "=== Setup Docker & Colima ==="
-"$DIR/docker/install.sh"
+"$DIR/infra/docker/install.sh"
 
 if [ -n "${MAC_BOOTSTRAP_PRIVATE_REPO:-}" ]; then
   echo "=== Sync private overlay ==="
