@@ -221,6 +221,10 @@ install_from_dmg() {
   log "Unmounting DMG..."
   hdiutil detach "$mount_point" -quiet 2>/dev/null || true
 
+  # Remove quarantine attribute (macOS Gatekeeper)
+  log "Removing quarantine attribute..."
+  run xattr -rd com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+
   log "Installed to $APP_PATH"
 }
 
