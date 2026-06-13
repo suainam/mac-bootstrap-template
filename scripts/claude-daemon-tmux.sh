@@ -7,6 +7,23 @@
 #   CLAUDE_PANE_TITLE   — tmux pane title (default: claude-keepalive)
 set -euo pipefail
 
+# Prevent multiple instances using a lock file
+LOCK_FILE="/tmp/claude-daemon.lock"
+if [ -f "$LOCK_FILE" ]; then
+    # Check if the process is actually running
+    if kill -0 $(cat "$LOCK_FILE") 2>/dev/null; then
+        echo "Another instance is running (PID: $(cat $LOCK_FILE)). Exiting."
+        exit 0
+    else
+        echo "Stale lock file found. Removing."
+        rm -f "$LOCK_FILE"
+    fi
+fi
+
+# Create lock file with current PID
+echo $$ > "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
+
 # launchd runs with minimal PATH; ensure Homebrew & local bin are available
 export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -94,23 +111,16 @@ ensure_claude_session() {
     start_claude_in_pane "$pid"
 }
 
-HEALTH_CHECK_INTERVAL=600
-LAST_HEALTH_CHECK=$(date +%s)
+# Send keepalive via claude -p (non-interactive) and exit
+# Timeout after 30s to avoid hanging when no quota
+log "Sending keepalive via claude -p"
 
-while true; do
-    pid=""
-    pane_cmd=""
-    ensure_tmux_server
-    ensure_claude_session
-
-    NOW=$(date +%s)
-    if [ $(( NOW - LAST_HEALTH_CHECK )) -ge $HEALTH_CHECK_INTERVAL ]; then
-        pid="$(get_pane_id)"
-        pane_cmd="unknown"
-        [ -n "$pid" ] && pane_cmd=$(tmux display-message -p -t "$pid" '#{pane_current_command}' 2>/dev/null || echo "unknown")
-        log "HEALTH_CHECK: session=${SESSION} pane=${pid:-none} cmd=${pane_cmd}"
-        LAST_HEALTH_CHECK=$NOW
-    fi
-
-    sleep 30
-done
+# Use bash background+wait for timeout (macOS has no `timeout` by default)
+claude -p "# keepalive: $(date '+%Y-%m-%d %H:%M:%S')" --bare --no-session-persistence 2>/dev/null &
+CLAUDE_PID=$!
+( sleep 30 && kill $CLAUDE_PID 2>/dev/null ) &
+TIMEOUT_PID=$!
+wait $CLAUDE_PID 2>/dev/null || true
+kill $TIMEOUT_PID 2>/dev/null || true
+wait $TIMEOUT_PID 2>/dev/null || true
+log "=== claude keepalive finished ==="
