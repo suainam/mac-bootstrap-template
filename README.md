@@ -9,7 +9,7 @@ fail. This one-liner uses a GitHub mirror to download Clash Verge — no proxy
 needed:
 
 ```bash
-curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash
+curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap-template/raw/main/scripts/install-clash.sh | bash
 ```
 
 Then:
@@ -34,7 +34,13 @@ export all_proxy=socks5://127.0.0.1:7897
 6. Continue bootstrap:
 
 ```bash
-git clone https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap
+# For the public template only:
+git clone https://github.com/suainam/mac-bootstrap-template.git ~/work/config/mac-bootstrap-template
+cd ~/work/config/mac-bootstrap-template
+make bootstrap
+
+# Or with private overlay (requires access to private repo):
+git clone --recursive https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap
 cd ~/work/config/mac-bootstrap/template
 make bootstrap
 ```
@@ -42,14 +48,14 @@ make bootstrap
 Preview mode (no install):
 
 ```bash
-curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash -s -- --dry-run
+curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap-template/raw/main/scripts/install-clash.sh | bash -s -- --dry-run
 ```
 
 If mirror is down, try alternative mirrors:
 
 ```bash
 # Replace gh-proxy.com with one of: ui.ghproxy.cc, github.akams.cn, www.gitwarp.com
-curl -fsSL https://ui.ghproxy.cc/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash
+curl -fsSL https://ui.ghproxy.cc/https://github.com/suainam/mac-bootstrap-template/raw/main/scripts/install-clash.sh | bash
 ```
 
 ## One command (with proxy already working)
