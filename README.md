@@ -4,22 +4,52 @@ New-machine bootstrap for this Mac setup.
 
 ## Cold Start (Fresh Mac Without Proxy)
 
-If your Mac has no proxy installed yet (GFW blocks GitHub/Homebrew):
+On a fresh Mac behind GFW, `git clone`, `brew install`, and `curl github.com` all
+fail. This one-liner uses a GitHub mirror to download Clash Verge — no proxy
+needed:
 
 ```bash
-# One line: download & install Clash Verge via GitHub mirror
 curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash
 ```
 
 Then:
-1. Open Clash Verge, import your subscription, start proxy
-2. Clone this repo: `git clone https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap`
-3. Run full bootstrap: `cd ~/work/config/mac-bootstrap/template && make bootstrap`
 
-Or preview without installing:
+1. Open **Clash Verge** from Applications
+2. Import your subscription URL (paste into Profiles → Import)
+3. Enable System Proxy (toggle in the app)
+4. Verify proxy works:
+
+```bash
+curl -I https://github.com   # should return 200
+```
+
+5. Set proxy env vars in current terminal (Clash Verge default port is 7897):
+
+```bash
+export http_proxy=http://127.0.0.1:7897
+export https_proxy=http://127.0.0.1:7897
+export all_proxy=socks5://127.0.0.1:7897
+```
+
+6. Continue bootstrap:
+
+```bash
+git clone https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap
+cd ~/work/config/mac-bootstrap/template
+make bootstrap
+```
+
+Preview mode (no install):
 
 ```bash
 curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash -s -- --dry-run
+```
+
+If mirror is down, try alternative mirrors:
+
+```bash
+# Replace gh-proxy.com with one of: ui.ghproxy.cc, github.akams.cn, www.gitwarp.com
+curl -fsSL https://ui.ghproxy.cc/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash
 ```
 
 ## One command (with proxy already working)
