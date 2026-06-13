@@ -7,22 +7,19 @@ New-machine bootstrap for this Mac setup.
 If your Mac has no proxy installed yet (GFW blocks GitHub/Homebrew):
 
 ```bash
-# Step 1: Clone this repo
-git clone https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap
-cd ~/work/config/mac-bootstrap/template
-
-# Step 2: Install Clash Verge via GitHub mirror (no proxy needed)
-make cold-start
-
-# Step 3: Import your subscription into Clash Verge, then start it
-# Step 4: Run full bootstrap
-make bootstrap
+# One line: download & install Clash Verge via GitHub mirror
+curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash
 ```
+
+Then:
+1. Open Clash Verge, import your subscription, start proxy
+2. Clone this repo: `git clone https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap`
+3. Run full bootstrap: `cd ~/work/config/mac-bootstrap/template && make bootstrap`
 
 Or preview without installing:
 
 ```bash
-make cold-start-dry
+curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap/raw/main/template/scripts/install-clash.sh | bash -s -- --dry-run
 ```
 
 ## One command (with proxy already working)
