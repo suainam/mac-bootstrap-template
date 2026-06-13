@@ -245,7 +245,12 @@ if command -v pi &>/dev/null; then
     echo "  MISS local-openai-provider.ts"
   fi
   if [ -f "$PI_MODELS_JSON" ]; then
-    MODEL_COUNT=$(python3 -c "import json; d=json.load(open('$PI_MODELS_JSON')); print(sum(len(p.get('models',[])) for p in d.get('providers',{}).values()))" 2>/dev/null || echo "?")
+    MODEL_COUNT=$(python3 - "$PI_MODELS_JSON" <<'PYEOF' 2>/dev/null || echo "?"
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(sum(len(p.get('models',[])) for p in d.get('providers',{}).values()))
+PYEOF
+)
     echo "  OK   models.json ($MODEL_COUNT models, used by /model picker in session)"
   else
     echo "  MISS models.json (run: scripts/install-agent-tooling.sh --configure)"

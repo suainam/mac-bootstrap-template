@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 

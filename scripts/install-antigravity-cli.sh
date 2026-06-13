@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
 cleanup_managed_profile() {
   local file="$1"
   [ -f "$file" ] || return 0
@@ -18,8 +20,8 @@ PY
 }
 
 if command -v agy >/dev/null 2>&1 || command -v antigravity >/dev/null 2>&1; then
-  cleanup_managed_profile "$HOME/work/config/mac-bootstrap/shell/zprofile"
-  cleanup_managed_profile "$HOME/work/config/mac-bootstrap/shell/bash_profile"
+  cleanup_managed_profile "$DIR/shell/zprofile"
+  cleanup_managed_profile "$DIR/shell/bash_profile"
   echo "Antigravity CLI already installed."
   exit 0
 fi
@@ -28,5 +30,5 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 
 # The bootstrap repo already manages PATH for ~/.local/bin. If the official
 # installer touched symlinked dotfiles, normalize them back to repo state.
-cleanup_managed_profile "$HOME/work/config/mac-bootstrap/shell/zprofile"
-cleanup_managed_profile "$HOME/work/config/mac-bootstrap/shell/bash_profile"
+cleanup_managed_profile "$DIR/shell/zprofile"
+cleanup_managed_profile "$DIR/shell/bash_profile"

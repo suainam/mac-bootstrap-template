@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BREWFILE="$DIR/Brewfile"
 
 STRICT=0
 if [ "${1:-}" = "--strict" ]; then
@@ -82,7 +85,7 @@ while IFS= read -r line; do
       check_formula "$name"
       ;;
   esac
-done < Brewfile
+done < "$BREWFILE"
 
 echo "=== Standalone CLIs ==="
 check_antigravity_cli
@@ -131,7 +134,7 @@ while IFS= read -r line; do
       fi
       ;;
   esac
-done < Brewfile
+done < "$BREWFILE"
 
 echo "=== npm CLIs ==="
 while IFS= read -r line; do
@@ -142,7 +145,7 @@ while IFS= read -r line; do
       check_npm "$name"
       ;;
   esac
-done < Brewfile
+done < "$BREWFILE"
 
 if [ "$missing" -eq 0 ]; then
   echo "Doctor passed."

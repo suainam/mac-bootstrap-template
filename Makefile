@@ -82,8 +82,11 @@ check:
 	bash -n scripts/agent-doctor.sh
 	bash -n vscode/install-extensions.sh
 	bash -n vim/install.sh
+	bash -n vim/switch-theme.sh
 	bash -n tmux/install.sh
+	bash -n tmux/switch-theme.sh
 	bash -n iterm2/install.sh
+	bash -n iterm2/switch-theme.sh
 	bash -n hammerspoon/install.sh
 	luac -p hammerspoon/init.lua
 	bash -n scripts/claude-daemon-tmux.sh

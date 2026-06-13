@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 if [ "$#" -gt 0 ] && [ "$1" != "install" ]; then
   echo "Usage: $0 [install]" >&2

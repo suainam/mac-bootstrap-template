@@ -76,7 +76,7 @@ ensure_claude_session() {
     # Session exists — check daemon pane (window 1, pane 0)
     pid="$(get_pane_id)"
     if [ -z "$pid" ]; then
-        log "ERROR: daemon pane $_daemon_:1.0 not found, rebuilding session"
+        log "ERROR: daemon pane ${SESSION}:1.0 not found, rebuilding session"
         tmux kill-session -t "$SESSION" 2>/dev/null || true
         sleep 1
         ensure_claude_session

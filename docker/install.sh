@@ -3,7 +3,7 @@
 # 容器全部跑在远程堡垒机 dsliam 上。本脚本保留供恢复参考。
 # 9router 配置在 ~/.9router/，docker-compose.yml 在本目录，重建：
 #   brew install docker colima && colima start && docker compose up -d
-set -e
+set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 

@@ -9,6 +9,8 @@ Plug 'airblade/vim-gitgutter'
 Plug 'tpope/vim-commentary'
 Plug 'sheerun/vim-polyglot'
 Plug 'christoomey/vim-tmux-navigator'
+Plug 'catppuccin/vim', { 'as': 'catppuccin' }
+Plug 'morhetz/gruvbox'
 
 call plug#end()
 
@@ -30,7 +32,10 @@ set ruler
 set laststatus=2
 set title
 set noshowmode
-colorscheme desert
+" 主题（通过 symlink 管理，运行 switch-theme.sh 切换）
+if filereadable(glob('~/.vim/theme.vim'))
+  source ~/.vim/theme.vim
+endif
 let g:airline_powerline_fonts = 1
 let g:airline#extensions#tabline#enabled = 1
 

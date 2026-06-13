@@ -3,19 +3,25 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PRESETS_DIR="$HOME/Library/Application Support/iTerm2/ColorPresets"
-PRESET_NAME="GruvboxDark"
+PLIST_PATH="$HOME/Library/Preferences/com.googlecode.iterm2.plist"
 
-echo "=== Install iTerm2 color preset: $PRESET_NAME ==="
+echo "=== Install iTerm2 color presets ==="
 mkdir -p "$PRESETS_DIR"
-cp "$DIR/$PRESET_NAME.itermcolors" "$PRESETS_DIR/$PRESET_NAME.itermcolors"
 
-# Inject into iTerm2's user defaults (idempotent; replaces if exists)
-python3 -c "
-import plistlib
+# install all .itermcolors from themes/
+for scheme_file in "$DIR/themes/"*.itermcolors; do
+  [ -f "$scheme_file" ] || continue
+  name="$(basename "$scheme_file" .itermcolors)"
+  cp "$scheme_file" "$PRESETS_DIR/$name.itermcolors"
+  echo "  $name -> $PRESETS_DIR/"
+
+  python3 - "$PRESETS_DIR/$name.itermcolors" "$name" <<'PYEOF'
+import plistlib, sys
 from pathlib import Path
 
-plist_path = Path.home() / 'Library/Preferences/com.googlecode.iterm2.plist'
-preset_path = Path.home() / 'Library/Application Support/iTerm2/ColorPresets/$PRESET_NAME.itermcolors'
+preset_path = Path(sys.argv[1])
+theme_name  = sys.argv[2]
+plist_path  = Path.home() / 'Library/Preferences/com.googlecode.iterm2.plist'
 
 with open(preset_path, 'rb') as f:
     preset = plistlib.load(f)
@@ -26,14 +32,12 @@ try:
 except Exception:
     config = {}
 
-config.setdefault('Custom Color Presets', {})['$PRESET_NAME'] = preset
+config.setdefault('Custom Color Presets', {})[theme_name] = preset
 
 with open(plist_path, 'wb') as f:
     plistlib.dump(config, f)
-
-print('  Color preset registered in iTerm2 plist')
-"
-echo "  $PRESETS_DIR/$PRESET_NAME.itermcolors"
+PYEOF
+done
 
 echo "=== Set iTerm2 as default terminal ==="
 python3 -c "
@@ -68,4 +72,8 @@ else:
     print('  iTerm2 already default terminal')
 "
 
-echo "Done. Restart iTerm2 and select $PRESET_NAME in Profiles -> Colors -> Color Presets."
+echo ""
+echo "Installed themes:"
+ls -1 "$PRESETS_DIR/"*.itermcolors 2>/dev/null | xargs -I{} basename {} .itermcolors | sed 's/^/  /'
+echo ""
+echo "Restart iTerm2, then: Profiles -> Colors -> Color Presets -> select theme."

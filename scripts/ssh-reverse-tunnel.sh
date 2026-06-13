@@ -11,6 +11,9 @@
 #
 # Override via env vars (set in ~/.zshrc.local or private overlay):
 #   TUNNEL_SSH_HOST       — SSH Host alias (default: dsliam)
+#   TUNNEL_SSH_USER       — SSH username (default: 16620000611)
+#   TUNNEL_SSH_REAL_HOST  — SSH hostname (default: dsliam.dslyy.com)
+#   TUNNEL_SSH_PORT       — SSH port (default: 22)
 #   TUNNEL_REMOTE_PORT    — port to open on bastion (default: 15721)
 #   TUNNEL_LOCAL_PORT     — local cc-switch port (default: 15721)
 #   TUNNEL_SOCKET_WAIT    — seconds between socket-existence polls (default: 15)
@@ -25,9 +28,9 @@ SOCKET_WAIT="${TUNNEL_SOCKET_WAIT:-15}"
 
 # ControlMaster socket path — mirrors ~/.ssh/config ControlPath pattern
 # %r=user %h=hostname %p=port; resolve manually to avoid ssh dependency here
-SSH_USER="16620000611"
-SSH_HOST_REAL="dsliam.dslyy.com"
-SSH_PORT="22"
+SSH_USER="${TUNNEL_SSH_USER:-16620000611}"
+SSH_HOST_REAL="${TUNNEL_SSH_REAL_HOST:-dsliam.dslyy.com}"
+SSH_PORT="${TUNNEL_SSH_PORT:-22}"
 SOCKET="${HOME}/.ssh/cm-${SSH_USER}@${SSH_HOST_REAL}:${SSH_PORT}"
 
 LOG_DIR="${HOME}/Library/Logs/claude-daemon"
