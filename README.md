@@ -2,7 +2,30 @@
 
 New-machine bootstrap for this Mac setup.
 
-## One command
+## Cold Start (Fresh Mac Without Proxy)
+
+If your Mac has no proxy installed yet (GFW blocks GitHub/Homebrew):
+
+```bash
+# Step 1: Clone this repo
+git clone https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap
+cd ~/work/config/mac-bootstrap/template
+
+# Step 2: Install Clash Verge via GitHub mirror (no proxy needed)
+make cold-start
+
+# Step 3: Import your subscription into Clash Verge, then start it
+# Step 4: Run full bootstrap
+make bootstrap
+```
+
+Or preview without installing:
+
+```bash
+make cold-start-dry
+```
+
+## One command (with proxy already working)
 
 ```bash
 make bootstrap

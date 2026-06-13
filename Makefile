@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
-	tmux-workspace \
+	tmux-workspace cold-start \
 	reverse-tunnel-install reverse-tunnel-unload reverse-tunnel-status reverse-tunnel-logs
 
 help:
@@ -12,6 +12,7 @@ help:
 	@echo ""
 	@echo "── Bootstrap ──"
 	@echo "  install / bootstrap    Full install (Homebrew + shell + agent tooling)"
+	@echo "  cold-start             Install Clash Verge proxy (first step on fresh Mac)"
 	@echo "  check                  Syntax-check all scripts + run doctor"
 	@echo "  doctor                 System health check"
 	@echo "  doctor-agent           Agent tooling health check"
@@ -217,3 +218,9 @@ reverse-tunnel-status:
 
 reverse-tunnel-logs:
 	tail -40 "$(HOME)/Library/Logs/claude-daemon/ssh-reverse-tunnel.log" 2>/dev/null || echo "(no log yet)"
+
+# ── Cold Start (Proxy Bootstrap) ────────────────────────────────────
+cold-start:
+	./scripts/install-clash.sh
+cold-start-dry:
+	./scripts/install-clash.sh --dry-run
