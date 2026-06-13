@@ -125,12 +125,17 @@ for plist in "$DIR/launchd/"*.plist; do
   [ -f "$plist" ] || continue
   name="$(basename "$plist")"
   dst="$HOME/Library/LaunchAgents/$name"
+  # Idempotent: skip if source and dest are identical
+  if [ -f "$dst" ] && cmp -s "$plist" "$dst"; then
+    echo "  $name: unchanged"
+    continue
+  fi
   run cp "$plist" "$dst"
   # Replace {{BOOTSTRAP}} with the canonical repo path
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "  $name: would substitute {{BOOTSTRAP}}"
   elif grep -q '{{BOOTSTRAP}}' "$dst" 2>/dev/null; then
-      sed -i '' "s|{{BOOTSTRAP}}|$DIR|g" "$dst"
+    sed -i '' "s|{{BOOTSTRAP}}|$DIR|g" "$dst"
     echo "  $name: substituted {{BOOTSTRAP}}"
   else
     echo "  $name: copied (no substitutions)"

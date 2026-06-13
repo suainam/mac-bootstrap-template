@@ -80,7 +80,11 @@ for f in Makefile PROJECTS_GUIDE.md; do
   fi
 done
 if [ -d "$DIR/workspace/scripts" ]; then
-  rm -rf ~/work/scripts
+  if [ -L ~/work/scripts ]; then
+    rm -f ~/work/scripts
+  elif [ -d ~/work/scripts ]; then
+    echo "  ~/work/scripts exists and is not a symlink, skipping"
+  fi
   ln -sf "$DIR/workspace/scripts" ~/work/scripts
   echo "  ~/work/scripts -> workspace/scripts"
 fi

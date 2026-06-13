@@ -6,7 +6,11 @@ TARGET_DIR="$HOME/Library/LaunchAgents"
 TARGET_PLIST="$TARGET_DIR/io.local.mac-bootstrap.cache-cleanup.plist"
 
 mkdir -p "$TARGET_DIR"
-cp "$DIR/launchd/io.local.mac-bootstrap.cache-cleanup.plist" "$TARGET_PLIST"
+if [ -f "$TARGET_PLIST" ] && cmp -s "$DIR/launchd/io.local.mac-bootstrap.cache-cleanup.plist" "$TARGET_PLIST"; then
+  echo "Plist unchanged, skipping copy"
+else
+  cp "$DIR/launchd/io.local.mac-bootstrap.cache-cleanup.plist" "$TARGET_PLIST"
+fi
 launchctl unload "$TARGET_PLIST" >/dev/null 2>&1 || true
 launchctl load "$TARGET_PLIST"
 
