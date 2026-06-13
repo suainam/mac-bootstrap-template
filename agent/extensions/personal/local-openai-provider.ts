@@ -40,9 +40,18 @@ export default async function (pi: ExtensionAPI) {
   const apiKey =
     process.env.PI_LOCAL_PROVIDER_API_KEY?.trim() || read9RouterApiKey();
 
-  const response = await fetch(`${baseUrl}/models`, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/models`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err) {
+    console.warn(
+      `[pi-local-provider] server at ${baseUrl} unreachable (${err instanceof Error ? err.message : err}) — skipping local provider`
+    );
+    return;
+  }
 
   if (!response.ok) {
     console.warn(
