@@ -97,6 +97,24 @@ def test_tmux_has_cross_window_swap():
     assert out, "Cross-window swap-pane keybinding (C-a X) not found"
 
 
+def test_tmux_pane_titles():
+    out, _, _ = run("tmux list-panes -F '#{pane_title}' 2>/dev/null")
+    titles = out.strip().split('\n')
+    assert 'claude-keepalive' in titles, f"Missing pane title 'claude-keepalive', got: {titles}"
+    assert 'dsliam' in titles, f"Missing pane title 'dsliam', got: {titles}"
+    assert 'work' in titles, f"Missing pane title 'work', got: {titles}"
+
+
+def test_tmux_pane_border_format_shows_title():
+    out, _, _ = run("tmux show-option -g pane-border-format")
+    assert 'pane_title' in out, f"pane-border-format doesn't reference pane_title: {out}"
+
+
+def test_tmux_theme_exists():
+    path = os.path.expanduser("~/.tmux/theme.conf")
+    assert os.path.exists(path)
+
+
 # ── Hammerspoon ───────────────────────────────────────────────────────
 
 def test_hammerspoon_has_ghostty_binding():
