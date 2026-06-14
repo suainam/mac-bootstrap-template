@@ -58,8 +58,8 @@ def parse_env(path: str) -> dict[str, str]:
                     current_key = None
                     current_lines = []
             elif current_key is not None and line.startswith("  "):
-                # Continuation line (indented)
-                current_lines.append(line.strip())
+                # Continuation line: keep indentation for YAML structure
+                current_lines.append(line)
 
     # Save last multi-line key
     if current_key is not None:
@@ -97,7 +97,9 @@ def main():
     repo_root = find_repo_root()
     template_path = os.path.join(repo_root, "proxy", "clash", "Merge.yaml")
     env_path = os.path.join(repo_root, "..", "private", "clash", "Merge.env")
-    output_path = os.path.join(repo_root, "proxy", "clash", "Merge.yaml")
+    output_path = os.path.expanduser(
+        "~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/Merge.yaml"
+    )
 
     # Fallback: check MAC_BOOTSTRAP_PRIVATE_DIR
     private_dir = os.environ.get("MAC_BOOTSTRAP_PRIVATE_DIR", "")

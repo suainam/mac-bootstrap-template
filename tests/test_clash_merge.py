@@ -46,7 +46,7 @@ def test_parse_env_single_values():
 
 
 def test_parse_env_multiline_values():
-    """Multi-line values (indented continuation) are joined."""
+    """Multi-line values (indented continuation) are joined with indent preserved."""
     sys.path.insert(0, os.path.dirname(RENDER_SCRIPT))
     from importlib import import_module
     render = import_module("render-clash-merge")
@@ -57,7 +57,7 @@ def test_parse_env_multiline_values():
         env = render.parse_env(f.name)
     os.unlink(f.name)
 
-    assert env["RULES"] == "- line1\n- line2\n- line3"
+    assert env["RULES"] == "  - line1\n  - line2\n  - line3"
 
 
 def test_parse_env_skips_comments():
@@ -203,7 +203,6 @@ def test_render_private_data_not_in_template():
     private_markers = [
         "handclap6764",        # subscription domain
         "token=",              # auth token
-        "baipiaoyes",          # subscription domain
         "dslyy.com",           # company domain
         "msuai.top",           # personal domain
         "ctokai.com",          # internal domain

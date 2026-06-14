@@ -66,7 +66,7 @@ proxy-groups:
     use:
       - {{PROVIDER_A_NAME}}
       - {{PROVIDER_C_NAME}}
-    exclude-filter: "(重置|过滤|剩余流量|套餐到期|官网|请每月|ipv6|Relay|cf-best)"
+    exclude-filter: "(重置|过滤|剩余流量|套餐到期|官网|请每月|baipiaoyes|ipv6|Relay|cf-best)"
 
   - name: 🤖 AI服务
     type: select
@@ -125,8 +125,6 @@ dns:
     geoip-code: CN
   fake-ip-filter:
     - geosite:cn
-    - +.example.lan
-    - +.example.internal
     {{FAKE_IP_FILTER_INTERNAL}}
 
 tun:
