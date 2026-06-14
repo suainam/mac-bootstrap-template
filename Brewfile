@@ -14,6 +14,8 @@ brew "tmux"
 brew "lua"
 brew "direnv"
 brew "zoxide"
+brew "eza"
+brew "bat"
 
 # ========== 语言 & 运行时 ==========
 brew "node"
@@ -44,6 +46,7 @@ cask "codex-app"
 cask "claude-code"
 
 # ========== 终端 & 系统增强 ==========
+cask "ghostty"
 cask "iterm2"
 cask "hammerspoon"
 cask "mos"

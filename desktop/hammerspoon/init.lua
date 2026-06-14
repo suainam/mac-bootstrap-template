@@ -6,7 +6,8 @@
 -- - No shared prefix with tmux. Use Hyper for system actions.
 
 local hyper = { "cmd", "alt", "ctrl" }
-local terminal_bundle_id = "com.googlecode.iterm2"
+local iterm2_bundle_id = "com.googlecode.iterm2"
+local ghostty_bundle_id = "com.mitchellh.ghostty"
 local clipboard_dir = os.getenv("HOME") .. "/Pictures/ClipboardShots"
 local shottr_app = "/Applications/Shottr.app/Contents/MacOS/Shottr"
 
@@ -43,6 +44,7 @@ local zh_apps = {
 }
 local zh_app_names = {
   ["iTerm2"] = true,
+  ["Ghostty"] = true,
 }
 
 local function is_wuying(bid)
@@ -125,7 +127,7 @@ hs.hotkey.bind(hyper, "R", function()
 end)
 
 hs.hotkey.bind(hyper, "G", function()
-  hs.grid.show()
+  hs.application.launchOrFocusByBundleID(ghostty_bundle_id)
 end)
 
 hs.hotkey.bind(hyper, "K", function()
@@ -160,7 +162,7 @@ hs.hotkey.bind({ "ctrl", "shift" }, "V", function()
 end)
 
 hs.hotkey.bind(hyper, "T", function()
-  hs.application.launchOrFocusByBundleID(terminal_bundle_id)
+  hs.application.launchOrFocusByBundleID(iterm2_bundle_id)
 end)
 
 hs.hotkey.bind(hyper, "S", function()

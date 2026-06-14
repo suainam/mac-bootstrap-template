@@ -33,16 +33,4 @@ fi
 echo "=== Verify Docker ==="
 docker info --format '{{.ServerVersion}}' 2>/dev/null && echo "  Docker {{.ServerVersion}} ready" || echo "  Docker not ready yet — try 'colima start'"
 
-echo "=== Register DevPod SSH provider (dsliam) ==="
-if command -v devpod >/dev/null 2>&1; then
-  if ! devpod provider list 2>/dev/null | grep -q 'dsliam'; then
-    devpod provider add ssh --name dsliam \
-      --option HOST=dsliam-devpod \
-      --option USER=16620000611
-    echo "  DevPod provider 'dsliam' registered"
-  else
-    echo "  DevPod provider 'dsliam' already exists"
-  fi
-else
-  echo "  devpod not installed — skipping (run: brew install devpod)"
-fi
+

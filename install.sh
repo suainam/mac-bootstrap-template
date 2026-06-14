@@ -158,6 +158,9 @@ echo "  ~/.local/bin/tmux-workspace.sh -> scripts/tmux-workspace.sh"
 echo "=== Install Hammerspoon config ==="
 "$DIR/desktop/hammerspoon/install.sh"
 
+echo "=== Configure Ghostty ==="
+"$DIR/terminals/ghostty/install.sh"
+
 echo "=== Configure iTerm2 ==="
 "$DIR/terminals/iterm2/install.sh"
 

@@ -1,0 +1,45 @@
+services:
+    code-server:
+        build: .
+        container_name: code-server
+        restart: unless-stopped
+        user: "0"
+        ports:
+            - "${CODE_SERVER_PORT:-59200}:8080"
+        environment:
+            PASSWORD: ${CODE_SERVER_PASSWORD:?CODE_SERVER_PASSWORD must be set in .env}
+            # OpenAI-compatible proxy → Mac cc-switch via SSH -R tunnel
+            OPENAI_API_KEY: ${OPENAI_API_KEY:-placeholder}
+            OPENAI_BASE_URL: http://host.docker.internal:15721
+            # Claude Code also reads these
+            ANTHROPIC_API_KEY: ${OPENAI_API_KEY:-placeholder}
+            ANTHROPIC_BASE_URL: http://host.docker.internal:15721
+        volumes:
+            - /data01/suai/dev:/root/dev
+            - /var/run/docker.sock:/var/run/docker.sock
+            - code-server-config:/root/.config
+            - code-server-extensions:/root/.local/share/code-server
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: all
+                          capabilities: [gpu]
+        logging:
+            driver: json-file
+            options:
+                max-size: "50m"
+                max-file: "5"
+        healthcheck:
+            test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+            interval: 30s
+            timeout: 5s
+            start_period: 15s
+            retries: 3
+
+volumes:
+    code-server-config:
+    code-server-extensions:

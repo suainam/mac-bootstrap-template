@@ -1,0 +1,11 @@
+[project]
+name = "mac-bootstrap"
+version = "0.1.0"
+description = "macOS development environment bootstrap tests"
+requires-python = ">=3.12"
+dev-dependencies = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -86,6 +86,7 @@ check:
 	bash -n editors/vim/switch-theme.sh
 	bash -n multiplexer/tmux/install.sh
 	bash -n multiplexer/tmux/switch-theme.sh
+	bash -n terminals/ghostty/install.sh
 	bash -n terminals/iterm2/install.sh
 	bash -n terminals/iterm2/switch-theme.sh
 	bash -n desktop/hammerspoon/install.sh
@@ -95,6 +96,7 @@ check:
 	bash -n scripts/ssh-reverse-tunnel.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
+	uv run pytest tests/ -q
 
 doctor:
 	./scripts/doctor.sh
