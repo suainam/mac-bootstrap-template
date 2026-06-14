@@ -1,15 +1,8 @@
 # ============================================================
-# 多订阅合并（模板版 — 替换 {{PLACEHOLDERS}} 为你自己的值）
+# 多订阅合并（模板版）
 # ============================================================
-#
-# 使用方式：
-#   1. Put real config in private/clash/Merge.yaml, or copy this file locally
-#      to clash/Merge.yaml.
-#   2. Replace {{PROVIDER_*}} with your subscription URLs.
-#   3. Keep real domains, LAN details, and subscription URLs out of git.
-#
-# 如果你的私人仓库有 clash/Merge.yaml，则脚本会自动使用它
-# 而非此模板。
+# 私有数据在 private/clash/Merge.env
+# 渲染命令：make render-configs
 # ============================================================
 
 enable-process: true
@@ -42,26 +35,26 @@ rule-providers:
     interval: 86400
 
 proxy-providers:
-  provider-a:
+  {{PROVIDER_A_NAME}}:
     <<: *provider_default
     url: "{{PROVIDER_A_URL}}"
-    path: "./proxy_providers/provider-a.yaml"
+    path: "./proxy_providers/{{PROVIDER_A_NAME}}.yaml"
     override:
-      additional-prefix: "[A] "
+      additional-prefix: "{{PROVIDER_A_PREFIX}}"
 
-  provider-b:
+  {{PROVIDER_B_NAME}}:
     <<: *provider_default
     url: "{{PROVIDER_B_URL}}"
-    path: "./proxy_providers/provider-b.yaml"
+    path: "./proxy_providers/{{PROVIDER_B_NAME}}.yaml"
     override:
-      additional-prefix: "[B] "
+      additional-prefix: "{{PROVIDER_B_PREFIX}}"
 
-  provider-c:
+  {{PROVIDER_C_NAME}}:
     <<: *provider_default
     url: "{{PROVIDER_C_URL}}"
-    path: "./proxy_providers/provider-c.yaml"
+    path: "./proxy_providers/{{PROVIDER_C_NAME}}.yaml"
     override:
-      additional-prefix: "[C] "
+      additional-prefix: "{{PROVIDER_C_PREFIX}}"
 
 # ===== 代理组 =====
 proxy-groups:
@@ -69,19 +62,19 @@ proxy-groups:
     type: fallback
     url: "https://www.gstatic.com/generate_204"
     interval: 300
-    tolerance: 50
+    tolerance: 150
     use:
-      - provider-a
-      - provider-c
+      - {{PROVIDER_A_NAME}}
+      - {{PROVIDER_C_NAME}}
     exclude-filter: "(重置|过滤|剩余流量|套餐到期|官网|请每月|ipv6|Relay|cf-best)"
 
   - name: 🤖 AI服务
     type: select
     use:
-      - provider-b
-      - provider-a
-      - provider-c
-    filter: '(解锁GPT|美国|土耳其)'
+      - {{PROVIDER_B_NAME}}
+      - {{PROVIDER_A_NAME}}
+      - {{PROVIDER_C_NAME}}
+    filter: "{{AI_FILTER}}"
     exclude-filter: "(Relay|cf-best)"
     proxies:
       - DIRECT
@@ -92,24 +85,24 @@ proxy-groups:
       - DIRECT
       - ⚡ 低延迟
 
-  - name: ☁️ provider-a
+  - name: ☁️ {{PROVIDER_A_NAME}}
     type: select
     use:
-      - provider-a
+      - {{PROVIDER_A_NAME}}
     proxies:
       - DIRECT
 
-  - name: 🌸 provider-b
+  - name: 🌸 {{PROVIDER_B_NAME}}
     type: select
     use:
-      - provider-b
+      - {{PROVIDER_B_NAME}}
     proxies:
       - DIRECT
 
-  - name: 🎫 provider-c
+  - name: 🎫 {{PROVIDER_C_NAME}}
     type: select
     use:
-      - provider-c
+      - {{PROVIDER_C_NAME}}
     exclude-filter: "(广告|去广告|剩余流量|套餐到期|官网|ipv6免流|请每月)"
     proxies:
       - DIRECT
@@ -134,8 +127,7 @@ dns:
     - geosite:cn
     - +.example.lan
     - +.example.internal
-    # 公司内网后缀放这里，避免 fake-ip 误伤内网站点
-    # - +.corp.example
+    {{FAKE_IP_FILTER_INTERNAL}}
 
 tun:
   enable: true
@@ -146,13 +138,16 @@ tun:
     - 127.0.0.0/8
     - 10.0.0.0/8
     - 172.16.0.0/12
+    - 192.168.0.0/16
 
 rules:
+  # -- 广告拦截 --
   - GEOSITE,category-ads-all,REJECT
   - DOMAIN,ad.com,REJECT
   - DOMAIN-SUFFIX,doubleclick.net,REJECT
   - DOMAIN-KEYWORD,tracker,REJECT
 
+  # -- 局域网直连 --
   - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
   - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
   - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
@@ -163,17 +158,27 @@ rules:
   - DOMAIN,localhost,DIRECT
   - DST-PORT,22,DIRECT
 
-  - DOMAIN-SUFFIX,dslbuy.com,DIRECT
-  - DOMAIN-SUFFIX,aliyun.com,DIRECT
-  - DOMAIN-SUFFIX,aliyuncs.com,DIRECT
-  - DOMAIN-SUFFIX,github.io,⚡ 低延迟
+  # -- 私有域名/端口 --
+  {{RULES_PRIVATE}}
 
+  # -- AI 服务 --
   - RULE-SET,ai-services,🤖 AI服务
+
+  # -- 进程分流（通用应用） --
+  - PROCESS-NAME-REGEX,(?i)^(Claude|Code|antigravity).*\.exe$,🤖 AI服务
+  - PROCESS-PATH,/usr/bin/wget,⚡ 低延迟
+  - PROCESS-PATH,C:\Program Files\Google\Chrome\Application\chrome.exe,⚡ 低延迟
+  - PROCESS-PATH-WILDCARD,/usr/*/wget,⚡ 低延迟
+  - PROCESS-PATH-REGEX,.*bin/wget,⚡ 低延迟
+  - PROCESS-PATH-REGEX,(?i).*Application\\chrome.*,⚡ 低延迟
+
+  # -- 代理域名 --
+  - DOMAIN-SUFFIX,github.io,⚡ 低延迟
   - RULE-SET,proxy-domains,⚡ 低延迟
 
+  # -- 国内直连 --
   - GEOSITE,CN,DIRECT
   - GEOIP,CN,DIRECT
-  - DOMAIN-SUFFIX,cn,DIRECT
 
   - NETWORK,udp,DIRECT
 
