@@ -11,6 +11,7 @@ import argparse
 import os
 import re
 import sys
+import textwrap
 
 
 def find_repo_root() -> str:
@@ -76,7 +77,16 @@ def render_template(template_path: str, env: dict[str, str]) -> str:
     def replacer(match: re.Match) -> str:
         key = match.group(1)
         if key in env:
-            return env[key]
+            value = env[key]
+            if '\n' in value:
+                # Strip env's own indent, then re-indent to match
+                # the placeholder's column in the template.
+                value = textwrap.dedent(value)
+                prefix = match.string[:match.start()]
+                indent = prefix.rsplit('\n', 1)[-1] if '\n' in prefix else prefix
+                lines = value.split('\n')
+                value = ('\n' + indent).join(lines)
+            return value
         # Leave unresolved placeholders as-is (with warning marker)
         return match.group(0)
 

@@ -111,6 +111,77 @@ def test_render_keeps_unknown_placeholders():
     assert "{{UNKNOWN}}" in result
 
 
+# ── Unit: multi-line indent ─────────────────────────────────
+
+def _load_render():
+    sys.path.insert(0, os.path.dirname(RENDER_SCRIPT))
+    from importlib import import_module
+    return import_module("render-clash-merge")
+
+
+def test_multiline_dedented_and_reindented():
+    """Multi-line env values: dedent then re-indent to placeholder column."""
+    render = _load_render()
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as tf:
+        # placeholder at 4 spaces (like fake-ip-filter)
+        tf.write("list:\n    {{ITEMS}}\n")
+        tf.flush()
+        # env value with 2sp indent (as parse_env stores continuation lines)
+        result = render.render_template(tf.name, {"ITEMS": "  - a\n  - b\n  - c"})
+    os.unlink(tf.name)
+
+    lines = result.strip().split("\n")
+    assert lines == ["list:", "    - a", "    - b", "    - c"]
+
+
+def test_multiline_at_col0():
+    """Multi-line value at column 0 gets no extra indent."""
+    render = _load_render()
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as tf:
+        tf.write("{{ITEMS}}\n")
+        tf.flush()
+        result = render.render_template(tf.name, {"ITEMS": "  - x\n  - y"})
+    os.unlink(tf.name)
+
+    lines = result.strip().split("\n")
+    assert lines == ["- x", "- y"]
+
+
+def test_single_line_no_dedent():
+    """Single-line values pass through unchanged."""
+    render = _load_render()
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as tf:
+        tf.write("val: {{X}}\n")
+        tf.flush()
+        result = render.render_template(tf.name, {"X": "hello"})
+    os.unlink(tf.name)
+
+    assert result == "val: hello\n"
+
+
+def test_rendered_yaml_structure_valid():
+    """Integration: rendered output passes yaml.safe_load + key structure."""
+    yaml = pytest.importorskip("yaml")
+    stdout, stderr, rc = run_render(dry_run=True)
+    assert rc == 0, f"Render failed: {stderr}"
+
+    d = yaml.safe_load(stdout)
+
+    # fake-ip-filter is flat string list, no nested dicts
+    fif = d["dns"]["fake-ip-filter"]
+    assert all(isinstance(x, str) for x in fif), f"fake-ip-filter nested: {fif}"
+
+    # rules is flat string list
+    rules = d["rules"]
+    assert all(isinstance(x, str) for x in rules), f"rules nested: {rules}"
+
+    # proxy-providers has 3 entries
+    assert len(d["proxy-providers"]) == 3
+
+
 # ── Unit: check_unresolved ──────────────────────────────────
 
 def test_check_unresolved_finds_remaining():
