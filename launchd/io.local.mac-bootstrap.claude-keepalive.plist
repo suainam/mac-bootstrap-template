@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- ⚠️  DEPRECATED — 2026-06-11. Do not enable. User decided keepalive is unnecessary. -->
+<!--
+  DEPRECATED 2026-06-11
+  Replaced by: claude-daemon-tmux.sh with StartCalendarInterval (00:00 / 08:00 / 15:00).
+  Reason: per-minute polling (StartInterval 60) deemed unnecessary.
+  Do NOT install or re-enable this launch agent.
+-->
 <plist version="1.0">
 <dict>
 	<key>Label</key>

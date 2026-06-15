@@ -1,126 +1,102 @@
 #!/usr/bin/env bash
-# Claude Code tmux daemon — macOS launchd-managed
-# Keeps a tmux session alive with Claude Code running in a dedicated pane.
+# Claude Code keepalive daemon — macOS launchd-managed
+# Sends a non-interactive claude -p ping on a calendar schedule (00:00 / 08:00 / 15:00).
 # Override defaults via env vars (set in ~/.zshrc.local or private overlay):
-#   CLAUDE_PROJECT_DIR  — project directory for claude (default: $HOME/work)
-#   CLAUDE_SESSION      — tmux session name (default: _daemon_)
-#   CLAUDE_PANE_TITLE   — tmux pane title (default: claude-keepalive)
-set -euo pipefail
+#   CLAUDE_PROJECT_DIR  — working directory for claude (default: $HOME/work)
+#   CLAUDE_SESSION      — unused; kept for forward compat
+#   CLAUDE_TIMEOUT      — seconds before force-killing claude (default: 60)
+set -uo pipefail  # no -e: we handle errors explicitly below
 
-# Prevent multiple instances using a lock file
-LOCK_FILE="/tmp/claude-daemon.lock"
-if [ -f "$LOCK_FILE" ]; then
-    # Check if the process is actually running
-    if kill -0 $(cat "$LOCK_FILE") 2>/dev/null; then
-        echo "Another instance is running (PID: $(cat $LOCK_FILE)). Exiting."
-        exit 0
-    else
-        echo "Stale lock file found. Removing."
-        rm -f "$LOCK_FILE"
-    fi
-fi
-
-# Create lock file with current PID
-echo $$ > "$LOCK_FILE"
-trap 'rm -f "$LOCK_FILE"' EXIT
-
-# launchd runs with minimal PATH; ensure Homebrew & local bin are available
-export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+# --- config ---
+export PATH="${CLAUDE_BIN_EXTRA_PATH:+${CLAUDE_BIN_EXTRA_PATH}:}/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 CLAUDE_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$HOME/work}"
-SESSION="${CLAUDE_SESSION:-_daemon_}"
-PANE_TITLE="${CLAUDE_PANE_TITLE:-claude-keepalive}"
+CLAUDE_TIMEOUT="${CLAUDE_TIMEOUT:-60}"  # seconds; override via env if needed
 
 LOG_DIR="${HOME}/Library/Logs/claude-daemon"
 LOG="${LOG_DIR}/tmux.log"
 mkdir -p "$LOG_DIR"
 
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG"; }
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 
+# --- lock: prevent overlapping runs ---
+LOCK_FILE="/tmp/claude-daemon.lock"
+if [ -f "$LOCK_FILE" ]; then
+    LOCK_PID=$(cat "$LOCK_FILE" 2>/dev/null || true)
+    if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+        log "SKIP: another instance running (PID $LOCK_PID)"
+        exit 0
+    fi
+    log "WARN: removing stale lock (PID $LOCK_PID)"
+    rm -f "$LOCK_FILE"
+fi
+echo $$ > "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
+
+# --- robust timeout: macOS-compatible, pipe-safe ---
+#
+# _kill_tree: recursively kill a process and all its children via pgrep.
+# Works on macOS without setsid or GNU coreutils.
+_kill_tree() {
+    local pid="$1" sig="${2:-TERM}"
+    local children
+    children=$(pgrep -P "$pid" 2>/dev/null || true)
+    for child in $children; do
+        _kill_tree "$child" "$sig"
+    done
+    kill "-${sig}" "$pid" 2>/dev/null || true
+}
+
+# run_with_timeout <seconds> cmd [args...]
+# Kills the entire process tree on timeout (SIGTERM → SIGKILL after 5 s).
+# The watchdog subshell immediately closes inherited FDs (exec >/dev/null 2>&1)
+# so orphaned sleeps inside it never hold the caller's stdout/stderr pipes open.
+run_with_timeout() {
+    local timeout_secs="$1"; shift
+
+    "$@" &
+    local child_pid=$!
+
+    (
+        exec >/dev/null 2>&1          # close inherited pipes — critical for correctness
+        sleep "$timeout_secs"
+        if kill -0 "$child_pid" 2>/dev/null; then
+            log "TIMEOUT: claude -p exceeded ${timeout_secs}s — SIGTERM pid $child_pid"
+            _kill_tree "$child_pid" TERM
+            sleep 5
+            if kill -0 "$child_pid" 2>/dev/null; then
+                log "TIMEOUT: still alive after SIGTERM — SIGKILL pid $child_pid"
+                _kill_tree "$child_pid" KILL
+            fi
+        fi
+    ) &
+    local watchdog_pid=$!
+
+    wait "$child_pid" 2>/dev/null
+    local exit_status=$?
+
+    kill "$watchdog_pid" 2>/dev/null || true
+    wait "$watchdog_pid" 2>/dev/null || true
+
+    return $exit_status
+}
+
+# --- main: keepalive ping via claude -p ---
+START_TS=$(date '+%s')
 log "=== tmux daemon starting ==="
 log "  project_dir: $CLAUDE_PROJECT_DIR"
-log "  session: $SESSION"
-
-ensure_tmux_server() {
-    if ! tmux info &>/dev/null 2>&1; then
-        log "tmux server not running, starting server"
-        TMUX= tmux start-server
-        sleep 1
-    fi
-}
-
-# Get the daemon-managed pane ID by fixed index (session:window.pane)
-get_pane_id() {
-    tmux list-panes -t "$SESSION:1.0" -F '#{pane_id}' 2>/dev/null | head -1
-}
-
-get_pane_cmd() {
-    local pid="$1"
-    tmux display-message -p -t "$pid" '#{pane_current_command}' 2>/dev/null || echo ""
-}
-
-# Send the claude command to the given pane (no restart loop — outer health check handles recovery)
-start_claude_in_pane() {
-    local pid="$1"
-    log "Starting claude in pane $pid"
-    tmux send-keys -t "$pid" \
-        "cd '$CLAUDE_PROJECT_DIR' && claude \"# session started: \$(date '+%Y-%m-%d %H:%M:%S')\"" Enter
-    sleep 0.5
-    tmux select-pane -t "$pid" -T "$PANE_TITLE"
-    tmux set-option -p -t "$pid" allow-rename off
-    log "claude started with title $PANE_TITLE (allow-rename off)"
-}
-
-ensure_claude_session() {
-    local pid
-
-    # Create session if it does not exist
-    if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-        log "Creating $SESSION session with daemon pane (cwd: $CLAUDE_PROJECT_DIR)"
-        TMUX= tmux new-session -d -s "$SESSION" -c "$CLAUDE_PROJECT_DIR"
-
-        # Get first pane
-        pid=$(tmux list-panes -t "$SESSION" -F '#{pane_id}' 2>/dev/null | head -1)
-        if [ -z "$pid" ]; then
-            log "ERROR: no pane found after creating session"
-            return 1
-        fi
-
-        start_claude_in_pane "$pid"
-        return 0
-    fi
-
-    # Session exists — check daemon pane (window 1, pane 0)
-    pid="$(get_pane_id)"
-    if [ -z "$pid" ]; then
-        log "ERROR: daemon pane ${SESSION}:1.0 not found, rebuilding session"
-        tmux kill-session -t "$SESSION" 2>/dev/null || true
-        sleep 1
-        ensure_claude_session
-        return $?
-    fi
-
-    # Check if claude is already running in the pane
-    local pane_cmd
-    pane_cmd="$(get_pane_cmd "$pid")"
-    if [ "$pane_cmd" = "claude" ]; then
-        return 0
-    fi
-
-    log "Pane $pid running '$pane_cmd' instead of claude, restarting"
-    start_claude_in_pane "$pid"
-}
-
-# Send keepalive via claude -p (non-interactive) and exit
-# Timeout after 30s to avoid hanging when no quota
+log "  timeout: ${CLAUDE_TIMEOUT}s"
 log "Sending keepalive via claude -p"
 
-# Use bash background+wait for timeout (macOS has no `timeout` by default)
-claude -p "# keepalive: $(date '+%Y-%m-%d %H:%M:%S')" --bare --no-session-persistence 2>/dev/null &
-CLAUDE_PID=$!
-( sleep 30 && kill $CLAUDE_PID 2>/dev/null ) &
-TIMEOUT_PID=$!
-wait $CLAUDE_PID 2>/dev/null || true
-kill $TIMEOUT_PID 2>/dev/null || true
-wait $TIMEOUT_PID 2>/dev/null || true
-log "=== claude keepalive finished ==="
+cd "$CLAUDE_PROJECT_DIR"
+run_with_timeout "$CLAUDE_TIMEOUT" \
+    claude -p "# keepalive: $(date '+%Y-%m-%d %H:%M:%S')" --bare --no-session-persistence \
+    2>/dev/null
+EXIT_STATUS=$?
+
+ELAPSED=$(( $(date '+%s') - START_TS ))
+if [ "$EXIT_STATUS" -eq 0 ]; then
+    log "=== claude keepalive finished (${ELAPSED}s, exit 0) ==="
+else
+    log "=== claude keepalive finished (${ELAPSED}s, exit ${EXIT_STATUS}) ==="
+fi
