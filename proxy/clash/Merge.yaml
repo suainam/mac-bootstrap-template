@@ -170,10 +170,6 @@ rules:
   - PROCESS-PATH-REGEX,.*bin/wget,⚡ 低延迟
   - PROCESS-PATH-REGEX,(?i).*Application\\chrome.*,⚡ 低延迟
 
-  # -- 代理域名 --
-  - DOMAIN-SUFFIX,github.io,⚡ 低延迟
-  - RULE-SET,proxy-domains,⚡ 低延迟
-
   # -- 国内直连 --
   - GEOSITE,CN,DIRECT
   - GEOIP,CN,DIRECT

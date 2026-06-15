@@ -304,4 +304,3 @@ def test_render_contains_private_domains():
     assert rc == 0
     assert "dslyy.com" in stdout
     assert "msuai.top" in stdout
-    assert "github.io" in stdout
