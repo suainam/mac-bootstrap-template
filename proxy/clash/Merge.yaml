@@ -62,7 +62,7 @@ proxy-groups:
     type: fallback
     url: "https://www.gstatic.com/generate_204"
     interval: 300
-    tolerance: 150
+    tolerance: 50
     use:
       - {{PROVIDER_A_NAME}}
       - {{PROVIDER_C_NAME}}
@@ -177,8 +177,12 @@ rules:
   # -- 国内直连 --
   - GEOSITE,CN,DIRECT
   - GEOIP,CN,DIRECT
+  - DOMAIN-SUFFIX,cn,DIRECT
 
   - NETWORK,udp,DIRECT
+
+  # -- 代理域名 --
+  - RULE-SET,proxy-domains,⚡ 低延迟
 
   - MATCH,🎯 默认
 
