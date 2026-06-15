@@ -109,8 +109,31 @@ render_config() {
   fi
 
   if [ "$source" = "$target" ]; then
-    echo "  $rel: already present"
+    # Check if existing file has unresolved placeholders
+    if grep -q '{{[A-Z_]' "$target" 2>/dev/null; then
+      echo "  WARN: $rel has {{ placeholders — create private/${rel#*/} with real values"
+      echo "       cp $source private/${rel#*/} \&\& vim private/${rel#*/}"
+    else
+      echo "  $rel: already present"
+    fi
     return 0
+  fi
+
+  # Check if source contains unresolved {{ placeholders
+  if grep -q '{{[A-Z_]' "$source" 2>/dev/null; then
+    local stripped="${rel#*/}"
+    local private_path=""
+    for dir in "$EXTERNAL_PRIVATE_DIR" "$PARENT_DIR/private" "$DIR/private"; do
+      if [ -n "$dir" ] && [ -f "$dir/$stripped" ]; then
+        private_path="$dir/$stripped"
+        break
+      fi
+    done
+    if [ -z "$private_path" ]; then
+      echo "  WARN: $rel still has {{ placeholders — create private/$stripped with real values"
+      echo "       cp $source private/$stripped && vim private/$stripped"
+      return 0
+    fi
   fi
 
   run mkdir -p "$(dirname "$target")"
