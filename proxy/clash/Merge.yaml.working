@@ -1,0 +1,242 @@
+# ============================================================
+# 多订阅合并
+# [cc15]自建  [sakura]付费限量  [BP]白嫖大流量
+# ============================================================
+#
+# ── 迁移新电脑检查清单 ──────────────────────────────────────
+# 1. find-process-mode 必须为 always（不能用 strict）
+#    原因：WSL2/VM 流量无法被 Windows 进程表识别
+#    strict 模式下进程查找失败 → 直接 DROP，WSL 全部断网
+#
+# 2. tun.route-exclude-address 必须排除 172.16.0.0/12
+#    原因：WSL2 使用该网段（如 172.27.x.x）
+#    不排除 → WSL→宿主机代理端口被 TUN 截获 → DIRECT 死锁 → 超时
+#
+# 3. Windows 防火墙须放行代理端口的 WSL 虚拟网卡入站
+#    执行（管理员 PowerShell）：
+#      New-NetFirewallRule -DisplayName "Clash Proxy 7897 WSL" `
+#        -Direction Inbound -Protocol TCP -LocalPort 7897 `
+#        -Action Allow -InterfaceAlias "vEthernet (WSL)"
+#    验证：
+#      宿主机: Test-NetConnection -ComputerName 127.0.0.1 -Port 7897  → TcpTestSucceeded: True
+#      WSL:    nc -vz 172.27.112.1 7897                               → 应连通
+#    两者不一致（宿主机通但 WSL 不通）→ 防火墙问题
+#
+# 4. 进程规则(PROCESS-NAME-REGEX)优先于后续所有域名规则
+#    claude.exe 会被进程规则捕获走 AI服务组
+#    若使用自定义 ANTHROPIC_BASE_URL（如 subus.imds.ai），
+#    该域名必须在进程规则之前加 DOMAIN-SUFFIX 直连，否则被劫持走代理
+#
+# 5. Merge.yaml 实际路径（不是仓库里的副本）：
+#    %APPDATA%\io.github.clash-verge-rev.clash-verge-rev\profiles\Merge.yaml
+# 
+# 6. IP信息监测失败：可以同时开启系统代理，和tun不会冲突
+# 
+# ── 排查思路 ────────────────────────────────────────────────
+# 连接 reset（立刻断）→ strict 模式 DROP，改 always
+# 连接超时（无响应）→ 防火墙丢包 或 TUN 路由死锁
+# 宿主机通但 WSL 不通 → 防火墙缺少 vEthernet(WSL) 入站规则
+# 走错节点 → 检查规则优先级顺序（上面的规则先生效）
+# ────────────────────────────────────────────────────────────
+
+# Windows TUN 进程匹配（必须启用，否则 PROCESS-NAME 规则不生效）
+enable-process: true
+# always = 进程查找失败时 fallthrough 到下一条规则（WSL/VM 安全）
+# strict = 进程查找失败时直接 DROP → 禁止用于有 WSL 的环境
+find-process-mode: always
+
+# 公共 provider 默认值 (YAML 锚点)
+_x: &provider_default
+  type: http
+  interval: 86400
+  health-check:
+    enable: true
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+
+# ===== 规则集 =====
+rule-providers:
+  ai-services:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/category-ai-!cn.mrs"
+    path: ./rule_providers/ai-services.mrs
+    interval: 86400
+
+  proxy-domains:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/geolocation-!cn.mrs"
+    path: ./rule_providers/proxy-domains.mrs
+    interval: 86400
+
+proxy-providers:
+  cc15:
+    <<: *provider_default
+    url: "https://handclap6764.suai.eu.org/skimpily-chokehold-danger3-veggie-unraveled.yaml"
+    path: "./proxy_providers/cc15.yaml"
+    override:
+      additional-prefix: "[cc15] "
+
+  sakura:
+    <<: *provider_default
+    url: "https://c7a91e3b-84d2-4c6f-9b71-2e8d4a6f3c11.com/sabusuku?token=51516f2fb92768fb43b80212cc496d30"
+    path: "./proxy_providers/sakura.yaml"
+    override:
+      additional-prefix: "[sakura] "
+
+  baipiao:
+    <<: *provider_default
+    url: "https://dy11.baipiaoyes.com/api/v1/client/subscribe?token=3870fd427f2e9c82fba001bf3eaace39"
+    path: "./proxy_providers/baipiao.yaml"
+    override:
+      additional-prefix: "[BP] "
+
+# ===== 代理组 =====
+proxy-groups:
+  # 1. 日常自动 - cc15 + baipiao, 不含sakura, 排除广告
+  - name: ⚡ 低延迟
+    type: fallback
+    url: "https://www.gstatic.com/generate_204"
+    interval: 300
+    tolerance: 50
+    use:
+      - cc15
+      - baipiao
+    exclude-filter: "(重置|过滤|剩余流量|套餐到期|官网|请每月|baipiaoyes|ipv6|Relay|cf-best)"
+
+  # 2. AI专属 - sakura(美/土) + cc15全 + baipiao(GPT解锁)
+  - name: 🤖 AI服务
+    type: select
+    use:
+      - sakura
+      - cc15
+      - baipiao
+    filter: '(\[sakura\].*(美国-随机|美国-进阶|土耳其)|\[cc15\]|\[BP\].*解锁GPT)'
+    exclude-filter: "(Relay|cf-best)"
+    proxies:
+      - DIRECT
+
+  # 3. 默认兜底 - 可切直连或自动
+  - name: 🎯 默认
+    type: select
+    proxies:
+      - DIRECT
+      - ⚡ 低延迟
+
+  # 4-6. 各源独立组
+  - name: ☁️ cc15
+    type: select
+    use:
+      - cc15
+    proxies:
+      - DIRECT
+
+  - name: 🌸 sakura
+    type: select
+    use:
+      - sakura
+    proxies:
+      - DIRECT
+
+  - name: 🎫 baipiao
+    type: select
+    use:
+      - baipiao
+    exclude-filter: "(广告|去广告|剩余流量|套餐到期|官网|ipv6免流|请每月)"
+    proxies:
+      - DIRECT
+
+# fake-ip-filter：列出的域名直接返回真实 IP，不走 fake-ip 映射
+# subus.ctokai.com 是自定义 ANTHROPIC_BASE_URL 上游，必须真实解析
+dns:
+  fake-ip-filter:
+    - geosite:cn
+    - +.ctokai.com
+    - +.msuai.top
+    - +.suai.eu.org
+    - +.baipiaoyes.com
+    - c7a91e3b-84d2-4c6f-9b71-2e8d4a6f3c11.com
+
+# ── TUN 模式设置 ─────────────────────────────────────────────
+# route-exclude-address：这些网段流量不经过 TUN，走原始网卡
+# 172.16.0.0/12 必须排除：WSL2 使用该网段（宿主机网关通常为 172.27.112.1）
+# 不排除的后果：WSL→宿主机代理端口被 TUN 截获→规则判为内网 DIRECT
+#              → 没有服务监听该"直连"路径 → 连接永久超时
+tun:
+  enable: true
+  stack: gvisor
+  auto-route: true
+  auto-detect-interface: true
+  route-exclude-address:
+    - 172.16.0.0/12
+
+# ===== 分流规则 =====
+# 规则按顺序匹配，第一条命中即生效，后续规则不再执行
+rules:
+  # -- 广告追踪拦截（最高优先级，节省流量，避免广告域名走代理计费）--
+  - GEOSITE,category-ads-all,REJECT
+  - DOMAIN,ad.com,REJECT
+  - DOMAIN-SUFFIX,doubleclick.net,REJECT
+  - DOMAIN-KEYWORD,tracker,REJECT
+
+  # -- 局域网 / 本机 / 内网直连 --
+  # no-resolve：跳过 DNS 解析直接匹配 IP，防止内网域名触发 DNS 泄露
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve  # 含 WSL2 网段 172.27.x.x
+  - IP-CIDR,224.0.0.0/4,DIRECT,no-resolve    # 组播地址
+  - IP-CIDR,::1/128,DIRECT,no-resolve
+  - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+  - DOMAIN,localhost,DIRECT
+  # SSH 端口全局直连（含内网服务器 dsliam.dslyy.com:22）
+  - DST-PORT,22,DIRECT
+  - DST-PORT,6868,DIRECT
+
+  # -- 用户指定直连域名 --
+  - DOMAIN-SUFFIX,dslyy.com,DIRECT
+  - DOMAIN-SUFFIX,dslbuy.com,DIRECT
+  - DOMAIN-KEYWORD,tianchendajiankang,DIRECT
+  - DOMAIN-SUFFIX,teracloud.jp,DIRECT
+  # imds.ai：ANTHROPIC_BASE_URL 中转域名（subus.imds.ai）
+  # 必须在下方进程规则之前声明，否则 claude.exe 进程规则优先，流量被劫持到 AI服务组
+  - DOMAIN-SUFFIX,imds.ai,DIRECT
+  - DOMAIN-SUFFIX,msuai.top,DIRECT           # 私人域名
+  - DOMAIN-SUFFIX,suai.eu.org,DIRECT
+  - DOMAIN-SUFFIX,suainam.eu.org,DIRECT
+
+  # -- AI 服务域名（走专属节点确保解锁）--
+  - RULE-SET,ai-services,🤖 AI服务
+
+  # -- Windows AI 进程分流 --
+  # 警告：进程规则优先级高于后续所有域名规则
+  # 若有自定义 BASE_URL，对应域名必须在此规则之前加直连（见上方 imds.ai）
+  - PROCESS-NAME-REGEX,(?i)^(Claude|Code|antigravity).*\.exe$,🤖 AI服务
+
+  # -- 按进程路径分流 --
+  - PROCESS-PATH,/usr/bin/wget,⚡ 低延迟
+  - PROCESS-PATH,C:\Program Files\Google\Chrome\Application\chrome.exe,⚡ 低延迟
+  - PROCESS-PATH-WILDCARD,/usr/*/wget,⚡ 低延迟
+  - PROCESS-PATH-REGEX,.*bin/wget,⚡ 低延迟
+  - PROCESS-PATH-REGEX,(?i).*Application\\chrome.*,⚡ 低延迟
+
+  # -- 国内直连 --
+  - GEOSITE,CN,DIRECT
+  - GEOIP,CN,DIRECT
+  - DOMAIN-SUFFIX,cn,DIRECT
+
+  # -- UDP 默认直连（大多数代理节点不支持 UDP，强制代理导致丢包）--
+  - NETWORK,udp,DIRECT
+
+  # -- 明确走代理的域名（github/telegram/youtube/twitter 等非中国服务）--
+  # - DOMAIN-SUFFIX,apple.com,🌸 sakura
+  - RULE-SET,proxy-domains,⚡ 低延迟
+
+  # -- 兜底：未匹配流量走默认组（GUI 可切换直连/代理）--
+  - MATCH,🎯 默认
+
+profile:
+  store-selected: true
