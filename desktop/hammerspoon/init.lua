@@ -21,13 +21,27 @@ hs.grid.setGrid("3x2")
 local en = "com.apple.keylayout.ABC"
 local zh = "com.bytedance.inputmethod.doubaoime.pinyin"
 
-local function press_cmd_twice()
-  hs.timer.doAfter(0.3, function()
-    hs.eventtap.keyStroke({}, "escape")
-    hs.timer.doAfter(0.05, function()
-      hs.eventtap.keyStroke({}, "f17")
-      hs.timer.doAfter(0.05, function()
-        hs.eventtap.keyStroke({}, "f17")
+local log_file = os.getenv("HOME") .. "/.hammerspoon/wuying.log"
+local function log(msg)
+  local f = io.open(log_file, "a")
+  if f then
+    f:write(os.date("%Y-%m-%d %H:%M:%S") .. " " .. msg .. "\n")
+    f:close()
+  end
+end
+
+local function press_escape_then_win(app)
+  log("press_escape_then_win called, app=" .. tostring(app))
+  hs.timer.doAfter(0.1, function()
+    hs.eventtap.event.newKeyEvent(hs.keycodes.map.escape, true):post(app)
+    hs.eventtap.event.newKeyEvent(hs.keycodes.map.escape, false):post(app)
+    hs.timer.doAfter(0.2, function()
+      hs.eventtap.event.newKeyEvent(hs.keycodes.map.cmd, true):post(app)
+      hs.eventtap.event.newKeyEvent(hs.keycodes.map.cmd, false):post(app)
+      hs.timer.doAfter(0.2, function()
+        hs.eventtap.event.newKeyEvent(hs.keycodes.map.cmd, true):post(app)
+        hs.eventtap.event.newKeyEvent(hs.keycodes.map.cmd, false):post(app)
+        log("press_escape_then_win done")
       end)
     end)
   end)
@@ -48,25 +62,43 @@ local zh_app_names = {
 }
 
 local function is_wuying(bid)
-  return wuying_bids[bid] or bid:find("com.aliyun.wuying.", 1, true)
+  local result = wuying_bids[bid] or bid:find("com.aliyun.wuying.", 1, true)
+  if result then
+    log("wuying detected: " .. bid)
+  end
+  return result
 end
 
 local in_wuying = false
 local function on_wuying_enter()
+  log("on_wuying_enter called, in_wuying=" .. tostring(in_wuying))
   if in_wuying then return end
   in_wuying = true
   hs.keycodes.currentSourceID(en)
-  press_cmd_twice()
+  -- Get wuying app object and pass to press_escape_then_win
+  local wuying_app = hs.application.get("com.aliyun.wuying.viewer") or hs.application.get("com.aliyun.wuying.osx")
+  log("wuying_app=" .. tostring(wuying_app))
+  if wuying_app then
+    press_escape_then_win(wuying_app)
+  else
+    log("ERROR: wuying app not found")
+  end
+  -- Reset flag after 2s as safety net
+  hs.timer.doAfter(2, function()
+    log("2s reset: in_wuying was " .. tostring(in_wuying))
+    in_wuying = false
+  end)
 end
 
 local input_watcher = hs.application.watcher.new(function(app_name, event, app)
-  -- Catch missed activation: when any app loses focus, frontmostApplication()
-  -- hasn't updated yet (macOS event order). Wait 50ms before checking.
+  log("event=" .. tostring(event) .. " app=" .. tostring(app_name) .. " bid=" .. tostring(app and app:bundleID()))
+
   if event == hs.application.watcher.deactivated then
     hs.timer.doAfter(0.05, function()
       local front = hs.application.frontmostApplication()
       if not front then return end
       local bid = front:bundleID()
+      log("deactivated check: bid=" .. tostring(bid) .. " in_wuying=" .. tostring(in_wuying))
       if bid and is_wuying(bid) then
         on_wuying_enter()
       else
@@ -95,14 +127,13 @@ local input_watcher = hs.application.watcher.new(function(app_name, event, app)
 end)
 input_watcher:start()
 
--- Safety net: check every 5s if wuying is frontmost, reset in_wuying if not
-hs.timer.doEvery(5, function()
+-- Safety net: reset in_wuying flag every 3s if wuying is not frontmost
+hs.timer.doEvery(3, function()
   local front = hs.application.frontmostApplication()
   if not front then return end
   local bid = front:bundleID()
-  if bid and is_wuying(bid) then
-    on_wuying_enter()
-  else
+  log("3s timer: bid=" .. tostring(bid) .. " in_wuying=" .. tostring(in_wuying))
+  if not (bid and is_wuying(bid)) then
     in_wuying = false
   end
 end)
