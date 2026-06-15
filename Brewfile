@@ -49,7 +49,7 @@ cask "claude-code"
 cask "ghostty"
 cask "iterm2"
 cask "hammerspoon"
-cask "mos"
+# cask "mos"  # 2026-06-15: 卸载 — 罗技G304鼠标卡顿，Mos拦截鼠标输入导致延迟
 cask "shottr"
 cask "cc-switch"
 
