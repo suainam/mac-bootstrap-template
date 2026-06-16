@@ -233,8 +233,18 @@ make privacy-audit   # Redacted scan of tracked files
 ```
 
 `make check` validates shell syntax, data-driven doctor checks, and runs the
-template pytest suite with coverage for the extracted Python helper scripts.
+template pytest suite from `template/.venv`. If `pytest-cov` is installed in the
+local venv, the check also emits coverage for the extracted Python helper
+scripts.
 `make doctor` prints diagnostics without failing.
+
+Regression notes:
+- Do not parallelize `make -C template check` and parent `make check`; the
+  `claude-daemon` tests can collide on the live lock file and produce false
+  `SKIP: another instance running` failures.
+- Tmux assertions query the live tmux socket. If a sandboxed run cannot access
+  `/private/tmp/tmux-*`, rerun the check outside the sandbox instead of editing
+  tmux config blindly.
 
 ## Agent tooling
 
@@ -282,7 +292,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 
 | Target | What |
 |--------|------|
-| `make bootstrap` | Brewfile + shell/vim/Zellij config |
+| `make bootstrap` | Brewfile + shell/vim/tmux config |
 | `make agent-tools` | Wire all agent tools |
 | `make agent-refresh` | Full sync + full agent reconfigure |
 | `make skill-refresh` | Sync upstreams + re-wire skills only |
