@@ -35,7 +35,9 @@ make claude-daily-drill-export
 - Default session: `ai-work`
 - Default layout: `ai-work`
 - Claude pane: the pane running `claude`
-- Side panes: `SSH` and `Zsh`
+- Daemon window: `daemon`, `shell`, `notes`
+- Analysis window: `shell`, `python`, `sql`, `notes`
+- Pane headers: `pane title | cwd | branch` with generic fallback names when unnamed
 
 ## Verification
 

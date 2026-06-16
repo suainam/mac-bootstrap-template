@@ -107,9 +107,13 @@ def test_tmux_has_cross_window_swap():
 
 def test_tmux_pane_titles():
     workspace_script = open(os.path.join(TEMPLATE, "scripts", "tmux-workspace.sh")).read()
-    assert '-T "claude-keepalive"' in workspace_script
-    assert '-T "work"' in workspace_script
-    assert '-T "dsliam"' in workspace_script
+    assert 'ANALYSIS_WINDOW="${TMUX_ANALYSIS_WINDOW:-analysis}"' in workspace_script
+    assert 'create_analysis_window()' in workspace_script
+    assert '"shell"' in workspace_script
+    assert '"python"' in workspace_script
+    assert '"sql"' in workspace_script
+    assert '"notes"' in workspace_script
+    assert '"daemon"' in workspace_script
 
     out, _, _ = run("tmux list-panes -F '#{pane_title}' 2>/dev/null")
     titles = [title for title in out.strip().split('\n') if title]
@@ -119,6 +123,7 @@ def test_tmux_pane_titles():
 def test_tmux_pane_border_format_shows_title():
     out, _, _ = run("tmux show-option -g pane-border-format")
     assert 'pane_title' in out, f"pane-border-format doesn't reference pane_title: {out}"
+    assert 'pane-#{pane_index}' in out, f"pane-border-format doesn't use generic fallback: {out}"
 
 
 def test_tmux_theme_exists():
