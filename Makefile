@@ -92,6 +92,8 @@ check:
 	bash -n scripts/lib/proxy-common.sh
 	bash -n scripts/lib/agent-shared.sh
 	bash -n scripts/lib/agent-manifest.sh
+	bash -n scripts/lib/agent-mcp.sh
+	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
 	python3 scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py
 	bash -n scripts/sync-private-overlay.sh

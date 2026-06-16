@@ -63,9 +63,11 @@ single distribution entrypoint for:
 
 The script is intentionally split by responsibility:
 
-- `scripts/install-agent-tooling.sh` — orchestration only
+- `scripts/install-agent-tooling.sh` — thin step runner / orchestration only
 - `scripts/lib/agent-shared.sh` — shell helpers (run/try_run, managed block writes)
 - `scripts/lib/agent-manifest.sh` — manifest/path resolution
+- `scripts/lib/agent-mcp.sh` — shared MCP/JSON config writers
+- `scripts/lib/agent-configure.sh` — per-step agent/platform configuration bodies
 - `scripts/lib/skill-wiring.sh` — shared upstream-skill routing
 - `scripts/render-codex-mcp-block.py` + `scripts/sync-codex-mcp-config.py` — idempotent Codex MCP rendering/rewrite
 - `scripts/run-doctor-checks.py` + `scripts/doctor-manifest.json` — data-driven doctor checks derived from Brewfile

@@ -259,6 +259,14 @@ def test_run_doctor_checks_parses_manifest():
     assert 'standalone_clis' in content
 
 
+def test_install_agent_tooling_is_thin_orchestrator():
+    content = open(os.path.join(TEMPLATE, "scripts", "install-agent-tooling.sh")).read()
+    assert '. "$BOOTSTRAP/scripts/lib/agent-mcp.sh"' in content
+    assert '. "$BOOTSTRAP/scripts/lib/agent-configure.sh"' in content
+    assert "configure_all_mcp" in content
+    assert len(content.splitlines()) < 250
+
+
 # ── Hammerspoon ───────────────────────────────────────────────────────
 
 def test_hammerspoon_has_ghostty_binding():
