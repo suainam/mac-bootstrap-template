@@ -1,12 +1,12 @@
+# Suppress p10k instant prompt warning for any console I/O during init.
+typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
-
-# Suppress p10k instant prompt warning for any console I/O during init
-typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
 
 # Zshrc — Mac 版，适配自 AuroraOps
 # Shared environment
@@ -136,6 +136,7 @@ unset __conda_setup
 # <<< conda initialize <<<
 
 # direnv
+export DIRENV_LOG_FORMAT=""
 eval "$(direnv hook zsh)"
 
 # User-level tools installed by agent helpers such as code-review-graph.
