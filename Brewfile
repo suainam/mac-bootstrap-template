@@ -17,6 +17,7 @@ brew "direnv"
 brew "zoxide"
 brew "eza"
 brew "bat"
+brew "yazi"
 
 # ========== 语言 & 运行时 ==========
 brew "node"

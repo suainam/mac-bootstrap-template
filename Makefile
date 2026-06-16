@@ -121,7 +121,11 @@ check:
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
 	mkdir -p "$(UV_CACHE_DIR)"
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" uv run --with pytest-cov pytest tests/ -q --cov --cov-report=term-missing
+	if .venv/bin/python -c 'import pytest_cov' >/dev/null 2>&1; then \
+		.venv/bin/python -m pytest tests/ -q --cov --cov-report=term-missing; \
+	else \
+		.venv/bin/python -m pytest tests/ -q; \
+	fi
 
 doctor:
 	./scripts/doctor.sh

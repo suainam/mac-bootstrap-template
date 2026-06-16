@@ -76,11 +76,34 @@ eval "$(fzf --zsh)"
 eval "$(zoxide init zsh)"
 alias zi="zoxide query -i"
 
+yy() {
+    if ! (( $+commands[yazi] )); then
+        echo "yazi not found in PATH. Install it with: brew install yazi" >&2
+        return 127
+    fi
+
+    local tmp
+    tmp="$(mktemp -t yazi-cwd.XXXXXX)" || return 1
+    yazi "$@" --cwd-file="$tmp"
+
+    local cwd
+    cwd="$(command cat -- "$tmp" 2>/dev/null || true)"
+    command rm -f -- "$tmp"
+
+    if [[ -n "$cwd" && "$cwd" != "$PWD" ]]; then
+        builtin cd -- "$cwd"
+    fi
+}
+
 # ---------- Aliases ----------
 alias ls='ls -G'
 alias ll='ls -AFhlt'
 alias la='ll'
 alias tree='tree -C --dirsfirst'
+alias l='eza -lah --icons --group-directories-first'
+alias lt='eza --tree --level=2 --icons --group-directories-first'
+alias y='yy'
+alias yz='yazi'
 alias cls='clear'
 alias ping='ping -c 5'
 alias ports='lsof -iTCP -sTCP:LISTEN -P -n'
@@ -165,6 +188,7 @@ Prefix: Ctrl+a
 - Ctrl+a h/j/k/l: move between panes
 - Ctrl+a H/J/K/L: resize panes
 - Ctrl+a c: new window
+- Ctrl+a y: open yazi in current directory
 - Ctrl+a n/p: next/previous window
 - Ctrl+a z: zoom current pane
 - Ctrl+a r: reload tmux.conf

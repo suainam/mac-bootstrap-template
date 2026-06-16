@@ -45,7 +45,7 @@ def test_symlink_not_broken(path):
 
 CLI_TOOLS = [
     "git", "curl", "jq", "tree", "rg", "fzf", "tmux", "lua",
-    "direnv", "zoxide", "eza", "bat", "node", "uv", "pi", "gh",
+    "direnv", "zoxide", "eza", "bat", "yazi", "node", "uv", "pi", "gh",
 ]
 
 

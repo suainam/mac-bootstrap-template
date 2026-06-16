@@ -99,10 +99,10 @@ end
 
 local function probe_frontmost_for_wuying(reason)
   wuying_probe_token = wuying_probe_token + 1
-  local token = wuying_probe_token
+  local probe_id = wuying_probe_token
   for idx, delay in ipairs(wuying_probe_delays) do
     hs.timer.doAfter(delay, function()
-      if token ~= wuying_probe_token or in_wuying then return end
+      if probe_id ~= wuying_probe_token or in_wuying then return end
       local front = hs.application.frontmostApplication()
       local bid = front and front:bundleID()
       log("probe reason=" .. reason .. " delay=" .. tostring(delay) .. " bid=" .. tostring(bid) .. " in_wuying=" .. tostring(in_wuying))

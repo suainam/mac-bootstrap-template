@@ -87,6 +87,13 @@ as the workspace/session layer. Hammerspoon is the global tier: reload, window
 placement, clipboard helpers, and terminal launcher hotkeys live there. `tm`
 is terminal-local only.
 
+For file work inside the terminal, `yazi` is the interactive browser and `eza`
+is the fast read-only lister. Keep both inside tmux sessions; that replaces a
+lot of Finder-style navigation.
+Inside tmux, `prefix + y` opens `yazi` in the current directory.
+In the shell, `y` opens `yazi` and changes your cwd to the last directory you
+landed on when you quit.
+
 Quick verify:
 
 ```bash
