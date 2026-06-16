@@ -93,7 +93,7 @@ check:
 	bash -n scripts/lib/agent-shared.sh
 	bash -n scripts/lib/agent-manifest.sh
 	bash -n scripts/lib/skill-wiring.sh
-	python3 scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/check-python-syntax.py scripts/run-doctor-checks.py
+	python3 scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
 	bash -n scripts/export-public-template.sh

@@ -29,6 +29,10 @@ skills/engineering/improve-codebase-architecture
 skills/productivity/handoff
 skills/productivity/write-a-skill
 
+# ── khazix-skills ───────────────────────────────────────────────────────────
+aihot
+neat-freak
+
 # ── personal ─────────────────────────────────────────────────────────────────
 python-data-analysis
 sql-analysis

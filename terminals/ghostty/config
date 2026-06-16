@@ -10,6 +10,7 @@ adjust-cell-height = 0
 # 主题 (Catppuccin Mocha, 与 tmux/p10k 一致)
 # ==============================================================================
 theme = "Catppuccin Mocha"
+config-file = "?~/.config/ghostty/theme.local"
 
 # ==============================================================================
 # 窗口

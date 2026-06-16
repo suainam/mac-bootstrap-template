@@ -72,6 +72,16 @@ manual install, bootstrap skips that cask instead of forcing a reinstall.
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 
+Proxy defaults are enabled from `~/.shell_env`. New shells start with
+`proxy_on`, and you can resync shell + npm + git state with:
+
+```bash
+proxy-on
+proxy-off
+make proxy-on
+make proxy-off
+```
+
 Migration note: this bootstrap now uses iTerm2 as the terminal host and tmux
 as the workspace/session layer. Hammerspoon is the global tier: reload, window
 placement, clipboard helpers, and terminal launcher hotkeys live there. `tm`
@@ -91,9 +101,9 @@ terminal session.
 AI coding CLIs are managed from this Brewfile where possible: `claude-code` and
 `pi-coding-agent` are Homebrew packages, while Reasonix is installed as a global
 npm package through Homebrew Bundle's `npm` support. Token/context helpers are
-split the same way: RTK is installed from its Homebrew tap and `context-mode` is
-installed as a global npm package. Antigravity CLI follows the official Google
-installer instead of Homebrew cask packaging.
+split the same way: RTK and `codex-threadripper` are installed from Homebrew
+taps, and `context-mode` is installed as a global npm package. Antigravity CLI
+follows the official Google installer instead of Homebrew cask packaging.
 
 `~/work` is the umbrella workspace, not a single repo. Keep each real project as
 its own git repository under `~/work/projects`, with its own `.envrc`, `.env`,
@@ -201,6 +211,8 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 make bootstrap       # Brewfile + shell/vim/Zellij
 make agent-sync      # Clone upstream skills (ECC + Matt Pocock) 
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
+make agent-refresh   # Full sync + full agent reconfigure
+make skill-refresh   # Sync upstreams + re-wire skills only
 make doctor-agent    # Verify all configs (contains AgentShield scan)
 ```
 
@@ -213,13 +225,15 @@ make doctor-agent    # Agent health check (symlinks, config files)
 make privacy-audit   # Redacted scan of tracked files
 ```
 
-`make check` validates shell syntax and checks required tools/apps.
+`make check` validates shell syntax, data-driven doctor checks, and runs the
+template pytest suite with coverage for the extracted Python helper scripts.
 `make doctor` prints diagnostics without failing.
 
 ## Agent tooling
 
 ```bash
 make agent-tools
+make skill-refresh
 ```
 
 This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
@@ -231,6 +245,22 @@ This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
 - 12 operating rules embedded in all agent system prompts
 - Finer-grained hook matchers (console.log guards, destructive op warnings)
 - MCP profile system (`ECC_DISABLED_MCPS` env var)
+
+Skill management rule:
+- Treat `template/agent/skills/` + `template/agent/skills-promote.txt` as the only
+  canonical source
+- Treat `template/agent/skills-distribution.json` as the canonical app-routing map
+- Treat `~/.agent/skills/` as generated shared state
+- Treat `~/.claude/skills`, `~/.codex/skills`, and other app skill dirs as
+  generated consumer views
+
+Distribution helpers:
+
+```bash
+make skill-route SKILL=aihot APPS=codex,opencode
+make skill-route-list
+make skill-refresh
+```
 
 ## Architecture
 
@@ -247,6 +277,8 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 |--------|------|
 | `make bootstrap` | Brewfile + shell/vim/Zellij config |
 | `make agent-tools` | Wire all agent tools |
+| `make agent-refresh` | Full sync + full agent reconfigure |
+| `make skill-refresh` | Sync upstreams + re-wire skills only |
 | `make check` | Syntax + tool validation |
 | `make doctor` | Machine health check |
 | `make doctor-agent` | Agent health check |

@@ -18,5 +18,8 @@ if [ ! -d "$TPM_DIR" ]; then
   git clone https://github.com/tmux-plugins/tpm "$TPM_DIR"
 fi
 
-echo "Done. Enter tmux and press prefix+I to install plugins."
+echo "=== Auto-installing tmux plugins ==="
+"$TPM_DIR/bin/install_plugins"
+
+echo "Done. Tmux configuration and plugins are fully installed."
 echo "To switch themes: multiplexer/tmux/switch-theme.sh <catppuccin-mocha|gruvbox-dark>"

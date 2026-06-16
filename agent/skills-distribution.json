@@ -1,0 +1,27 @@
+{
+  "defaults": {
+    "apps": [
+      "claude",
+      "codex",
+      "opencode",
+      "pi",
+      "reasonix",
+      "antigravity",
+      "cross-agent"
+    ]
+  },
+  "skills": {
+    "aihot": {
+      "apps": [
+        "codex",
+        "opencode"
+      ]
+    },
+    "neat-freak": {
+      "apps": [
+        "codex",
+        "opencode"
+      ]
+    }
+  }
+}

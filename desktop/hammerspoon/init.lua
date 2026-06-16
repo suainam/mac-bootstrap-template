@@ -32,7 +32,7 @@ end
 
 local function press_escape_then_win(app)
   log("press_escape_then_win called, app=" .. tostring(app))
-  hs.timer.doAfter(0.1, function()
+  hs.timer.doAfter(0.5, function()
     hs.eventtap.event.newKeyEvent(hs.keycodes.map.escape, true):post(app)
     hs.eventtap.event.newKeyEvent(hs.keycodes.map.escape, false):post(app)
     hs.timer.doAfter(0.2, function()

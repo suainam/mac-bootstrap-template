@@ -7,6 +7,8 @@
 make bootstrap   # Brewfile deps + shell/vim/Zellij config
 make agent-sync  # Clone upstream skills (ECC + Matt Pocock → ~/.agent/skills/)
 make agent-tools # Configure RTK, caveman, CRG, context7 + wire skills for all agents
+make agent-refresh # Full sync + full agent reconfigure
+make skill-refresh # Sync upstreams + re-wire skills only
 make doctor-agent # Verify all configs
 make security-scan  # AgentShield security audit
 ```
@@ -59,6 +61,15 @@ single distribution entrypoint for:
 - **Skill wiring**: Symlinks upstream skills (ECC + Matt Pocock + personal) from
   `~/.agent/skills/` into each agent's skills directory per the documented format:
 
+The script is intentionally split by responsibility:
+
+- `scripts/install-agent-tooling.sh` — orchestration only
+- `scripts/lib/agent-shared.sh` — shell helpers (run/try_run, managed block writes)
+- `scripts/lib/agent-manifest.sh` — manifest/path resolution
+- `scripts/lib/skill-wiring.sh` — shared upstream-skill routing
+- `scripts/render-codex-mcp-block.py` + `scripts/sync-codex-mcp-config.py` — idempotent Codex MCP rendering/rewrite
+- `scripts/run-doctor-checks.py` + `scripts/doctor-manifest.json` — data-driven doctor checks derived from Brewfile
+
 ---
 
 ## Agent Config Matrix
@@ -81,12 +92,48 @@ single distribution entrypoint for:
 Upstream skills are synced into `~/.agent/skills/upstream/` by `make agent-sync`:
 
 ```bash
-make agent-sync   # Clone ECC + Matt Pocock repos → promote whitelisted skills
+make agent-sync   # Clone ECC + Matt Pocock + Khazix repos → promote whitelisted skills
+make agent-tools  # Re-wire agent skill dirs
+make agent-refresh # Full sync + full agent reconfigure
+make skill-refresh # Preferred path for day-to-day skill maintenance
 ```
 
 Then `make agent-tools` wires them as symlinks into each agent's skills dir.
-To add a new upstream skill to the whitelist, edit `sync-agent-upstreams.sh` and
-re-run both commands.
+The bootstrap repo is the skill SSOT. `~/.agent/skills/` is the shared build
+artifact, and agent-specific skill dirs are consumer symlinks/copies only.
+To add a new upstream skill to the whitelist, edit `agent/skills-promote.txt`
+and re-run `make skill-refresh`.
+
+Use `agent/skills-distribution.json` to choose which apps receive each skill.
+If a skill is omitted there, it uses the default all-app distribution.
+
+Runtime helpers:
+
+```bash
+make skill-route SKILL=aihot APPS=codex,opencode
+make skill-route-show SKILL=aihot
+make skill-route-clear SKILL=aihot
+make skill-route-default APPS=claude,codex,opencode,pi,reasonix,antigravity,cross-agent
+make skill-refresh
+```
+
+For personal skills:
+
+```bash
+template/agent/skills/personal/<skill>/SKILL.md   # create or edit source
+agent/skills-promote.txt                          # add/remove name under "personal"
+agent/skills-distribution.json                    # optional per-app routing override
+make skill-refresh
+```
+
+To delete a skill, remove it from `agent/skills-promote.txt`, delete the
+personal source dir if applicable, then run `make skill-refresh`.
+
+Source-of-truth split:
+
+- Third-party upstream skills: `agent/skills-promote.txt` sections `everything-claude-code`, `mattpocock-skills`, `khazix-skills`
+- First-party skills: `template/agent/skills/personal/`
+- Distribution matrix: `agent/skills-distribution.json`
 
 | Agent | Wiring Mechanism | Example Path |
 |-------|-----------------|-------------|
@@ -339,6 +386,13 @@ Pi uses:
 The install script runs `pi install ~/.pi/agent/extensions/rtk.ts` and
 `pi install npm:pi-mcp-extension` automatically. MCP servers live in `mcp.json`,
 not `settings.toml`.
+
+## Codex Sandbox Note
+
+Codex tool sandboxes cannot write RTK tracking data under `$HOME`, so the shared
+`shell_env` redirects `RTK_DB_PATH` to `<repo>/.rtk-state/history.db`
+when `CODEX_SANDBOX` is set. This keeps `rtk gain` working inside Codex while
+leaving normal terminal sessions on the default RTK location.
 
 ---
 

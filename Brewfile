@@ -1,5 +1,6 @@
 # ========== Tap ==========
 tap "rtk-ai/tap"
+tap "wangnov/tap"
 
 # ========== CLI 核心 ==========
 brew "git"
@@ -25,8 +26,8 @@ brew "uv"
 brew "opencode"
 brew "pi-coding-agent"
 brew "rtk"
+brew "codex-threadripper"
 brew "gh"
-brew "cc-switch-cli"
 # brew "devpod"  # Not used anymore
 
 # ========== 容器 ==========

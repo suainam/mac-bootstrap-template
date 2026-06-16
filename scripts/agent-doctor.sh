@@ -202,6 +202,7 @@ else
   echo "  MISS caveman skill"
 fi
 check_contains "AGENTS.md 12-rules ref" "$CODEX_AGENTS" '12-rules.md'
+check_contains "AGENTS.md context-mode SOP" "$CODEX_AGENTS" '## Context Mode SOP'
 check_contains "config.toml CRG" "$CODEX_TOML" 'mcp_servers.code-review-graph'
 check_contains "config.toml CRG minimal context approval" "$CODEX_TOML" 'mcp_servers.code-review-graph.tools.get_minimal_context_tool'
 check_contains "config.toml context7" "$CODEX_TOML" 'mcp_servers.context7'
@@ -210,6 +211,7 @@ check_contains "config.toml context-mode ctx_stats approval" "$CODEX_TOML" 'mcp_
 check_contains "config.toml context-mode ctx_search approval" "$CODEX_TOML" 'mcp_servers.context-mode.tools.ctx_search'
 check_contains "config.toml context-mode ctx_index approval" "$CODEX_TOML" 'mcp_servers.context-mode.tools.ctx_index'
 check_contains "config.toml context-mode ctx_doctor approval" "$CODEX_TOML" 'mcp_servers.context-mode.tools.ctx_doctor'
+check_contains "hooks.json context-mode SOP reminder" "$CODEX_HOOKS" 'CONTEXT-MODE SOP:'
 
 echo ""
 echo "--- OpenCode ---"

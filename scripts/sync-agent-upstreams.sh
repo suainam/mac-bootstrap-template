@@ -113,6 +113,7 @@ read_section() {
 
 ECC_SKILLS=()
 POCOCK_SKILLS=()
+KHAZIX_SKILLS=()
 PERSONAL_SKILLS=()
 
 while IFS= read -r skill; do
@@ -122,6 +123,10 @@ done < <(read_section "everything-claude-code")
 while IFS= read -r skill; do
   POCOCK_SKILLS+=("$skill")
 done < <(read_section "mattpocock-skills")
+
+while IFS= read -r skill; do
+  KHAZIX_SKILLS+=("$skill")
+done < <(read_section "khazix-skills")
 
 while IFS= read -r skill; do
   PERSONAL_SKILLS+=("$skill")
@@ -138,6 +143,11 @@ sync_repo \
   "mattpocock-skills" \
   "https://github.com/mattpocock/skills.git" \
   "$AGENT_HOME/upstream/mattpocock-skills"
+
+sync_repo \
+  "khazix-skills" \
+  "https://github.com/KKKKhazix/khazix-skills.git" \
+  "$AGENT_HOME/upstream/khazix-skills"
 
 echo "=== Promote ECC Python/data skills ==="
 for skill in "${ECC_SKILLS[@]}"; do
@@ -156,6 +166,18 @@ for skill in "${POCOCK_SKILLS[@]}"; do
   promote_skill_dir \
     "$AGENT_HOME/upstream/mattpocock-skills/$skill" \
     "$AGENT_HOME/skills/upstream/mattpocock/$(basename "$skill")"
+done
+
+echo "=== Promote Khazix skills ==="
+for skill in "${KHAZIX_SKILLS[@]}"; do
+  src="$(find_skill_dir "$AGENT_HOME/upstream/khazix-skills" "$skill" || true)"
+  if [ -z "$src" ]; then
+    echo "  Skip missing Khazix skill: $skill" >&2
+    continue
+  fi
+  promote_skill_dir \
+    "$src" \
+    "$AGENT_HOME/skills/upstream/khazix/$skill"
 done
 
 echo "=== Link personal data skills ==="

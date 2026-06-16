@@ -39,6 +39,16 @@ This is the pattern established by `pi-packages.txt` and `skills-promote.txt`.
 Each has a path registry in `agent/agent-manifest.json`.
 Skills are wired from upstream repos (ECC + Matt Pocock) via `sync-agent-upstreams.sh`.
 
+The agent bootstrap path is now split by responsibility:
+
+- `scripts/install-agent-tooling.sh` remains the top-level orchestrator.
+- `scripts/lib/agent-shared.sh`, `scripts/lib/agent-manifest.sh`, and
+  `scripts/lib/skill-wiring.sh` hold reusable shell logic.
+- `scripts/render-codex-mcp-block.py` and
+  `scripts/sync-codex-mcp-config.py` own idempotent Codex MCP rendering.
+- `scripts/run-doctor-checks.py` and `scripts/doctor-manifest.json` make
+  doctor checks data-driven from `Brewfile` instead of hardcoded case lists.
+
 ## Key Terms
 
 - **Upstream**: remote skill repos cloned to `~/.agent/upstream/`

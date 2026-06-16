@@ -45,6 +45,15 @@ upstreams:
         - "skills/engineering/improve-codebase-architecture"
         - "skills/productivity/handoff"
         - "skills/productivity/write-a-skill"
+  khazix-skills:
+    repo: "https://github.com/KKKKhazix/khazix-skills.git"
+    path: "upstream/khazix-skills"
+    mode: "skill-library"
+    sync: "fast-forward"
+    promote:
+      skills:
+        - "aihot"
+        - "neat-freak"
 
 personal_skills:
   - "python-data-analysis"
