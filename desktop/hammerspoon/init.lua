@@ -10,6 +10,7 @@ local iterm2_bundle_id = "com.googlecode.iterm2"
 local ghostty_bundle_id = "com.mitchellh.ghostty"
 local clipboard_dir = os.getenv("HOME") .. "/Pictures/ClipboardShots"
 local shottr_app = "/Applications/Shottr.app/Contents/MacOS/Shottr"
+local shottr_bundle_id = "cc.ffitch.shottr"
 
 local function ensure_dir(path)
   os.execute("mkdir -p " .. string.format("%q", path))
@@ -215,66 +216,48 @@ hs.hotkey.bind(hyper, "S", function()
   hs.alert.show("Shottr launched")
 end)
 
-local function launch_shottr_then_open(url)
-  hs.task.new(shottr_app, nil, {}):start()
-  hs.timer.doAfter(0.7, function()
-    hs.execute(string.format("open %q", url))
+local function run_shottr_action(url, message, attempt)
+  local shottr = hs.application.get(shottr_bundle_id)
+  local current_attempt = attempt or 1
+
+  if shottr then
+    hs.urlevent.openURL(url)
+    hs.alert.show(message)
+    return
+  end
+
+  if current_attempt == 1 then
+    hs.task.new(shottr_app, nil, {}):start()
+  end
+
+  if current_attempt >= 8 then
+    hs.alert.show("Shottr not ready")
+    return
+  end
+
+  hs.timer.doAfter(0.2, function()
+    run_shottr_action(url, message, current_attempt + 1)
   end)
 end
 
 hs.hotkey.bind(hyper, "E", function()
-  local path = "/tmp/shottr-edit.png"
-  hs.task.new("/usr/sbin/screencapture", function(exitCode)
-    if exitCode == 0 then
-      hs.execute(string.format("open -a Shottr %q", path))
-      hs.alert.show("Shottr: edit")
-    end
-  end, {"-i", path}):start()
+  run_shottr_action("shottr://grab/area?then=edit", "Shottr: edit")
 end)
 
 hs.hotkey.bind(hyper, "C", function()
-  hs.task.new("/usr/sbin/screencapture", nil, {"-i", "-c"}):start()
+  run_shottr_action("shottr://grab/area?then=copy", "Shottr: copy")
 end)
 
 hs.hotkey.bind(hyper, "P", function()
-  hs.task.new("/usr/sbin/screencapture", function(exitCode)
-    if exitCode == 0 then
-      hs.task.new(shottr_app, nil, {}):start()
-      hs.timer.doAfter(0.7, function()
-        hs.execute("open 'shottr://load/clipboard'")
-        hs.timer.doAfter(0.5, function()
-          hs.osascript.applescript([[
-            tell application id "cc.ffitch.shottr"
-              activate
-            end tell
-            delay 0.2
-            tell application "System Events"
-              tell process "Shottr"
-                click menu item "Pin to Screen" of menu 1 of menu bar item "File" of menu bar 1
-              end tell
-            end tell
-          ]])
-        end)
-      end)
-      hs.alert.show("Shottr: pin")
-    end
-  end, {"-i", "-c"}):start()
+  run_shottr_action("shottr://grab/area?then=pin", "Shottr: pin")
 end)
 
 hs.hotkey.bind(hyper, "O", function()
-  hs.task.new(shottr_app, nil, {}):start()
-  hs.timer.doAfter(0.7, function()
-    hs.execute("open 'shottr://ocr'")
-  end)
-  hs.alert.show("Shottr: ocr")
+  run_shottr_action("shottr://ocr", "Shottr: ocr")
 end)
 
 hs.hotkey.bind(hyper, "U", function()
-  hs.task.new(shottr_app, nil, {}):start()
-  hs.timer.doAfter(0.7, function()
-    hs.execute("open 'shottr://grab/scrolling?then=pin'")
-  end)
-  hs.alert.show("Shottr: scrolling")
+  run_shottr_action("shottr://grab/scrolling?then=pin", "Shottr: scrolling")
 end)
 
 hs.hotkey.bind(hyper, "Left", function()
