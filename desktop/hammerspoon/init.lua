@@ -33,8 +33,7 @@ end
 local function press_escape_then_win(app)
   log("press_escape_then_win called, app=" .. tostring(app))
   hs.timer.doAfter(0.5, function()
-    hs.eventtap.event.newKeyEvent(hs.keycodes.map.escape, true):post(app)
-    hs.eventtap.event.newKeyEvent(hs.keycodes.map.escape, false):post(app)
+    hs.eventtap.keyStroke({}, "escape", 0, app)
     hs.timer.doAfter(0.2, function()
       hs.eventtap.event.newKeyEvent(hs.keycodes.map.cmd, true):post(app)
       hs.eventtap.event.newKeyEvent(hs.keycodes.map.cmd, false):post(app)
@@ -70,15 +69,22 @@ local function is_wuying(bid)
 end
 
 local in_wuying = false
-local function on_wuying_enter()
+local wuying_probe_token = 0
+local wuying_probe_delays = { 0.05, 0.15, 0.35, 0.7 }
+
+local function on_wuying_enter(app)
   log("on_wuying_enter called, in_wuying=" .. tostring(in_wuying))
   if in_wuying then return end
   in_wuying = true
+  wuying_probe_token = wuying_probe_token + 1
   hs.keycodes.currentSourceID(en)
-  -- Get wuying app object and pass to press_escape_then_win
-  local wuying_app = hs.application.get("com.aliyun.wuying.viewer") or hs.application.get("com.aliyun.wuying.osx")
+  local wuying_app = app or hs.application.frontmostApplication()
+  if not (wuying_app and is_wuying(wuying_app:bundleID() or "")) then
+    wuying_app = hs.application.get("com.aliyun.wuying.viewer") or hs.application.get("com.aliyun.wuying.osx")
+  end
   log("wuying_app=" .. tostring(wuying_app))
   if wuying_app then
+    wuying_app:activate()
     press_escape_then_win(wuying_app)
   else
     log("ERROR: wuying app not found")
@@ -90,21 +96,29 @@ local function on_wuying_enter()
   end)
 end
 
+local function probe_frontmost_for_wuying(reason)
+  wuying_probe_token = wuying_probe_token + 1
+  local token = wuying_probe_token
+  for idx, delay in ipairs(wuying_probe_delays) do
+    hs.timer.doAfter(delay, function()
+      if token ~= wuying_probe_token or in_wuying then return end
+      local front = hs.application.frontmostApplication()
+      local bid = front and front:bundleID()
+      log("probe reason=" .. reason .. " delay=" .. tostring(delay) .. " bid=" .. tostring(bid) .. " in_wuying=" .. tostring(in_wuying))
+      if bid and is_wuying(bid) then
+        on_wuying_enter(front)
+      elseif idx == #wuying_probe_delays then
+        in_wuying = false
+      end
+    end)
+  end
+end
+
 local input_watcher = hs.application.watcher.new(function(app_name, event, app)
   log("event=" .. tostring(event) .. " app=" .. tostring(app_name) .. " bid=" .. tostring(app and app:bundleID()))
 
   if event == hs.application.watcher.deactivated then
-    hs.timer.doAfter(0.05, function()
-      local front = hs.application.frontmostApplication()
-      if not front then return end
-      local bid = front:bundleID()
-      log("deactivated check: bid=" .. tostring(bid) .. " in_wuying=" .. tostring(in_wuying))
-      if bid and is_wuying(bid) then
-        on_wuying_enter()
-      else
-        in_wuying = false
-      end
-    end)
+    probe_frontmost_for_wuying("deactivated:" .. tostring(app_name))
     return
   end
 
@@ -114,7 +128,7 @@ local input_watcher = hs.application.watcher.new(function(app_name, event, app)
   if not bid then return end
 
   if is_wuying(bid) then
-    on_wuying_enter()
+    on_wuying_enter(app)
   elseif en_apps[bid] then
     in_wuying = false
     hs.keycodes.currentSourceID(en)
