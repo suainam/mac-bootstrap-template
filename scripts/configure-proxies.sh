@@ -3,24 +3,22 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SHELL_ENV="$DIR/shell/shell_env"
+GIT_PROXY_TEMPLATE="$DIR/shell/gitconfig.proxy.template"
+GIT_PROXY_TARGET="$HOME/.gitconfig.proxy"
+LIB="$DIR/scripts/lib/proxy-common.sh"
 
-if [ ! -f "$SHELL_ENV" ]; then
-  echo "Error: $SHELL_ENV not found" >&2
-  exit 1
-fi
-
-HTTP_PROXY_VAL=$(grep '^export http_proxy=' "$SHELL_ENV" | sed 's/.*=//' | tr -d '"')
-HTTPS_PROXY_VAL=$(grep '^export https_proxy=' "$SHELL_ENV" | sed 's/.*=//' | tr -d '"')
-
-if [ -z "$HTTP_PROXY_VAL" ] || [ -z "$HTTPS_PROXY_VAL" ]; then
-  echo "Error: proxy values not found in $SHELL_ENV" >&2
-  exit 1
-fi
+. "$LIB"
+load_proxy_env_from_shell_env "$SHELL_ENV"
+require_proxy_values
 
 echo "=== npm proxy ==="
 npm config set proxy "$HTTP_PROXY_VAL"
 npm config set https-proxy "$HTTPS_PROXY_VAL"
 echo "  npm proxy configured"
+
+echo "=== git proxy ==="
+write_git_proxy_include "$GIT_PROXY_TEMPLATE" "$GIT_PROXY_TARGET"
+echo "  git proxy include configured at $GIT_PROXY_TARGET"
 
 echo ""
 echo "Source: shell/shell_env  |  Docker/Colima reads env vars automatically"

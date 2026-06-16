@@ -3,7 +3,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 REMOTE="${CODE_SERVER_HOST:-dsliam-mux}"
-REMOTE_DIR="${CODE_SERVER_DIR:-/data01/suai/dev/code-server}"
+REMOTE_DIR="${CODE_SERVER_DIR:-/srv/code-server}"
 
 echo "=== Deploy code-server config to $REMOTE ==="
 echo "  Target: $REMOTE:$REMOTE_DIR"

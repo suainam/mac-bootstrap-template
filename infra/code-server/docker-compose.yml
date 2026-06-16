@@ -15,7 +15,7 @@ services:
             ANTHROPIC_API_KEY: ${OPENAI_API_KEY:-placeholder}
             ANTHROPIC_BASE_URL: http://host.docker.internal:15721
         volumes:
-            - /data01/suai/dev:/root/dev
+            - ${CODE_SERVER_WORKSPACE_DIR:-/workspace}:/root/dev
             - /var/run/docker.sock:/var/run/docker.sock
             - code-server-config:/root/.config
             - code-server-extensions:/root/.local/share/code-server

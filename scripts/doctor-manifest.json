@@ -1,0 +1,56 @@
+{
+  "formula_command_overrides": {
+    "ripgrep": "rg",
+    "pi-coding-agent": "pi"
+  },
+  "standalone_clis": [
+    {
+      "name": "antigravity",
+      "commands": ["agy", "antigravity"]
+    }
+  ],
+  "cask_overrides": {
+    "microsoft-edge": {
+      "app": "Microsoft Edge.app"
+    },
+    "visual-studio-code": {
+      "app": "Visual Studio Code.app"
+    },
+    "clash-verge-rev": {
+      "app": "Clash Verge.app"
+    },
+    "uuremote": {
+      "app": "UU远程.app"
+    },
+    "claude-code": {
+      "app": "Claude Code.app",
+      "command": "claude"
+    },
+    "ghostty": {
+      "app": "Ghostty.app"
+    },
+    "hammerspoon": {
+      "app": "Hammerspoon.app"
+    },
+    "linearmouse": {
+      "app": "LinearMouse.app"
+    },
+    "bitwarden": {
+      "app": "Bitwarden.app"
+    },
+    "codex": {
+      "app": "Codex.app"
+    },
+    "codex-app": {
+      "app": "Codex.app"
+    },
+    "cc-switch": {
+      "app": "cc-switch.app",
+      "command": "cc-switch",
+      "optional": true
+    },
+    "miniforge": {
+      "app": "Miniforge-Navigator.app"
+    }
+  }
+}

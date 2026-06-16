@@ -1,14 +1,25 @@
 SHELL := /usr/bin/env bash
+UV_CACHE_DIR ?= $(HOME)/.cache/uv
 
 .PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
-	install-antigravity-cli install agent-sync agent-tools security-scan instinct-sync \
+	install-antigravity-cli install agent-sync agent-tools agent-refresh skill-route skill-route-clear \
+	skill-route-show skill-route-list skill-route-default skill-refresh security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
-	tmux-workspace cold-start \
-	reverse-tunnel-install reverse-tunnel-unload reverse-tunnel-status reverse-tunnel-logs
+	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start
 
 help:
 	@echo "Usage: make <target>"
+	@echo ""
+	@echo "── Common ──"
+	@echo "  bootstrap              Full bootstrap on this machine"
+	@echo "  check                  Syntax + doctor + tests"
+	@echo "  doctor                 Machine health check"
+	@echo "  doctor-agent           Agent tooling health check"
+	@echo "  privacy-audit          Redacted privacy scan"
+	@echo "  proxy-on               Configure npm + git to use the shell proxy values"
+	@echo "  proxy-off              Clear npm + git proxy settings"
+	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
 	@echo ""
 	@echo "── Bootstrap ──"
 	@echo "  install / bootstrap    Full install (Homebrew + shell + agent tooling)"
@@ -25,17 +36,20 @@ help:
 	@echo "── Agent ──"
 	@echo "  agent-tools            Install/configure agent tooling"
 	@echo "  agent-sync             Sync agent upstreams"
+	@echo "  agent-refresh          Full sync + full agent reconfigure"
+	@echo "  skill-refresh          Sync upstreams + re-wire skills only"
+	@echo "  skill-route            Set skill distribution: SKILL=name APPS=codex,opencode"
+	@echo "  skill-route-clear      Clear skill distribution override: SKILL=name"
+	@echo "  skill-route-show       Show one skill distribution: SKILL=name"
+	@echo "  skill-route-list       List default + per-skill distribution"
+	@echo "  skill-route-default    Set default distribution: APPS=claude,codex,..."
 	@echo "  security-scan          Security scan + fix"
 	@echo "  instinct-sync          Sync instinct files"
 	@echo ""
 	@echo "── Tmux ──"
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
-	@echo ""
-	@echo "── SSH Reverse Tunnel ──"
-	@echo "  reverse-tunnel-install Install & start SSH reverse tunnel (15721 → bastion)"
-	@echo "  reverse-tunnel-unload  Stop SSH reverse tunnel"
-	@echo "  reverse-tunnel-status  Show tunnel daemon status"
-	@echo "  reverse-tunnel-logs    Tail tunnel logs"
+	@echo "  theme-switch          Switch tmux + Ghostty theme: THEME=catppuccin-mocha|gruvbox-dark"
+	@echo "  theme-list            List supported terminal themes"
 	@echo ""
 	@echo "── Claude Daemon (tmux) ──"
 	@echo "  claude-daemon-install    Install tmux-based daemon"
@@ -66,6 +80,7 @@ check:
 	bash -n install.sh
 	bash -n scripts/brew-bundle.sh
 	bash -n scripts/configure-proxies.sh
+	bash -n scripts/clear-proxies.sh
 	bash -n scripts/clean-cache.sh
 	bash -n scripts/cache-report.sh
 	bash -n scripts/install-cache-cleanup-agent.sh
@@ -74,12 +89,19 @@ check:
 	bash -n scripts/install-antigravity-cli.sh
 	bash -n scripts/doctor.sh
 	bash -n scripts/install-agent-tooling.sh
+	bash -n scripts/lib/proxy-common.sh
+	bash -n scripts/lib/agent-shared.sh
+	bash -n scripts/lib/agent-manifest.sh
+	bash -n scripts/lib/skill-wiring.sh
+	python3 scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/check-python-syntax.py scripts/run-doctor-checks.py
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
 	bash -n scripts/export-public-template.sh
 	bash -n scripts/publish-public-template.sh
 	bash -n scripts/new-project.sh
 	bash -n scripts/sync-agent-upstreams.sh
+	bash -n scripts/skill-route.sh
+	bash -n scripts/skill-refresh.sh
 	bash -n scripts/agent-doctor.sh
 	bash -n editors/vscode/install-extensions.sh
 	bash -n editors/vim/install.sh
@@ -93,13 +115,20 @@ check:
 	luac -p desktop/hammerspoon/init.lua
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/tmux-workspace.sh
-	bash -n scripts/ssh-reverse-tunnel.sh
+	bash -n scripts/switch-terminal-theme.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
-	uv run pytest tests/ -q
+	mkdir -p "$(UV_CACHE_DIR)"
+	UV_CACHE_DIR="$(UV_CACHE_DIR)" uv run --with pytest-cov pytest tests/ -q --cov --cov-report=term-missing
 
 doctor:
 	./scripts/doctor.sh
+
+proxy-on:
+	./scripts/configure-proxies.sh
+
+proxy-off:
+	./scripts/clear-proxies.sh
 
 doctor-agent:
 	./scripts/agent-doctor.sh
@@ -133,6 +162,31 @@ agent-sync:
 
 agent-tools:
 	./scripts/install-agent-tooling.sh --configure
+
+agent-refresh: agent-sync agent-tools
+
+skill-refresh: agent-sync
+	./scripts/skill-refresh.sh
+
+skill-route:
+	@test -n "$(SKILL)" || (echo "Usage: make skill-route SKILL=name APPS=codex,opencode" >&2; exit 2)
+	@test -n "$(APPS)" || (echo "Usage: make skill-route SKILL=name APPS=codex,opencode" >&2; exit 2)
+	./scripts/skill-route.sh set "$(SKILL)" "$(APPS)"
+
+skill-route-clear:
+	@test -n "$(SKILL)" || (echo "Usage: make skill-route-clear SKILL=name" >&2; exit 2)
+	./scripts/skill-route.sh clear "$(SKILL)"
+
+skill-route-show:
+	@test -n "$(SKILL)" || (echo "Usage: make skill-route-show SKILL=name" >&2; exit 2)
+	./scripts/skill-route.sh show "$(SKILL)"
+
+skill-route-list:
+	./scripts/skill-route.sh list
+
+skill-route-default:
+	@test -n "$(APPS)" || (echo "Usage: make skill-route-default APPS=claude,codex,opencode,..." >&2; exit 2)
+	./scripts/skill-route.sh set-default "$(APPS)"
 
 render-configs:
 	./scripts/render-configs.sh
@@ -198,28 +252,13 @@ claude-daemon-unload:
 tmux-workspace:
 	"$(HOME)/.local/bin/tmux-workspace.sh"
 
-# ── SSH Reverse Tunnel ─────────────────────────────────────────────
-# Exposes local cc-switch proxy (127.0.0.1:15721) on bastion localhost.
-# Requires an active ControlMaster socket for dsliam (interactive login first).
-# On bastion: export ANTHROPIC_BASE_URL=http://127.0.0.1:15721
-reverse-tunnel-install:
-	@mkdir -p "$(HOME)/Library/LaunchAgents"
-	cp launchd/io.local.mac-bootstrap.ssh-reverse-tunnel.plist "$(HOME)/Library/LaunchAgents/"
-	sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.ssh-reverse-tunnel.plist"
-	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.ssh-reverse-tunnel.plist" 2>/dev/null || \
-		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.ssh-reverse-tunnel
-	@echo "=== ssh-reverse-tunnel installed. Log: ~/Library/Logs/claude-daemon/ssh-reverse-tunnel.log ==="
-	@echo "=== On bastion: export ANTHROPIC_BASE_URL=http://127.0.0.1:15721 ==="
+theme-switch:
+	@test -n "$(THEME)" || (echo "Usage: make theme-switch THEME=catppuccin-mocha|gruvbox-dark" >&2; exit 2)
+	./scripts/switch-terminal-theme.sh "$(THEME)"
 
-reverse-tunnel-unload:
-	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.ssh-reverse-tunnel.plist" 2>/dev/null || true
-	@echo "=== ssh-reverse-tunnel unloaded ==="
-
-reverse-tunnel-status:
-	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.ssh-reverse-tunnel 2>&1 | head -20 || echo "(not loaded)"
-
-reverse-tunnel-logs:
-	tail -40 "$(HOME)/Library/Logs/claude-daemon/ssh-reverse-tunnel.log" 2>/dev/null || echo "(no log yet)"
+theme-list:
+	@echo "catppuccin-mocha"
+	@echo "gruvbox-dark"
 
 # ── Cold Start (Proxy Bootstrap) ────────────────────────────────────
 cold-start:

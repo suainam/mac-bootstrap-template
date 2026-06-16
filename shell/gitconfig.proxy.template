@@ -1,0 +1,5 @@
+[http]
+  proxy = __HTTP_PROXY__
+
+[https]
+  proxy = __HTTPS_PROXY__

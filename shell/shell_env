@@ -5,21 +5,69 @@ export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
 
-# Proxy
-export http_proxy=http://127.0.0.1:7897
-export https_proxy=http://127.0.0.1:7897
-export HTTP_PROXY=$http_proxy
-export HTTPS_PROXY=$https_proxy
-export ALL_PROXY=$http_proxy
-export no_proxy="localhost,127.0.0.1,::1"
+# Codex sandbox cannot write RTK tracking data under $HOME, so redirect the
+# SQLite DB into the current writable workspace when available.
+if [ -n "${CODEX_SANDBOX:-}" ] && [ -z "${RTK_DB_PATH:-}" ]; then
+    _rtk_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "$PWD")"
+    if [ -w "$_rtk_root" ]; then
+        export RTK_DB_PATH="$_rtk_root/.rtk-state/history.db"
+        mkdir -p "${RTK_DB_PATH%/*}" 2>/dev/null || true
+    elif [ -n "${TMPDIR:-}" ] && [ -w "$TMPDIR" ]; then
+        export RTK_DB_PATH="${TMPDIR%/}/rtk-history.db"
+    fi
+    unset _rtk_root
+fi
 
-alias setproxy='export http_proxy=http://127.0.0.1:7897 https_proxy=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 HTTPS_PROXY=http://127.0.0.1:7897 ALL_PROXY=http://127.0.0.1:7897'
-alias unsetproxy='unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY no_proxy'
+# Proxy
+MAC_BOOTSTRAP_PROXY_HTTP_DEFAULT="http://127.0.0.1:7897"
+MAC_BOOTSTRAP_PROXY_HTTPS_DEFAULT="http://127.0.0.1:7897"
+MAC_BOOTSTRAP_PROXY_ALL_DEFAULT="http://127.0.0.1:7897"
+MAC_BOOTSTRAP_PROXY_NO_DEFAULT="localhost,127.0.0.1,::1"
+
+proxy_on() {
+    export http_proxy="${1:-$MAC_BOOTSTRAP_PROXY_HTTP_DEFAULT}"
+    export https_proxy="${2:-$MAC_BOOTSTRAP_PROXY_HTTPS_DEFAULT}"
+    export HTTP_PROXY="$http_proxy"
+    export HTTPS_PROXY="$https_proxy"
+    export ALL_PROXY="${3:-$MAC_BOOTSTRAP_PROXY_ALL_DEFAULT}"
+    export all_proxy="$ALL_PROXY"
+    export no_proxy="${4:-$MAC_BOOTSTRAP_PROXY_NO_DEFAULT}"
+    export NO_PROXY="$no_proxy"
+}
+
+proxy_off() {
+    unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy no_proxy NO_PROXY
+}
+
+proxy_sync_on() {
+    proxy_on "$@"
+    if [ -x "$HOME/.local/bin/proxy-on.sh" ]; then
+        "$HOME/.local/bin/proxy-on.sh"
+    fi
+}
+
+proxy_sync_off() {
+    proxy_off
+    if [ -x "$HOME/.local/bin/proxy-off.sh" ]; then
+        "$HOME/.local/bin/proxy-off.sh"
+    fi
+}
+
+proxy_on
+
+alias setproxy='proxy_on'
+alias unsetproxy='proxy_off'
+alias proxy-on='proxy_sync_on'
+alias proxy-off='proxy_sync_off'
 
 # NVM (Node Version Manager)
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    . "$NVM_DIR/nvm.sh"
+fi
+if [ -s "$NVM_DIR/bash_completion" ]; then
+    . "$NVM_DIR/bash_completion"
+fi
 
 # Conda (Miniforge3 via Homebrew)
 if [ -f "/opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh" ]; then
@@ -29,4 +77,6 @@ elif [ -f "$HOME/miniforge3/etc/profile.d/conda.sh" ]; then
 fi
 
 # pipx
-[ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
+if [ -f "$HOME/.local/bin/env" ]; then
+    . "$HOME/.local/bin/env"
+fi
