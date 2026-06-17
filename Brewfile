@@ -42,7 +42,9 @@ cask "google-chrome"
 cask "microsoft-edge"
 
 # ========== 开发工具 ==========
-cask "visual-studio-code"
+# Optional fallback editor; no longer installed by default.
+# cask "visual-studio-code"
+cask "zed"
 cask "codex"
 cask "codex-app"
 cask "claude-code"

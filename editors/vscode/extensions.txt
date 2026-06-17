@@ -1,5 +1,7 @@
-ms-azuretools.vscode-docker
-ms-vscode-remote.remote-containers
+# Deprecated locally: Docker / Dev Containers moved to remote workflows.
+# Keep commented for reference in case local container tooling returns.
+# ms-azuretools.vscode-docker
+# ms-vscode-remote.remote-containers
 mechatroner.rainbow-csv
 redhat.vscode-yaml
 tamasfe.even-better-toml

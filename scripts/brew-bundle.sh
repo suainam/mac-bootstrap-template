@@ -28,8 +28,8 @@ should_skip_manual_cask() {
     microsoft-edge)
       has_cask "$1" || has_app "Microsoft Edge.app"
       ;;
-    visual-studio-code)
-      has_cask "$1" || has_app "Visual Studio Code.app"
+    zed)
+      has_cask "$1" || has_app "Zed.app"
       ;;
     clash-verge-rev)
       has_cask "$1" || has_app "Clash Verge.app"

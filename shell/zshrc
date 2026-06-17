@@ -14,6 +14,18 @@ fi
 
 setopt NO_NOMATCH
 
+# GUI editors such as Zed capture the login-shell environment without a TTY.
+# Keep shells without an attached terminal side-effect free so env probing can
+# succeed even if the shell was started with interactive flags.
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
+if [[ ! -o interactive || ! -t 0 || ! -t 1 ]]; then
+  return 0
+fi
+
 # ---------- Zinit ----------
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 if [[ ! -f $ZINIT_HOME/zinit.zsh ]]; then
@@ -143,15 +155,6 @@ unset __conda_setup
 export DIRENV_LOG_FORMAT=""
 eval "$(direnv hook zsh)"
 
-# User-level tools installed by agent helpers such as code-review-graph.
-case ":$PATH:" in
-  *":$HOME/.local/bin:"*) ;;
-  *) export PATH="$HOME/.local/bin:$PATH" ;;
-esac
-
-# Added by code-review-graph install
-export PATH="$HOME/.local/bin:$PATH"
-
 # Terminal auto-attach
 # - iTerm2 provides the window shell
 # - tmux owns the session, a persistent _daemon_ window, and ai-work layout
@@ -167,7 +170,18 @@ tmwork() {
     fi
 }
 
-if [[ "${MAC_BOOTSTRAP_AUTO_ATTACH_TMUX:-1}" == "1" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$TMUX" ]]; then
+is_tmux_host_terminal() {
+    case "${TERM_PROGRAM:-}" in
+        iTerm.app|ghostty)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+if [[ "${MAC_BOOTSTRAP_AUTO_ATTACH_TMUX:-1}" == "1" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$TMUX" ]] && is_tmux_host_terminal; then
     tmwork
 fi
 
