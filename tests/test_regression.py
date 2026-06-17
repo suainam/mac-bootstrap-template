@@ -1,5 +1,6 @@
 """Regression tests for mac-bootstrap symlinks, configs, and tooling."""
 
+import json
 import os
 import subprocess
 import tempfile
@@ -10,6 +11,7 @@ import pytest
 
 HOME = os.path.expanduser("~")
 TEMPLATE = os.path.join(HOME, "work", "config", "mac-bootstrap", "template")
+DOCTOR_MANIFEST = os.path.join(TEMPLATE, "scripts", "doctor-manifest.json")
 
 
 def run(cmd: str) -> tuple[str, str, int]:
@@ -19,26 +21,22 @@ def run(cmd: str) -> tuple[str, str, int]:
 
 # ── Symlink health ────────────────────────────────────────────────────
 
-SYMLINKS = [
-    "~/.zprofile",
-    "~/.zshenv",
-    "~/.zshrc",
-    "~/.shell_env",
-    "~/.bash_profile",
-    "~/.p10k.zsh",
-    "~/.hammerspoon/init.lua",
-    "~/.tmux.conf",
-    "~/.tmux/theme.conf",
-    "~/.config/ghostty/config",
-    "~/.local/bin/tmux-workspace.sh",
-]
+
+def managed_symlinks() -> dict[str, str]:
+    manifest = json.loads(open(DOCTOR_MANIFEST).read())
+    return manifest["managed_symlinks"]
 
 
-@pytest.mark.parametrize("path", SYMLINKS)
+@pytest.mark.parametrize("path", managed_symlinks().keys())
 def test_symlink_not_broken(path):
     expanded = os.path.expanduser(path)
     assert os.path.islink(expanded), f"{path} is not a symlink"
     assert os.path.exists(expanded), f"{path} is a broken symlink"
+
+
+@pytest.mark.parametrize("path,target", managed_symlinks().items())
+def test_symlink_points_to_current_target(path, target):
+    assert os.path.realpath(os.path.expanduser(path)) == os.path.join(TEMPLATE, target)
 
 
 # ── CLI tools ─────────────────────────────────────────────────────────
@@ -86,6 +84,12 @@ def test_ghostty_config_has_local_theme_override():
     config = os.path.expanduser("~/.config/ghostty/config")
     content = open(config).read()
     assert 'config-file = "?~/.config/ghostty/theme.local"' in content
+
+
+def test_ghostty_config_has_expected_font():
+    config = os.path.expanduser("~/.config/ghostty/config")
+    content = open(config).read()
+    assert 'font-family = "Liga SFMono Nerd Font"' in content
 
 
 # ── tmux config ───────────────────────────────────────────────────────

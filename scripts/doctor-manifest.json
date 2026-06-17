@@ -9,6 +9,28 @@
       "commands": ["agy", "antigravity"]
     }
   ],
+  "managed_symlinks": {
+    "~/.zprofile": "shell/zprofile",
+    "~/.zshenv": "shell/zshenv",
+    "~/.zshrc": "shell/zshrc",
+    "~/.shell_env": "shell/shell_env",
+    "~/.bash_profile": "shell/bash_profile",
+    "~/.p10k.zsh": "shell/p10k.zsh",
+    "~/.vimrc": "editors/vim/vimrc",
+    "~/.vim/theme.vim": "editors/vim/themes/catppuccin-mocha.vim",
+    "~/.hammerspoon/init.lua": "desktop/hammerspoon/init.lua",
+    "~/.tmux.conf": "multiplexer/tmux/tmux.conf",
+    "~/.tmux/theme.conf": "multiplexer/tmux/themes/catppuccin-mocha.conf",
+    "~/.config/ghostty/config": "terminals/ghostty/config",
+    "~/.local/bin/tmux-workspace.sh": "scripts/tmux-workspace.sh",
+    "~/.local/bin/switch-terminal-theme.sh": "scripts/switch-terminal-theme.sh",
+    "~/.local/bin/tmux-open-yazi.sh": "scripts/tmux-open-yazi.sh",
+    "~/.local/bin/proxy-on.sh": "scripts/configure-proxies.sh",
+    "~/.local/bin/proxy-off.sh": "scripts/clear-proxies.sh",
+    "~/work/Makefile": "workspace/Makefile",
+    "~/work/PROJECTS_GUIDE.md": "workspace/PROJECTS_GUIDE.md",
+    "~/work/scripts": "workspace/scripts"
+  },
   "cask_overrides": {
     "microsoft-edge": {
       "app": "Microsoft Edge.app"

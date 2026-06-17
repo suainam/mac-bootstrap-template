@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -49,12 +50,48 @@ def parse_brewfile(path: Path) -> dict[str, list[str]]:
     return buckets
 
 
+def expected_symlink_targets(template_root: Path, manifest: dict) -> dict[Path, Path]:
+    managed = manifest.get("managed_symlinks", {})
+    return {
+        Path(os.path.expanduser(link_path)): template_root / target
+        for link_path, target in managed.items()
+    }
+
+
+def check_managed_symlinks(template_root: Path, manifest: dict) -> bool:
+    expected = expected_symlink_targets(template_root, manifest)
+    missing = False
+
+    print("=== Managed symlinks ===")
+    for link_path, target_path in expected.items():
+        if not link_path.is_symlink():
+            print(f"missing symlink: {link_path} -> {target_path}")
+            missing = True
+            continue
+        if not link_path.exists():
+            print(f"broken symlink: {link_path} -> {target_path}")
+            missing = True
+            continue
+
+        actual = link_path.resolve()
+        expected_target = target_path.resolve()
+        if actual != expected_target:
+            print(f"stale symlink: {link_path} -> {actual} (expected {expected_target})")
+            missing = True
+            continue
+
+        print(f"ok symlink: {link_path}")
+
+    return missing
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 3:
         print("Usage: run-doctor-checks.py <Brewfile> <manifest.json>", file=sys.stderr)
         return 2
 
     brewfile = Path(argv[1])
+    template_root = brewfile.parent
     manifest = json.loads(Path(argv[2]).read_text())
     declared = parse_brewfile(brewfile)
 
@@ -107,6 +144,9 @@ def main(argv: list[str]) -> int:
             label = app or token
             print(f"missing cask/app: {token} ({label})")
             missing = True
+
+    if check_managed_symlinks(template_root, manifest):
+        missing = True
 
     print("=== npm CLIs ===")
     for name in declared["npm"]:

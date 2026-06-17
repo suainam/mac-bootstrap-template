@@ -180,6 +180,52 @@ def test_run_doctor_checks_main_failure(monkeypatch, tmp_path, capsys):
     assert "missing formula: git" in out
 
 
+def test_expected_symlink_targets_expands_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    manifest = {"managed_symlinks": {"~/.zprofile": "shell/zprofile"}}
+    targets = run_doctor_checks.expected_symlink_targets(tmp_path, manifest)
+    assert targets == {tmp_path / ".zprofile": tmp_path / "shell" / "zprofile"}
+
+
+def test_run_doctor_checks_main_symlink_failure(monkeypatch, tmp_path, capsys):
+    brewfile = tmp_path / "Brewfile"
+    manifest = tmp_path / "manifest.json"
+    brewfile.write_text("")
+    manifest.write_text(json.dumps({"managed_symlinks": {"~/.zprofile": "shell/zprofile"}}))
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "shell").mkdir()
+    (tmp_path / "shell" / "zprofile").write_text("export TEST=1\n")
+    (tmp_path / ".zprofile").symlink_to(tmp_path / "old-zprofile")
+    (tmp_path / "old-zprofile").write_text("stale\n")
+
+    monkeypatch.setattr(run_doctor_checks, "brew_list", lambda kind: set())
+
+    rc = run_doctor_checks.main(["run-doctor-checks.py", str(brewfile), str(manifest)])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "stale symlink:" in out
+
+
+def test_run_doctor_checks_main_symlink_success(monkeypatch, tmp_path, capsys):
+    brewfile = tmp_path / "Brewfile"
+    manifest = tmp_path / "manifest.json"
+    brewfile.write_text("")
+    manifest.write_text(json.dumps({"managed_symlinks": {"~/.zprofile": "shell/zprofile"}}))
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "shell").mkdir()
+    (tmp_path / "shell" / "zprofile").write_text("export TEST=1\n")
+    (tmp_path / ".zprofile").symlink_to(tmp_path / "shell" / "zprofile")
+
+    monkeypatch.setattr(run_doctor_checks, "brew_list", lambda kind: set())
+
+    rc = run_doctor_checks.main(["run-doctor-checks.py", str(brewfile), str(manifest)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ok symlink:" in out
+
+
 def test_run_doctor_checks_usage(capsys):
     rc = run_doctor_checks.main(["run-doctor-checks.py"])
     err = capsys.readouterr().err

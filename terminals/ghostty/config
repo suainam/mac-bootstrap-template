@@ -1,8 +1,8 @@
 # ==============================================================================
 # 字体
 # ==============================================================================
-font-family = "LigaSFMono Nerd Font"
-font-size = 13
+font-family = "Liga SFMono Nerd Font"
+font-size = 14
 font-thicken = true
 adjust-cell-height = 0
 
