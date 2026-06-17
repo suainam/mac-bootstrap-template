@@ -84,8 +84,8 @@ make proxy-off
 
 Migration note: this bootstrap now uses iTerm2 as the terminal host and tmux
 as the workspace/session layer. Hammerspoon is the global tier: reload, window
-placement, clipboard helpers, and terminal launcher hotkeys live there. `tm`
-is terminal-local only.
+placement, clipboard helpers, and terminal launcher hotkeys live there.
+Hammerspoon does not manage input methods. `tm` is terminal-local only.
 
 For file work inside the terminal, `yazi` is the interactive browser and `eza`
 is the fast read-only lister. Keep both inside tmux sessions; that replaces a
@@ -215,7 +215,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 ## Full setup (including agent tools)
 
 ```bash
-make bootstrap       # Brewfile + shell/vim/Zellij
+make bootstrap       # Brewfile + shell/vim/tmux
 make agent-sync      # Clone upstream skills (ECC + Matt Pocock) 
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
@@ -237,6 +237,9 @@ template pytest suite from `template/.venv`. If `pytest-cov` is installed in the
 local venv, the check also emits coverage for the extracted Python helper
 scripts.
 `make doctor` prints diagnostics without failing.
+`make doctor-agent` verifies managed symlinks against the current template
+targets, so directory refactors surface as stale-link failures instead of
+silently leaving old dotfile paths in place.
 
 Regression notes:
 - Do not parallelize `make -C template check` and parent `make check`; the

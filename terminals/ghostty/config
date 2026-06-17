@@ -2,7 +2,7 @@
 # 字体
 # ==============================================================================
 font-family = "Liga SFMono Nerd Font"
-font-size = 14
+font-size = 13.5
 font-thicken = true
 adjust-cell-height = 0
 

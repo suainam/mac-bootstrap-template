@@ -41,29 +41,33 @@ zinit snippet OMZP::command-not-found
 zinit snippet OMZP::extract
 zinit snippet OMZP::git
 
+# Keep a native vi keymap even if the richer vi-mode plugin fails to load.
+bindkey -v
+
 # Powerlevel10k
 zinit ice depth=1
 zinit light romkatv/powerlevel10k
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# Turbo: history-substring-search
-zinit wait lucid for \
+# Core editing behavior should be available on the first prompt.
+zinit lucid for \
     atload"bindkey '^[[A' history-substring-search-up; bindkey '^[[B' history-substring-search-down; bindkey \"$terminfo[kcuu1]\" history-substring-search-up; bindkey \"$terminfo[kcud1]\" history-substring-search-down" \
     zsh-users/zsh-history-substring-search
 
-# Turbo: autosuggestions
+# These are prompt niceties, not core editing behavior, so they can load later.
 zinit wait lucid for \
     atload"_zsh_autosuggest_start" \
     zsh-users/zsh-autosuggestions
 
-# Turbo: syntax highlighting
 zinit wait lucid for \
     zdharma-continuum/fast-syntax-highlighting
 
-# Turbo: vi-mode
-zinit wait lucid for jeffreytse/zsh-vi-mode
+# Vi mode should be ready before the first prompt. Loading it asynchronously can
+# make the shell look like emacs mode until the plugin eventually attaches.
+zinit lucid for jeffreytse/zsh-vi-mode
 
-# Turbo: completions
+# Extra completion definitions can replay after prompt; native completion is
+# already present via the OMZ completion lib above.
 zinit wait lucid for \
     atinit"ZINIT[COMPINIT_OPTS]=-C; zicompinit; zicdreplay" \
     zsh-users/zsh-completions

@@ -8,7 +8,8 @@ Terminal workflow now prefers tmux. The first verification path is
 `make tmux-workspace`, which enters the AI layout through the same shell startup
 path used by day-to-day work. Hammerspoon is the system-control tier. Keep its
 hotkeys global and Hyper-based; keep tmux pane keys local to the terminal so
-the two layers do not fight.
+the two layers do not fight. Input methods stay under macOS/user control rather
+than Hammerspoon automation.
 
 ## Bootstrap Phases
 
@@ -47,7 +48,8 @@ The agent bootstrap path is now split by responsibility:
 - `scripts/render-codex-mcp-block.py` and
   `scripts/sync-codex-mcp-config.py` own idempotent Codex MCP rendering.
 - `scripts/run-doctor-checks.py` and `scripts/doctor-manifest.json` make
-  doctor checks data-driven from `Brewfile` instead of hardcoded case lists.
+  doctor checks data-driven from `Brewfile` instead of hardcoded case lists,
+  and also verify managed symlinks still point at the current template paths.
 
 ## Key Terms
 
