@@ -136,6 +136,11 @@ alias cip="curl cip.cc"
 # User local overrides
 source ~/.zshrc.local 2>/dev/null || true
 
+# Legacy bastion: keep modern TERM locally, but downgrade only for this host.
+# Declare after ~/.zshrc.local so host compatibility stays stable at runtime.
+alias dsliam='TERM=xterm-256color command ssh dsliam'
+alias dsliam-mux='TERM=xterm-256color command ssh dsliam-mux'
+
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
 __conda_setup="$('/opt/homebrew/Caskroom/miniforge/base/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"

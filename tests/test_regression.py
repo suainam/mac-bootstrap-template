@@ -74,10 +74,10 @@ def test_ghostty_config_valid():
     assert rc == 0, f"Ghostty config invalid: {err}"
 
 
-def test_ghostty_config_has_term_compat():
+def test_ghostty_config_does_not_force_term_downgrade():
     config = os.path.expanduser("~/.config/ghostty/config")
     content = open(config).read()
-    assert "term = xterm-256color" in content
+    assert "term = xterm-256color" not in content
 
 
 def test_ghostty_config_has_local_theme_override():
@@ -308,6 +308,24 @@ def test_ssh_dsliam_devpod_removed():
 def test_ssh_controlmaster_auto():
     content = open(os.path.expanduser("~/.ssh/config.d/dsliam")).read()
     assert "ControlMaster auto" in content
+
+
+def test_zshrc_has_dsliam_term_wrappers():
+    content = open(os.path.expanduser("~/.zshrc")).read()
+    assert "alias dsliam='TERM=xterm-256color command ssh dsliam'" in content
+    assert "alias dsliam-mux='TERM=xterm-256color command ssh dsliam-mux'" in content
+
+
+def test_runtime_dsliam_alias_downgrades_term():
+    out, _, rc = run("script -q /dev/null zsh -ic 'alias dsliam'")
+    assert rc == 0
+    assert "TERM=xterm-256color command ssh dsliam" in out
+
+
+def test_runtime_dsliam_mux_alias_downgrades_term():
+    out, _, rc = run("script -q /dev/null zsh -ic 'alias dsliam-mux'")
+    assert rc == 0
+    assert "TERM=xterm-256color command ssh dsliam-mux" in out
 
 
 # ── Font ──────────────────────────────────────────────────────────────
