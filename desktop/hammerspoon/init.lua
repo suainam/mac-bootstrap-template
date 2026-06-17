@@ -18,6 +18,10 @@ end
 
 hs.grid.setGrid("3x2")
 
+-- Input method automation disabled.
+-- It used to switch IME by app and special-case Wuying, but that proved too
+-- intrusive. Keep Hammerspoon on global hotkeys/window helpers only.
+--[[
 -- === Auto-switch input method by app ===
 local en = "com.apple.keylayout.ABC"
 local zh = "com.bytedance.inputmethod.doubaoime.pinyin"
@@ -90,7 +94,6 @@ local function on_wuying_enter(app)
   else
     log("ERROR: wuying app not found")
   end
-  -- Reset flag after 2s as safety net
   hs.timer.doAfter(2, function()
     log("2s reset: in_wuying was " .. tostring(in_wuying))
     in_wuying = false
@@ -142,7 +145,6 @@ local input_watcher = hs.application.watcher.new(function(app_name, event, app)
 end)
 input_watcher:start()
 
--- Safety net: reset in_wuying flag every 3s if wuying is not frontmost
 hs.timer.doEvery(3, function()
   local front = hs.application.frontmostApplication()
   if not front then return end
@@ -152,6 +154,7 @@ hs.timer.doEvery(3, function()
     in_wuying = false
   end
 end)
+]]
 
 local clipboard_tool = hs.loadSpoon("ClipboardTool")
 if clipboard_tool then
