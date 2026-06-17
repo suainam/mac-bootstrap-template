@@ -3,7 +3,30 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 REMOTE="${CODE_SERVER_HOST:-dsliam-mux}"
-REMOTE_DIR="${CODE_SERVER_DIR:-/srv/code-server}"
+DEFAULT_REMOTE_DIR="${CODE_SERVER_DIR:-/srv/code-server}"
+
+discover_remote_dir() {
+  if [ -n "${CODE_SERVER_DIR:-}" ]; then
+    printf "%s" "$CODE_SERVER_DIR"
+    return 0
+  fi
+
+  local detected
+  detected="$(
+    ssh "$REMOTE" \
+      "docker inspect code-server --format '{{ index .Config.Labels \"com.docker.compose.project.working_dir\" }}' 2>/dev/null" \
+      2>/dev/null || true
+  )"
+
+  if [ -n "$detected" ] && [ "$detected" != "<no value>" ]; then
+    printf "%s" "$detected"
+    return 0
+  fi
+
+  printf "%s" "$DEFAULT_REMOTE_DIR"
+}
+
+REMOTE_DIR="$(discover_remote_dir)"
 
 echo "=== Deploy code-server config to $REMOTE ==="
 echo "  Target: $REMOTE:$REMOTE_DIR"

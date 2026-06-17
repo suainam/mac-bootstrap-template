@@ -9,9 +9,16 @@ CONTAINER="${ODPS_EXPORT_CONTAINER:-merchandise-dashboard}"
 MODE="${ODPS_EXPORT_MODE:-exec}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNNER="$SCRIPT_DIR/odps-export-runner.py"
 
 if [ ! -f "$PROJECT_DIR/$CONFIG_FILE" ]; then
   echo "missing config: $PROJECT_DIR/$CONFIG_FILE" >&2
+  exit 1
+fi
+
+if [ ! -r "$RUNNER" ]; then
+  echo "missing runner: $RUNNER" >&2
+  echo "sync both workspace/scripts/odps-export and workspace/scripts/odps-export-runner.py" >&2
   exit 1
 fi
 
@@ -35,7 +42,7 @@ run_via_exec() {
     -e ODPS_EXPORT_CONFIG="$temp_dir/$CONFIG_FILE" \
     -w "$temp_dir" \
     "$CONTAINER" \
-    python - --config "$temp_dir/$CONFIG_FILE" "$@" < "$SCRIPT_DIR/odps-export-runner.py"
+    python - --config "$temp_dir/$CONFIG_FILE" "$@" < "$RUNNER"
 
   docker cp "$CONTAINER:$temp_dir/." "$PROJECT_DIR/" >/dev/null
   docker exec "$CONTAINER" rm -rf "$temp_dir" >/dev/null

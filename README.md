@@ -94,6 +94,11 @@ Inside tmux, `prefix + y` opens `yazi` in the current directory.
 In the shell, `y` opens `yazi` and changes your cwd to the last directory you
 landed on when you quit.
 
+For remote `code-server` deployment and repair notes, see
+[`infra/code-server/README.md`](infra/code-server/README.md). That runbook
+covers the expected remote directory, root-vs-coder runtime behavior, Dockerfile
+rebuild pitfalls, and extension/debug checks.
+
 Quick verify:
 
 ```bash
@@ -370,6 +375,9 @@ The analysis-subproject scaffold creates:
 - `Makefile` with a standard `odps-export` entrypoint
 - `odps_export_config.py` for project-local export specs
 - a README that assumes repo-level `uv` management and shared Docker/ODPS helpers
+
+Keep `workspace/scripts/odps-export` and `workspace/scripts/odps-export-runner.py`
+deployed as a pair. The wrapper now fails fast if the runner is missing.
 
 Data directories in the Docker Compose setup:
 
