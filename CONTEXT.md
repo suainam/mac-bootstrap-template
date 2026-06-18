@@ -16,7 +16,7 @@ than Hammerspoon automation.
 | Phase | Script | What happens |
 |-------|--------|-------------|
 | Brew | `Brewfile` + `brew-bundle.sh` | Homebrew formulae, casks, npm packages, fonts |
-| Shell | `install.sh` | Shell config (zsh), git, vim, tmux, VS Code |
+| Shell | `install.sh` | Shell config (zsh), git, vim, neovim, tmux, VS Code |
 | Docker | `infra/docker/install.sh` | Colima VM, 9Router proxy, Docker Compose |
 | Agent | `install-agent-tooling.sh` | Skills, MCP, RTK, caveman, Pi config, CRG |
 | Pi | `install-pi-packages.sh` | Pi-native packages (from `pi-packages.txt`) |

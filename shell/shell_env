@@ -1,21 +1,56 @@
 # Shared shell environment — macOS, sourced by bash and zsh
 
-export EDITOR=code
+export EDITOR=nvim
+export VISUAL=nvim
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
 
+codex_find_writable_root() {
+    local current="${1:-$PWD}"
+    while [ -n "$current" ]; do
+        if [ -w "$current" ]; then
+            printf '%s\n' "$current"
+            return 0
+        fi
+        if [ "$current" = "/" ]; then
+            break
+        fi
+        current="$(dirname "$current")"
+    done
+    return 1
+}
+
 # Codex sandbox cannot write RTK tracking data under $HOME, so redirect the
-# SQLite DB into the current writable workspace when available.
-if [ -n "${CODEX_SANDBOX:-}" ] && [ -z "${RTK_DB_PATH:-}" ]; then
-    _rtk_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "$PWD")"
-    if [ -w "$_rtk_root" ]; then
-        export RTK_DB_PATH="$_rtk_root/.rtk-state/history.db"
-        mkdir -p "${RTK_DB_PATH%/*}" 2>/dev/null || true
-    elif [ -n "${TMPDIR:-}" ] && [ -w "$TMPDIR" ]; then
-        export RTK_DB_PATH="${TMPDIR%/}/rtk-history.db"
+# SQLite DB and CRG graph data into the current writable workspace when the
+# repo root itself is outside the sandbox's writable boundary.
+if [ -n "${CODEX_SANDBOX:-}" ]; then
+    _repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "$PWD")"
+    _state_root="$_repo_root"
+    if [ ! -w "$_state_root" ]; then
+        _state_root="$(codex_find_writable_root "$PWD" 2>/dev/null || true)"
     fi
-    unset _rtk_root
+    if [ -z "$_state_root" ] && [ -n "${TMPDIR:-}" ] && [ -w "$TMPDIR" ]; then
+        _repo_tag="$(printf '%s' "$_repo_root" | cksum | awk '{print $1}')"
+        _state_root="${TMPDIR%/}/codex-sandbox/${_repo_tag}"
+        mkdir -p "$_state_root" 2>/dev/null || true
+    fi
+
+    if [ -z "${RTK_DB_PATH:-}" ] && [ -n "$_state_root" ]; then
+        export RTK_DB_PATH="$_state_root/.rtk-state/history.db"
+        mkdir -p "${RTK_DB_PATH%/*}" 2>/dev/null || true
+    fi
+
+    if [ -z "${CRG_DATA_DIR:-}" ] && [ -n "$_state_root" ]; then
+        export CRG_DATA_DIR="$_state_root/.code-review-graph"
+        mkdir -p "$CRG_DATA_DIR" 2>/dev/null || true
+    fi
+
+    if [ -z "${CRG_PARSE_EXECUTOR:-}" ]; then
+        export CRG_PARSE_EXECUTOR=thread
+    fi
+
+    unset _repo_root _repo_tag _state_root
 fi
 
 # Proxy

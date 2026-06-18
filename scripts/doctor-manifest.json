@@ -18,6 +18,7 @@
     "~/.p10k.zsh": "shell/p10k.zsh",
     "~/.vimrc": "editors/vim/vimrc",
     "~/.vim/theme.vim": "editors/vim/themes/catppuccin-mocha.vim",
+    "~/.config/nvim": "editors/neovim/config",
     "~/.hammerspoon/init.lua": "desktop/hammerspoon/init.lua",
     "~/.tmux.conf": "multiplexer/tmux/tmux.conf",
     "~/.tmux/theme.conf": "multiplexer/tmux/themes/catppuccin-mocha.conf",

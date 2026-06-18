@@ -4,8 +4,8 @@
 
 ```bash
 # From bootstrap repo root:
-make bootstrap   # Brewfile deps + shell/vim/Zellij config
-make agent-sync  # Clone upstream skills (ECC + Matt Pocock → ~/.agent/skills/)
+make bootstrap   # Brewfile deps + shell/vim/neovim/tmux config
+make agent-sync  # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer → ~/.agent/skills/)
 make agent-tools # Configure RTK, caveman, CRG, context7 + wire skills for all agents
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Sync upstreams + re-wire skills only
@@ -94,7 +94,7 @@ The script is intentionally split by responsibility:
 Upstream skills are synced into `~/.agent/skills/upstream/` by `make agent-sync`:
 
 ```bash
-make agent-sync   # Clone ECC + Matt Pocock + Khazix repos → promote whitelisted skills
+make agent-sync   # Clone ECC + Matt Pocock + Khazix + Garden + Humanizer repos → promote whitelisted skills
 make agent-tools  # Re-wire agent skill dirs
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Preferred path for day-to-day skill maintenance
@@ -133,7 +133,7 @@ personal source dir if applicable, then run `make skill-refresh`.
 
 Source-of-truth split:
 
-- Third-party upstream skills: `agent/skills-promote.txt` sections `everything-claude-code`, `mattpocock-skills`, `khazix-skills`
+- Third-party upstream skills: `agent/skills-promote.txt` sections `everything-claude-code`, `mattpocock-skills`, `khazix-skills`, `garden-skills`, `humanizer-zh`
 - First-party skills: `template/agent/skills/personal/`
 - Distribution matrix: `agent/skills-distribution.json`
 
@@ -391,10 +391,12 @@ not `settings.toml`.
 
 ## Codex Sandbox Note
 
-Codex tool sandboxes cannot write RTK tracking data under `$HOME`, so the shared
-`shell_env` redirects `RTK_DB_PATH` to `<repo>/.rtk-state/history.db`
-when `CODEX_SANDBOX` is set. This keeps `rtk gain` working inside Codex while
-leaving normal terminal sessions on the default RTK location.
+Codex tool sandboxes cannot always write under `$HOME` or the git repo root, so
+the shared `shell_env` detects a writable workspace root when `CODEX_SANDBOX`
+is set. It redirects `RTK_DB_PATH` there, sets `CRG_DATA_DIR` there when
+needed, and forces `CRG_PARSE_EXECUTOR=thread` to avoid sandbox semaphore
+failures during `code-review-graph build`. Normal terminal sessions keep the
+default RTK and CRG locations.
 
 ---
 

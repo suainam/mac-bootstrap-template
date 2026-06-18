@@ -73,7 +73,7 @@ help:
 	@echo "  hook-matchers          Add hook matchers"
 
 bootstrap install:
-	./install.sh --yes --with-vim --cleanup
+	./install.sh --yes --with-vim --with-neovim --cleanup
 	./scripts/install-agent-tooling.sh --configure
 
 check:
@@ -108,6 +108,7 @@ check:
 	bash -n editors/vscode/install-extensions.sh
 	bash -n editors/vim/install.sh
 	bash -n editors/vim/switch-theme.sh
+	bash -n editors/neovim/install.sh
 	bash -n multiplexer/tmux/install.sh
 	bash -n multiplexer/tmux/switch-theme.sh
 	bash -n terminals/ghostty/install.sh

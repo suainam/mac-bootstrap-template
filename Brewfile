@@ -8,6 +8,10 @@ brew "curl"
 brew "jq"
 brew "tree"
 brew "ripgrep"
+brew "fd"
+brew "ast-grep"
+brew "neovim"
+brew "tree-sitter-cli"
 
 # ========== Shell 增强 ==========
 brew "fzf"
@@ -29,6 +33,7 @@ brew "pi-coding-agent"
 brew "rtk"
 brew "codex-threadripper"
 brew "gh"
+brew "lazygit"
 # brew "devpod"  # Not used anymore
 
 # ========== 容器 ==========
@@ -44,7 +49,7 @@ cask "microsoft-edge"
 # ========== 开发工具 ==========
 # Optional fallback editor; no longer installed by default.
 # cask "visual-studio-code"
-cask "zed"
+# cask "zed"
 cask "codex"
 cask "codex-app"
 cask "claude-code"

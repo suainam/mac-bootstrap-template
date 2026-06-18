@@ -4,6 +4,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ASSUME_YES=0
 RUN_VIM=0
+RUN_NEOVIM=0
 RUN_PROXY=1
 RUN_BREW_UPDATE=1
 RUN_CLEANUP=0
@@ -19,6 +20,7 @@ Options:
   --git-name NAME        Configure git user.name.
   --git-email EMAIL      Configure git user.email.
   --with-vim             Install/link Vim config and plugins.
+  --with-neovim          Install/link Neovim + LazyVim config.
   --skip-proxy           Do not configure Docker/npm proxy.
   --skip-brew-update     Do not run brew update before brew bundle.
   --cleanup              Run safe cache cleanup after install.
@@ -46,6 +48,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     --with-vim)
       RUN_VIM=1
+      ;;
+    --with-neovim)
+      RUN_NEOVIM=1
       ;;
     --skip-proxy)
       RUN_PROXY=0
@@ -237,6 +242,17 @@ if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_VIM" -eq 0 ]; then
 fi
 if [ "$RUN_VIM" -eq 1 ]; then
   "$DIR/editors/vim/install.sh"
+fi
+
+if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_NEOVIM" -eq 0 ]; then
+  echo "=== Install neovim + LazyVim config? [y/N] ==="
+  read -r do_neovim
+  if [[ "$do_neovim" =~ ^[Yy]$ ]]; then
+    RUN_NEOVIM=1
+  fi
+fi
+if [ "$RUN_NEOVIM" -eq 1 ]; then
+  "$DIR/editors/neovim/install.sh"
 fi
 
 echo "=== Install VS Code extensions if available ==="

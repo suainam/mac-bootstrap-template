@@ -64,13 +64,14 @@ curl -fsSL https://ui.ghproxy.cc/https://github.com/suainam/mac-bootstrap-templa
 make bootstrap
 ```
 
-This installs Homebrew dependencies from `Brewfile`, links shell/git/vim/tmux
+This installs Homebrew dependencies from `Brewfile`, links shell/git/vim/neovim/tmux
 configuration, configures Docker/npm proxy settings, and runs safe cache cleanup.
 It does not delete project virtual environments or files under `~/work`.
 If Microsoft Edge or Clash Verge already exists under `/Applications` from a
 manual install, bootstrap skips that cask instead of forcing a reinstall.
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
+Neovim / LazyVim notes live in `editors/neovim/README.md`.
 
 Proxy defaults are enabled from `~/.shell_env`. New shells start with
 `proxy_on`, and you can resync shell + npm + git state with:
@@ -220,7 +221,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 ## Full setup (including agent tools)
 
 ```bash
-make bootstrap       # Brewfile + shell/vim/tmux
+make bootstrap       # Brewfile + shell/vim/neovim/tmux
 make agent-sync      # Clone upstream skills (ECC + Matt Pocock) 
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
@@ -300,7 +301,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 
 | Target | What |
 |--------|------|
-| `make bootstrap` | Brewfile + shell/vim/tmux config |
+| `make bootstrap` | Brewfile + shell/vim/neovim/tmux config |
 | `make agent-tools` | Wire all agent tools |
 | `make agent-refresh` | Full sync + full agent reconfigure |
 | `make skill-refresh` | Sync upstreams + re-wire skills only |

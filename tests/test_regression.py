@@ -44,6 +44,7 @@ def test_symlink_points_to_current_target(path, target):
 CLI_TOOLS = [
     "git", "curl", "jq", "tree", "rg", "fzf", "tmux", "lua",
     "direnv", "zoxide", "eza", "bat", "yazi", "node", "uv", "pi", "gh",
+    "fd", "nvim", "lazygit", "tree-sitter", "ast-grep",
 ]
 
 
@@ -90,6 +91,37 @@ def test_ghostty_config_has_expected_font():
     config = os.path.expanduser("~/.config/ghostty/config")
     content = open(config).read()
     assert 'font-family = "Liga SFMono Nerd Font"' in content
+
+
+# ── Neovim config ────────────────────────────────────────────────────
+
+def test_neovim_config_bootstraps_lazyvim():
+    config = os.path.expanduser("~/.config/nvim/init.lua")
+    content = open(config).read()
+    assert 'require("config.lazy")' in content
+
+
+def test_neovim_config_sets_catppuccin_and_tmux_navigation():
+    plugin_file = os.path.expanduser("~/.config/nvim/lua/plugins/core.lua")
+    content = open(plugin_file).read()
+    assert 'colorscheme = "catppuccin-mocha"' in content
+    assert 'vim-tmux-navigator' in content
+
+
+def test_neovim_config_uses_dedicated_python_host_and_disables_unused_providers():
+    init_file = os.path.expanduser("~/.config/nvim/init.lua")
+    content = open(init_file).read()
+    assert 'python3_host_prog' in content
+    assert 'neovim-python/bin/python' in content
+    assert 'loaded_perl_provider = 0' in content
+    assert 'loaded_ruby_provider = 0' in content
+    assert 'loaded_node_provider = 0' in content
+
+
+def test_neovim_clipboard_uses_local_unnamedplus_and_ssh_fallback():
+    options_file = os.path.expanduser("~/.config/nvim/lua/config/options.lua")
+    content = open(options_file).read()
+    assert 'vim.env.SSH_CONNECTION and "" or "unnamedplus"' in content
 
 
 # ── tmux config ───────────────────────────────────────────────────────
@@ -186,8 +218,82 @@ def test_shell_env_exports_full_proxy_matrix():
     assert "proxy_sync_on()" in content
     assert "alias proxy-on='proxy_sync_on'" in content
     assert "alias proxy-off='proxy_sync_off'" in content
+    assert "codex_find_writable_root()" in content
+    assert 'export CRG_PARSE_EXECUTOR=thread' in content
+    assert 'export CRG_DATA_DIR="$_state_root/.code-review-graph"' in content
     assert '&& . "$NVM_DIR/nvm.sh"' not in content
     assert '&& . "$HOME/.local/bin/env"' not in content
+
+
+def test_shell_env_redirects_crg_into_writable_subdir_when_repo_root_is_read_only(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    writable = repo / "writable"
+    writable.mkdir()
+    shell_env = os.path.join(TEMPLATE, "shell", "shell_env")
+    repo.chmod(0o555)
+    try:
+        result = subprocess.run(
+            [
+                "zsh",
+                "-lc",
+                (
+                    f'cd "{writable}" && export CODEX_SANDBOX=seatbelt && '
+                    f'source "{shell_env}" && '
+                    'printf "RTK_DB_PATH=%s\\nCRG_DATA_DIR=%s\\nCRG_PARSE_EXECUTOR=%s\\n" '
+                    '"$RTK_DB_PATH" "$CRG_DATA_DIR" "$CRG_PARSE_EXECUTOR"'
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+    finally:
+        repo.chmod(0o755)
+    expected = (
+        f"RTK_DB_PATH={writable}/.rtk-state/history.db\n"
+        f"CRG_DATA_DIR={writable}/.code-review-graph\n"
+        "CRG_PARSE_EXECUTOR=thread\n"
+    )
+    assert result.stdout == expected
+
+
+def test_shell_env_redirects_crg_into_tmpdir_when_no_workspace_path_is_writable(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    locked = repo / "locked"
+    locked.mkdir()
+    shell_env = os.path.join(TEMPLATE, "shell", "shell_env")
+    repo.chmod(0o555)
+    locked.chmod(0o555)
+    try:
+        result = subprocess.run(
+            [
+                "zsh",
+                "-lc",
+                (
+                    f'cd "{locked}" && export CODEX_SANDBOX=seatbelt && '
+                    f'source "{shell_env}" && '
+                    'printf "RTK_DB_PATH=%s\\nCRG_DATA_DIR=%s\\nCRG_PARSE_EXECUTOR=%s\\n" '
+                    '"$RTK_DB_PATH" "$CRG_DATA_DIR" "$CRG_PARSE_EXECUTOR"'
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+    finally:
+        locked.chmod(0o755)
+        repo.chmod(0o755)
+    lines = dict(line.split("=", 1) for line in result.stdout.strip().splitlines())
+    state_root = Path(lines["RTK_DB_PATH"]).parent.parent
+    assert lines["RTK_DB_PATH"] == str(state_root / ".rtk-state" / "history.db")
+    assert lines["CRG_DATA_DIR"] == str(state_root / ".code-review-graph")
+    assert state_root != repo
+    assert str(state_root).startswith(str(tmp_path))
+    assert lines["CRG_PARSE_EXECUTOR"] == "thread"
 
 
 def test_configure_proxies_sets_git_proxy():
