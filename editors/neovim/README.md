@@ -50,6 +50,10 @@ For this repo's terminal stack, clipboard works best as a layered setup:
 3. `tmux` copy-mode keeps `pbcopy` bindings as a macOS fallback
 4. Ghostty provides terminal support for the clipboard path
 
+Local startup also adds a yank fallback in `TextYankPost`, so normal yanks such
+as `yy` and `yG` still populate the macOS clipboard even if LazyVim temporarily
+defers the built-in clipboard option during startup.
+
 ## Daily usage
 
 Leader key: `Space`

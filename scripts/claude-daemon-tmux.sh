@@ -33,40 +33,35 @@ fi
 echo $$ > "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT
 
-# --- robust timeout: macOS-compatible, pipe-safe ---
-#
-# _kill_tree: recursively kill a process and all its children via pgrep.
-# Works on macOS without setsid or GNU coreutils.
-_kill_tree() {
-    local pid="$1" sig="${2:-TERM}"
-    local children
-    children=$(pgrep -P "$pid" 2>/dev/null || true)
-    for child in $children; do
-        _kill_tree "$child" "$sig"
-    done
-    kill "-${sig}" "$pid" 2>/dev/null || true
-}
-
 # run_with_timeout <seconds> cmd [args...]
-# Kills the entire process tree on timeout (SIGTERM → SIGKILL after 5 s).
+# Kills the entire process group on timeout (SIGTERM → SIGKILL after 5 s).
 # The watchdog subshell immediately closes inherited FDs (exec >/dev/null 2>&1)
 # so orphaned sleeps inside it never hold the caller's stdout/stderr pipes open.
 run_with_timeout() {
     local timeout_secs="$1"; shift
 
-    "$@" &
+    # Spawn the command in its own session so timeout signals can target the
+    # whole process group without touching this wrapper shell.
+    python3 - "$@" <<'PY' &
+import os
+import sys
+
+os.setsid()
+os.execvp(sys.argv[1], sys.argv[1:])
+PY
     local child_pid=$!
+    local child_pgid="$child_pid"
 
     (
         exec >/dev/null 2>&1          # close inherited pipes — critical for correctness
         sleep "$timeout_secs"
         if kill -0 "$child_pid" 2>/dev/null; then
             log "TIMEOUT: claude -p exceeded ${timeout_secs}s — SIGTERM pid $child_pid"
-            _kill_tree "$child_pid" TERM
+            kill -TERM -- "-$child_pgid" 2>/dev/null || true
             sleep 5
             if kill -0 "$child_pid" 2>/dev/null; then
                 log "TIMEOUT: still alive after SIGTERM — SIGKILL pid $child_pid"
-                _kill_tree "$child_pid" KILL
+                kill -KILL -- "-$child_pgid" 2>/dev/null || true
             fi
         fi
     ) &

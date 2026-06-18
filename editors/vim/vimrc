@@ -68,7 +68,17 @@ set nowritebackup
 set noundofile
 set autoread
 set autochdir
+
+" Keep terminal Vim yanks synced to the macOS clipboard.
+" Some startup paths/plugins can leave 'clipboard' empty, so restore it again
+" after startup and after yanks.
 set clipboard=unnamedplus
+
+augroup LocalClipboardRestore
+  autocmd!
+  autocmd VimEnter * if empty(&clipboard) | set clipboard=unnamedplus | endif
+  autocmd TextYankPost * if v:event.operator ==# 'y' && get(v:event, 'regname', '') !~# '^[+*]$' | call setreg('+', v:event.regcontents, v:event.regtype) | endif
+augroup END
 
 " =========================
 " 性能与习惯

@@ -72,6 +72,7 @@ manual install, bootstrap skips that cask instead of forcing a reinstall.
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 Neovim / LazyVim notes live in `editors/neovim/README.md`.
+Legacy Vim notes live in `editors/vim/README.md`.
 
 Proxy defaults are enabled from `~/.shell_env`. New shells start with
 `proxy_on`, and you can resync shell + npm + git state with:
