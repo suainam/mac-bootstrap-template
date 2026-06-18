@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Claude Code keepalive daemon — macOS launchd-managed
 # Sends a non-interactive claude -p ping on a calendar schedule (00:00 / 08:00 / 15:00).
+# launchd captures stdout/stderr in /tmp/claude-daemon-tmux.{log,err}, while
+# this script appends structured run summaries to ~/Library/Logs/claude-daemon/tmux.log.
 # Override defaults via env vars (set in ~/.zshrc.local or private overlay):
 #   CLAUDE_PROJECT_DIR  — working directory for claude (default: $HOME/work)
 #   CLAUDE_SESSION      — unused; kept for forward compat
 #   CLAUDE_TIMEOUT      — seconds before force-killing claude (default: 60)
+#   CLAUDE_KEEPALIVE_PROMPT — override the default keepalive prompt for drills/tests
+#   CLAUDE_KEEPALIVE_PROMPT_FILE — file path for multi-line prompt overrides
 set -uo pipefail  # no -e: we handle errors explicitly below
 
 # --- config ---
@@ -12,6 +16,20 @@ export PATH="${CLAUDE_BIN_EXTRA_PATH:+${CLAUDE_BIN_EXTRA_PATH}:}/opt/homebrew/bi
 
 CLAUDE_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$HOME/work}"
 CLAUDE_TIMEOUT="${CLAUDE_TIMEOUT:-60}"  # seconds; override via env if needed
+CLAUDE_KEEPALIVE_PROMPT_FILE="${CLAUDE_KEEPALIVE_PROMPT_FILE:-}"
+PROMPT_SOURCE="default"
+CLAUDE_KEEPALIVE_PROMPT="${CLAUDE_KEEPALIVE_PROMPT:-# keepalive: $(date '+%Y-%m-%d %H:%M:%S')}"
+DEFAULT_PROMPT_FILE="${HOME}/.claude/claude-daemon-prompt.txt"
+
+if [ -n "$CLAUDE_KEEPALIVE_PROMPT_FILE" ] && [ -r "$CLAUDE_KEEPALIVE_PROMPT_FILE" ]; then
+    CLAUDE_KEEPALIVE_PROMPT="$(cat "$CLAUDE_KEEPALIVE_PROMPT_FILE")"
+    PROMPT_SOURCE="file:$CLAUDE_KEEPALIVE_PROMPT_FILE"
+elif [ -r "$DEFAULT_PROMPT_FILE" ]; then
+    CLAUDE_KEEPALIVE_PROMPT="$(cat "$DEFAULT_PROMPT_FILE")"
+    PROMPT_SOURCE="file:$DEFAULT_PROMPT_FILE"
+elif [ -n "${CLAUDE_KEEPALIVE_PROMPT:-}" ]; then
+    PROMPT_SOURCE="env"
+fi
 
 LOG_DIR="${HOME}/Library/Logs/claude-daemon"
 LOG="${LOG_DIR}/tmux.log"
@@ -42,13 +60,7 @@ run_with_timeout() {
 
     # Spawn the command in its own session so timeout signals can target the
     # whole process group without touching this wrapper shell.
-    python3 - "$@" <<'PY' &
-import os
-import sys
-
-os.setsid()
-os.execvp(sys.argv[1], sys.argv[1:])
-PY
+    python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@" &
     local child_pid=$!
     local child_pgid="$child_pid"
 
@@ -81,12 +93,12 @@ START_TS=$(date '+%s')
 log "=== tmux daemon starting ==="
 log "  project_dir: $CLAUDE_PROJECT_DIR"
 log "  timeout: ${CLAUDE_TIMEOUT}s"
+log "  prompt_source: $PROMPT_SOURCE"
 log "Sending keepalive via claude -p"
 
 cd "$CLAUDE_PROJECT_DIR"
 run_with_timeout "$CLAUDE_TIMEOUT" \
-    claude -p "# keepalive: $(date '+%Y-%m-%d %H:%M:%S')" --bare --no-session-persistence \
-    2>/dev/null
+    claude -p "$CLAUDE_KEEPALIVE_PROMPT" --bare --no-session-persistence
 EXIT_STATUS=$?
 
 ELAPSED=$(( $(date '+%s') - START_TS ))

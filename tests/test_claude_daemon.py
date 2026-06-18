@@ -41,11 +41,28 @@ def run_script(env: dict | None = None, timeout: int = 30) -> subprocess.Complet
     )
 
 
-def fake_claude_bin(tmp_path: Path, *, exit_code: int = 0, sleep_secs: float = 0, ignore_term: bool = False) -> Path:
+def fake_claude_bin(
+    tmp_path: Path,
+    *,
+    exit_code: int = 0,
+    sleep_secs: float = 0,
+    ignore_term: bool = False,
+    capture_args_to: Path | None = None,
+) -> Path:
     """Write a tiny fake `claude` executable into tmp_path/bin/ and return its directory."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     body_lines = []
+    if capture_args_to is not None:
+        body_lines.extend([
+            f'capture_file="{capture_args_to}"',
+            ': > "$capture_file"',
+            'idx=1',
+            'for arg in "$@"; do',
+            '  printf "__ARG_%s__\\n%s\\n" "$idx" "$arg" >> "$capture_file"',
+            '  idx=$((idx + 1))',
+            'done',
+        ])
     if ignore_term:
         body_lines.append("trap '' TERM")   # ignore SIGTERM
     if sleep_secs:
@@ -150,6 +167,37 @@ class TestHappyPath:
         run_script(env)
         log = read_log(tmp_path / "Library" / "Logs" / "claude-daemon")
         assert "timeout: 7s" in log
+
+    def test_prompt_file_overrides_default_prompt(self, tmp_path):
+        captured_args = tmp_path / "captured-args.txt"
+        prompt_file = tmp_path / "keepalive-prompt.txt"
+        prompt_file.write_text("line 1\nline 2\nline 3\n")
+        bin_dir = fake_claude_bin(tmp_path, exit_code=0, capture_args_to=captured_args)
+        env = base_env(tmp_path, bin_dir, CLAUDE_KEEPALIVE_PROMPT_FILE=str(prompt_file))
+
+        run_script(env)
+
+        log = read_log(tmp_path / "Library" / "Logs" / "claude-daemon")
+        args = captured_args.read_text()
+        assert f"prompt_source: file:{prompt_file}" in log
+        assert "__ARG_1__\n-p\n" in args
+        assert "__ARG_2__\nline 1\nline 2\nline 3\n" in args
+        assert "__ARG_3__\n--bare\n" in args
+
+    def test_default_prompt_file_is_used_when_present(self, tmp_path):
+        captured_args = tmp_path / "captured-default-args.txt"
+        prompt_file = tmp_path / ".claude" / "claude-daemon-prompt.txt"
+        prompt_file.parent.mkdir(parents=True, exist_ok=True)
+        prompt_file.write_text("default prompt line A\ndefault prompt line B\n")
+        bin_dir = fake_claude_bin(tmp_path, exit_code=0, capture_args_to=captured_args)
+        env = base_env(tmp_path, bin_dir)
+
+        run_script(env)
+
+        log = read_log(tmp_path / "Library" / "Logs" / "claude-daemon")
+        args = captured_args.read_text()
+        assert f"prompt_source: file:{prompt_file}" in log
+        assert "__ARG_2__\ndefault prompt line A\ndefault prompt line B\n" in args
 
 
 # ── 3. Non-zero exit ───────────────────────────────────────────────────────────

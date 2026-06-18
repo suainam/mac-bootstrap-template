@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!--
-  DEPRECATED 2026-06-12
-  Replaced by: the tmux-based ai-work workspace launcher in scripts/tmux-workspace.sh.
-  Reason: tmux now owns the daemon window and ai-work pane layout directly.
-  Do not re-enable this launch agent.
--->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
@@ -15,17 +9,32 @@
 		<string>/bin/bash</string>
 		<string>{{BOOTSTRAP}}/scripts/claude-daemon-tmux.sh</string>
 	</array>
-	<key>KeepAlive</key>
-	<false/>
 	<key>RunAtLoad</key>
 	<false/>
-	<key>ThrottleInterval</key>
-	<integer>5</integer>
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Hour</key>
+			<integer>0</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>8</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>15</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+	</array>
 	<key>StandardOutPath</key>
 	<string>/tmp/claude-daemon-tmux.log</string>
 	<key>StandardErrorPath</key>
 	<string>/tmp/claude-daemon-tmux.err</string>
-	<key>Disabled</key>
-	<true/>
 </dict>
 </plist>
