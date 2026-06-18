@@ -21,17 +21,25 @@ documentation-lookup
 
 # ── mattpocock-skills ───────────────────────────────────────────────────────
 skills/engineering/setup-matt-pocock-skills
-skills/engineering/diagnose
+skills/engineering/diagnosing-bugs
 skills/engineering/tdd
 skills/engineering/grill-with-docs
-skills/engineering/zoom-out
 skills/engineering/improve-codebase-architecture
 skills/productivity/handoff
-skills/productivity/write-a-skill
+skills/productivity/writing-great-skills
 
 # ── khazix-skills ───────────────────────────────────────────────────────────
 aihot
 neat-freak
+
+# ── garden-skills ───────────────────────────────────────────────────────────
+beautiful-article
+gpt-image-2
+kb-retriever
+web-design-engineer
+
+# ── humanizer-zh ────────────────────────────────────────────────────────────
+humanizer-zh
 
 # ── personal ─────────────────────────────────────────────────────────────────
 python-data-analysis

@@ -222,7 +222,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 
 ```bash
 make bootstrap       # Brewfile + shell/vim/neovim/tmux
-make agent-sync      # Clone upstream skills (ECC + Matt Pocock) 
+make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer)
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
 make skill-refresh   # Sync upstreams + re-wire skills only
@@ -314,7 +314,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make private-sync` | Clone/update ignored private overlay repo |
 | `make export-public DEST=/path` | Export tracked template files without git history |
 | `PUBLIC_REPO=owner/repo make publish-public` | Export and push the public template |
-| `make agent-sync` | Sync upstream ECC/Pocock skills |
+| `make agent-sync` | Sync upstream ECC/Matt Pocock/Khazix/Garden/Humanizer skills |
 | `make pm-detect` | Detect package manager |
 | `make pm-set PNPM` | Set global package manager |
 | `make clean-cache` | Prune build caches |

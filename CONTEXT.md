@@ -38,7 +38,8 @@ This is the pattern established by `pi-packages.txt` and `skills-promote.txt`.
 
 6 managed agents: Claude Code, Codex CLI, OpenCode, Pi, Reasonix, Antigravity.
 Each has a path registry in `agent/agent-manifest.json`.
-Skills are wired from upstream repos (ECC + Matt Pocock) via `sync-agent-upstreams.sh`.
+Skills are wired from upstream repos (ECC + Matt Pocock + Khazix + Garden + Humanizer)
+via `sync-agent-upstreams.sh`.
 
 The agent bootstrap path is now split by responsibility:
 

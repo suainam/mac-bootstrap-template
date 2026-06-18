@@ -104,6 +104,16 @@ wire_upstream_skills_step() {
     wire_skill_tree "$agent_skills/upstream/khazix"
   fi
 
+  echo "  Garden skills → agents"
+  if [ -d "$agent_skills/upstream/garden" ]; then
+    wire_skill_tree "$agent_skills/upstream/garden"
+  fi
+
+  echo "  Humanizer skills → agents"
+  if [ -d "$agent_skills/upstream/humanizer" ]; then
+    wire_skill_tree "$agent_skills/upstream/humanizer"
+  fi
+
   echo "  Personal skills → agents"
   if [ -d "$agent_skills/personal" ]; then
     wire_skill_tree "$agent_skills/personal"

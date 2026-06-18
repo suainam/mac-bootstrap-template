@@ -114,6 +114,8 @@ read_section() {
 ECC_SKILLS=()
 POCOCK_SKILLS=()
 KHAZIX_SKILLS=()
+GARDEN_SKILLS=()
+HUMANIZER_SKILLS=()
 PERSONAL_SKILLS=()
 
 while IFS= read -r skill; do
@@ -127,6 +129,14 @@ done < <(read_section "mattpocock-skills")
 while IFS= read -r skill; do
   KHAZIX_SKILLS+=("$skill")
 done < <(read_section "khazix-skills")
+
+while IFS= read -r skill; do
+  GARDEN_SKILLS+=("$skill")
+done < <(read_section "garden-skills")
+
+while IFS= read -r skill; do
+  HUMANIZER_SKILLS+=("$skill")
+done < <(read_section "humanizer-zh")
 
 while IFS= read -r skill; do
   PERSONAL_SKILLS+=("$skill")
@@ -148,6 +158,16 @@ sync_repo \
   "khazix-skills" \
   "https://github.com/KKKKhazix/khazix-skills.git" \
   "$AGENT_HOME/upstream/khazix-skills"
+
+sync_repo \
+  "garden-skills" \
+  "https://github.com/ConardLi/garden-skills.git" \
+  "$AGENT_HOME/upstream/garden-skills"
+
+sync_repo \
+  "humanizer-zh" \
+  "https://github.com/op7418/Humanizer-zh.git" \
+  "$AGENT_HOME/upstream/humanizer-zh"
 
 echo "=== Promote ECC Python/data skills ==="
 for skill in "${ECC_SKILLS[@]}"; do
@@ -178,6 +198,30 @@ for skill in "${KHAZIX_SKILLS[@]}"; do
   promote_skill_dir \
     "$src" \
     "$AGENT_HOME/skills/upstream/khazix/$skill"
+done
+
+echo "=== Promote Garden skills ==="
+for skill in "${GARDEN_SKILLS[@]}"; do
+  src="$(find_skill_dir "$AGENT_HOME/upstream/garden-skills" "$skill" || true)"
+  if [ -z "$src" ]; then
+    echo "  Skip missing Garden skill: $skill" >&2
+    continue
+  fi
+  promote_skill_dir \
+    "$src" \
+    "$AGENT_HOME/skills/upstream/garden/$skill"
+done
+
+echo "=== Promote Humanizer skills ==="
+for skill in "${HUMANIZER_SKILLS[@]}"; do
+  src="$(find_skill_dir "$AGENT_HOME/upstream/humanizer-zh" "$skill" || true)"
+  if [ -z "$src" ]; then
+    echo "  Skip missing Humanizer skill: $skill" >&2
+    continue
+  fi
+  promote_skill_dir \
+    "$src" \
+    "$AGENT_HOME/skills/upstream/humanizer/$skill"
 done
 
 echo "=== Link personal data skills ==="
