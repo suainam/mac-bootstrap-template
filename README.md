@@ -256,6 +256,19 @@ Regression notes:
   `/private/tmp/tmux-*`, rerun the check outside the sandbox instead of editing
   tmux config blindly.
 
+## Claude daemon
+
+`launchd/io.local.mac-bootstrap.claude-daemon.plist` runs
+`scripts/claude-daemon-tmux.sh` at `00:00`, `08:00`, and `15:00`.
+
+- Structured run summaries go to `~/Library/Logs/claude-daemon/tmux.log`
+- Raw `claude -p` stdout/stderr go to `/tmp/claude-daemon-tmux.log` and
+  `/tmp/claude-daemon-tmux.err`
+- For a one-off multi-line drill prompt, create `~/.claude/claude-daemon-prompt.txt`;
+  the daemon will prefer that file over the default keepalive prompt
+- Remove that file after the drill so scheduled runs return to the default
+  keepalive behavior
+
 ## Agent tooling
 
 ```bash
