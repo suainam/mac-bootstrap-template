@@ -77,6 +77,20 @@ skill_has_target() {
   return 1
 }
 
+link_skill_target() {
+  local src_dir="$1"
+  local dest="$2"
+
+  if [ -L "$dest" ]; then
+    rm "$dest"
+  elif [ -e "$dest" ]; then
+    echo "  SKIP  $dest exists as real path (remove manually to symlink)"
+    return 0
+  fi
+
+  ln -s "$src_dir" "$dest"
+}
+
 ensure_dirs() {
   mkdir -p \
     "$CLAUDE_SKILLS_DIR" \
@@ -120,37 +134,37 @@ wire_skill_dir() {
   [ -f "$src_dir/SKILL.md" ] || return 0
 
   if skill_has_target "$skill_name" "claude"; then
-    ln -sfn "$src_dir" "$CLAUDE_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$CLAUDE_SKILLS_DIR/${skill_name}"
   else
     rm -rf "$CLAUDE_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "codex"; then
-    ln -sfn "$src_dir" "$CODEX_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$CODEX_SKILLS_DIR/${skill_name}"
   else
     rm -rf "$CODEX_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "opencode"; then
-    ln -sfn "$src_dir" "$OPENCODE_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$OPENCODE_SKILLS_DIR/${skill_name}"
   else
     rm -rf "$OPENCODE_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "cross-agent"; then
-    ln -sfn "$src_dir" "$CROSS_AGENT_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$CROSS_AGENT_SKILLS_DIR/${skill_name}"
   else
     rm -rf "$CROSS_AGENT_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "pi"; then
-    ln -sfn "$src_dir" "$PI_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$PI_SKILLS_DIR/${skill_name}"
   else
     rm -rf "$PI_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "antigravity"; then
-    ln -sfn "$src_dir" "$ANTIGRAVITY_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$ANTIGRAVITY_SKILLS_DIR/${skill_name}"
   else
     rm -rf "$ANTIGRAVITY_SKILLS_DIR/${skill_name}"
   fi

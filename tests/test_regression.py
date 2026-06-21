@@ -19,6 +19,23 @@ def run(cmd: str) -> tuple[str, str, int]:
     return r.stdout.strip(), r.stderr.strip(), r.returncode
 
 
+def require_tmux_live_socket() -> None:
+    _, err, rc = run("tmux show-option -g prefix")
+    if rc == 0:
+        return
+
+    soft_fail_markers = (
+        "Operation not permitted",
+        "error connecting to /private/tmp/tmux-",
+        "no server running",
+        "failed to connect to server",
+    )
+    if any(marker in err for marker in soft_fail_markers):
+        pytest.skip(f"tmux live socket unavailable: {err}")
+
+    pytest.fail(f"tmux config error: {err}")
+
+
 # ── Symlink health ────────────────────────────────────────────────────
 
 
@@ -127,16 +144,17 @@ def test_neovim_clipboard_uses_local_unnamedplus_and_ssh_fallback():
 # ── tmux config ───────────────────────────────────────────────────────
 
 def test_tmux_config_loadable():
-    _, err, rc = run("tmux show-option -g prefix")
-    assert rc == 0, f"tmux config error: {err}"
+    require_tmux_live_socket()
 
 
 def test_tmux_has_swap_pane_keys():
+    require_tmux_live_socket()
     out, _, _ = run("tmux list-keys 2>/dev/null | grep -c swap-pane")
     assert int(out) >= 4, "Expected at least 4 swap-pane keybindings"
 
 
 def test_tmux_has_cross_window_swap():
+    require_tmux_live_socket()
     out, _, _ = run("tmux list-keys 2>/dev/null | grep 'command-prompt.*swap-pane'")
     assert out, "Cross-window swap-pane keybinding (C-a X) not found"
 
@@ -151,12 +169,14 @@ def test_tmux_pane_titles():
     assert '"notes"' in workspace_script
     assert '"daemon"' in workspace_script
 
+    require_tmux_live_socket()
     out, _, _ = run("tmux list-panes -F '#{pane_title}' 2>/dev/null")
     titles = [title for title in out.strip().split('\n') if title]
     assert titles, "Expected tmux panes to expose non-empty titles"
 
 
 def test_tmux_pane_border_format_shows_title():
+    require_tmux_live_socket()
     out, _, _ = run("tmux show-option -g pane-border-format")
     assert 'pane_title' in out, f"pane-border-format doesn't reference pane_title: {out}"
     assert 'pane-#{pane_index}' in out, f"pane-border-format doesn't use generic fallback: {out}"

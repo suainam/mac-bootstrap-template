@@ -47,3 +47,7 @@ sql-analysis
 marimo-analysis
 docker-data-project
 daily-claude-battle-boost
+qiaomu-goal-meta-skill
+guizang-ppt-skill
+baoyu-infographic
+baoyu-diagram

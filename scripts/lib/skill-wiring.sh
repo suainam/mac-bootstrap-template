@@ -31,6 +31,20 @@ skill_has_target() {
   return 1
 }
 
+link_skill_target() {
+  local src_dir="$1"
+  local dest="$2"
+
+  if [ -L "$dest" ]; then
+    run rm "$dest"
+  elif [ -e "$dest" ]; then
+    echo "  SKIP  $dest exists as real path (remove manually to symlink)"
+    return 0
+  fi
+
+  run ln -s "$src_dir" "$dest"
+}
+
 wire_skill_dir() {
   local src_dir="$1"
   local skill_name="$2"
@@ -39,38 +53,38 @@ wire_skill_dir() {
   [ -f "$src_dir/SKILL.md" ] || return 0
 
   if skill_has_target "$skill_name" "claude"; then
-    run ln -sfn "$src_dir" "$CLAUDE_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$CLAUDE_SKILLS_DIR/${skill_name}"
   else
     run rm -rf "$CLAUDE_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "codex"; then
-    run ln -sfn "$src_dir" "$CODEX_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$CODEX_SKILLS_DIR/${skill_name}"
   else
     run rm -rf "$CODEX_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "opencode"; then
-    run ln -sfn "$src_dir" "$OPENCODE_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$OPENCODE_SKILLS_DIR/${skill_name}"
   else
     run rm -rf "$OPENCODE_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "cross-agent"; then
-    run ln -sfn "$src_dir" "$CROSS_AGENT_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$CROSS_AGENT_SKILLS_DIR/${skill_name}"
   else
     run rm -rf "$CROSS_AGENT_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "pi"; then
     run mkdir -p "$PI_SKILLS_DIR"
-    run ln -sfn "$src_dir" "$PI_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$PI_SKILLS_DIR/${skill_name}"
   else
     run rm -rf "$PI_SKILLS_DIR/${skill_name}"
   fi
 
   if skill_has_target "$skill_name" "antigravity"; then
-    run ln -sfn "$src_dir" "$ANTIGRAVITY_SKILLS_DIR/${skill_name}"
+    link_skill_target "$src_dir" "$ANTIGRAVITY_SKILLS_DIR/${skill_name}"
   else
     run rm -rf "$ANTIGRAVITY_SKILLS_DIR/${skill_name}"
   fi

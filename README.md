@@ -264,6 +264,8 @@ Regression notes:
 - Structured run summaries go to `~/Library/Logs/claude-daemon/tmux.log`
 - Raw `claude -p` stdout/stderr go to `/tmp/claude-daemon-tmux.log` and
   `/tmp/claude-daemon-tmux.err`
+- `/tmp/claude-daemon-tmux.log` is best treated as the latest raw run only;
+  use `~/Library/Logs/claude-daemon/tmux.log` for multi-day history
 - For a one-off multi-line drill prompt, create `~/.claude/claude-daemon-prompt.txt`;
   the daemon will prefer that file over the default keepalive prompt
 - Remove that file after the drill so scheduled runs return to the default
