@@ -43,7 +43,9 @@ echo "  ~/.config/nvim -> editors/neovim/config"
 
 echo "=== Provision dedicated Neovim Python host (uv-managed) ==="
 mkdir -p "$(dirname "$PY_HOST_DIR")"
-uv venv "$PY_HOST_DIR"
+if [ ! -x "$PY_HOST_PYTHON" ]; then
+  uv venv "$PY_HOST_DIR"
+fi
 uv pip install --python "$PY_HOST_PYTHON" pynvim
 echo "  Python host -> $PY_HOST_PYTHON"
 

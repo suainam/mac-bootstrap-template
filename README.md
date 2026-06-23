@@ -108,6 +108,10 @@ make tmux-workspace
 tm list-keys
 ```
 
+Shell startup reference:
+- [`docs/shell-startup.md`](docs/shell-startup.md) covers `zshenv -> shell_env -> zshrc`
+- tmux panes must start `/bin/zsh -il` so p10k and interactive plugins load on first boot
+
 For verification, `~` is the most general entrypoint. It is fine for shell
 syntax and auto-attach checks, and keeps the workflow closer to a normal new
 terminal session.
@@ -147,6 +151,7 @@ Optional private overlay files mirror repo-relative paths, for example:
 
 ```text
 private/clash/Merge.yaml
+private/editors/neovim/ai.lua
 private/python/odps_config.py
 ```
 
@@ -255,6 +260,9 @@ Regression notes:
 - Tmux assertions query the live tmux socket. If a sandboxed run cannot access
   `/private/tmp/tmux-*`, rerun the check outside the sandbox instead of editing
   tmux config blindly.
+- If tmux panes show only the fallback zsh prompt, inspect
+  [`docs/shell-startup.md`](docs/shell-startup.md) before changing p10k. The
+  usual failure mode is startup path drift, not the theme itself.
 
 ## Claude daemon
 

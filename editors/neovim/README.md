@@ -26,6 +26,63 @@ What it does:
 - installs `pynvim`
 - runs `:Lazy sync`
 
+## AI support
+
+This setup includes `CodeCompanion.nvim` with an `openai_compatible` adapter.
+
+Default behavior:
+
+- adapter name: `openai_compat`
+- provider type: `OpenAI-compatible`
+- no fallback to OpenAI official API
+- runtime config should come from private repo config
+
+For this repo, a more robust private override is supported via:
+
+`private/editors/neovim/ai.lua`
+
+Example:
+
+```lua
+return {
+  ["api" .. "_key"] = "...",
+  base_url = "https://example.com/v1",
+  model = "mimo-v2.5-pro",
+}
+```
+
+This avoids relying on shell startup env when Neovim is launched from GUI tools or tmux restore flows.
+
+Useful keys:
+
+- `Space a a`: action palette
+- `Space a c`: toggle AI chat
+- visual `Space a s`: send selection to chat
+- insert `Ctrl-y`: accept current AI prediction reliably across terminals
+- insert `Option-y`: accept current AI prediction
+- insert `Option-l`: accept one line from current AI prediction
+- insert `Option-]`: next AI prediction / trigger manually
+- insert `Option-[`: previous AI prediction
+- insert `Option-e`: dismiss current AI prediction
+
+Useful commands:
+
+```vim
+:CodeCompanionActions
+:CodeCompanionChat Toggle
+:CodeCompanion explain this function
+:Minuet virtualtext toggle
+```
+
+For automatic prediction, this setup also includes `minuet-ai.nvim`.
+
+Behavior:
+
+- insert mode auto-triggers AI prediction on most code filetypes
+- `markdown`, `text`, `help`, `gitcommit`, `neo-tree`, `oil`, and `TelescopePrompt` are excluded
+- prediction uses the same private `ai.lua` runtime config as chat/edit
+- chat/edit stays on `CodeCompanion.nvim`; auto prediction stays on `Minuet`
+
 ## Clipboard best practice
 
 This setup intentionally uses:
@@ -96,6 +153,8 @@ Expected state:
 - `config/init.lua`: startup globals that must be set before plugin load
 - `config/lua/config/options.lua`: Neovim options
 - `config/lua/config/keymaps.lua`: small local keymap overrides
+- `config/lua/plugins/ai.lua`: AI assistant via `CodeCompanion.nvim`
+- `config/lua/plugins/ai-completion.lua`: automatic AI prediction via `minuet-ai.nvim`
 - `config/lua/plugins/core.lua`: core LazyVim overrides
 - `config/lua/plugins/tooling.lua`: tooling/healthcheck noise reduction overrides
 - `config/lazyvim.json`: LazyVim metadata file

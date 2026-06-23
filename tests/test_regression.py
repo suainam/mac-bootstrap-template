@@ -141,6 +141,25 @@ def test_neovim_clipboard_uses_local_unnamedplus_and_ssh_fallback():
     assert 'vim.env.SSH_CONNECTION and "" or "unnamedplus"' in content
 
 
+def test_neovim_ai_plugin_uses_codecompanion_openai_compatible_adapter():
+    plugin_file = os.path.expanduser("~/.config/nvim/lua/plugins/ai.lua")
+    content = open(plugin_file).read()
+    assert 'olimorris/codecompanion.nvim' in content
+    assert 'require("config.private_ai")' in content
+    assert 'require("codecompanion.adapters.http.openai_compatible")' in content
+    assert 'models_endpoint = "/models"' in content
+
+
+def test_neovim_ai_completion_plugin_uses_minuet_openai_compatible_virtualtext():
+    plugin_file = os.path.expanduser("~/.config/nvim/lua/plugins/ai-completion.lua")
+    content = open(plugin_file).read()
+    assert 'milanglacier/minuet-ai.nvim' in content
+    assert 'provider = "openai_compatible"' in content
+    assert 'auto_trigger_ft = { "*" }' in content
+    assert 'require("config.private_ai")' in content
+    assert 'end_point = base_url .. "/chat/completions"' in content
+
+
 # ── tmux config ───────────────────────────────────────────────────────
 
 def test_tmux_config_loadable():

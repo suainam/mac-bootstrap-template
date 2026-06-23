@@ -20,12 +20,23 @@ Files in `private/` mirror the public repo paths:
 
 ```text
 private/clash/Merge.yaml
+private/editors/neovim/ai.lua
 private/python/odps_config.py
 ```
 
 Note: Private paths stay as `private/clash/` and `private/python/` (not the new
 public paths `proxy/clash/` or `infra/python/`) to avoid breaking existing
 private overlays.
+
+Editor-specific private runtime config follows the same rule. For example,
+Neovim AI credentials can live in:
+
+```text
+private/editors/neovim/ai.lua
+```
+
+That file stays in the private parent repo and is loaded at runtime by the
+public Neovim config.
 
 `make render-configs` resolves each config in this order:
 
