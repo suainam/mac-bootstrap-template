@@ -110,6 +110,29 @@ def test_ghostty_config_has_expected_font():
     assert 'font-family = "Liga SFMono Nerd Font"' in content
 
 
+def test_ghostty_config_pins_cjk_fallback():
+    config = os.path.expanduser("~/.config/ghostty/config")
+    content = open(config).read()
+    assert "font-codepoint-map = U+4E00-U+9FFF=PingFang SC" in content
+    assert "font-codepoint-map = U+FF00-U+FFEF=PingFang SC" in content
+
+
+def test_ghostty_font_repair_script_registers_existing_liga_fonts():
+    script = os.path.join(TEMPLATE, "terminals", "ghostty", "repair-fonts.sh")
+    content = open(script).read()
+    assert "LigaSFMonoNerdFont-*.otf" in content
+    assert "com.apple.FontRegistry.user.plist" in content
+    assert "com.apple.quarantine" in content
+    assert "CTFontManagerRegisterFontsForURL" in content
+    assert "Liga SFMono Nerd Font" in content
+
+
+def test_makefile_checks_ghostty_font_repair_script():
+    content = open(os.path.join(TEMPLATE, "Makefile")).read()
+    assert "ghostty-font-repair:" in content
+    assert "bash -n terminals/ghostty/repair-fonts.sh" in content
+
+
 # ── Neovim config ────────────────────────────────────────────────────
 
 def test_neovim_config_bootstraps_lazyvim():
@@ -478,6 +501,31 @@ def test_runtime_dsliam_mux_alias_downgrades_term():
 def test_font_installed():
     font = os.path.expanduser("~/Library/Fonts/LigaSFMonoNerdFont-Regular.otf")
     assert os.path.exists(font), "LigaSFMono Nerd Font not found"
+
+
+def test_brewfile_has_liga_sfmono_font():
+    content = open(os.path.join(TEMPLATE, "Brewfile")).read()
+    assert 'cask "font-sf-mono-nerd-font-ligaturized"' in content
+
+
+def test_obsidian_skills_promoted():
+    content = open(os.path.join(TEMPLATE, "agent", "skills-promote.txt")).read()
+    assert "# ── obsidian-skills" in content
+    for skill in [
+        "obsidian-markdown",
+        "obsidian-bases",
+        "json-canvas",
+        "obsidian-cli",
+        "defuddle",
+    ]:
+        assert skill in content
+
+
+def test_obsidian_vault_kit_exists():
+    root = os.path.join(TEMPLATE, "editors", "obsidian")
+    assert os.path.exists(os.path.join(root, "install.sh"))
+    assert os.path.exists(os.path.join(root, "vault", ".obsidian", "daily-notes.json"))
+    assert os.path.exists(os.path.join(root, "vault", "docs", "templates", "weekly.md"))
 
 
 # ── Hammerspoon Spoons ────────────────────────────────────────────────

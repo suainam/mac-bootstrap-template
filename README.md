@@ -73,6 +73,20 @@ VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 Neovim / LazyVim notes live in `editors/neovim/README.md`.
 Legacy Vim notes live in `editors/vim/README.md`.
+Ghostty uses `Liga SFMono Nerd Font` as the primary font and pins CJK glyphs to
+`PingFang SC` through codepoint maps. If macOS stops exposing the Homebrew font
+to Ghostty, repair the existing install without adding a new font:
+
+```bash
+make ghostty-font-repair
+```
+
+Reusable Obsidian vault config lives in `editors/obsidian/`. Install it into a
+vault explicitly:
+
+```bash
+make obsidian-kit VAULT=/path/to/vault
+```
 
 Proxy defaults are enabled from `~/.shell_env`. New shells start with
 `proxy_on`, and you can resync shell + npm + git state with:
@@ -84,8 +98,8 @@ make proxy-on
 make proxy-off
 ```
 
-Migration note: this bootstrap now uses iTerm2 as the terminal host and tmux
-as the workspace/session layer. Hammerspoon is the global tier: reload, window
+Migration note: this bootstrap now uses Ghostty as the primary terminal host
+and tmux as the workspace/session layer. Hammerspoon is the global tier: reload, window
 placement, clipboard helpers, and terminal launcher hotkeys live there.
 Hammerspoon does not manage input methods. `tm` is terminal-local only.
 
@@ -228,7 +242,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 
 ```bash
 make bootstrap       # Brewfile + shell/vim/neovim/tmux
-make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer)
+make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian)
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
 make skill-refresh   # Sync upstreams + re-wire skills only
@@ -318,6 +332,8 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 - How skills/MCPs are wired across agents
 - How to add new skills and MCP servers
 - Agent config matrix (what's configured where)
+- When to split work across deploy, troubleshoot, and test subagents:
+  [`docs/agent-subagents.md`](docs/agent-subagents.md)
 - ECC feature borrowings
 - Reasonix and Pi integration details
 
@@ -338,7 +354,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make private-sync` | Clone/update ignored private overlay repo |
 | `make export-public DEST=/path` | Export tracked template files without git history |
 | `PUBLIC_REPO=owner/repo make publish-public` | Export and push the public template |
-| `make agent-sync` | Sync upstream ECC/Matt Pocock/Khazix/Garden/Humanizer skills |
+| `make agent-sync` | Sync upstream ECC/Matt Pocock/Khazix/Garden/Humanizer/Obsidian skills |
 | `make pm-detect` | Detect package manager |
 | `make pm-set PNPM` | Set global package manager |
 | `make clean-cache` | Prune build caches |

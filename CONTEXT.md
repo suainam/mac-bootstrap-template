@@ -20,6 +20,8 @@ than Hammerspoon automation.
 | Docker | `infra/docker/install.sh` | Colima VM, 9Router proxy, Docker Compose |
 | Agent | `install-agent-tooling.sh` | Skills, MCP, RTK, caveman, Pi config, CRG |
 | Pi | `install-pi-packages.sh` | Pi-native packages (from `pi-packages.txt`) |
+| Obsidian | `editors/obsidian/install.sh` | Vault-local templates and portable `.obsidian` config |
+| Ghostty | `terminals/ghostty/repair-fonts.sh` | Re-register existing Liga SFMono Nerd Font files |
 
 ## Data Files Convention
 
@@ -33,12 +35,13 @@ This is the pattern established by `pi-packages.txt` and `skills-promote.txt`.
 | `agent/skills-promote.txt` | Agent skill promotion whitelist |
 | `infra/python/requirements-common.txt` | Python data-analysis dependencies |
 | `editors/vscode/extensions.txt` | VS Code extension IDs |
+| `editors/obsidian/vault/` | Reusable Obsidian vault config and templates |
 
 ## Agent Architecture
 
 6 managed agents: Claude Code, Codex CLI, OpenCode, Pi, Reasonix, Antigravity.
 Each has a path registry in `agent/agent-manifest.json`.
-Skills are wired from upstream repos (ECC + Matt Pocock + Khazix + Garden + Humanizer)
+Skills are wired from upstream repos (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian)
 via `sync-agent-upstreams.sh`.
 
 The agent bootstrap path is now split by responsibility:
@@ -57,4 +60,5 @@ The agent bootstrap path is now split by responsibility:
 - **Upstream**: remote skill repos cloned to `~/.agent/upstream/`
 - **Promote**: whitelist a skill from upstream into `~/.agent/skills/`
 - **ECC**: everything-claude-code — the primary upstream material library
+- **Obsidian skills**: Kepano Obsidian skills promoted from `kepano/obsidian-skills`
 - **Data file**: a standalone file holding a list of packages, skills, or mappings (not code)

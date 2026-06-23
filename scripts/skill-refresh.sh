@@ -203,6 +203,7 @@ main() {
   wire_tree "Khazix skills → agents" "$AGENT_SKILLS_ROOT/upstream/khazix"
   wire_tree "Garden skills → agents" "$AGENT_SKILLS_ROOT/upstream/garden"
   wire_tree "Humanizer skills → agents" "$AGENT_SKILLS_ROOT/upstream/humanizer"
+  wire_tree "Obsidian skills → agents" "$AGENT_SKILLS_ROOT/upstream/obsidian"
   wire_tree "Personal skills → agents" "$AGENT_SKILLS_ROOT/personal"
 
   echo "Skill refresh done."

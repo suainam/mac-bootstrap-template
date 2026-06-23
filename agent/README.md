@@ -5,7 +5,7 @@
 ```bash
 # From bootstrap repo root:
 make bootstrap   # Brewfile deps + shell/vim/neovim/tmux config
-make agent-sync  # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer → ~/.agent/skills/)
+make agent-sync  # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian → ~/.agent/skills/)
 make agent-tools # Configure RTK, caveman, CRG, context7 + wire skills for all agents
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Sync upstreams + re-wire skills only
@@ -58,7 +58,7 @@ single distribution entrypoint for:
 - OpenCode plugin list (rtk, caveman, context-mode)
 - MCP profiles (`~/.zshrc`)
 - Hook matchers (console.log guards, destructive op warnings)
-- **Skill wiring**: Symlinks upstream skills (ECC + Matt Pocock + personal) from
+- **Skill wiring**: Symlinks upstream skills (ECC + Matt Pocock + Obsidian + personal) from
   `~/.agent/skills/` into each agent's skills directory per the documented format:
 
 The script is intentionally split by responsibility:
@@ -89,12 +89,12 @@ The script is intentionally split by responsibility:
 
 ---
 
-## Upstream Skills (ECC + Matt Pocock)
+## Upstream Skills
 
 Upstream skills are synced into `~/.agent/skills/upstream/` by `make agent-sync`:
 
 ```bash
-make agent-sync   # Clone ECC + Matt Pocock + Khazix + Garden + Humanizer repos → promote whitelisted skills
+make agent-sync   # Clone ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian repos → promote whitelisted skills
 make agent-tools  # Re-wire agent skill dirs
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Preferred path for day-to-day skill maintenance
@@ -133,7 +133,7 @@ personal source dir if applicable, then run `make skill-refresh`.
 
 Source-of-truth split:
 
-- Third-party upstream skills: `agent/skills-promote.txt` sections `everything-claude-code`, `mattpocock-skills`, `khazix-skills`, `garden-skills`, `humanizer-zh`
+- Third-party upstream skills: `agent/skills-promote.txt` sections `everything-claude-code`, `mattpocock-skills`, `khazix-skills`, `garden-skills`, `humanizer-zh`, `obsidian-skills`
 - First-party skills: `template/agent/skills/personal/`
 - Distribution matrix: `agent/skills-distribution.json`
 
@@ -216,9 +216,9 @@ run cp "$BOOTSTRAP/agent/skills/personal/my-skill/SKILL.md" \
     "$HOME/.codex/skills/my-skill/SKILL.md"
 ```
 
-If the skill is in `~/.agent/skills/upstream/`, it's wired automatically by
-the `wire_skill_dir` function in Step 2b of the install script. To add a new
-upstream skill, add its name to the promote list in `sync-agent-upstreams.sh`.
+If the skill is in `~/.agent/skills/upstream/`, it is wired automatically by
+`scripts/lib/skill-wiring.sh`. To add a new upstream skill, add its name to
+`agent/skills-promote.txt` and run `make skill-refresh`.
 
 ### For Pi
 

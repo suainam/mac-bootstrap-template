@@ -54,6 +54,18 @@ upstreams:
       skills:
         - "aihot"
         - "neat-freak"
+  obsidian-skills:
+    repo: "https://github.com/kepano/obsidian-skills.git"
+    path: "upstream/obsidian-skills"
+    mode: "skill-library"
+    sync: "fast-forward"
+    promote:
+      skills:
+        - "obsidian-markdown"
+        - "obsidian-bases"
+        - "json-canvas"
+        - "obsidian-cli"
+        - "defuddle"
 
 personal_skills:
   - "python-data-analysis"

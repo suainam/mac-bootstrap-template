@@ -116,6 +116,7 @@ POCOCK_SKILLS=()
 KHAZIX_SKILLS=()
 GARDEN_SKILLS=()
 HUMANIZER_SKILLS=()
+OBSIDIAN_SKILLS=()
 PERSONAL_SKILLS=()
 
 while IFS= read -r skill; do
@@ -137,6 +138,10 @@ done < <(read_section "garden-skills")
 while IFS= read -r skill; do
   HUMANIZER_SKILLS+=("$skill")
 done < <(read_section "humanizer-zh")
+
+while IFS= read -r skill; do
+  OBSIDIAN_SKILLS+=("$skill")
+done < <(read_section "obsidian-skills")
 
 while IFS= read -r skill; do
   PERSONAL_SKILLS+=("$skill")
@@ -168,6 +173,11 @@ sync_repo \
   "humanizer-zh" \
   "https://github.com/op7418/Humanizer-zh.git" \
   "$AGENT_HOME/upstream/humanizer-zh"
+
+sync_repo \
+  "obsidian-skills" \
+  "https://github.com/kepano/obsidian-skills.git" \
+  "$AGENT_HOME/upstream/obsidian-skills"
 
 echo "=== Promote ECC Python/data skills ==="
 for skill in "${ECC_SKILLS[@]}"; do
@@ -222,6 +232,18 @@ for skill in "${HUMANIZER_SKILLS[@]}"; do
   promote_skill_dir \
     "$src" \
     "$AGENT_HOME/skills/upstream/humanizer/$skill"
+done
+
+echo "=== Promote Obsidian skills ==="
+for skill in "${OBSIDIAN_SKILLS[@]}"; do
+  src="$(find_skill_dir "$AGENT_HOME/upstream/obsidian-skills" "$skill" || true)"
+  if [ -z "$src" ]; then
+    echo "  Skip missing Obsidian skill: $skill" >&2
+    continue
+  fi
+  promote_skill_dir \
+    "$src" \
+    "$AGENT_HOME/skills/upstream/obsidian/$skill"
 done
 
 echo "=== Link personal data skills ==="

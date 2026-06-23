@@ -2,6 +2,12 @@
 # 字体
 # ==============================================================================
 font-family = "Liga SFMono Nerd Font"
+# Deterministic CJK fallback. Keep primary font unchanged; pin Chinese glyphs to macOS system font.
+font-codepoint-map = U+3000-U+303F=PingFang SC
+font-codepoint-map = U+3400-U+4DBF=PingFang SC
+font-codepoint-map = U+4E00-U+9FFF=PingFang SC
+font-codepoint-map = U+F900-U+FAFF=PingFang SC
+font-codepoint-map = U+FF00-U+FFEF=PingFang SC
 font-size = 13.5
 font-thicken = true
 adjust-cell-height = 0

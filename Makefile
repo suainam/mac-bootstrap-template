@@ -6,7 +6,7 @@ UV_CACHE_DIR ?= $(HOME)/.cache/uv
 	install-antigravity-cli install agent-sync agent-tools agent-refresh skill-route skill-route-clear \
 	skill-route-show skill-route-list skill-route-default skill-refresh security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
-	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start
+	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair
 
 help:
 	@echo "Usage: make <target>"
@@ -20,6 +20,8 @@ help:
 	@echo "  proxy-on               Configure npm + git to use the shell proxy values"
 	@echo "  proxy-off              Clear npm + git proxy settings"
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
+	@echo "  obsidian-kit           Install reusable Obsidian vault kit: VAULT=/path/to/vault"
+	@echo "  ghostty-font-repair    Re-register existing Liga SFMono Nerd Font files"
 	@echo ""
 	@echo "── Bootstrap ──"
 	@echo "  install / bootstrap    Full install (Homebrew + shell + agent tooling)"
@@ -109,9 +111,11 @@ check:
 	bash -n editors/vim/install.sh
 	bash -n editors/vim/switch-theme.sh
 	bash -n editors/neovim/install.sh
+	bash -n editors/obsidian/install.sh
 	bash -n multiplexer/tmux/install.sh
 	bash -n multiplexer/tmux/switch-theme.sh
 	bash -n terminals/ghostty/install.sh
+	bash -n terminals/ghostty/repair-fonts.sh
 	bash -n terminals/iterm2/install.sh
 	bash -n terminals/iterm2/switch-theme.sh
 	bash -n desktop/hammerspoon/install.sh
@@ -194,6 +198,13 @@ skill-route-list:
 skill-route-default:
 	@test -n "$(APPS)" || (echo "Usage: make skill-route-default APPS=claude,codex,opencode,..." >&2; exit 2)
 	./scripts/skill-route.sh set-default "$(APPS)"
+
+obsidian-kit:
+	@test -n "$(VAULT)" || (echo "Usage: make obsidian-kit VAULT=/path/to/vault" >&2; exit 2)
+	./editors/obsidian/install.sh "$(VAULT)"
+
+ghostty-font-repair:
+	./terminals/ghostty/repair-fonts.sh
 
 render-configs:
 	./scripts/render-configs.sh

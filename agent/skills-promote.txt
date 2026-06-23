@@ -41,6 +41,13 @@ web-design-engineer
 # ── humanizer-zh ────────────────────────────────────────────────────────────
 humanizer-zh
 
+# ── obsidian-skills ─────────────────────────────────────────────────────────
+obsidian-markdown
+obsidian-bases
+json-canvas
+obsidian-cli
+defuddle
+
 # ── personal ─────────────────────────────────────────────────────────────────
 python-data-analysis
 sql-analysis
