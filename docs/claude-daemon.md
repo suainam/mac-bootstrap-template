@@ -52,3 +52,6 @@ tmux show -gv mode-keys
 - `tmux` is the terminal entrypoint for this migration track.
 - Daily drill is run against the tmux Claude pane.
 - Hammerspoon stays at the OS tier for hotkeys, window placement, and clipboard helpers.
+- Shell startup details live in [`shell-startup.md`](shell-startup.md). The
+  daemon panes are expected to boot through `/bin/zsh -il`, not a partial shell
+  path that skips interactive prompt loading.
