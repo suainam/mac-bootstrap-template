@@ -69,6 +69,8 @@ configuration, configures Docker/npm proxy settings, and runs safe cache cleanup
 It does not delete project virtual environments or files under `~/work`.
 If Microsoft Edge or Clash Verge already exists under `/Applications` from a
 manual install, bootstrap skips that cask instead of forcing a reinstall.
+Manual app notes and `make doctor` cask overrides live in
+[`docs/manual-apps.md`](docs/manual-apps.md).
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 Neovim / LazyVim notes live in `editors/neovim/README.md`.

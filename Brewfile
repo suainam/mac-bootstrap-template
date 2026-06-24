@@ -65,11 +65,13 @@ cask "cc-switch"
 # ========== 网络 & 安全 ==========
 cask "clash-verge-rev"
 cask "uuremote"
+cask "xiaomi-cloud"
 cask "bitwarden"
 
 # ========== 办公 & 沟通 ==========
 cask "wpsoffice"
 cask "wechatwork"
+cask "obs"
 cask "obsidian"
 
 # ========== 数据科学 ==========

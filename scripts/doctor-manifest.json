@@ -45,6 +45,9 @@
     "uuremote": {
       "app": "UU远程.app"
     },
+    "xiaomi-cloud": {
+      "app": "小米互联服务.app"
+    },
     "claude-code": {
       "app": "Claude Code.app",
       "command": "claude"

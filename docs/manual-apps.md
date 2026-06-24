@@ -1,12 +1,14 @@
-# 手动安装的应用
+# Manual Apps
 
-以下应用无 Homebrew cask 或需手动安装：
+This file records GUI apps that are locally manual, need non-Brew installation,
+or need `make doctor` cask overrides so the template stays rerunnable.
 
 ## 小米互联服务 (Xiaomi HyperConnect)
 
 - 路径：`/Applications/小米互联服务.app`
-- 下载：从 Xiaomi 官网或小米生态软件中心下载
-- 无 brew cask，需手动安装
+- Homebrew cask：`xiaomi-cloud`
+- 现状：本机是手动安装的 `小米互联服务.app`，`make doctor` 通过
+  `scripts/doctor-manifest.json` 的 `cask_overrides` 将其识别为 `xiaomi-cloud`
 - 作用：小米手机与 Mac 之间的跨设备协同（剪贴板共享、文件传输、通知同步等）
 
 ## Brewfile 中但本机手动安装的应用
@@ -22,4 +24,3 @@
 - 路径：`~/Library/Input Methods/DoubaoIme.app`
 - 下载：从官网 [shurufa.doubao.com](https://shurufa.doubao.com/) 下载，解压缩后运行其中的安装器应用（`DoubaoImeInstaller_v*.app`）进行安装。
 - 说明：目前无官方 Homebrew cask。必须运行官方 GUI 安装器进行安装，以确保系统服务（如设置界面 `DoubaoImeSettings.app`）正常注册，不建议直接进行文件拷贝。
-

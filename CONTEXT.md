@@ -36,6 +36,10 @@ This is the pattern established by `pi-packages.txt` and `skills-promote.txt`.
 | `infra/python/requirements-common.txt` | Python data-analysis dependencies |
 | `editors/vscode/extensions.txt` | VS Code extension IDs |
 | `editors/obsidian/vault/` | Reusable Obsidian vault config and templates |
+| `scripts/doctor-manifest.json` | Data-driven doctor checks and cask overrides |
+
+Manual app notes live in `docs/manual-apps.md`; keep app bundle override data in
+`scripts/doctor-manifest.json`.
 
 ## Agent Architecture
 
