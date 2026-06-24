@@ -268,9 +268,14 @@ Example:
 
 ```bash
 cd $HOME/work/projects/<project-name>
-python -m venv .venv
+make -C $HOME/work project-venv PROJECT_DIR=$PWD ARGS="--extra test --clear"
 direnv allow
 ```
+
+`project-venv` reads the target project's own `pyproject.toml` and runs `uv venv`
+plus `uv sync`; it does not store project-specific dependencies in
+`mac-bootstrap`. Put the target Python line in the project itself, for example
+`.python-version` plus `requires-python` in `pyproject.toml`.
 
 ## Git hygiene
 

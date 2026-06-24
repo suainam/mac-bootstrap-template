@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: project-venv [PROJECT_DIR] [--extra NAME ...] [--all-extras] [--python VERSION] [--clear]
+
+Create and sync a project-local .venv using uv and the project's own pyproject.toml.
+
+Examples:
+  project-venv ~/work/projects/www --extra test
+  project-venv . --all-extras --python 3.12
+EOF
+}
+
+project_dir="${1:-.}"
+if [ "$project_dir" = "-h" ] || [ "$project_dir" = "--help" ]; then
+  usage
+  exit 0
+fi
+
+if [ "$#" -gt 0 ]; then
+  shift
+fi
+
+extras=()
+all_extras=0
+python_version=""
+clear=0
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --extra)
+      test -n "${2:-}" || { echo "--extra requires a name" >&2; exit 2; }
+      extras+=("$2")
+      shift 2
+      ;;
+    --all-extras)
+      all_extras=1
+      shift
+      ;;
+    --python)
+      test -n "${2:-}" || { echo "--python requires a version" >&2; exit 2; }
+      python_version="$2"
+      shift 2
+      ;;
+    --clear)
+      clear=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required but was not found in PATH" >&2
+  exit 127
+fi
+
+project_dir="$(cd "$project_dir" && pwd)"
+if [ ! -f "$project_dir/pyproject.toml" ]; then
+  echo "No pyproject.toml found in: $project_dir" >&2
+  exit 2
+fi
+
+venv_args=(venv --project "$project_dir")
+if [ -n "$python_version" ]; then
+  venv_args+=(--python "$python_version")
+fi
+if [ "$clear" -eq 1 ]; then
+  venv_args+=(--clear)
+fi
+uv "${venv_args[@]}"
+
+sync_args=(sync --project "$project_dir")
+if [ "$all_extras" -eq 1 ]; then
+  sync_args+=(--all-extras)
+fi
+for extra in "${extras[@]}"; do
+  sync_args+=(--extra "$extra")
+done
+
+uv "${sync_args[@]}"
+
+"$project_dir/.venv/bin/python" - <<'PY'
+import sys
+from pathlib import Path
+
+print(f"python={sys.executable}")
+print(f"version={sys.version.split()[0]}")
+print(f"venv={Path(sys.prefix)}")
+PY
