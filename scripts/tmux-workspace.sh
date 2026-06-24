@@ -13,10 +13,10 @@ set_pane_title() {
 }
 
 create_analysis_window() {
-  tmux new-window -t "$SESSION" -n "$ANALYSIS_WINDOW" -c "$WORKDIR" /bin/zsh -l
-  tmux split-window -h -t "$SESSION:$ANALYSIS_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -l
-  tmux split-window -v -t "$SESSION:$ANALYSIS_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -l
-  tmux split-window -v -t "$SESSION:$ANALYSIS_WINDOW.1" -p 50 -c "$WORKDIR" /bin/zsh -l
+  tmux new-window -t "$SESSION" -n "$ANALYSIS_WINDOW" -c "$WORKDIR" /bin/zsh -il
+  tmux split-window -h -t "$SESSION:$ANALYSIS_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -il
+  tmux split-window -v -t "$SESSION:$ANALYSIS_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -il
+  tmux split-window -v -t "$SESSION:$ANALYSIS_WINDOW.1" -p 50 -c "$WORKDIR" /bin/zsh -il
   tmux select-layout -t "$SESSION:$ANALYSIS_WINDOW" tiled
 
   set_pane_title "$SESSION:$ANALYSIS_WINDOW.0" "shell"
@@ -30,11 +30,9 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
 fi
 
 tmux new-session -d -s "$SESSION" -n "$DAEMON_WINDOW" -c "$WORKDIR" \
-  /bin/zsh -lc 'if command -v codex >/dev/null 2>&1; then codex; fi; exec zsh -l'
-tmux split-window -h -t "$SESSION:$DAEMON_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -l
-tmux split-window -v -t "$SESSION:$DAEMON_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -l
-
-create_analysis_window
+  /bin/zsh -lc 'if command -v codex >/dev/null 2>&1; then codex; fi; exec /bin/zsh -il'
+tmux split-window -h -t "$SESSION:$DAEMON_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -il
+tmux split-window -v -t "$SESSION:$DAEMON_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -il
 
 # Pane 标题（显示在边框顶部）
 # split -h 产生右侧 pane (1), split -v 产生左下 pane (2)
@@ -43,5 +41,4 @@ set_pane_title "$SESSION:$DAEMON_WINDOW.1" "shell"
 set_pane_title "$SESSION:$DAEMON_WINDOW.2" "notes"
 
 tmux select-pane -t "$SESSION:$DAEMON_WINDOW.1"
-tmux select-window -t "$SESSION:$ANALYSIS_WINDOW"
 exec tmux attach -t "$SESSION"

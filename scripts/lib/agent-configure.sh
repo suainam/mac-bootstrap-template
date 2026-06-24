@@ -222,6 +222,48 @@ NODE
   install_antigravity_caveman_skill
 }
 
+scrub_codex_context_mode_continuity_hooks() {
+  [ -f "$CODEX_HOOKS" ] || return 0
+
+  if [ "${DRY_RUN:-0}" -eq 1 ]; then
+    echo "DRY-RUN: remove context-mode SessionStart/PreCompact hooks from $CODEX_HOOKS"
+    return 0
+  fi
+
+  node - "$CODEX_HOOKS" <<'NODE'
+const fs = require("fs"), path = process.argv[2];
+const hooks = JSON.parse(fs.readFileSync(path, "utf8"));
+if (!hooks.hooks || typeof hooks.hooks !== "object") process.exit(0);
+
+const removals = new Map([
+  ["SessionStart", "context-mode hook codex sessionstart"],
+  ["PreCompact", "context-mode hook codex precompact"],
+]);
+
+let changed = false;
+for (const [section, needle] of removals) {
+  const entries = Array.isArray(hooks.hooks[section]) ? hooks.hooks[section] : [];
+  const filtered = entries.filter((entry) => {
+    const hookList = Array.isArray(entry?.hooks) ? entry.hooks : [];
+    return !hookList.some((hook) => typeof hook?.command === "string" && hook.command.includes(needle));
+  });
+  if (filtered.length !== entries.length) {
+    changed = true;
+    if (filtered.length > 0) {
+      hooks.hooks[section] = filtered;
+    } else {
+      delete hooks.hooks[section];
+    }
+  }
+}
+
+if (changed) {
+  fs.writeFileSync(path, JSON.stringify(hooks, null, 2) + "\n");
+  console.log("  Removed Codex context-mode SessionStart/PreCompact hooks");
+}
+NODE
+}
+
 install_codex_caveman_assets() {
   have codex || return 0
 
@@ -302,6 +344,8 @@ if (changed) {
   fs.writeFileSync(path, JSON.stringify(hooks, null, 2) + "\n");
 }
 NODE
+
+  scrub_codex_context_mode_continuity_hooks
 }
 
 install_pi_caveman_skill() {

@@ -35,7 +35,7 @@ On macOS, you can import the active CA certificate into the login keychain and
 restart Chrome:
 
 ```bash
-scp "$CODE_SERVER_HOST:/data01/suai/dev/eda/code-server/data/nginx-ssl/ca.crt" /tmp/code-server-ca.crt
+scp "$CODE_SERVER_HOST:/workspace/eda/code-server/data/nginx-ssl/ca.crt" /tmp/code-server-ca.crt
 security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" /tmp/code-server-ca.crt
 /usr/bin/curl -I https://10.0.103.217:59443
 ```
@@ -92,7 +92,7 @@ the tunnel before blaming the editor UI.
 - `code-server` settings and extensions therefore live under `/root/.local/share/code-server`, not `/home/coder/.local/share/code-server`.
 - The integrated terminal shell is `/bin/bash` for both `root` and `coder` in the base image.
 - Workspace files mount to `/root/dev`.
-- The default workspace host path is `/data01/suai/dev`, so `/data01/suai/dev/eda` appears as `/root/dev/eda` in the browser.
+- The default workspace host path is `/workspace`, so `/workspace/eda` appears as `/root/dev/eda` in the browser.
 - User-visible code-server state is bind-mounted under this deployment directory by default:
   - `./data/config` -> `/root/.config`
   - `./data/code-server` -> `/root/.local/share/code-server`
@@ -102,7 +102,7 @@ the tunnel before blaming the editor UI.
 Practical consequence:
 
 - If Continue or another extension "opens with no reaction", inspect `/root/.local/share/code-server/extensions` and `docker logs code-server` before assuming the extension is missing.
-- If `dev` is empty in the Explorer, check `docker compose config` and confirm the `/root/dev` source is `/data01/suai/dev`, not `/workspace`.
+- If `dev` is empty in the Explorer, check `docker compose config` and confirm the `/root/dev` source points to your `CODE_SERVER_WORKSPACE_DIR`.
 
 ## Persisting browser-managed settings
 
@@ -111,7 +111,7 @@ The current compose file intentionally uses bind mounts for code-server state so
 When migrating an older deployment that used named volumes, copy existing data before restarting with the bind-mount compose:
 
 ```bash
-cd /data01/suai/dev/eda/code-server
+cd /workspace/eda/code-server
 mkdir -p data/config data/code-server
 docker run --rm \
   -v code-server_code-server-config:/from:ro \

@@ -154,6 +154,20 @@ for f in zprofile zshenv zshrc shell_env bash_profile p10k.zsh; do
   fi
 done
 
+PRIVATE_SHELL_SRC=""
+if [ -n "${MAC_BOOTSTRAP_PRIVATE_DIR:-}" ] && [ -d "$MAC_BOOTSTRAP_PRIVATE_DIR/shell" ]; then
+  PRIVATE_SHELL_SRC="$MAC_BOOTSTRAP_PRIVATE_DIR/shell"
+elif [ -d "$DIR/../private/shell" ]; then
+  PRIVATE_SHELL_SRC="$(cd "$DIR/../private" && pwd)/shell"
+elif [ -d "$DIR/private/shell" ]; then
+  PRIVATE_SHELL_SRC="$DIR/private/shell"
+fi
+
+if [ -n "$PRIVATE_SHELL_SRC" ] && [ -f "$PRIVATE_SHELL_SRC/zshrc.local" ]; then
+  ln -sf "$PRIVATE_SHELL_SRC/zshrc.local" ~/.zshrc.local
+  echo "  ~/.zshrc.local -> private/shell/zshrc.local"
+fi
+
 echo "=== Link terminal helpers ==="
 mkdir -p "$HOME/.local/bin"
 ln -sf "$DIR/scripts/tmux-workspace.sh" "$HOME/.local/bin/tmux-workspace.sh"
