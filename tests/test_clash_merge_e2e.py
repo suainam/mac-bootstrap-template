@@ -7,6 +7,8 @@ import tempfile
 
 import pytest
 
+from helpers import PYTHON
+
 yaml = pytest.importorskip("yaml")
 
 RENDER_SCRIPT = os.path.join(
@@ -23,7 +25,7 @@ WORKING_BACKUP = os.path.join(
 def render():
     """Run render script, return parsed YAML dict."""
     r = subprocess.run(
-        ["python3", RENDER_SCRIPT, "--dry-run"],
+        [PYTHON, RENDER_SCRIPT, "--dry-run"],
         capture_output=True, text=True,
     )
     assert r.returncode == 0, f"Render failed: {r.stderr}"

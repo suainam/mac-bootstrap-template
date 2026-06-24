@@ -42,8 +42,13 @@ const getContext7Config = (key) => {
   return cfg;
 };
 
-const fn = new Function("fs", "path", "key", "getContext7Config", code);
-fn(fs, path, key, getContext7Config);
+const getPromptLibraryConfig = () => ({
+  command: process.env.HOME + "/.local/bin/agent-prompt-mcp",
+  args: [],
+});
+
+const fn = new Function("fs", "path", "key", "getContext7Config", "getPromptLibraryConfig", code);
+fn(fs, path, key, getContext7Config, getPromptLibraryConfig);
 NODE
   fi
 }
@@ -71,9 +76,10 @@ if (!cfg.mcpServers) cfg.mcpServers = {};
 delete cfg.mcpServers["codebase-memory-mcp"];
 cfg.mcpServers["code-review-graph"] = { command: "code-review-graph", args: ["serve"] };
 cfg.mcpServers["context7"] = getContext7Config(key);
+cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
 '
-  echo "  Claude Code: CRG + context7 MCP configured"
+  echo "  Claude Code: CRG + context7 + prompt-library MCP configured"
 }
 
 configure_codex_mcp() {
@@ -90,17 +96,18 @@ configure_codex_mcp() {
     echo "DRY-RUN: rewrite managed MCP stanzas in $CODEX_TOML"
   else
     local tmp_block
+    local python_bin="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
     tmp_block="$(mktemp)"
     local render_args=(--context7-command "$ctx7_cmd_path")
     if [ -n "${CONTEXT7_KEY:-}" ]; then
       render_args+=(--context7-api-key "$CONTEXT7_KEY")
     fi
-    python3 "$BOOTSTRAP/scripts/render-codex-mcp-block.py" \
+    "$python_bin" "$BOOTSTRAP/scripts/render-codex-mcp-block.py" \
       "${render_args[@]}" > "$tmp_block"
-    python3 "$BOOTSTRAP/scripts/sync-codex-mcp-config.py" "$CODEX_TOML" "$tmp_block"
+    "$python_bin" "$BOOTSTRAP/scripts/sync-codex-mcp-config.py" "$CODEX_TOML" "$tmp_block"
     rm -f "$tmp_block"
   fi
-  echo "  Codex: context-mode + CRG + context7 MCP configured"
+  echo "  Codex: context-mode + CRG + context7 + prompt-library MCP configured"
 }
 
 configure_opencode_mcp() {
@@ -117,9 +124,11 @@ cfg.mcp["code-review-graph"] = { enabled: true, type: "local", command: ["code-r
 const c7 = getContext7Config(key);
 cfg.mcp["context7"] = { enabled: true, type: "local", command: [c7.command].concat(c7.args) };
 if (c7.env) cfg.mcp["context7"].env = c7.env;
+const prompt = getPromptLibraryConfig();
+cfg.mcp["agent-prompt-library"] = { enabled: true, type: "local", command: [prompt.command].concat(prompt.args) };
 fs.writeFileSync(path, JSON.stringify(cfg, null, 4) + "\n");
 '
-  echo "  OpenCode: CRG + context7 MCP configured"
+  echo "  OpenCode: CRG + context7 + prompt-library MCP configured"
 }
 
 configure_pi_mcp_file() {
@@ -127,12 +136,13 @@ configure_pi_mcp_file() {
 const cfg = {
   mcpServers: {
     "code-review-graph": { command: "code-review-graph", args: ["serve"] },
-    "context7": getContext7Config(key)
+    "context7": getContext7Config(key),
+    "agent-prompt-library": getPromptLibraryConfig()
   }
 };
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
 '
-  echo "  Pi: mcp.json updated"
+  echo "  Pi: mcp.json updated with CRG + context7 + prompt-library"
 }
 
 configure_reasonix_mcp() {
@@ -148,9 +158,10 @@ delete cfg.mcpServers["codebase-memory-mcp"];
 delete cfg.mcpServers["codebase-memory"];
 cfg.mcpServers["code-review-graph"] = { command: "code-review-graph", args: ["serve"] };
 cfg.mcpServers["context7"] = getContext7Config(key);
+cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
 '
-  echo "  Reasonix: config.json merged with CRG + context7 MCP"
+  echo "  Reasonix: config.json merged with CRG + context7 + prompt-library MCP"
 }
 
 configure_antigravity_settings_file() {
@@ -173,12 +184,13 @@ configure_antigravity_mcp_file() {
 const cfg = {
   mcpServers: {
     "code-review-graph": { command: "code-review-graph", args: ["serve"] },
-    "context7": getContext7Config(key)
+    "context7": getContext7Config(key),
+    "agent-prompt-library": getPromptLibraryConfig()
   }
 };
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
 '
-  echo "  Antigravity: mcp_config.json updated"
+  echo "  Antigravity: mcp_config.json updated with CRG + context7 + prompt-library"
 }
 
 configure_all_mcp() {

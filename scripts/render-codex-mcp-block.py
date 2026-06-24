@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 
 
 def proxy_block() -> str:
@@ -53,6 +54,8 @@ def main() -> int:
         context7_args.extend(['"-y"', '"@upstash/context7-mcp"'])
     if args.context7_api_key:
         context7_args.extend(['"--api-key"', f'"{args.context7_api_key}"'])
+
+    prompt_mcp_command = str(Path.home() / ".local/bin/agent-prompt-mcp")
 
     sections = [
         "# BEGIN MAC-BOOTSTRAP MANAGED MCPS",
@@ -112,6 +115,14 @@ approval_mode = "approve"
 approval_mode = "approve"
 
 [mcp_servers.code-review-graph.tools.cross_repo_search_tool]
+approval_mode = "approve"
+""".strip(),
+        f"""
+[mcp_servers.agent-prompt-library]
+command = "{prompt_mcp_command}"
+args = []
+
+[mcp_servers.agent-prompt-library.tools.search_prompts]
 approval_mode = "approve"
 """.strip(),
     ]

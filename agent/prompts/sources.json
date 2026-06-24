@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "prompt_root": "~/.agent/prompts",
+  "index_file": "~/.agent/prompts/index.json",
+  "sources": {
+    "fabric": {
+      "repo": "https://github.com/danielmiessler/fabric.git",
+      "upstream_dir": "fabric",
+      "mode": "fabric-patterns",
+      "patterns_path": "data/patterns",
+      "license": "MIT",
+      "description": "Fabric pattern directories with system.md and optional user.md files."
+    },
+    "wonderful-prompts": {
+      "repo": "https://github.com/langgptai/wonderful-prompts.git",
+      "upstream_dir": "wonderful-prompts",
+      "mode": "markdown-sections",
+      "files": [
+        "README.md",
+        "files/**/*.md"
+      ],
+      "min_section_chars": 80,
+      "license": "MIT",
+      "description": "Chinese prompt collection indexed from markdown headings."
+    }
+  }
+}

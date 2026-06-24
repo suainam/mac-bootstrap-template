@@ -6,6 +6,19 @@ version: 1
 
 home: "~/.agent"
 
+prompt_libraries:
+  fabric:
+    repo: "https://github.com/danielmiessler/fabric.git"
+    path: "upstream/fabric"
+    mode: "fabric-patterns"
+    patterns_path: "data/patterns"
+    license: "MIT"
+  wonderful-prompts:
+    repo: "https://github.com/langgptai/wonderful-prompts.git"
+    path: "upstream/wonderful-prompts"
+    mode: "markdown-sections"
+    license: "MIT"
+
 upstreams:
   everything-claude-code:
     repo: "https://github.com/affaan-m/everything-claude-code.git"

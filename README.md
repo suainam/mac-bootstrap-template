@@ -248,6 +248,7 @@ make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garde
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
 make skill-refresh   # Sync upstreams + re-wire skills only
+make prompt-sync     # Sync prompt libraries + rebuild prompt index
 make doctor-agent    # Verify all configs (contains AgentShield scan)
 ```
 
@@ -328,6 +329,23 @@ make skill-route-list
 make skill-refresh
 ```
 
+Prompt library helpers:
+
+```bash
+make prompt-sync
+make prompt-list Q=analyze
+make prompt-mcp
+agent-prompt show fabric:extract_wisdom
+```
+
+Prompt libraries follow the same generated-state split as skills:
+- Treat `template/agent/prompts/sources.json` as the canonical source registry
+- Treat upstream prompt repos under `~/.agent/upstream/` as synced external material
+- Treat `~/.agent/prompts/index.json` as generated lookup state for agents and MCPs
+- Keep SQLite/vector indexes as generated caches only, if needed later
+- Use [`docs/agent-prompt-mcp.md`](docs/agent-prompt-mcp.md) for Codex MCP
+  setup, JSON-RPC smoke tests, and troubleshooting
+
 ## Architecture
 
 See [`agent/README.md`](agent/README.md) for the complete architecture guide:
@@ -347,6 +365,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make agent-tools` | Wire all agent tools |
 | `make agent-refresh` | Full sync + full agent reconfigure |
 | `make skill-refresh` | Sync upstreams + re-wire skills only |
+| `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
 | `make check` | Syntax + tool validation |
 | `make doctor` | Machine health check |
 | `make doctor-agent` | Agent health check |

@@ -9,6 +9,8 @@ make agent-sync  # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + 
 make agent-tools # Configure RTK, caveman, CRG, context7 + wire skills for all agents
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Sync upstreams + re-wire skills only
+make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
+make prompt-mcp  # Run prompt-library MCP stdio server
 make doctor-agent # Verify all configs
 make security-scan  # AgentShield security audit
 ```
@@ -69,6 +71,7 @@ The script is intentionally split by responsibility:
 - `scripts/lib/agent-mcp.sh` — shared MCP/JSON config writers
 - `scripts/lib/agent-configure.sh` — per-step agent/platform configuration bodies
 - `scripts/lib/skill-wiring.sh` — shared upstream-skill routing
+- `scripts/sync-agent-prompts.sh` + `scripts/agent-prompt-index.py` — prompt-library sync/index
 - `scripts/render-codex-mcp-block.py` + `scripts/sync-codex-mcp-config.py` — idempotent Codex MCP rendering/rewrite
 - `scripts/run-doctor-checks.py` + `scripts/doctor-manifest.json` — data-driven doctor checks derived from Brewfile
 
@@ -146,6 +149,40 @@ Source-of-truth split:
 | Antigravity | Symlink dir → `~/.gemini/antigravity-cli/skills/` | `~/.gemini/antigravity-cli/skills/python-patterns/` |
 | Cross-agent | Symlink dir → `~/.agents/skills/` | `~/.agents/skills/python-patterns/` |
 | Reasonix | Symlink flat `.md` → `~/.reasonix/skills/` | `~/.reasonix/skills/python-patterns.md` |
+
+---
+
+## Prompt Libraries
+
+Prompt libraries are managed like upstream skills, but they are lookup material
+instead of auto-loaded global instructions.
+
+```bash
+make prompt-sync                 # clone/update Fabric + Wonderful Prompts and rebuild index
+make prompt-index                # rebuild ~/.agent/prompts/index.json from local upstreams
+make prompt-list Q=analyze       # list matching prompt records
+make prompt-mcp                  # run MCP stdio server
+agent-prompt show fabric:extract_wisdom
+```
+
+Source registry:
+
+- `agent/prompts/sources.json` — canonical prompt-library source list
+- `~/.agent/upstream/fabric` — Fabric repo clone
+- `~/.agent/upstream/wonderful-prompts` — Wonderful Prompts repo clone
+- `~/.agent/prompts/index.json` — generated lookup index
+
+Decision rule:
+
+- Keep markdown upstreams as source of truth.
+- Keep `index.json` as the agent/MCP lookup contract.
+- Add SQLite later only as a generated FTS/cache layer, not as canonical data.
+
+`agent-prompt-mcp` reads `agent/prompts/sources.json` and
+`~/.agent/prompts/index.json`, then loads content by source file and line range
+or Fabric pattern directory on demand. See
+[`docs/agent-prompt-mcp.md`](../docs/agent-prompt-mcp.md) for the MCP contract,
+Codex config shape, smoke test, and troubleshooting steps.
 
 ---
 
@@ -425,6 +462,7 @@ bootstrap/
 │   │   │   ├── docker-data-project/
 │   │   │   └── eval-loop/
 │   │   └── upstream/                 ← Upstream skills (via agent-sync)
+│   ├── prompts/                      ← Prompt-library registry + docs
 │   ├── manifest.yaml
 │   └── README.md
 ├── scripts/
@@ -433,7 +471,8 @@ bootstrap/
 │   ├── detect-package-manager.sh     ← PM auto-detection
 │   ├── setup-mcp-profiles.sh         ← MCP disable mechanism
 │   ├── add-hook-matchers.sh          ← Finer-grained hooks
-│   └── sync-agent-upstreams.sh       ← ECC & upstream skill sync
+│   ├── sync-agent-upstreams.sh       ← ECC & upstream skill sync
+│   └── sync-agent-prompts.sh         ← Prompt-library sync + index
 ├── Makefile                           ← All targets documented
 └── README.md                          ← This file
 ```

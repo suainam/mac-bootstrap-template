@@ -4,11 +4,13 @@
     "rules_file": "agent/rules/12-rules.md",
     "rules_common_dir": "agent/rules/common",
     "rules_python_dir": "agent/rules/python",
+    "prompts_dir": "agent/prompts",
     "personal_skills_dir": "agent/skills/personal",
     "personal_extensions_dir": "agent/extensions/personal"
   },
   "shared": {
     "upstream_skills_root": "~/.agent/skills",
+    "prompt_library_root": "~/.agent/prompts",
     "cross_agent_skills_dir": "~/.agents/skills"
   },
   "mcp_servers": {
@@ -40,6 +42,19 @@
         "get_knowledge_gaps_tool",
         "get_suggested_questions_tool",
         "cross_repo_search_tool"
+      ]
+    },
+    "agent-prompt-library": {
+      "command": "agent-prompt-mcp",
+      "args": [],
+      "approved_tools": [
+        "search_prompts"
+      ],
+      "capabilities": [
+        "prompts/list",
+        "prompts/get",
+        "tools/list",
+        "tools/call"
       ]
     },
     "context7": {

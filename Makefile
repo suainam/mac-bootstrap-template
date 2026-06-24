@@ -1,10 +1,11 @@
 SHELL := /usr/bin/env bash
 UV_CACHE_DIR ?= $(HOME)/.cache/uv
+PYTHON ?= .venv/bin/python
 
 .PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh skill-route skill-route-clear \
-	skill-route-show skill-route-list skill-route-default skill-refresh security-scan instinct-sync \
+	skill-route-show skill-route-list skill-route-default skill-refresh prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair
 
@@ -40,6 +41,10 @@ help:
 	@echo "  agent-sync             Sync agent upstreams"
 	@echo "  agent-refresh          Full sync + full agent reconfigure"
 	@echo "  skill-refresh          Sync upstreams + re-wire skills only"
+	@echo "  prompt-sync            Sync prompt libraries + rebuild prompt index"
+	@echo "  prompt-index           Rebuild prompt index from local prompt upstreams"
+	@echo "  prompt-list            List indexed prompts: Q=query"
+	@echo "  prompt-mcp             Run prompt-library MCP stdio server"
 	@echo "  skill-route            Set skill distribution: SKILL=name APPS=codex,opencode"
 	@echo "  skill-route-clear      Clear skill distribution override: SKILL=name"
 	@echo "  skill-route-show       Show one skill distribution: SKILL=name"
@@ -97,13 +102,16 @@ check:
 	bash -n scripts/lib/agent-mcp.sh
 	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
-	python3 scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py
+	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
 	bash -n scripts/export-public-template.sh
 	bash -n scripts/publish-public-template.sh
 	bash -n scripts/new-project.sh
 	bash -n scripts/sync-agent-upstreams.sh
+	bash -n scripts/sync-agent-prompts.sh
+	bash -n scripts/agent-prompt.sh
+	bash -n scripts/agent-prompt-mcp.sh
 	bash -n scripts/skill-route.sh
 	bash -n scripts/skill-refresh.sh
 	bash -n scripts/agent-doctor.sh
@@ -170,14 +178,28 @@ install-antigravity-cli:
 
 agent-sync:
 	./scripts/sync-agent-upstreams.sh
+	./scripts/sync-agent-prompts.sh
 
 agent-tools:
 	./scripts/install-agent-tooling.sh --configure
 
 agent-refresh: agent-sync agent-tools
 
-skill-refresh: agent-sync
+skill-refresh:
+	./scripts/sync-agent-upstreams.sh
 	./scripts/skill-refresh.sh
+
+prompt-sync:
+	./scripts/sync-agent-prompts.sh
+
+prompt-index:
+	$(PYTHON) scripts/agent-prompt-index.py build
+
+prompt-list:
+	./scripts/agent-prompt.sh list "$(Q)"
+
+prompt-mcp:
+	./scripts/agent-prompt-mcp.sh
 
 skill-route:
 	@test -n "$(SKILL)" || (echo "Usage: make skill-route SKILL=name APPS=codex,opencode" >&2; exit 2)

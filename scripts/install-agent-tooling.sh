@@ -35,6 +35,7 @@ Configuration performed with --configure:
   - Caveman ultra mode (default)
   - code-review-graph MCP + graph build
   - context7 docs MCP (for library documentation queries)
+  - agent-prompt helper for local prompt-library lookup
   - Pi RTK extension
   - AgentShield security scan integration
   - Instinct/continuous learning skeleton
@@ -96,6 +97,7 @@ ANTIGRAVITY_SKILLS_DIR="$(json_get_path agents.antigravity.paths.skills)"
 ANTIGRAVITY_HOOKS="$(json_get_path agents.antigravity.paths.hooks)"
 
 SHARED_SKILLS_ROOT="$(json_get_path shared.upstream_skills_root)"
+PROMPT_LIBRARY_ROOT="$(json_get_path shared.prompt_library_root)"
 CROSS_AGENT_SKILLS_DIR="$(json_get_path shared.cross_agent_skills_dir)"
 SKILL_DISTRIBUTION_FILE="$BOOTSTRAP/agent/skills-distribution.json"
 WORK_ROOT="${WORK_ROOT:-$HOME/work}"
@@ -126,6 +128,9 @@ generate_workspace_context_files
 
 print_step_header "Step 2b — Wire upstream skills into agents"
 wire_upstream_skills_step
+
+print_step_header "Step 2c — Prompt library helper"
+configure_prompt_library_step
 
 print_step_header "Step 3 — RTK"
 configure_rtk_step

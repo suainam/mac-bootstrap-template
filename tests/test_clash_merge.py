@@ -7,6 +7,8 @@ import tempfile
 
 import pytest
 
+from helpers import PYTHON
+
 TEMPLATE = os.path.join(
     os.path.dirname(__file__), "..", "proxy", "clash", "Merge.yaml"
 )
@@ -20,7 +22,7 @@ RENDER_SCRIPT = os.path.join(
 
 def run_render(dry_run=True):
     """Run the render script and return stdout."""
-    args = ["python3", RENDER_SCRIPT]
+    args = [PYTHON, RENDER_SCRIPT]
     if dry_run:
         args.append("--dry-run")
     r = subprocess.run(args, capture_output=True, text=True)

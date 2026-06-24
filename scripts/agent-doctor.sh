@@ -147,10 +147,14 @@ check_first_line() {
 
 echo "=== Agent Security Scan ==="
 if command -v npx &>/dev/null; then
+  AGENTSHIELD_RC=0
   if [ "$FIX" -eq 1 ]; then
-    run npx ecc-agentshield scan --fix
+    run npx ecc-agentshield scan --fix || AGENTSHIELD_RC=$?
   else
-    run npx ecc-agentshield scan
+    run npx ecc-agentshield scan || AGENTSHIELD_RC=$?
+  fi
+  if [ "$AGENTSHIELD_RC" -ne 0 ]; then
+    echo "  WARN AgentShield exited $AGENTSHIELD_RC; continuing configuration health checks"
   fi
 else
   echo "  SKIP: npx not available for agentshield"
@@ -354,6 +358,26 @@ if [ -d "$CLAUDE_SKILLS_DIR" ] || [ -d "$(json_get_path shared.cross_agent_skill
   echo "  OK   cross-agent skill links present"
 else
   echo "  MISS cross-agent skill links"
+fi
+
+echo ""
+echo "--- Prompt Library ---"
+PROMPT_LIBRARY="$(json_get_path shared.prompt_library_root)"
+if [ -x "$HOME/.local/bin/agent-prompt" ]; then
+  echo "  OK   agent-prompt helper"
+else
+  echo "  MISS agent-prompt helper (run: make agent-tools)"
+fi
+if [ -x "$HOME/.local/bin/agent-prompt-mcp" ]; then
+  echo "  OK   agent-prompt-mcp helper"
+else
+  echo "  MISS agent-prompt-mcp helper (run: make agent-tools)"
+fi
+if [ -f "$PROMPT_LIBRARY/index.json" ]; then
+  PROMPT_COUNT=$(grep -c '"id":' "$PROMPT_LIBRARY/index.json" 2>/dev/null || true)
+  echo "  OK   prompt index: $PROMPT_COUNT records"
+else
+  echo "  MISS prompt index (run: make prompt-sync)"
 fi
 
 echo ""
