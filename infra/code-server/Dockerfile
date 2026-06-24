@@ -2,6 +2,13 @@ FROM codercom/code-server:latest
 
 USER root
 
+# Use Tsinghua mirror for faster package downloads in China
+RUN set -eux; \
+    . /etc/os-release; \
+    echo "deb https://mirrors.tuna.tsinghua.edu.cn/debian/ ${VERSION_CODENAME} main contrib non-free non-free-firmware" > /etc/apt/sources.list; \
+    echo "deb https://mirrors.tuna.tsinghua.edu.cn/debian/ ${VERSION_CODENAME}-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list; \
+    echo "deb https://mirrors.tuna.tsinghua.edu.cn/debian-security ${VERSION_CODENAME}-security main contrib non-free non-free-firmware" >> /etc/apt/sources.list
+
 # Keep Docker CLI/Compose in the image and match the base image codename.
 RUN set -eux; \
     apt-get update; \

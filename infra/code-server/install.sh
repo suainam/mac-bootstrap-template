@@ -42,8 +42,15 @@ fi
 
 # 推送文件
 ssh "$REMOTE" "mkdir -p $REMOTE_DIR"
-scp "$DIR/docker-compose.yml" "$DIR/Dockerfile" "$DIR/.env.example" "$REMOTE:$REMOTE_DIR/"
-echo "  ✅ docker-compose.yml, Dockerfile, .env.example -> $REMOTE:$REMOTE_DIR/"
+scp \
+  "$DIR/docker-compose.yml" \
+  "$DIR/Dockerfile" \
+  "$DIR/nginx.conf" \
+  "$DIR/entrypoint-nginx.sh" \
+  "$DIR/Caddyfile" \
+  "$DIR/.env.example" \
+  "$REMOTE:$REMOTE_DIR/"
+echo "  ✅ docker-compose.yml, Dockerfile, nginx.conf, entrypoint-nginx.sh, Caddyfile, .env.example -> $REMOTE:$REMOTE_DIR/"
 
 # 检查 .env 是否存在
 if ! ssh "$REMOTE" "test -f $REMOTE_DIR/.env" 2>/dev/null; then

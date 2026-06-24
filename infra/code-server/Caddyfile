@@ -1,0 +1,12 @@
+:80 {
+    redir https://{host}:59443{uri} permanent
+}
+
+:443 {
+    tls internal
+
+    reverse_proxy code-server:8080 {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Host {host}
+    }
+}
