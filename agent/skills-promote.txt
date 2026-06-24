@@ -58,3 +58,4 @@ qiaomu-goal-meta-skill
 guizang-ppt-skill
 baoyu-infographic
 baoyu-diagram
+langgpt-prompt-writer

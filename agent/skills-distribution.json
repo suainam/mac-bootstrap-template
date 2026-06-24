@@ -22,6 +22,14 @@
         "codex",
         "opencode"
       ]
+    },
+    "langgpt-prompt-writer": {
+      "apps": [
+        "claude",
+        "codex",
+        "opencode",
+        "cross-agent"
+      ]
     }
   }
 }

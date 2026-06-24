@@ -1,0 +1,4 @@
+interface:
+  display_name: "LangGPT Prompt Writer"
+  short_description: "Build structured LangGPT prompts"
+  default_prompt: "Use $langgpt-prompt-writer to turn this rough prompt into a reusable structured prompt."
