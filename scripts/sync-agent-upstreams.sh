@@ -101,6 +101,17 @@ find_skill_dir() {
 # Read skill promotion lists from canonical file
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS_FILE="$REPO_DIR/agent/skills-promote.txt"
+SKILL_SCOPE_FILE="$REPO_DIR/agent/skills-manifest.json"
+
+first_party_skill_scope() {
+  local skill="$1"
+  python3 "$REPO_DIR/scripts/skill_scope_manifest.py" skill-scope "$SKILL_SCOPE_FILE" "$skill"
+}
+
+first_party_skill_source() {
+  local skill="$1"
+  python3 "$REPO_DIR/scripts/skill_scope_manifest.py" skill-source "$SKILL_SCOPE_FILE" "$skill"
+}
 
 read_section() {
   local section="$1"
@@ -248,8 +259,14 @@ done
 
 echo "=== Link personal data skills ==="
 for skill in "${PERSONAL_SKILLS[@]}"; do
-  src="$REPO_DIR/agent/skills/personal/$skill"
   dest="$AGENT_HOME/skills/personal/$skill"
+  if [ "$(first_party_skill_scope "$skill")" != "global" ]; then
+    run rm -rf "$dest"
+    echo "  Skip non-global first-party skill: $skill"
+    continue
+  fi
+
+  src="$REPO_DIR/$(first_party_skill_source "$skill")"
   run mkdir -p "$(dirname "$dest")"
   run ln -sfn "$src" "$dest"
   echo "  $dest -> $src"

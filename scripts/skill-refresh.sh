@@ -4,6 +4,7 @@ set -euo pipefail
 BOOTSTRAP="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
 SKILL_DISTRIBUTION_FILE="$BOOTSTRAP/agent/skills-distribution.json"
+SKILL_SCOPE_FILE="$BOOTSTRAP/agent/skills-manifest.json"
 HOME_DIR="${HOME}"
 
 manifest_get() {
@@ -189,6 +190,56 @@ wire_tree() {
   done
 }
 
+non_global_first_party_skills() {
+  python3 "$BOOTSTRAP/scripts/skill_scope_manifest.py" non-global-skills "$SKILL_SCOPE_FILE"
+}
+
+global_first_party_skills() {
+  python3 "$BOOTSTRAP/scripts/skill_scope_manifest.py" global-skills "$SKILL_SCOPE_FILE"
+}
+
+backup_real_skill_dir() {
+  local path="$1"
+  local backup="$path.bak"
+  if [ -L "$path" ] || [ ! -e "$path" ]; then
+    return 0
+  fi
+  if [ -e "$backup" ]; then
+    echo "  SKIP  $path exists as real path and $backup already exists"
+    return 0
+  fi
+  mv "$path" "$backup"
+  echo "  BACKUP $path -> $backup"
+}
+
+prepare_global_first_party_links() {
+  local skill
+  while IFS= read -r skill; do
+    [ -n "$skill" ] || continue
+    backup_real_skill_dir "$CLAUDE_SKILLS_DIR/$skill"
+    backup_real_skill_dir "$CODEX_SKILLS_DIR/$skill"
+    backup_real_skill_dir "$OPENCODE_SKILLS_DIR/$skill"
+    backup_real_skill_dir "$CROSS_AGENT_SKILLS_DIR/$skill"
+    backup_real_skill_dir "$PI_SKILLS_DIR/$skill"
+    backup_real_skill_dir "$ANTIGRAVITY_SKILLS_DIR/$skill"
+  done < <(global_first_party_skills)
+}
+
+cleanup_non_global_first_party_links() {
+  local skill
+  while IFS= read -r skill; do
+    [ -n "$skill" ] || continue
+    rm -rf \
+      "$CLAUDE_SKILLS_DIR/$skill" \
+      "$CODEX_SKILLS_DIR/$skill" \
+      "$OPENCODE_SKILLS_DIR/$skill" \
+      "$CROSS_AGENT_SKILLS_DIR/$skill" \
+      "$PI_SKILLS_DIR/$skill" \
+      "$ANTIGRAVITY_SKILLS_DIR/$skill"
+    rm -f "$REASONIX_SKILLS_DIR/${skill}.md"
+  done < <(non_global_first_party_skills)
+}
+
 main() {
   if [ ! -d "$AGENT_SKILLS_ROOT/upstream" ]; then
     echo "Missing upstream skills under $AGENT_SKILLS_ROOT. Run 'make agent-sync' first." >&2
@@ -197,6 +248,8 @@ main() {
 
   ensure_dirs
   cleanup_legacy_claude_links
+  prepare_global_first_party_links
+  cleanup_non_global_first_party_links
 
   wire_tree "ECC skills → agents" "$AGENT_SKILLS_ROOT/upstream/ecc"
   wire_tree "Matt Pocock skills → agents" "$AGENT_SKILLS_ROOT/upstream/mattpocock"

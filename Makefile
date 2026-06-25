@@ -5,7 +5,7 @@ PYTHON ?= .venv/bin/python
 .PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh skill-route skill-route-clear \
-	skill-route-show skill-route-list skill-route-default skill-refresh prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	skill-route-show skill-route-list skill-route-default skill-scope-check skill-scope-refresh skill-refresh prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair
 
@@ -40,6 +40,8 @@ help:
 	@echo "  agent-tools            Install/configure agent tooling"
 	@echo "  agent-sync             Sync agent upstreams"
 	@echo "  agent-refresh          Full sync + full agent reconfigure"
+	@echo "  skill-scope-check      Validate first-party skill scope manifest"
+	@echo "  skill-scope-refresh    Refresh global/project workspace skill views"
 	@echo "  skill-refresh          Sync upstreams + re-wire skills only"
 	@echo "  prompt-sync            Sync prompt libraries + rebuild prompt index"
 	@echo "  prompt-index           Rebuild prompt index from local prompt upstreams"
@@ -102,7 +104,8 @@ check:
 	bash -n scripts/lib/agent-mcp.sh
 	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
-	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py
+	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/check-skill-scope.py scripts/skill_scope_manifest.py
+	$(PYTHON) scripts/check-skill-scope.py
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
 	bash -n scripts/export-public-template.sh
@@ -112,6 +115,7 @@ check:
 	bash -n scripts/sync-agent-prompts.sh
 	bash -n scripts/agent-prompt.sh
 	bash -n scripts/agent-prompt-mcp.sh
+	bash -n scripts/skill-scope-refresh.sh
 	bash -n scripts/skill-route.sh
 	bash -n scripts/skill-refresh.sh
 	bash -n scripts/agent-doctor.sh
@@ -185,8 +189,15 @@ agent-tools:
 
 agent-refresh: agent-sync agent-tools
 
+skill-scope-refresh:
+	./scripts/skill-scope-refresh.sh
+
+skill-scope-check:
+	$(PYTHON) scripts/check-skill-scope.py --runtime
+
 skill-refresh:
 	./scripts/sync-agent-upstreams.sh
+	./scripts/skill-scope-refresh.sh
 	./scripts/skill-refresh.sh
 
 prompt-sync:

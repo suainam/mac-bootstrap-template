@@ -314,9 +314,16 @@ This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
 - MCP profile system (`ECC_DISABLED_MCPS` env var)
 
 Skill management rule:
-- Treat `template/agent/skills/` + `template/agent/skills-promote.txt` as the only
-  canonical source
-- Treat `template/agent/skills-distribution.json` as the canonical app-routing map
+- Treat `template/agent/skills/personal/` as the only source tree for
+  first-party skills
+- Treat `template/agent/skills-manifest.json` as the first-party global/project
+  scope map: `global_skills` for shared skills, `projects.<name>.skills` for
+  project-local skills, and `source_root` as the implicit source base
+- Treat `template/agent/skills-promote.txt` as the upstream whitelist plus the
+  first-party publish list
+- Treat `template/agent/skills-distribution.json` as the canonical agent/app
+  routing map
+- Treat project `.agents/skills/` dirs as generated symlink views, not source
 - Treat `~/.agent/skills/` as generated shared state
 - Treat `~/.claude/skills`, `~/.codex/skills`, and other app skill dirs as
   generated consumer views
@@ -324,6 +331,7 @@ Skill management rule:
 Distribution helpers:
 
 ```bash
+make skill-scope-refresh
 make skill-route SKILL=aihot APPS=codex,opencode
 make skill-route-list
 make skill-refresh

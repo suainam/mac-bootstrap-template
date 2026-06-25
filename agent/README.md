@@ -109,12 +109,46 @@ artifact, and agent-specific skill dirs are consumer symlinks/copies only.
 To add a new upstream skill to the whitelist, edit `agent/skills-promote.txt`
 and re-run `make skill-refresh`.
 
-Use `agent/skills-distribution.json` to choose which apps receive each skill.
-If a skill is omitted there, it uses the default all-app distribution.
+First-party skills have two independent routing layers:
+
+- Workspace scope: `agent/skills-manifest.json` chooses `global` or a project
+  `.agents/skills/` symlink view.
+- Agent routing: `agent/skills-distribution.json` chooses which apps receive a
+  globally published skill.
+
+The manifest does not route by agent. It only decides whether a first-party
+skill is global or project-local. Upstream skills such as `grill-with-docs` and
+`improve-codebase-architecture` stay remote-synced by
+`scripts/sync-agent-upstreams.sh`; they are not copied into
+`template/agent/skills/personal/`.
+
+The manifest is intentionally grouped for low-friction maintenance:
+
+- `source_root` points at the canonical first-party skill tree.
+- `global_skills` lists names that publish into shared agent views.
+- `projects.<name>.skills` lists names that should only appear in that
+  project's `.agents/skills/`.
+
+Minimal shape:
+
+```json
+{
+  "version": 2,
+  "source_root": "agent/skills/personal",
+  "global_skills": ["cavecrew", "caveman"],
+  "projects": {
+    "playground": {
+      "skills_dir": "${HOME}/work/projects/playground/.agents/skills",
+      "skills": ["ottos-effect-analysis"]
+    }
+  }
+}
+```
 
 Runtime helpers:
 
 ```bash
+make skill-scope-refresh
 make skill-route SKILL=aihot APPS=codex,opencode
 make skill-route-show SKILL=aihot
 make skill-route-clear SKILL=aihot
@@ -126,19 +160,39 @@ For personal skills:
 
 ```bash
 template/agent/skills/personal/<skill>/SKILL.md   # create or edit source
-agent/skills-promote.txt                          # add/remove name under "personal"
-agent/skills-distribution.json                    # optional per-app routing override
+agent/skills-manifest.json                        # add to global_skills or projects.<name>.skills
+agent/skills-promote.txt                          # add/remove first-party publish name
+agent/skills-distribution.json                    # optional agent routing for global skills
 make skill-refresh
 ```
 
-To delete a skill, remove it from `agent/skills-promote.txt`, delete the
-personal source dir if applicable, then run `make skill-refresh`.
+To delete a first-party skill, remove it from `agent/skills-manifest.json` and
+`agent/skills-promote.txt`, delete the personal source dir if applicable, then
+run `make skill-refresh`.
 
 Source-of-truth split:
 
 - Third-party upstream skills: `agent/skills-promote.txt` sections `everything-claude-code`, `mattpocock-skills`, `khazix-skills`, `garden-skills`, `humanizer-zh`, `obsidian-skills`
 - First-party skills: `template/agent/skills/personal/`
-- Distribution matrix: `agent/skills-distribution.json`
+- First-party workspace scope: `agent/skills-manifest.json`
+- Agent/app distribution matrix: `agent/skills-distribution.json`
+- Project skill views: repo-local `.agents/skills/<skill>` symlinks generated
+  from the manifest
+
+Skill source matrix:
+
+| Source class | Canonical source | Admission control | Scope control | Agent control | Delivered by |
+|-------|-----------------|-------------|-------------|-------------|-------------|
+| First-party global | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-promote.txt` `personal` | Add name to `agent/skills-manifest.json` `global_skills` | Default all-apps, or override in `agent/skills-distribution.json` | `make skill-refresh` |
+| First-party project | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-promote.txt` `personal` | Add name to `agent/skills-manifest.json` `projects.<name>.skills` | Not agent-routed; only the target project's `.agents/skills/` sees it | `make skill-refresh` |
+| Upstream whitelisted | `~/.agent/skills/upstream/<source>/<skill>/` after sync | Add name to the matching section in `agent/skills-promote.txt` | Always global shared skill | Default all-apps, or override in `agent/skills-distribution.json` | `make skill-refresh` |
+| Plugin / curated runtime skills | Plugin cache or bundled runtime, for example `.codex/plugins/cache/.../skills/...` | Managed by plugin/runtime install, not `skills-promote.txt` | Outside `skills-manifest.json` | Outside `skills-distribution.json` unless you copy/promote them into your own skill tree | Plugin/runtime itself |
+
+Control notes:
+
+- `agent/skills-distribution.json` only affects skills that `skill-refresh` wires into agent skill dirs.
+- Plugin-curated skills such as `build-web-data-visualization:*` are visible only if the runtime/plugin exposes them; they are not part of the first-party or upstream-whitelist distribution flow.
+- If a skill should behave like a managed global skill across Claude, Codex, OpenCode, Pi, Reasonix, Antigravity, and cross-agent, it must be in the `skill-refresh` pipeline rather than only existing inside a plugin cache.
 
 | Agent | Wiring Mechanism | Example Path |
 |-------|-----------------|-------------|
@@ -244,13 +298,14 @@ mkdir -p ~/.codex/skills/my-skill/
 cp myskill.md ~/.codex/skills/my-skill/SKILL.md
 ```
 
-Or add to bootstrap repo and include in install script:
+Or add a first-party skill to the bootstrap repo and publish it through the
+manifest:
 
 ```bash
-# In scripts/install-agent-tooling.sh:
-run mkdir -p "$HOME/.codex/skills/my-skill"
-run cp "$BOOTSTRAP/agent/skills/personal/my-skill/SKILL.md" \
-    "$HOME/.codex/skills/my-skill/SKILL.md"
+template/agent/skills/personal/my-skill/SKILL.md
+template/agent/skills-manifest.json     # choose global or project scope
+template/agent/skills-promote.txt       # include under personal
+make skill-refresh
 ```
 
 If the skill is in `~/.agent/skills/upstream/`, it is wired automatically by
@@ -455,13 +510,18 @@ bootstrap/
 │   │   ├── README.md
 │   │   └── compact.md
 │   ├── skills/
-│   │   ├── personal/                 ← Personal data skills
+│   │   ├── personal/                 ← First-party skill source tree
+│   │   │   ├── cavecrew/
+│   │   │   ├── caveman/
 │   │   │   ├── python-data-analysis/
 │   │   │   ├── sql-analysis/
 │   │   │   ├── marimo-analysis/
 │   │   │   ├── docker-data-project/
 │   │   │   └── eval-loop/
 │   │   └── upstream/                 ← Upstream skills (via agent-sync)
+│   ├── skills-manifest.json          ← First-party global/project scope
+│   ├── skills-promote.txt            ← Upstream whitelist + first-party list
+│   ├── skills-distribution.json      ← Agent/app routing map
 │   ├── prompts/                      ← Prompt-library registry + docs
 │   ├── manifest.yaml
 │   └── README.md
@@ -472,6 +532,7 @@ bootstrap/
 │   ├── setup-mcp-profiles.sh         ← MCP disable mechanism
 │   ├── add-hook-matchers.sh          ← Finer-grained hooks
 │   ├── sync-agent-upstreams.sh       ← ECC & upstream skill sync
+│   ├── skill-scope-refresh.sh        ← Project .agents/skills symlink views
 │   └── sync-agent-prompts.sh         ← Prompt-library sync + index
 ├── Makefile                           ← All targets documented
 └── README.md                          ← This file

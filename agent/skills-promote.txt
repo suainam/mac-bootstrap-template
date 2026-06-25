@@ -49,13 +49,30 @@ obsidian-cli
 defuddle
 
 # ── personal ─────────────────────────────────────────────────────────────────
+cavecrew
+caveman
+caveman-commit
+caveman-compress
+caveman-help
+caveman-review
+caveman-stats
 python-data-analysis
 sql-analysis
 marimo-analysis
 docker-data-project
 daily-claude-battle-boost
+ottos-effect-analysis
+ottos-north-star-metric
+ottos-retail-ab-test
+marimo-dashboard-create
+marimo-etl-test
 qiaomu-goal-meta-skill
 guizang-ppt-skill
 baoyu-infographic
 baoyu-diagram
 langgpt-prompt-writer
+eval-loop
+mac-bootstrap-maintenance
+franchise-store-sankey-analysis
+sankey-flow-analysis
+web-video-presentation-delivery

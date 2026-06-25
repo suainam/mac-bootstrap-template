@@ -1,0 +1,29 @@
+:root {
+  --ink: #14213d;
+  --slate: #52627a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: #fffdf8;
+  overflow: hidden;
+  font-family:
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+.wrap {
+  padding: 8px 6px 0;
+}
+
+svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  touch-action: none;
+}

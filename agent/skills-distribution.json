@@ -10,26 +10,5 @@
       "cross-agent"
     ]
   },
-  "skills": {
-    "aihot": {
-      "apps": [
-        "codex",
-        "opencode"
-      ]
-    },
-    "neat-freak": {
-      "apps": [
-        "codex",
-        "opencode"
-      ]
-    },
-    "langgpt-prompt-writer": {
-      "apps": [
-        "claude",
-        "codex",
-        "opencode",
-        "cross-agent"
-      ]
-    }
-  }
+  "skills": {}
 }

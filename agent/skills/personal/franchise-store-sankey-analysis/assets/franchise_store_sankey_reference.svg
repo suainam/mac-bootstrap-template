@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="860" viewBox="0 0 1320 860" aria-label="加盟店目录结构变化销售桑基图">
+  <style>text{font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif} .year{font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;fill:#14213d} .node-label{font-size:22px;font-weight:700;fill:#14213d} .virtual-label{font-size:16px;font-weight:700;fill:#14213d} .virtual-amount{font-size:13px;font-weight:700} .flow-label{font-size:12px;font-weight:600}</style>
+  <defs>
+    <linearGradient id="grad-stableOuter" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7a8896" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#7a8896" stop-opacity="0.84"/>
+    </linearGradient>
+    <linearGradient id="grad-stableInner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#256f7d" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#256f7d" stop-opacity="0.84"/>
+    </linearGradient>
+    <linearGradient id="grad-outerToInner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2a9d8f" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#2a9d8f" stop-opacity="0.84"/>
+    </linearGradient>
+    <linearGradient id="grad-innerToOuter" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c84c31" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#c84c31" stop-opacity="0.84"/>
+    </linearGradient>
+    <linearGradient id="grad-newOuter" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9b6ef3" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#9b6ef3" stop-opacity="0.84"/>
+    </linearGradient>
+    <linearGradient id="grad-newInner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7ecf9f" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#7ecf9f" stop-opacity="0.84"/>
+    </linearGradient>
+    <linearGradient id="grad-goneOuter" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#b97a5d" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#b97a5d" stop-opacity="0.35"/>
+    </linearGradient>
+    <linearGradient id="grad-goneInner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e9a06b" stop-opacity="0.70"/>
+      <stop offset="100%" stop-color="#e9a06b" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="1320" height="860" fill="#fffdf8"/>
+  <line x1="280" x2="1040" y1="46" y2="46" stroke="#d9d2c3" stroke-width="1" stroke-dasharray="6 8"/>
+  <text class="year" x="185" y="54" text-anchor="middle">2025</text>
+  <text class="year" x="1135" y="54" text-anchor="middle">2026</text>
+  <path d="M 200 398.6225542861572 C 586.4 398.6225542861572, 733.6 535.4934014103735, 1120 535.4934014103735 L 1120 594.2195458427221 C 733.6 594.2195458427221, 586.4 463.9882205397257, 200 463.9882205397257 Z" fill="url(#grad-stableOuter)" stroke="#7a8896" stroke-opacity="0.14" stroke-width="1"/>
+  <path d="M 200 108 C 586.4 108, 733.6 108, 1120 108 L 1120 308.58780443961945 C 733.6 308.58780443961945, 586.4 331.2092424622336, 200 331.2092424622336 Z" fill="url(#grad-stableInner)" stroke="#256f7d" stroke-opacity="0.14" stroke-width="1"/>
+  <path d="M 200 463.9882205397257 C 586.4 463.9882205397257, 733.6 308.58780443961945, 1120 308.58780443961945 L 1120 465.3586416849565 C 733.6 465.3586416849565, 586.4 606.2757425025158, 200 606.2757425025158 Z" fill="url(#grad-outerToInner)" stroke="#2a9d8f" stroke-opacity="0.14" stroke-width="1"/>
+  <path d="M 200 331.2092424622336 C 586.4 331.2092424622336, 733.6 594.2195458427221, 1120 594.2195458427221 L 1120 604.4082157969809 C 733.6 604.4082157969809, 586.4 349.64773357429567, 200 349.64773357429567 Z" fill="url(#grad-innerToOuter)" stroke="#c84c31" stroke-opacity="0.14" stroke-width="1"/>
+  <path d="M 200 738.6940138311738 C 586.4 738.6940138311738, 733.6 604.4082157969809, 1120 604.4082157969809 L 1120 637.714201965807 C 733.6 637.714201965807, 586.4 772, 200 772 Z" fill="url(#grad-newOuter)" stroke="#9b6ef3" stroke-opacity="0.14" stroke-width="1"/>
+  <path d="M 200 668.559254105757 C 586.4 668.559254105757, 733.6 465.3586416849565, 1120 465.3586416849565 L 1120 507.49340141037345 C 733.6 507.49340141037345, 586.4 710.6940138311738, 200 710.6940138311738 Z" fill="url(#grad-newInner)" stroke="#7ecf9f" stroke-opacity="0.14" stroke-width="1"/>
+  <path d="M 200 606.2757425025158 C 586.4 606.2757425025158, 733.6 714.6890226776686, 1120 714.6890226776686 L 1120 748.9725342809099 C 733.6 748.9725342809099, 586.4 640.5592541057571, 200 640.5592541057571 Z" fill="url(#grad-goneOuter)" stroke="#b97a5d" stroke-opacity="0.14" stroke-width="1"/>
+  <path d="M 200 349.64773357429567 C 586.4 349.64773357429567, 733.6 665.7142019658071, 1120 665.7142019658071 L 1120 686.6890226776686 C 733.6 686.6890226776686, 586.4 370.6225542861572, 200 370.6225542861572 Z" fill="url(#grad-goneInner)" stroke="#e9a06b" stroke-opacity="0.14" stroke-width="1"/>
+  <g data-node="2025目录内">
+    <rect x="170" y="108" width="30" height="262.6225542861572" fill="#1f6f78" fill-opacity="1"/>
+    <text class="node-label" x="148" y="120" text-anchor="end">目录内</text>
+  </g>
+  <g data-node="2025目录外">
+    <rect x="170" y="398.6225542861572" width="30" height="241.9366998195998" fill="#7b8794" fill-opacity="1"/>
+    <text class="node-label" x="148" y="410.6225542861572" text-anchor="end">目录外</text>
+  </g>
+  <g data-node="2025新增目录内">
+    <rect x="170" y="668.559254105757" width="30" height="42.134759725416906" fill="#7ecf9f" fill-opacity="0.26" stroke="#7ecf9f" stroke-width="3" stroke-dasharray="8 7"/>
+    <text class="virtual-label" x="148" y="681.6266339684654" text-anchor="end">新增目录内</text>
+    <text class="virtual-amount" x="148" y="702.6266339684654" text-anchor="end" fill="#7ecf9f">0.85亿</text>
+  </g>
+  <g data-node="2025新增目录外">
+    <rect x="170" y="738.6940138311738" width="30" height="33.30598616882611" fill="#9b6ef3" fill-opacity="0.26" stroke="#9b6ef3" stroke-width="3" stroke-dasharray="8 7"/>
+    <text class="virtual-label" x="148" y="750.6940138311738" text-anchor="end">新增目录外</text>
+    <text class="virtual-amount" x="148" y="772.6940138311738" text-anchor="end" fill="#9b6ef3">0.67亿</text>
+  </g>
+  <g data-node="2026目录内">
+    <rect x="1120" y="108" width="30" height="399.49340141037345" fill="#1f6f78" fill-opacity="1"/>
+    <text class="node-label" x="1172" y="120" text-anchor="start">目录内</text>
+  </g>
+  <g data-node="2026目录外">
+    <rect x="1120" y="535.4934014103735" width="30" height="102.22080055543357" fill="#7b8794" fill-opacity="1"/>
+    <text class="node-label" x="1172" y="547.4934014103735" text-anchor="start">目录外</text>
+  </g>
+  <g data-node="2026目录内汰换">
+    <rect x="1120" y="665.7142019658071" width="30" height="20.97482071186151" fill="#e9a06b" fill-opacity="0.26" stroke="#e9a06b" stroke-width="3" stroke-dasharray="8 7"/>
+    <text class="virtual-label" x="1172" y="677.7142019658071" text-anchor="start">目录内汰换</text>
+    <text class="virtual-amount" x="1172" y="699.7142019658071" text-anchor="start" fill="#e9a06b">0.42亿</text>
+  </g>
+  <g data-node="2026目录外汰换">
+    <rect x="1120" y="714.6890226776686" width="30" height="34.28351160324129" fill="#b97a5d" fill-opacity="0.26" stroke="#b97a5d" stroke-width="3" stroke-dasharray="8 7"/>
+    <text class="virtual-label" x="1172" y="726.6890226776686" text-anchor="start">目录外汰换</text>
+    <text class="virtual-amount" x="1172" y="748.6890226776686" text-anchor="start" fill="#b97a5d">0.69亿</text>
+  </g>
+  <text class="flow-label" x="148" y="431.30538741294146" text-anchor="end" fill="#7a8896">稳定目录外 1.32亿</text>
+  <text class="flow-label" x="1172" y="564.8564736265479" text-anchor="start" fill="#7a8896">稳定目录外 1.19亿</text>
+  <text class="flow-label" x="148" y="219.6046212311168" text-anchor="end" fill="#256f7d">稳定目录内 4.51亿</text>
+  <text class="flow-label" x="1172" y="208.29390221980972" text-anchor="start" fill="#256f7d">稳定目录内 4.05亿</text>
+  <text class="flow-label" x="148" y="535.1319815211207" text-anchor="end" fill="#2a9d8f">目录外转目录内 2.87亿</text>
+  <text class="flow-label" x="1172" y="386.97322306228796" text-anchor="start" fill="#2a9d8f">目录外转目录内 3.17亿</text>
+  <text class="flow-label" x="148" y="341.2092424622336" text-anchor="end" fill="#c84c31">目录内转目录外 0.37亿</text>
+  <text class="flow-label" x="1172" y="604.2195458427221" text-anchor="start" fill="#c84c31">目录内转目录外 0.21亿</text>
+</svg>

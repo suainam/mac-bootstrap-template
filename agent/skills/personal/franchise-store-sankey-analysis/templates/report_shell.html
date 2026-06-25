@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ report_title }}</title>
+    <style>
+      /* Inline the contents of templates/report_style.css */
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <section class="hero">
+        <div class="eyebrow">{{ eyebrow }}</div>
+        <h1>{{ headline }}</h1>
+        <p class="lead">{{ lead }}</p>
+      </section>
+
+      <section class="cards">
+        <!-- KPI cards -->
+      </section>
+
+      <section class="summary">
+        <h2>汇报结论</h2>
+        <!-- Ordered conclusion list -->
+      </section>
+
+      <section class="figure">
+        <h2>桑基图卡片</h2>
+        <div class="calc">
+          <!-- Sankey summary cards -->
+        </div>
+      </section>
+
+      <section class="figure">
+        <h2>桑基图</h2>
+        <iframe src="{{ graph_file }}" title="{{ graph_title }}"></iframe>
+      </section>
+
+      <section class="explain">
+        <h2>桑基图解释</h2>
+        <!-- 总 -> 分 -> 总 -->
+      </section>
+
+      <section class="footer-note">
+        <h2>口径提醒</h2>
+        <!-- Footnotes -->
+      </section>
+    </div>
+  </body>
+</html>
