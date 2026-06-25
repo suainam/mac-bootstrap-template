@@ -25,3 +25,4 @@ skills-lock.json
 # Private overlay (template → rendered configs)
 private/
 *.local.yaml
+proxy/clash/Merge.yaml.working

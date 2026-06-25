@@ -141,18 +141,35 @@ render_config() {
   echo "  $rel <- $(label_path "$source")"
 }
 
-echo "=== Rendered configs ==="
-render_config "proxy/clash/Merge.yaml"
-render_config "infra/python/odps_config.py"
+sync_clash_verge_profile() {
+  local rel="proxy/clash/Merge.yaml"
+  local source
+  local runtime_target="$HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/Merge.yaml"
 
-# Sync Clash Verge profile directly
-CLASH_VERGE_PROFILE="$HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/Merge.yaml"
-if [ -d "$(dirname "$CLASH_VERGE_PROFILE")" ]; then
-  if [ -f "$DIR/proxy/clash/Merge.yaml" ]; then
-    run cp "$DIR/proxy/clash/Merge.yaml" "$CLASH_VERGE_PROFILE"
-    echo "  Clash Verge Profile <- proxy/clash/Merge.yaml"
+  if ! source="$(resolve_config "$rel")"; then
+    echo "  WARN: no Clash profile source found for $rel"
+    return 0
   fi
-fi
+
+  if grep -q '{{[A-Z_]' "$source" 2>/dev/null; then
+    echo "  WARN: Clash profile source still has {{ placeholders }}: $(label_path "$source")"
+    return 0
+  fi
+
+  if [ ! -d "$(dirname "$runtime_target")" ]; then
+    echo "  Clash Verge Profile: skipped (runtime directory missing)"
+    return 0
+  fi
+
+  run cp "$source" "$runtime_target"
+  echo "  Clash Verge Profile <- $(label_path "$source")"
+}
+
+echo "=== Rendered configs ==="
+echo "  proxy/clash/Merge.yaml: keep checked-in public default; private overrides sync only to runtime"
+render_config "infra/python/odps_config.py"
+echo "=== Runtime sync ==="
+sync_clash_verge_profile
 
 # ── LaunchAgent plists ──────────────────────────────────────
 echo "=== LaunchAgent plists ==="

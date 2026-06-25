@@ -17,9 +17,6 @@ RENDER_SCRIPT = os.path.join(
 PRIVATE_ENV = os.path.join(
     os.path.dirname(__file__), "..", "..", "private", "clash", "Merge.env"
 )
-WORKING_BACKUP = os.path.join(
-    os.path.dirname(__file__), "..", "proxy", "clash", "Merge.yaml.working"
-)
 
 
 def render():
@@ -125,36 +122,3 @@ def test_tun_exclude():
     d, _ = render()
     addrs = d["tun"]["route-exclude-address"]
     assert "172.16.0.0/12" in addrs
-
-
-# ── Diff against working backup ──────────────────────────────
-
-@pytest.mark.skipif(not os.path.exists(WORKING_BACKUP), reason="no working backup")
-def test_rules_match_working():
-    """Rendered rules (ignoring comments) should have same core entries as working backup."""
-    _, raw = render()
-    with open(WORKING_BACKUP) as f:
-        working = f.read()
-
-    def clean(line):
-        """Strip inline comments and normalize whitespace."""
-        line = line.strip()
-        if '#' in line:
-            line = line[:line.index('#')].rstrip()
-        return line
-
-    rendered_rules = [clean(l) for l in raw.split("\n")
-                      if l.strip().startswith("- ") and not l.strip().startswith("- #")]
-    working_rules = [clean(l) for l in working.split("\n")
-                     if l.strip().startswith("- ") and not l.strip().startswith("- #")]
-    rendered_rules = [r for r in rendered_rules if r]
-    working_rules = [r for r in working_rules if r]
-
-    # Every working rule should appear in rendered (rendered may have extras)
-    for rule in working_rules:
-        # Skip DNS section rules that are in env, not template
-        if any(k in rule for k in ["enable:", "ipv6:", "enhanced-mode:", "fake-ip-range:",
-                                    "respect-rules:", "use-hosts:", "nameserver:", "fallback:",
-                                    "geoip:", "geoip-code:"]):
-            continue
-        assert rule in rendered_rules, f"missing from rendered: {rule}"

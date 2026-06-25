@@ -9,8 +9,9 @@ This setup has three different layers. Keep them separate.
 - `private/clash/Merge.yaml` is the private override, and is the best place for
   machine-specific proxy rules, DNS, local domains, and subscription-specific
   tweaks.
-- `make render-configs` copies the best available source into the rendered
-  working tree, and automatically syncs it directly to the active Clash Verge profiles folder.
+- `make render-configs` keeps `template/proxy/clash/Merge.yaml` as the public
+  checked-in default, and automatically syncs the best available source
+  directly to the active Clash Verge profiles folder.
 
 ## 2. Runtime State
 
@@ -29,6 +30,8 @@ This setup has three different layers. Keep them separate.
 - Public template files must not contain subscription URLs, API keys, tokens,
   usernames, internal hostnames, private IPs, or private notes.
 - Put those values in `private/` in the private parent repo.
+- Do not keep private working backups such as `proxy/clash/Merge.yaml.working`
+  under version control in the public template.
 - Run `make privacy-audit` before publishing anything public.
 
 ## Recommended Workflow

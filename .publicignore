@@ -17,7 +17,6 @@ skills-lock.json
 *.pfx
 *_key
 
-proxy/clash/Merge.yaml
 proxy/clash/Merge.yaml.working
 handoff-*.md
 infra/python/odps_config.py

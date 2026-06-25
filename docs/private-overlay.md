@@ -1,13 +1,11 @@
 # Private Overlay
 
-Goal: keep a private working repository with real machine-specific values while
-exporting a separate public template tree.
+Goal: keep real machine-specific values in a private parent repo while keeping
+this template repo public-safe.
 
 ## Layout
 
-This repo's `origin` can stay private and track real config directly. For the
-cleaner long-term layout, keep this public template as a submodule in a private
-parent repo:
+Keep this public template as a submodule in a private parent repo:
 
 ```text
 mac-bootstrap-private/
@@ -45,6 +43,10 @@ public Neovim config.
 3. `private/<path>`
 4. local ignored `<path>`
 5. public `<path>.template`
+
+For Clash specifically, private `private/clash/Merge.yaml` is synced directly to
+the local Clash runtime profile. It is not copied back into
+`proxy/clash/Merge.yaml`.
 
 Parent `bootstrap.sh`:
 

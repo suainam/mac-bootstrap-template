@@ -145,16 +145,14 @@ and runtime state.
 
 ## Public template + private overlay
 
-This working repo is expected to stay private. It may track real
-machine-specific configs such as `proxy/clash/Merge.yaml`.
+This template repo should stay public-safe. It can be published directly, so do
+not track real machine-specific configs such as subscription URLs, internal
+hostnames, usernames, tokens, or private IPs here.
 
-Public sharing must go through `make export-public`, which copies a fresh tree
-without git history and excludes everything listed in `.publicignore`.
-Templates and examples are exported; subscription URLs, AI keys, usernames, IPs,
-handoff notes, and local config files are not.
-
-Do not make this private repo or its history public. Publish only the generated
-public template tree.
+Public sharing may still go through `make export-public`, which copies a fresh
+tree without git history and excludes everything listed in `.publicignore`.
+That export path is for hygiene and history isolation, not for hiding private
+tracked config that should never have lived here.
 
 ```bash
 export MAC_BOOTSTRAP_PRIVATE_REPO="git@github.com:<you>/mac-bootstrap-private.git"
@@ -179,6 +177,8 @@ Clash profile flow:
 - Runtime profiles under `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/` are generated state.
 - Refreshing a Clash subscription does not rewrite `proxy/clash/Merge.yaml`; it only
   updates app-managed runtime state.
+- `make render-configs` no longer copies `private/clash/Merge.yaml` back into
+  `template/proxy/clash/Merge.yaml`; private overrides sync only to the runtime profile.
 - Full notes: [`docs/clash-profile-flow.md`](docs/clash-profile-flow.md)
 
 Use `make export-public DEST=/path/to/mac-bootstrap-public` to produce a
@@ -194,7 +194,7 @@ PUBLIC_REPO=<you>/mac-bootstrap-template make publish-public
 
 Recommended workflow:
 
-1. Commit real config changes here in the private repo.
+1. Commit public-safe template changes here.
 2. Run `make privacy-audit`.
 3. Run `PUBLIC_REPO=<you>/mac-bootstrap-template make publish-public`.
 
