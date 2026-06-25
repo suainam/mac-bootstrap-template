@@ -10,5 +10,14 @@
       "cross-agent"
     ]
   },
-  "skills": {}
+  "skills": {
+    "langgpt-prompt-writer": {
+      "apps": [
+        "claude",
+        "codex",
+        "opencode",
+        "cross-agent"
+      ]
+    }
+  }
 }

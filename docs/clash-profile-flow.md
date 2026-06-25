@@ -10,7 +10,7 @@ This setup has three different layers. Keep them separate.
   machine-specific proxy rules, DNS, local domains, and subscription-specific
   tweaks.
 - `make render-configs` copies the best available source into the rendered
-  working tree.
+  working tree, and automatically syncs it directly to the active Clash Verge profiles folder.
 
 ## 2. Runtime State
 

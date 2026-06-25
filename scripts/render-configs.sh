@@ -145,6 +145,15 @@ echo "=== Rendered configs ==="
 render_config "proxy/clash/Merge.yaml"
 render_config "infra/python/odps_config.py"
 
+# Sync Clash Verge profile directly
+CLASH_VERGE_PROFILE="$HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/Merge.yaml"
+if [ -d "$(dirname "$CLASH_VERGE_PROFILE")" ]; then
+  if [ -f "$DIR/proxy/clash/Merge.yaml" ]; then
+    run cp "$DIR/proxy/clash/Merge.yaml" "$CLASH_VERGE_PROFILE"
+    echo "  Clash Verge Profile <- proxy/clash/Merge.yaml"
+  fi
+fi
+
 # ── LaunchAgent plists ──────────────────────────────────────
 echo "=== LaunchAgent plists ==="
 run mkdir -p "$HOME/Library/LaunchAgents"
