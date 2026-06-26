@@ -22,7 +22,7 @@ case ":$PATH:" in
   *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
 
-if [[ ! -o interactive || ( -z "${TMUX:-}" && ( ! -t 0 || ! -t 1 ) ) ]]; then
+if [[ ! -o interactive || ( -z "${TMUX:-}" && ! -t 0 ) ]]; then
   return 0
 fi
 
