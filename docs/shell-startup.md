@@ -34,36 +34,51 @@ the Codex pane falls back to `exec /bin/zsh -il` after `codex` exits.
 ## Prompt Caveat
 
 Powerlevel10k instant prompt is sourced at the top of `zshrc`, but the full
-theme loads later after the interactive guard. In tmux panes, `stdin`/`stdout`
-TTY readiness can briefly lag during startup. Because of that, the guard in
-`zshrc` must not reject interactive shells inside tmux only because `-t 0/1`
-is momentarily false.
+theme loads later after the interactive guard. The guard must not block p10k
+for any real terminal — tmux panes, Apple_Terminal, iTerm2, Ghostty, etc.
+
+The guard only needs to block headless env-probing shells (Zed, VSCode, GUI
+editors that capture the login environment without a real terminal). Those
+shells lack `stdin` (`-t 0` is false); checking stdin alone is sufficient.
 
 Current rule:
 
 ```zsh
-if [[ ! -o interactive || ( -z "${TMUX:-}" && ( ! -t 0 || ! -t 1 ) ) ]]; then
+if [[ ! -o interactive || ( -z "${TMUX:-}" && ! -t 0 ) ]]; then
   return 0
 fi
 ```
 
-That keeps GUI env-probing shells side-effect free, while allowing tmux panes to
-finish the interactive startup path and load p10k.
+Why `! -t 0` only (not `! -t 0 || ! -t 1`): Apple_Terminal opens new windows
+with `stdout` not bound to a TTY (`-t 1` is false), so the old two-sided check
+incorrectly triggered the early return and blocked p10k from loading.
+
+`POWERLEVEL9K_INSTANT_PROMPT` must be set to `quiet` (not `verbose`) in
+`p10k.zsh`. The `verbose` setting fires a warning whenever any console output
+appears during zsh initialization; `quiet` suppresses the warning while still
+loading instant prompt.
 
 ## Debug Checklist
 
-Use this when a pane falls back to the plain `%`/`hostname` prompt:
+Use this when a shell falls back to the plain `%`/`hostname` prompt:
 
 ```bash
 echo $TMUX
 echo $options[interactive]
+[[ -t 0 ]] && echo "stdin=tty" || echo "stdin=no-tty"
+[[ -t 1 ]] && echo "stdout=tty" || echo "stdout=no-tty"
 echo $(( $+functions[p10k] ))
 ps -o command= -p $$
 ```
 
-Expected tmux-pane state:
+Expected state for any interactive terminal (tmux or native):
 
-- `$TMUX` is non-empty
 - `interactive` is `on`
+- `stdin=tty` (`-t 0` must be true for the guard to pass)
 - `p10k` function exists
-- shell command includes `/bin/zsh -il` for tmux-managed panes
+
+Known limitation: if two terminal windows start simultaneously (e.g., opening
+two Apple_Terminal windows at once), the second window may show a plain prompt
+until the first window's gitstatus daemon finishes initializing. This is a
+gitstatus multi-instance race condition; opening windows a second apart avoids
+it.
