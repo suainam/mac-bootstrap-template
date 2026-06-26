@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-REMOTE="${CODE_SERVER_HOST:-dsliam-mux}"
+REMOTE="${CODE_SERVER_HOST:-}"
 DEFAULT_REMOTE_DIR="${CODE_SERVER_DIR:-/srv/code-server}"
 
 discover_remote_dir() {
@@ -26,6 +26,11 @@ discover_remote_dir() {
   printf "%s" "$DEFAULT_REMOTE_DIR"
 }
 
+if [ -z "$REMOTE" ]; then
+  echo "ERROR: CODE_SERVER_HOST is required. Put the real host in your private overlay or shell env." >&2
+  exit 1
+fi
+
 REMOTE_DIR="$(discover_remote_dir)"
 
 echo "=== Deploy code-server config to $REMOTE ==="
@@ -35,7 +40,7 @@ echo ""
 # 检查 ControlMaster socket 是否存活
 if ! ssh -O check "$REMOTE" 2>/dev/null; then
   echo "⚠️  $REMOTE 的 ControlMaster socket 未建立"
-  echo "   请先运行: ssh dsliam-mux"
+  echo "   请先运行: ssh $REMOTE"
   echo "   认证后 socket 会保持 8 小时，之后 scp/ssh 免密"
   exit 1
 fi

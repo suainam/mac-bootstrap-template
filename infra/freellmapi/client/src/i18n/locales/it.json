@@ -19,7 +19,7 @@
     "signIn": "Accedi",
     "email": "Email",
     "password": "Password",
-    "emailPlaceholder": "tuo@esempio.com",
+    "emailPlaceholder": "tuo@example.com",
     "passwordPlaceholderSetup": "almeno 8 caratteri",
     "passwordPlaceholderLogin": "la tua password",
     "setupDescription": "Imposta l'email e la password che proteggeranno questo pannello.",

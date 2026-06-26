@@ -19,7 +19,7 @@
     "signIn": "Entrar",
     "email": "E-mail",
     "password": "Senha",
-    "emailPlaceholder": "voce@exemplo.com",
+    "emailPlaceholder": "voce@example.com",
     "passwordPlaceholderSetup": "no mínimo 8 caracteres",
     "passwordPlaceholderLogin": "sua senha",
     "setupDescription": "Defina o e-mail e a senha que protegerão este painel.",

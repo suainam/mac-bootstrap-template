@@ -81,7 +81,7 @@ dig +short <host> A
 route -n get <ip>
 
 # targeted grep in final runtime config
-rtk rg -n "route-exclude-address|respect-rules|stack:|DOMAIN-SUFFIX,dslyy.com|DOMAIN-SUFFIX,dslbuy.com|GEOSITE,CN|GEOIP,CN|DOMAIN-SUFFIX,cn" \
+rtk rg -n "route-exclude-address|respect-rules|stack:|DOMAIN-SUFFIX,corp.example.com|DOMAIN-SUFFIX,internal.example.net|GEOSITE,CN|GEOIP,CN|DOMAIN-SUFFIX,cn" \
   ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml
 ```
 

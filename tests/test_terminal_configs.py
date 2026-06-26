@@ -106,34 +106,6 @@ def test_tmux_config_resets_append_only_options_before_readding():
 
 # ── SSH config ────────────────────────────────────────────────────────
 
-def test_ssh_dsliam_mux_exists():
-    content = open(os.path.expanduser("~/.ssh/config.d/dsliam")).read()
-    assert "Host dsliam-mux" in content
-
-
-def test_ssh_dsliam_devpod_removed():
-    content = open(os.path.expanduser("~/.ssh/config.d/dsliam")).read()
-    assert "dsliam-devpod" not in content
-
-
-def test_ssh_controlmaster_auto():
-    content = open(os.path.expanduser("~/.ssh/config.d/dsliam")).read()
-    assert "ControlMaster auto" in content
-
-
-def test_zshrc_has_dsliam_term_wrappers():
+def test_zshrc_defers_host_aliases_to_private_overrides():
     content = open(os.path.expanduser("~/.zshrc")).read()
-    assert "alias dsliam='TERM=xterm-256color command ssh dsliam'" in content
-    assert "alias dsliam-mux='TERM=xterm-256color command ssh dsliam-mux'" in content
-
-
-def test_runtime_dsliam_alias_downgrades_term():
-    out, _, rc = run("script -q /dev/null zsh -ic 'alias dsliam'")
-    assert rc == 0
-    assert "TERM=xterm-256color command ssh dsliam" in out
-
-
-def test_runtime_dsliam_mux_alias_downgrades_term():
-    out, _, rc = run("script -q /dev/null zsh -ic 'alias dsliam-mux'")
-    assert rc == 0
-    assert "TERM=xterm-256color command ssh dsliam-mux" in out
+    assert "Host-specific SSH TERM wrappers belong in ~/.zshrc.local" in content

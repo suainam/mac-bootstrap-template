@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # NOTE: 本地 docker/colima 已停用 (2026-06-12)
-# 容器全部跑在远程堡垒机 dsliam 上。本脚本保留供恢复参考。
+# 容器全部跑在远程堡垒机上。本脚本保留供恢复参考。
 # 9router 配置在 ~/.9router/，docker-compose.yml 在本目录，重建：
 #   brew install docker colima && colima start && docker compose up -d
 set -euo pipefail
@@ -32,5 +32,4 @@ fi
 
 echo "=== Verify Docker ==="
 docker info --format '{{.ServerVersion}}' 2>/dev/null && echo "  Docker {{.ServerVersion}} ready" || echo "  Docker not ready yet — try 'colima start'"
-
 

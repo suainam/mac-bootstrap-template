@@ -19,6 +19,19 @@ PRIVATE_ENV = os.path.join(
 )
 
 
+def private_domains_from_env():
+    import re
+
+    if not os.path.exists(PRIVATE_ENV):
+        return []
+    sys.path.insert(0, os.path.dirname(RENDER_SCRIPT))
+    from importlib import import_module
+
+    render_mod = import_module("render-clash-merge")
+    env = render_mod.parse_env(PRIVATE_ENV)
+    return sorted(set(re.findall(r"DOMAIN-SUFFIX,([^,\s]+)", env.get("RULES_PRIVATE", ""))))
+
+
 def render():
     """Run render script, return parsed YAML dict."""
     r = subprocess.run(
@@ -75,11 +88,14 @@ def test_rule_order():
     """Critical ordering: ads → LAN → private → AI → process → CN → udp → proxy-domains → MATCH."""
     d, _ = render()
     rules = d["rules"]
+    private_domains = private_domains_from_env()
+    assert private_domains, "expected private domains in RULES_PRIVATE"
+    private_domain = private_domains[0]
 
     idx = lambda p: rule_index(rules, p)
     assert idx("category-ads-all") < idx("127.0.0.0/8"), "ads before LAN"
-    assert idx("127.0.0.0/8") < idx("dslyy.com"), "LAN before private"
-    assert idx("dslyy.com") < idx("ai-services"), "private before AI"
+    assert idx("127.0.0.0/8") < idx(private_domain), "LAN before private"
+    assert idx(private_domain) < idx("ai-services"), "private before AI"
     assert idx("ai-services") < idx("PROCESS-NAME-REGEX"), "AI before process"
     assert idx("PROCESS-NAME-REGEX") < idx("GEOSITE,CN"), "process before CN"
     assert idx("GEOSITE,CN") < idx("NETWORK,udp"), "CN before udp"

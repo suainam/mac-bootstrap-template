@@ -93,6 +93,7 @@ allowed_url_hosts = {
 }
 allowed_path_prefixes = ("private.example/",)
 skip_suffixes = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".sqlite", ".db")
+skip_exact_names = {"package-lock.json"}
 
 
 def public_ignore_patterns() -> list[str]:
@@ -159,6 +160,7 @@ def is_placeholder(value: str) -> bool:
         "no-auth-required",
         "line#",
         "line%",
+        "user>:<pass",
     )
     return (
         not value
@@ -172,6 +174,15 @@ def assignment_finding(line: str) -> str | None:
     if not match:
         return None
     value = clean_value(match.group("value"))
+    if (
+        value.startswith(("{", "["))
+        or value.startswith("z.")
+        or "z.string(" in value
+        or "writeOnly" in value
+        or "readOnly" in value
+        or " || " in value
+    ):
+        return None
     if is_placeholder(value):
         return None
     if len(value) >= 12 and entropy(value) >= 3.0:
@@ -194,11 +205,17 @@ def url_finding(line: str) -> str | None:
 
 def scan_text(path: str, text: str, origin: str) -> list[tuple[str, str, str, int]]:
     findings = []
-    if path.startswith(allowed_path_prefixes) or path.endswith(skip_suffixes):
+    if (
+        path.startswith(allowed_path_prefixes)
+        or path.endswith(skip_suffixes)
+        or Path(path).name in skip_exact_names
+    ):
         return findings
     for line_no, line in enumerate(text.splitlines(), 1):
         for category, pattern in secret_literals:
             if pattern.search(line):
+                if category == "url_with_credentials" and any(token in line for token in ("<user>", "<pass>", "&lt;user&gt;", "&lt;pass&gt;")):
+                    continue
                 findings.append((origin, "SECRET", category, line_no))
         category = assignment_finding(line)
         if category:
@@ -211,6 +228,8 @@ def scan_text(path: str, text: str, origin: str) -> list[tuple[str, str, str, in
                 if category == "email":
                     email = match.group(0).lower()
                     if email == "git@github.com":
+                        continue
+                    if email.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".icns")):
                         continue
                     domain = email.rsplit("@", 1)[-1]
                     if domain in allowed_email_domains:

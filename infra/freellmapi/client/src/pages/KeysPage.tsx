@@ -330,7 +330,7 @@ function ProxySettingsSection() {
         <ul className="list-disc list-inside mt-1 space-y-0.5">
           <li><code className="font-mono">socks5://127.0.0.1:1080</code></li>
           <li><code className="font-mono">http://proxy.corp.com:8080</code></li>
-          <li><code className="font-mono">socks5://user:pass@proxy:1080</code></li>
+          <li><code className="font-mono">socks5://&lt;user&gt;:&lt;pass&gt;@proxy:1080</code></li>
         </ul>
       </div>
     </section>

@@ -19,7 +19,7 @@
     "signIn": "Se connecter",
     "email": "E-mail",
     "password": "Mot de passe",
-    "emailPlaceholder": "vous@exemple.com",
+    "emailPlaceholder": "vous@example.com",
     "passwordPlaceholderSetup": "au moins 8 caractères",
     "passwordPlaceholderLogin": "votre mot de passe",
     "setupDescription": "Définissez l'e-mail et le mot de passe qui protégeront ce tableau de bord.",

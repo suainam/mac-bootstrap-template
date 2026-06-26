@@ -50,7 +50,7 @@ describe('Dashboard auth (#35)', () => {
 
   it('rejects weak setup credentials', async () => {
     expect((await call(app, 'POST', '/api/auth/setup', { email: 'bad', password: 'x' })).status).toBe(400);
-    expect((await call(app, 'POST', '/api/auth/setup', { email: 'a@b.com', password: 'short' })).status).toBe(400);
+    expect((await call(app, 'POST', '/api/auth/setup', { email: 'tiny@example.com', password: 'short' })).status).toBe(400);
   });
 
   let token = '';

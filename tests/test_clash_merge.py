@@ -29,6 +29,17 @@ def run_render(dry_run=True):
     return r.stdout, r.stderr, r.returncode
 
 
+def private_domains_from_env():
+    if not os.path.exists(PRIVATE_ENV):
+        return []
+    render = _load_render()
+    env = render.parse_env(PRIVATE_ENV)
+    domains = set()
+    for match in __import__("re").findall(r"DOMAIN-SUFFIX,([^,\s]+)", env.get("RULES_PRIVATE", "")):
+        domains.add(match)
+    return sorted(domains)
+
+
 # ── Unit: parse_env ─────────────────────────────────────────
 
 def test_parse_env_single_values():
@@ -267,19 +278,15 @@ def test_render_no_unresolved_placeholders():
 @pytest.mark.skipif(
     not os.path.exists(PRIVATE_ENV), reason="private/clash/Merge.env not found"
 )
+@pytest.mark.skipif(
+    not os.path.exists(PRIVATE_ENV), reason="private/clash/Merge.env not found"
+)
 def test_render_private_data_not_in_template():
     """Private data (URLs, tokens) is NOT in the template file."""
     with open(TEMPLATE) as f:
         template = f.read()
 
-    # These should NOT appear in the template
-    private_markers = [
-        "handclap6764",        # subscription domain
-        "token=",              # auth token
-        "dslyy.com",           # company domain
-        "msuai.top",           # personal domain
-        "ctokai.com",          # internal domain
-    ]
+    private_markers = ["token="] + private_domains_from_env()
     for marker in private_markers:
         assert marker not in template, f"Private data '{marker}' found in template!"
 
@@ -304,5 +311,7 @@ def test_render_contains_private_domains():
     """Rendered output contains private domains from env."""
     stdout, _, rc = run_render(dry_run=True)
     assert rc == 0
-    assert "dslyy.com" in stdout
-    assert "msuai.top" in stdout
+    domains = private_domains_from_env()
+    assert domains, "expected private domains in RULES_PRIVATE"
+    for domain in domains:
+        assert domain in stdout

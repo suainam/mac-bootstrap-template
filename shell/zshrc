@@ -136,10 +136,8 @@ alias cip="curl cip.cc"
 # User local overrides
 source ~/.zshrc.local 2>/dev/null || true
 
-# Legacy bastion: keep modern TERM locally, but downgrade only for this host.
-# Declare after ~/.zshrc.local so host compatibility stays stable at runtime.
-alias dsliam='TERM=xterm-256color command ssh dsliam'
-alias dsliam-mux='TERM=xterm-256color command ssh dsliam-mux'
+# Host-specific SSH TERM wrappers belong in ~/.zshrc.local or the private
+# overlay, so public template files do not carry private host aliases.
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!

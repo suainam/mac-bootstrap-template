@@ -19,7 +19,7 @@
     "signIn": "Iniciar sesión",
     "email": "Correo electrónico",
     "password": "Contraseña",
-    "emailPlaceholder": "tu@ejemplo.com",
+    "emailPlaceholder": "tu@example.com",
     "passwordPlaceholderSetup": "al menos 8 caracteres",
     "passwordPlaceholderLogin": "tu contraseña",
     "setupDescription": "Define el correo y la contraseña que protegerán este panel.",

@@ -167,7 +167,7 @@ Optional private overlay files mirror repo-relative paths, for example:
 private/clash/Merge.yaml
 private/editors/neovim/ai.lua
 private/python/odps_config.py
-private/shell/ssh_config.d/dsliam   # SSH host config (symlinked, see below)
+private/shell/ssh_config.d/<legacy-host>   # SSH host config (symlinked, see below)
 ```
 
 ### SSH config deploy strategy
@@ -188,8 +188,8 @@ repo), not the symlink. On macOS, `chmod` on a symlink only changes the link
 itself, not the target, so the canonical place to enforce permissions is the
 source.
 
-The `~/.ssh/config.d/dsliam` host entry includes keepalive settings to prevent
-idle disconnection from the legacy bastion (`TERM-SSHD`):
+The `~/.ssh/config.d/<legacy-host>` host entry can include keepalive settings to
+prevent idle disconnection from older bastions (`TERM-SSHD`):
 
 ```
 ServerAliveInterval 60    # send a keepalive packet every 60 s
