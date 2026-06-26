@@ -1,0 +1,54 @@
+services:
+  proxy:
+    image: metacubex/mihomo:latest   # Docker Hub，非 ghcr.io，国内镜像可达
+    container_name: freellmapi-proxy
+    volumes:
+      - ./proxy:/root/.config/mihomo
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  freellmapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: freellmapi-app
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # 出海请求走 proxy 容器；国内直连域名走 NO_PROXY 绕过
+      HTTP_PROXY: http://freellmapi-proxy:7890
+      HTTPS_PROXY: http://freellmapi-proxy:7890
+      NO_PROXY: "api.bigmodel.cn,api.siliconflow.cn,api.deepseek.com,api.moonshot.cn,ark.cn-beijing.volces.com,dashscope.aliyuncs.com,localhost,127.0.0.1"
+    ports:
+      - "${HOST_BIND:-0.0.0.0}:${PORT:-3001}:3001"
+    volumes:
+      - freellmapi-data:/app/server/data
+    depends_on:
+      - proxy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/api/ping').then((res) => { if (!res.ok) process.exit(1); }).catch(() => process.exit(1));"
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
+volumes:
+  freellmapi-data:

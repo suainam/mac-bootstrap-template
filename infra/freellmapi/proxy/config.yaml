@@ -1,0 +1,51 @@
+# mihomo (clash-meta) 配置
+# 填入你的订阅 URL 后，重启 proxy 容器即可生效：
+#   docker compose restart proxy
+
+port: 7890          # HTTP 代理端口（freellmapi 通过此端口出海）
+socks-port: 7891    # SOCKS5 端口（备用）
+allow-lan: true     # 允许同 docker 网络内的容器连接
+mode: rule
+log-level: warning  # 减少日志噪音：silent / error / warning / info / debug
+
+# 国内环境必须配置镜像源，否则首次启动下载 geoip/geosite 会超时导致容器不断重启
+geox-url:
+  geoip: "https://ghfast.top/https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
+  geosite: "https://ghfast.top/https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
+  mmdb: "https://ghfast.top/https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb"
+
+# ─── 订阅配置 ────────────────────────────────────────────────────────────────
+proxy-providers:
+  sub:
+    type: http
+    url: "YOUR_SUBSCRIPTION_URL_HERE"   # ← 替换为你的订阅链接
+    interval: 86400                      # 每 24 小时自动更新
+    path: ./providers/sub.yaml
+    health-check:
+      enable: true
+      interval: 600
+      url: https://www.gstatic.com/generate_204
+      timeout: 5000
+
+# ─── 策略组 ──────────────────────────────────────────────────────────────────
+proxy-groups:
+  - name: PROXY
+    type: url-test          # 自动选择延迟最低的节点
+    use:
+      - sub
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+
+  - name: FALLBACK
+    type: fallback
+    use:
+      - sub
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+
+# ─── 规则：CN 直连，其余走代理 ───────────────────────────────────────────────
+rules:
+  - GEOIP,CN,DIRECT
+  - GEOIP,PRIVATE,DIRECT
+  - MATCH,PROXY
