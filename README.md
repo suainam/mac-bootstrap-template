@@ -167,6 +167,33 @@ Optional private overlay files mirror repo-relative paths, for example:
 private/clash/Merge.yaml
 private/editors/neovim/ai.lua
 private/python/odps_config.py
+private/shell/ssh_config.d/dsliam   # SSH host config (symlinked, see below)
+```
+
+### SSH config deploy strategy
+
+`install.sh` deploys every file under `private/shell/ssh_config.d/` (or
+`template/shell/ssh_config.d/` when no private overlay exists) as a **symlink**
+inside `~/.ssh/config.d/`, which is included by `~/.ssh/config` via a wildcard
+`Include`.
+
+Using symlinks instead of copies means:
+- Editing the source file in this repo takes effect immediately — no need to
+  re-run `install.sh`.
+- There is a single source of truth; the deployed file and the repo file are
+  the same inode.
+
+File permission note: `chmod 600` is applied to the **source file** (in the
+repo), not the symlink. On macOS, `chmod` on a symlink only changes the link
+itself, not the target, so the canonical place to enforce permissions is the
+source.
+
+The `~/.ssh/config.d/dsliam` host entry includes keepalive settings to prevent
+idle disconnection from the legacy bastion (`TERM-SSHD`):
+
+```
+ServerAliveInterval 60    # send a keepalive packet every 60 s
+ServerAliveCountMax 10    # drop after 10 missed replies (~10 min of silence)
 ```
 
 Clash profile flow:

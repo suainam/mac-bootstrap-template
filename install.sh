@@ -209,35 +209,35 @@ elif [ -d "$DIR/private/shell/ssh_config.d" ]; then
   PRIVATE_SSH_SRC="$DIR/private/shell/ssh_config.d"
 fi
 mkdir -p ~/.ssh/config.d
-deploy_file() {
+# deploy_ssh_config: symlink src -> dst so edits to the source file take effect
+# immediately without re-running install.sh.
+# We chmod 600 the *source* file (not the symlink) because on macOS,
+# chmod on a symlink only updates the link itself, not the target.
+deploy_ssh_config() {
   local src="$1" dst="$2"
-  if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
-    return 0
-  fi
-  cp "$src" "$dst"
+  chmod 600 "$src"
+  ln -sf "$src" "$dst"
 }
 if [ -f "$DIR/scripts/ssh-connect-proxy.py" ]; then
-  deploy_file "$DIR/scripts/ssh-connect-proxy.py" ~/.ssh/connect-proxy.py
-  chmod +x ~/.ssh/connect-proxy.py
-  echo "  ~/.ssh/connect-proxy.py"
+  deploy_ssh_config "$DIR/scripts/ssh-connect-proxy.py" ~/.ssh/connect-proxy.py
+  chmod +x "$DIR/scripts/ssh-connect-proxy.py"
+  echo "  ~/.ssh/connect-proxy.py -> $DIR/scripts/ssh-connect-proxy.py"
 fi
 if [ -n "$PRIVATE_SSH_SRC" ]; then
   for f in "$PRIVATE_SSH_SRC"/*; do
     [ -f "$f" ] || continue
     name="$(basename "$f")"
     [[ "$name" == *.template ]] && continue
-    deploy_file "$f" ~/.ssh/config.d/"$name"
-    chmod 600 ~/.ssh/config.d/"$name"
-    echo "  ~/.ssh/config.d/$name <- private:$name"
+    deploy_ssh_config "$f" ~/.ssh/config.d/"$name"
+    echo "  ~/.ssh/config.d/$name -> private:$name"
   done
 else
   for f in "$SSH_SRC"/*; do
     [ -f "$f" ] || continue
     name="$(basename "$f")"
     [[ "$name" == *.template ]] && continue
-    deploy_file "$f" ~/.ssh/config.d/"$name"
-    chmod 600 ~/.ssh/config.d/"$name"
-    echo "  ~/.ssh/config.d/$name <- template:$name"
+    deploy_ssh_config "$f" ~/.ssh/config.d/"$name"
+    echo "  ~/.ssh/config.d/$name -> template:$name"
   done
 fi
 if ! grep -q 'Include ~/.ssh/config.d/\*' ~/.ssh/config 2>/dev/null; then

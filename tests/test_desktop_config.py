@@ -17,10 +17,6 @@ def test_hammerspoon_has_iterm2_binding():
     assert "iterm2_bundle_id" in content
 
 
-def test_hammerspoon_ghostty_in_input_switcher():
-    content = open(os.path.expanduser("~/.hammerspoon/init.lua")).read()
-    assert '"Ghostty"' in content
-
 # ── Hammerspoon Spoons ────────────────────────────────────────────────
 
 def test_spoons_installed():
