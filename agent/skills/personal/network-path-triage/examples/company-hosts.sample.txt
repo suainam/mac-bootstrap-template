@@ -1,0 +1,8 @@
+# Sample only. Replace with the current environment's real hosts.
+# These entries come from one historical CorpLink/Clash debugging case.
+
+scloud.dslyy.com
+xzapp.dslbuy.com
+bigdata-analysis.dslyy.com
+devops.dslbuy.com
+boyi-code-pilot.dslbuy.com

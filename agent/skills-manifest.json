@@ -29,7 +29,8 @@
     "mac-bootstrap": {
       "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills",
       "skills": [
-        "mac-bootstrap-maintenance"
+        "mac-bootstrap-maintenance",
+        "network-path-triage"
       ]
     },
     "playground": {

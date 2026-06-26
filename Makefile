@@ -84,6 +84,7 @@ help:
 bootstrap install:
 	./install.sh --yes --with-vim --with-neovim --cleanup
 	./scripts/install-agent-tooling.sh --configure
+	./scripts/skill-scope-refresh.sh
 
 check:
 	bash -n install.sh
@@ -188,6 +189,7 @@ agent-tools:
 	./scripts/install-agent-tooling.sh --configure
 
 agent-refresh: agent-sync agent-tools
+	./scripts/skill-scope-refresh.sh
 
 skill-scope-refresh:
 	./scripts/skill-scope-refresh.sh
