@@ -29,8 +29,10 @@ install_spoon() {
 
 echo "=== Linking Hammerspoon config ==="
 mkdir -p "$TARGET"
-ln -sf "$DIR/init.lua" "$TARGET/init.lua"
-echo "  $TARGET/init.lua -> hammerspoon/init.lua"
+for file in "$DIR"/*.lua; do
+  ln -sf "$file" "$TARGET/$(basename "$file")"
+  echo "  $TARGET/$(basename "$file") -> hammerspoon/$(basename "$file")"
+done
 
 echo "=== Installing official Spoons ==="
 install_spoon "ClipboardTool"
