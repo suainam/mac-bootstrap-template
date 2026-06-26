@@ -8,6 +8,9 @@ private/
     Merge.yaml
   python/
     odps_config.py
+  infra/
+    code-server/
+      env.sh          # CODE_SERVER_HOST / CODE_SERVER_DIR for deploy scripts
   shell/
     ssh_config.d/
       <host>          # SSH host config snippets (deployed to ~/.ssh/config.d/)

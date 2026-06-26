@@ -137,6 +137,7 @@ cd template/infra/code-server
 
 `install.sh` behavior:
 
+- Sources `private/infra/code-server/env.sh` (or `$MAC_BOOTSTRAP_PRIVATE_DIR/infra/code-server/env.sh`) when present, so the public template stays free of private bastion names.
 - Requires a live `ssh -O check "$CODE_SERVER_HOST"` ControlMaster session.
 - If `CODE_SERVER_DIR` is unset, it first asks the running `code-server` container for `com.docker.compose.project.working_dir`.
 - Falls back to `/srv/code-server` only when no running container exposes that label.

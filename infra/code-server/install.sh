@@ -5,6 +5,38 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 REMOTE="${CODE_SERVER_HOST:-}"
 DEFAULT_REMOTE_DIR="${CODE_SERVER_DIR:-/srv/code-server}"
 
+find_private_overlay_root() {
+  if [ -n "${MAC_BOOTSTRAP_PRIVATE_DIR:-}" ] && [ -d "$MAC_BOOTSTRAP_PRIVATE_DIR" ]; then
+    printf "%s" "$MAC_BOOTSTRAP_PRIVATE_DIR"
+    return 0
+  fi
+  if [ -d "$DIR/../../private" ]; then
+    (cd "$DIR/../../private" && pwd)
+    return 0
+  fi
+  if [ -d "$DIR/../private" ]; then
+    (cd "$DIR/../private" && pwd)
+    return 0
+  fi
+  return 1
+}
+
+load_private_code_server_env() {
+  local private_root env_file
+  private_root="$(find_private_overlay_root 2>/dev/null || true)"
+  [ -n "$private_root" ] || return 0
+
+  env_file="$private_root/infra/code-server/env.sh"
+  if [ -f "$env_file" ]; then
+    # shellcheck disable=SC1090
+    . "$env_file"
+  fi
+}
+
+load_private_code_server_env
+REMOTE="${CODE_SERVER_HOST:-$REMOTE}"
+DEFAULT_REMOTE_DIR="${CODE_SERVER_DIR:-$DEFAULT_REMOTE_DIR}"
+
 discover_remote_dir() {
   if [ -n "${CODE_SERVER_DIR:-}" ]; then
     printf "%s" "$CODE_SERVER_DIR"

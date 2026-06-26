@@ -166,9 +166,15 @@ Optional private overlay files mirror repo-relative paths, for example:
 ```text
 private/clash/Merge.yaml
 private/editors/neovim/ai.lua
+private/infra/code-server/env.sh
 private/python/odps_config.py
 private/shell/ssh_config.d/<legacy-host>   # SSH host config (symlinked, see below)
 ```
+
+Host-specific deployment values should live in the matching private overlay
+path. For example, `infra/code-server/install.sh` will source
+`private/infra/code-server/env.sh` for `CODE_SERVER_HOST` and `CODE_SERVER_DIR`
+before it falls back to shell environment variables.
 
 ### SSH config deploy strategy
 
