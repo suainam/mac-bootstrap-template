@@ -164,7 +164,7 @@ make privacy-audit
 Optional private overlay files mirror repo-relative paths, for example:
 
 ```text
-private/clash/Merge.yaml
+private/clash/work-mac.yaml
 private/editors/neovim/ai.lua
 private/infra/code-server/env.sh
 private/python/odps_config.py
@@ -206,11 +206,12 @@ Clash profile flow:
 
 - `template/proxy/clash/Merge.yaml` is the checked-in public working default.
 - `template/proxy/clash/Merge.yaml.template` is the lower-level fallback seed.
-- `private/clash/Merge.yaml` is the private machine-specific override.
+- `private/clash/work-mac.yaml` is the private machine-specific source of truth
+  for this Mac.
 - Runtime profiles under `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/` are generated state.
 - Refreshing a Clash subscription does not rewrite `proxy/clash/Merge.yaml`; it only
   updates app-managed runtime state.
-- `make render-configs` no longer copies `private/clash/Merge.yaml` back into
+- `make render-configs` no longer copies `private/clash/work-mac.yaml` back into
   `template/proxy/clash/Merge.yaml`; private overrides sync only to the runtime profile.
 - Full notes: [`docs/clash-profile-flow.md`](docs/clash-profile-flow.md)
 

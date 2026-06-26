@@ -17,12 +17,13 @@ mac-bootstrap-private/
 Files in `private/` mirror the public repo paths:
 
 ```text
-private/clash/Merge.yaml
+private/clash/work-mac.yaml
 private/editors/neovim/ai.lua
+private/infra/code-server/env.sh
 private/python/odps_config.py
 ```
 
-Note: Private paths stay as `private/clash/` and `private/python/` (not the new
+Note: Private paths stay as `private/clash/`, `private/infra/`, and `private/python/` (not the new
 public paths `proxy/clash/` or `infra/python/`) to avoid breaking existing
 private overlays.
 
@@ -44,9 +45,14 @@ public Neovim config.
 4. local ignored `<path>`
 5. public `<path>.template`
 
-For Clash specifically, private `private/clash/Merge.yaml` is synced directly to
+For Clash specifically, private `private/clash/work-mac.yaml` is synced directly to
 the local Clash runtime profile. It is not copied back into
 `proxy/clash/Merge.yaml`.
+
+For remote code-server deployment, `infra/code-server/install.sh` first looks
+for `private/infra/code-server/env.sh` (or the same path under
+`$MAC_BOOTSTRAP_PRIVATE_DIR`) to load `CODE_SERVER_HOST` and
+`CODE_SERVER_DIR`. Keep real bastion names there, not in the public template.
 
 Parent `bootstrap.sh`:
 

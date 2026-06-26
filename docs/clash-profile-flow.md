@@ -6,9 +6,9 @@ This setup has three different layers. Keep them separate.
 
 - `template/proxy/clash/Merge.yaml` is the checked-in public working default.
 - `template/proxy/clash/Merge.yaml.template` is the lower-level fallback seed.
-- `private/clash/Merge.yaml` is the private override, and is the best place for
-  machine-specific proxy rules, DNS, local domains, and subscription-specific
-  tweaks.
+- `private/clash/work-mac.yaml` is the private machine-specific source of truth
+  for proxy rules, DNS, local domains, and subscription-specific tweaks on this
+  Mac.
 - `make render-configs` keeps `template/proxy/clash/Merge.yaml` as the public
   checked-in default, and automatically syncs the best available source
   directly to the active Clash Verge profiles folder.
@@ -22,7 +22,7 @@ This setup has three different layers. Keep them separate.
 - Subscription refresh can rewrite the remote-profile layer, so manual edits
   there are easy to lose.
 - Refreshing a Clash subscription does not update `template/proxy/clash/Merge.yaml`
-  or `private/clash/Merge.yaml`; it only changes the app-managed runtime
+  or `private/clash/work-mac.yaml`; it only changes the app-managed runtime
   profile state.
 
 ## 3. Privacy Boundaries
@@ -36,7 +36,7 @@ This setup has three different layers. Keep them separate.
 
 ## Recommended Workflow
 
-1. Edit `private/clash/Merge.yaml` for machine-specific behavior.
+1. Edit `private/clash/work-mac.yaml` for machine-specific behavior.
 2. Edit `template/proxy/clash/Merge.yaml` only when changing public defaults.
 3. Run `make render-configs`.
 4. Reload or reselect the profile in Clash Verge Rev.

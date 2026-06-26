@@ -28,7 +28,7 @@ direnv, host-specific wrappers, and tmux auto-attach.
 - `-l` keeps login-shell behavior consistent with a fresh terminal tab
 - `-i` guarantees the pane runs the interactive startup path in `zshrc`
 
-The `_daemon_` window uses the same rule for the `shell` and `notes` panes, and
+The `_daemon_` window uses the same rule for the `remote` and `work` panes, and
 the Codex pane falls back to `exec /bin/zsh -il` after `codex` exits.
 
 ## Prompt Caveat

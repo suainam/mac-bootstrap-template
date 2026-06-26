@@ -35,10 +35,11 @@ tmux split-window -h -t "$SESSION:$DAEMON_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh
 tmux split-window -v -t "$SESSION:$DAEMON_WINDOW.0" -p 50 -c "$WORKDIR" /bin/zsh -il
 
 # Pane 标题（显示在边框顶部）
-# split -h 产生右侧 pane (1), split -v 产生左下 pane (2)
+# split -h 先产生右侧 pane；随后对 pane 0 split -v 产生左下 pane。
+# 最终 live 几何：0=左上，1=左下，2=右侧。
 set_pane_title "$SESSION:$DAEMON_WINDOW.0" "daemon"
-set_pane_title "$SESSION:$DAEMON_WINDOW.1" "shell"
-set_pane_title "$SESSION:$DAEMON_WINDOW.2" "notes"
+set_pane_title "$SESSION:$DAEMON_WINDOW.1" "remote"
+set_pane_title "$SESSION:$DAEMON_WINDOW.2" "work"
 
 tmux select-pane -t "$SESSION:$DAEMON_WINDOW.1"
 exec tmux attach -t "$SESSION"
