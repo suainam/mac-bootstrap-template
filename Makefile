@@ -20,6 +20,11 @@ help:
 	@echo "  privacy-audit          Redacted privacy scan"
 	@echo "  proxy-on               Configure npm + git to use the shell proxy values"
 	@echo "  proxy-off              Clear npm + git proxy settings"
+	@echo "  ssh-install            Deploy SSH config, keys, and helper symlinks"
+	@echo "  ssh-verify             Verify SSH deploy, permissions, and ssh -G resolution"
+	@echo "  ssh-key-generate       Create private/shell/ssh_keys/NAME and optional host snippet"
+	@echo "  ssh-key-import         Import existing key into private/shell/ssh_keys/NAME"
+	@echo "  ssh-key-import-stdin   Read pasted key from stdin into private/shell/ssh_keys/NAME"
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
 	@echo "  obsidian-kit           Install reusable Obsidian vault kit: VAULT=/path/to/vault"
 	@echo "  ghostty-font-repair    Re-register existing Liga SFMono Nerd Font files"
@@ -112,6 +117,7 @@ check:
 	bash -n scripts/export-public-template.sh
 	bash -n scripts/publish-public-template.sh
 	bash -n scripts/new-project.sh
+	bash -n scripts/ssh-manage.sh
 	bash -n scripts/sync-agent-upstreams.sh
 	bash -n scripts/sync-agent-prompts.sh
 	bash -n scripts/agent-prompt.sh
@@ -153,6 +159,25 @@ proxy-on:
 
 proxy-off:
 	./scripts/clear-proxies.sh
+
+ssh-install:
+	./scripts/ssh-manage.sh install
+
+ssh-verify:
+	./scripts/ssh-manage.sh verify
+
+ssh-key-generate:
+	@test -n "$(NAME)" || (echo "Usage: make ssh-key-generate NAME=id_ed25519_example TYPE=ed25519 [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
+	./scripts/ssh-manage.sh add-key --name "$(NAME)" --generate --type "$(or $(TYPE),ed25519)" $(if $(HOST),--host "$(HOST)" --hostname "$(HOSTNAME)" --user "$(USER)" --port "$(or $(PORT),22)",)
+
+ssh-key-import:
+	@test -n "$(NAME)" || (echo "Usage: make ssh-key-import NAME=id_example SRC=/path/to/key [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
+	@test -n "$(SRC)" || (echo "Usage: make ssh-key-import NAME=id_example SRC=/path/to/key [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
+	./scripts/ssh-manage.sh add-key --name "$(NAME)" --import "$(SRC)" $(if $(HOST),--host "$(HOST)" --hostname "$(HOSTNAME)" --user "$(USER)" --port "$(or $(PORT),22)",)
+
+ssh-key-import-stdin:
+	@test -n "$(NAME)" || (echo "Usage: cat key | make ssh-key-import-stdin NAME=id_example [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
+	./scripts/ssh-manage.sh add-key --name "$(NAME)" --stdin $(if $(HOST),--host "$(HOST)" --hostname "$(HOSTNAME)" --user "$(USER)" --port "$(or $(PORT),22)",)
 
 doctor-agent:
 	./scripts/agent-doctor.sh

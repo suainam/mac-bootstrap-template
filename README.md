@@ -168,7 +168,9 @@ private/clash/work-mac.yaml
 private/editors/neovim/ai.lua
 private/infra/code-server/env.sh
 private/python/odps_config.py
+private/shell/ssh_config                 # Canonical ~/.ssh/config source
 private/shell/ssh_config.d/<legacy-host>   # SSH host config (symlinked, see below)
+private/shell/ssh_keys/<key>             # SSH keys (symlinked into ~/.ssh/keys/)
 ```
 
 Host-specific deployment values should live in the matching private overlay
@@ -183,6 +185,39 @@ before it falls back to shell environment variables.
 inside `~/.ssh/config.d/`, which is included by `~/.ssh/config` via a wildcard
 `Include`.
 
+Use this boundary to keep SSH manageable over time:
+- `private/shell/ssh_config`: canonical source for `~/.ssh/config`; deploy as a
+  symlink. Fall back to `template/shell/ssh_config` only when no private
+  override exists yet.
+- `~/.ssh/config`: symlink only; one global entrypoint plus true machine-wide
+  defaults only.
+- `private/shell/ssh_config.d/<host>`: one file per host or host-group.
+- `private/shell/ssh_keys/<key>`: private keys; they are deployed into `~/.ssh/`
+  under `~/.ssh/keys/` as symlinks with mode `600`.
+- `private/shell/ssh_keys/<key>.pub`: public keys; deployed with mode `644`.
+- `~/.ssh/keys/`: runtime key directory; should contain symlinks only.
+
+Avoid putting managed keys directly under `~/.ssh/`; keep the top-level clean
+and reserve it for entrypoints, runtime directories, and dynamic state such as
+`known_hosts`.
+
+The default managed `~/.ssh/config` is intentionally minimal:
+
+```sshconfig
+Include ~/.colima/ssh_config
+Include ~/.ssh/config.d/*
+```
+
+Host-specific identity and transport settings should stay in `ssh_config.d/`,
+not in the top-level config.
+
+Managed-vs-dynamic SSH boundary:
+- Managed: `~/.ssh/config`, `~/.ssh/config.d/*`, `~/.ssh/keys/*`,
+  `~/.ssh/connect-proxy.py`
+- Dynamic/local-only: `~/.ssh/known_hosts`, `~/.ssh/agent/`, and transient
+  control sockets like `~/.ssh/cm-*`
+- Unexpected top-level files under `~/.ssh/` should fail `make ssh-verify`
+
 Using symlinks instead of copies means:
 - Editing the source file in this repo takes effect immediately — no need to
   re-run `install.sh`.
@@ -193,6 +228,16 @@ File permission note: `chmod 600` is applied to the **source file** (in the
 repo), not the symlink. On macOS, `chmod` on a symlink only changes the link
 itself, not the target, so the canonical place to enforce permissions is the
 source.
+
+Common SSH flows:
+- Deploy or refresh SSH assets: `make ssh-install`
+- Verify deploy + permissions + `ssh -G`: `make ssh-verify`
+- Generate a new key directly into `private/shell/ssh_keys/`:
+  `make ssh-key-generate NAME=id_ed25519_github TYPE=ed25519`
+- Import an existing key:
+  `make ssh-key-import NAME=cc15_rsa SRC=~/Downloads/cc15_rsa`
+- Paste a key and fix permissions automatically:
+  `pbpaste | make ssh-key-import-stdin NAME=cc15_rsa`
 
 The `~/.ssh/config.d/<legacy-host>` host entry can include keepalive settings to
 prevent idle disconnection from older bastions (`TERM-SSHD`):

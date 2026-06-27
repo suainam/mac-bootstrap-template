@@ -199,53 +199,8 @@ echo "=== Configure tmux ==="
 "$DIR/multiplexer/tmux/install.sh"
 
 echo "=== Setup SSH config ==="
-SSH_SRC="$DIR/shell/ssh_config.d"
-PRIVATE_SSH_SRC=""
-if [ -n "${MAC_BOOTSTRAP_PRIVATE_DIR:-}" ] && [ -d "$MAC_BOOTSTRAP_PRIVATE_DIR/shell/ssh_config.d" ]; then
-  PRIVATE_SSH_SRC="$MAC_BOOTSTRAP_PRIVATE_DIR/shell/ssh_config.d"
-elif [ -d "$DIR/../private/shell/ssh_config.d" ]; then
-  PRIVATE_SSH_SRC="$(cd "$DIR/../private" && pwd)/shell/ssh_config.d"
-elif [ -d "$DIR/private/shell/ssh_config.d" ]; then
-  PRIVATE_SSH_SRC="$DIR/private/shell/ssh_config.d"
-fi
-mkdir -p ~/.ssh/config.d
-# deploy_ssh_config: symlink src -> dst so edits to the source file take effect
-# immediately without re-running install.sh.
-# We chmod 600 the *source* file (not the symlink) because on macOS,
-# chmod on a symlink only updates the link itself, not the target.
-deploy_ssh_config() {
-  local src="$1" dst="$2"
-  chmod 600 "$src"
-  ln -sf "$src" "$dst"
-}
-if [ -f "$DIR/scripts/ssh-connect-proxy.py" ]; then
-  deploy_ssh_config "$DIR/scripts/ssh-connect-proxy.py" ~/.ssh/connect-proxy.py
-  chmod +x "$DIR/scripts/ssh-connect-proxy.py"
-  echo "  ~/.ssh/connect-proxy.py -> $DIR/scripts/ssh-connect-proxy.py"
-fi
-if [ -n "$PRIVATE_SSH_SRC" ]; then
-  for f in "$PRIVATE_SSH_SRC"/*; do
-    [ -f "$f" ] || continue
-    name="$(basename "$f")"
-    [[ "$name" == *.template ]] && continue
-    deploy_ssh_config "$f" ~/.ssh/config.d/"$name"
-    echo "  ~/.ssh/config.d/$name -> private:$name"
-  done
-else
-  for f in "$SSH_SRC"/*; do
-    [ -f "$f" ] || continue
-    name="$(basename "$f")"
-    [[ "$name" == *.template ]] && continue
-    deploy_ssh_config "$f" ~/.ssh/config.d/"$name"
-    echo "  ~/.ssh/config.d/$name -> template:$name"
-  done
-fi
-if ! grep -q 'Include ~/.ssh/config.d/\*' ~/.ssh/config 2>/dev/null; then
-  sed -i '' '1i\
-Include ~/.ssh/config.d/*\
-' ~/.ssh/config
-  echo "  Added Include ~/.ssh/config.d/* to ~/.ssh/config"
-fi
+"$DIR/scripts/ssh-manage.sh" install
+"$DIR/scripts/ssh-manage.sh" verify
 
 if [ "$ASSUME_YES" -eq 0 ] && [ "$RUN_VIM" -eq 0 ]; then
   echo "=== Install vim config? [y/N] ==="

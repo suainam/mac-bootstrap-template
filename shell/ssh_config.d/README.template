@@ -1,6 +1,8 @@
 # SSH host config snippet — place in private/shell/ssh_config.d/<host>
 #
-# After adding, run `make install` to deploy to ~/.ssh/config.d/.
+# After adding, run `make ssh-install` to deploy to ~/.ssh/config.d/.
+# Keep the referenced private key in private/shell/ssh_keys/<key>.
+# IdentityFile should point at ~/.ssh/keys/<key>.
 #
 # Example for a bastion host behind Clash HTTP CONNECT proxy:
 #
