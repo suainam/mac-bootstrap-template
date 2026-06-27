@@ -83,6 +83,7 @@ cask "font-sf-mono-nerd-font-ligaturized"
 # ========== npm CLI ==========
 npm "reasonix"
 npm "context-mode"
+npm "codebase-memory-mcp"
 
 # ========== Python 分析库（通过 pip/uv 安装，不作为 brew 依赖） ==========
 # 见 python/requirements-common.txt

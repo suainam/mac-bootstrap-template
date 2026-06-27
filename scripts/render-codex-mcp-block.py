@@ -77,44 +77,47 @@ approval_mode = "approve"
 approval_mode = "approve"
 """.strip(),
         """
-[mcp_servers.code-review-graph]
-command = "code-review-graph"
-args = ["serve"]
+[mcp_servers.codebase-memory-mcp]
+command = "codebase-memory-mcp"
+args = []
 
-[mcp_servers.code-review-graph.tools.get_minimal_context_tool]
+[mcp_servers.codebase-memory-mcp.tools.search_graph]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.traverse_graph_tool]
+[mcp_servers.codebase-memory-mcp.tools.trace_path]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.get_review_context_tool]
+[mcp_servers.codebase-memory-mcp.tools.get_code_snippet]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.get_impact_radius_tool]
+[mcp_servers.codebase-memory-mcp.tools.get_architecture]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.get_architecture_overview_tool]
+[mcp_servers.codebase-memory-mcp.tools.query_graph]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.list_communities_tool]
+[mcp_servers.codebase-memory-mcp.tools.search_code]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.list_flows_tool]
+[mcp_servers.codebase-memory-mcp.tools.detect_changes]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.get_hub_nodes_tool]
+[mcp_servers.codebase-memory-mcp.tools.index_repository]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.list_graph_stats_tool]
+[mcp_servers.codebase-memory-mcp.tools.list_projects]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.get_knowledge_gaps_tool]
+[mcp_servers.codebase-memory-mcp.tools.get_graph_schema]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.get_suggested_questions_tool]
+[mcp_servers.codebase-memory-mcp.tools.index_status]
 approval_mode = "approve"
 
-[mcp_servers.code-review-graph.tools.cross_repo_search_tool]
+[mcp_servers.codebase-memory-mcp.tools.manage_adr]
+approval_mode = "approve"
+
+[mcp_servers.codebase-memory-mcp.tools.ingest_traces]
 approval_mode = "approve"
 """.strip(),
         f"""

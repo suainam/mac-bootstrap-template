@@ -12,7 +12,7 @@ END_MARKER = "# END MAC-BOOTSTRAP MANAGED MCPS"
 MANAGED_PREFIXES = (
     "mcp_servers.context-mode",
     "mcp_servers.context7",
-    "mcp_servers.code-review-graph",
+    "mcp_servers.codebase-memory-mcp",
     "mcp_servers.codebase-memory-mcp",
     "mcp_servers.codebase-memory",
 )

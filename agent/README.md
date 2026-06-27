@@ -485,10 +485,9 @@ not `settings.toml`.
 
 Codex tool sandboxes cannot always write under `$HOME` or the git repo root, so
 the shared `shell_env` detects a writable workspace root when `CODEX_SANDBOX`
-is set. It redirects `RTK_DB_PATH` there, sets `CRG_DATA_DIR` there when
-needed, and forces `CRG_PARSE_EXECUTOR=thread` to avoid sandbox semaphore
-failures during `code-review-graph build`. Normal terminal sessions keep the
-default RTK and CRG locations.
+is set. It redirects `RTK_DB_PATH` there and forces thread-based execution to
+avoid sandbox semaphore failures. Normal terminal sessions keep the default
+RTK and CBM locations.
 
 ---
 

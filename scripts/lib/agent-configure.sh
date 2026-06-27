@@ -428,7 +428,7 @@ Canonical RTK reference: \`$RTK_SOURCE\`
 
 ## CRG First
 
-Prefer \`code-review-graph\` / \`context7\` before grep for code discovery.
+Prefer \`codebase-memory-mcp\` / \`context7\` before grep for code discovery.
 Use grep only for literals, configs, or when MCP coverage is insufficient.
 
 Canonical sources:
@@ -459,18 +459,16 @@ ensure_codex_instructions() {
   fi
 
   local codex_crg_block='<!-- codebase-memory-mcp:start -->
-# Codebase Knowledge Graph (code-review-graph)
+# Codebase Knowledge Graph (codebase-memory-mcp)
 
-This setup uses code-review-graph as the current graph MCP. It replaces the
-legacy codebase-memory-mcp tool names. Prefer MCP graph tools before
-grep/glob/file-search for code discovery.
+Prefer MCP graph tools before grep/glob/file-search for code discovery.
 
 ## Priority Order
-1. `get_minimal_context_tool` - compact repo/task context
-2. `traverse_graph_tool` - find and follow functions/classes/files
-3. `get_review_context_tool` - review diffs with snippets and impact
-4. `get_impact_radius_tool` - understand blast radius
-5. `get_architecture_overview_tool` / `list_communities_tool` - architecture view
+1. `search_graph` - find functions/classes/routes by name pattern
+2. `trace_path` - call chain traversal (inbound/outbound/both)
+3. `get_code_snippet` - read source by qualified name
+4. `get_architecture` - repo overview: languages, packages, routes, hotspots
+5. `query_graph` - Cypher-like queries for complex patterns
 
 ## Context Mode SOP
 - Start with `ctx_batch_execute(commands, queries)` for parallel capture and same-roundtrip search
@@ -485,7 +483,7 @@ grep/glob/file-search for code discovery.
 - When MCP tools return insufficient results
 <!-- codebase-memory-mcp:end -->'
   replace_managed_block "$CODEX_AGENTS" '<!-- codebase-memory-mcp:start -->' '<!-- codebase-memory-mcp:end -->' "$codex_crg_block"
-  echo "  Codex AGENTS.md graph guidance aligned with code-review-graph"
+  echo "  Codex AGENTS.md graph guidance aligned with codebase-memory-mcp"
 }
 
 configure_pi_step() {

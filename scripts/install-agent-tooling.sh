@@ -33,7 +33,7 @@ Configuration performed with --configure:
   - Codex skills + hooks for caveman
   - OpenCode AGENTS.md generation + plugins
   - Caveman ultra mode (default)
-  - code-review-graph MCP + graph build
+  - codebase-memory-mcp MCP
   - context7 docs MCP (for library documentation queries)
   - agent-prompt helper for local prompt-library lookup
   - Pi RTK extension
@@ -47,7 +47,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --configure) CONFIGURE=1 ;;
     --dry-run) DRY_RUN=1 ;;
-    --with-cbm-ui) echo "  --with-cbm-ui is deprecated (CBM replaced by code-review-graph)" ;;
+    --with-cbm-ui) echo "  --with-cbm-ui is deprecated" ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown: $1" >&2; usage >&2; exit 2 ;;
   esac

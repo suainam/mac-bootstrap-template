@@ -137,7 +137,7 @@ Use \`rtk\` for shell commands when available. Canonical reference:
 
 ## CRG / Docs
 
-Prefer \`code-review-graph\` and \`context7\` before grep for code discovery.
+Prefer \`codebase-memory-mcp\` and \`context7\` before grep for code discovery.
 
 Canonical rules:
 - \`$RULES_FILE\`
@@ -169,4 +169,4 @@ ensure_file_contains() {
   fi
 }
 
-CRG_BIN() { command -v code-review-graph 2>/dev/null || uv tool install code-review-graph >/dev/null 2>&1 && command -v code-review-graph; }
+CRG_BIN() { command -v codebase-memory-mcp 2>/dev/null; }

@@ -41,15 +41,6 @@ if [ -n "${CODEX_SANDBOX:-}" ]; then
         mkdir -p "${RTK_DB_PATH%/*}" 2>/dev/null || true
     fi
 
-    if [ -z "${CRG_DATA_DIR:-}" ] && [ -n "$_state_root" ]; then
-        export CRG_DATA_DIR="$_state_root/.code-review-graph"
-        mkdir -p "$CRG_DATA_DIR" 2>/dev/null || true
-    fi
-
-    if [ -z "${CRG_PARSE_EXECUTOR:-}" ]; then
-        export CRG_PARSE_EXECUTOR=thread
-    fi
-
     unset _repo_root _repo_tag _state_root
 fi
 

@@ -22,7 +22,7 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
             '[mcp_servers.context7.env]\n'
             'HTTP_PROXY = "http://old"\n'
             '\n'
-            '[mcp_servers.code-review-graph]\n'
+            '[mcp_servers.codebase-memory-mcp]\n'
             'command = "old"\n'
         )
         block.write_text(
