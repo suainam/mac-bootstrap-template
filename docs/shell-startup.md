@@ -16,7 +16,7 @@ expects an interactive terminal here.
 
 `shell_env` is shared by bash and zsh. It owns machine-wide environment such as
 locale, proxy helpers, Conda/NVM bootstrap, and Codex sandbox path relocation
-for `RTK_DB_PATH` and `CRG_DATA_DIR`.
+for `RTK_DB_PATH`.
 
 `zshrc` is the interactive layer. It owns zinit, Powerlevel10k, aliases,
 direnv, host-specific wrappers, and tmux auto-attach.

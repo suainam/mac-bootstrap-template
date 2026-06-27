@@ -6,7 +6,7 @@
 # From bootstrap repo root:
 make bootstrap   # Brewfile deps + shell/vim/neovim/tmux config
 make agent-sync  # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian → ~/.agent/skills/)
-make agent-tools # Configure RTK, caveman, CRG, context7 + wire skills for all agents
+make agent-tools # Configure RTK, caveman, CBM, context7 + wire skills for all agents
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Sync upstreams + re-wire skills only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
@@ -18,7 +18,7 @@ make security-scan  # AgentShield security audit
 All agent configs are driven from [`agent/agent-manifest.json`](agent-manifest.json).
 Edit the manifest or canonical files once, then re-run `make agent-tools`.
 Generated runtime markdown files are intentionally short and ordered:
-`12-rules` first, then `RTK`, then `CRG / docs`.
+`12-rules` first, then `RTK`, then `CBM / docs`.
 
 ---
 
@@ -84,7 +84,7 @@ The script is intentionally split by responsibility:
 | **RTK** | ✅ hook+RTK.md | ✅ RTK.md+AGENTS.md | ✅ plugin | ✅ extension + settings.json | ❌ | ❌ |
 | **Caveman** | ✅ plugin+ultra | ✅ skills+hooks | ✅ plugin+ultra | ✅ skill file | ✅ skill file |
 | **Context-mode** | ✅ plugin | ✅ hooks | ✅ plugin | ❌ | ❌ | ❌ |
-| **CRG** | ✅ MCP | ✅ MCP in config.toml | ✅ MCP | ✅ `mcp.json` | ✅ MCP server | ✅ `mcp_config.json` |
+| **CBM** | ✅ MCP | ✅ MCP in config.toml | ✅ MCP | ✅ `mcp.json` | ✅ MCP server | ✅ `mcp_config.json` |
 | **12 Rules** | ✅ @12-rules.md | ✅ @/path ref | ✅ inline embedded | ✅ inline AGENTS.md | ✅ workspace `REASONIX.md` | ✅ workspace/global `GEMINI.md` |
 | **ECC Skills** | ✅ dir symlinks | ✅ dir symlinks | ✅ via `~/.claude/` | ✅ dir symlinks | ✅ flat symlinks |
 | **Pocock Skills** | ✅ dir symlinks | ✅ dir symlinks | ✅ via `~/.claude/` | ✅ dir symlinks | ✅ flat symlinks |
@@ -450,7 +450,7 @@ make pm-set PNPM        # Set global default
 ## Reasonix (DeepSeek Agent)
 
 **Status**: Installed (`/opt/homebrew/bin/reasonix` v0.53.2). Configured with
-CRG + context7 MCP and caveman skill. Rules come from `~/.claude/CLAUDE.md`.
+CBM + context7 MCP and caveman skill. Rules come from `~/.claude/CLAUDE.md`.
 
 Reasonix uses:
 - Config: `~/.reasonix/config.json` — includes `mcpServers`
@@ -465,7 +465,7 @@ Reasonix uses:
 ## Pi Terminal Agent
 
 **Status**: Installed (`/opt/homebrew/bin/pi` v0.77.0). RTK extension registered,
-`pi-mcp-extension` installed, local OpenAI-compatible provider wired, CRG +
+`pi-mcp-extension` installed, local OpenAI-compatible provider wired, CBM +
 context7 configured as MCP servers, skills installed, AGENTS.md wired.
 
 Pi uses:

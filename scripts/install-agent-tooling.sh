@@ -141,8 +141,8 @@ configure_context_mode_step
 print_step_header "Step 5 — Caveman"
 configure_caveman_step
 
-print_step_header "Step 6 — Code Review Graph + Context7 MCP"
-ensure_code_review_graph
+print_step_header "Step 6 — Codebase Memory MCP + Context7"
+ensure_codebase_memory_mcp
 if [ -z "$CONTEXT7_KEY" ]; then
   echo "  NOTE: CONTEXT7_API_KEY not set — context7 may have rate limits"
 fi
