@@ -146,3 +146,107 @@ def test_verify_rejects_unmanaged_top_level_ssh_files(tmp_path: Path) -> None:
     verify = run_ssh_manage(home, private, "verify")
     assert verify.returncode != 0
     assert "unexpected ~/.ssh entry" in verify.stderr
+
+
+@pytest.mark.skipif(shutil.which("ssh") is None, reason="ssh not installed")
+def test_dsliam_legacy_host_overrides_survive_global_defaults(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    private = tmp_path / "private"
+    shell_dir = private / "shell"
+    config_dir = shell_dir / "ssh_config.d"
+    keys_dir = shell_dir / "ssh_keys"
+    home.mkdir()
+    config_dir.mkdir(parents=True)
+    keys_dir.mkdir(parents=True)
+
+    (shell_dir / "ssh_config").write_text(
+        "Include ~/.ssh/config.d/*\n"
+        "Host *\n"
+        "  ServerAliveInterval 30\n"
+        "  ServerAliveCountMax 5\n"
+        "  TCPKeepAlive no\n"
+        "  ConnectTimeout 5\n"
+        "  ConnectionAttempts 2\n"
+        "  ControlMaster auto\n"
+        "  ControlPath ~/.ssh/cm-%C\n"
+        "  ControlPersist 10m\n"
+    )
+    (config_dir / "dsliam").write_text(
+        "Host dsliam\n"
+        "  HostName dsliam.example.com\n"
+        "  User legacy\n"
+        "  Port 22\n"
+        "  IdentityFile ~/.ssh/keys/id_rsa_dsliam\n"
+        "  IdentitiesOnly yes\n"
+        "  ProxyCommand ~/.ssh/connect-proxy.py %h %p\n"
+        "  SetEnv TERM=xterm-256color\n"
+        "  KbdInteractiveAuthentication yes\n"
+        "  NumberOfPasswordPrompts 1\n"
+        "  HostKeyAlgorithms +ssh-rsa\n"
+        "  PubkeyAcceptedAlgorithms +ssh-rsa\n"
+        "  KexAlgorithms +diffie-hellman-group1-sha1\n"
+        "  Ciphers +aes128-cbc\n"
+        "  MACs +hmac-sha1\n"
+        "  ServerAliveInterval 60\n"
+        "  ServerAliveCountMax 10\n"
+        "  ControlMaster no\n"
+        "  ControlPath none\n"
+        "  ControlPersist no\n"
+        "\n"
+        "Host dsliam-mux\n"
+        "  HostName dsliam.example.com\n"
+        "  User legacy\n"
+        "  Port 22\n"
+        "  IdentityFile ~/.ssh/keys/id_rsa_dsliam\n"
+        "  IdentitiesOnly yes\n"
+        "  ProxyCommand ~/.ssh/connect-proxy.py %h %p\n"
+        "  SetEnv TERM=xterm-256color\n"
+        "  KbdInteractiveAuthentication yes\n"
+        "  NumberOfPasswordPrompts 1\n"
+        "  HostKeyAlgorithms +ssh-rsa\n"
+        "  PubkeyAcceptedAlgorithms +ssh-rsa\n"
+        "  KexAlgorithms +diffie-hellman-group1-sha1\n"
+        "  Ciphers +aes128-cbc\n"
+        "  MACs +hmac-sha1\n"
+        "  ServerAliveInterval 60\n"
+        "  ServerAliveCountMax 10\n"
+        "  ControlMaster auto\n"
+        "  ControlPath ~/.ssh/cm-%r@%h:%p\n"
+        "  ControlPersist 8h\n"
+    )
+    (keys_dir / "id_rsa_dsliam").write_text("legacy key\n")
+
+    install = run_ssh_manage(home, private, "install")
+    assert install.returncode == 0, install.stderr
+
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    dsliam = subprocess.run(
+        ["ssh", "-G", "dsliam"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    assert dsliam.returncode == 0, dsliam.stderr
+    dsliam_out = dsliam.stdout
+    assert "controlmaster false" in dsliam_out
+    assert "controlpersist no" in dsliam_out
+    assert "serveraliveinterval 60" in dsliam_out
+    assert "serveralivecountmax 10" in dsliam_out
+    assert "identityfile ~/.ssh/keys/id_rsa_dsliam" in dsliam_out
+    assert "proxycommand ~/.ssh/connect-proxy.py %h %p" in dsliam_out
+
+    dsliam_mux = subprocess.run(
+        ["ssh", "-G", "dsliam-mux"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    assert dsliam_mux.returncode == 0, dsliam_mux.stderr
+    mux_out = dsliam_mux.stdout
+    assert "controlmaster auto" in mux_out
+    assert "controlpersist 28800" in mux_out
+    assert "controlpath " in mux_out
+    assert "identityfile ~/.ssh/keys/id_rsa_dsliam" in mux_out
