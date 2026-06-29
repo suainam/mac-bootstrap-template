@@ -45,6 +45,7 @@
     "product_strategy": {
       "skills_dir": "${HOME}/work/projects/product_strategy/.agents/skills",
       "skills": [
+        "decrypt-materialize",
         "guizang-ppt-skill",
         "marimo-analysis",
         "sql-analysis"

@@ -77,3 +77,4 @@ network-path-triage
 franchise-store-sankey-analysis
 sankey-flow-analysis
 web-video-presentation-delivery
+decrypt-materialize

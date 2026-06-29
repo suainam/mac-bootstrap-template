@@ -35,3 +35,20 @@ def test_langgpt_prompt_writer_skill_registered():
         "opencode",
         "cross-agent",
     ]
+
+
+def test_decrypt_materialize_skill_registered_for_product_strategy_scope():
+    skill = "decrypt-materialize"
+    promote = open(os.path.join(TEMPLATE, "agent", "skills-promote.txt")).read()
+    assert skill in promote
+    assert os.path.exists(
+        os.path.join(TEMPLATE, "agent", "skills", "personal", skill, "SKILL.md")
+    )
+
+    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
+        manifest = json.load(fh)
+    assert skill in manifest["projects"]["product_strategy"]["skills"]
+    assert (
+        manifest["projects"]["product_strategy"]["skills_dir"]
+        == "${HOME}/work/projects/product_strategy/.agents/skills"
+    )
