@@ -18,6 +18,24 @@
         "opencode",
         "cross-agent"
       ]
+    },
+    "marimo-analysis": {
+      "apps": [
+        "claude",
+        "codex"
+      ]
+    },
+    "marimo-dashboard-create": {
+      "apps": [
+        "claude",
+        "codex"
+      ]
+    },
+    "marimo-etl-test": {
+      "apps": [
+        "claude",
+        "codex"
+      ]
     }
   }
 }
