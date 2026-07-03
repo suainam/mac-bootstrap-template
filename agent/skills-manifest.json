@@ -47,13 +47,13 @@
       "skills": [
         "decrypt-materialize",
         "guizang-ppt-skill",
-        "marimo-analysis",
         "sql-analysis"
       ]
     },
     "www": {
       "skills_dir": "${HOME}/work/projects/www/.agents/skills",
       "skills": [
+        "marimo-analysis",
         "marimo-dashboard-create",
         "marimo-etl-test"
       ]

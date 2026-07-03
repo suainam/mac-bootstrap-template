@@ -1,6 +1,6 @@
 ---
 name: marimo-dashboard-create
-description: Creates or updates Marimo dashboard pages in /home/dsl/projects/www/marimo/merchandise using the repo's current notebook, ETL, theme, and Docker conventions. Use when adding a new merchandise dashboard page, changing notebook data flow, wiring ETL outputs, or aligning a page with the existing raw/agg/serve structure.
+description: Creates or updates Marimo dashboard pages in `www/marimo/merchandise` using the repo's current notebook, ETL, theme, and Docker conventions. Use when adding a new merchandise dashboard page, changing notebook data flow, wiring ETL outputs, or aligning a page with the existing raw/agg/serve structure.
 ---
 
 # Marimo Dashboard Create
@@ -9,6 +9,9 @@ description: Creates or updates Marimo dashboard pages in /home/dsl/projects/www
 
 先读当前仓库，不要沿用旧的 `marimo_non_catalog_clearance` 路径假设。
 
+- `marimo/README.md`
+- `marimo/merchandise/docs/ops-knowledge-base.md`
+- `marimo/merchandise/docs/deployment-update.md`
 - `marimo/merchandise/Dockerfile`
 - `marimo/merchandise/docker-compose.yml`
 - `marimo/merchandise/scripts/entrypoint.sh`
@@ -17,10 +20,13 @@ description: Creates or updates Marimo dashboard pages in /home/dsl/projects/www
 - 当前相关 notebook 和 data helper
 
 默认只改代码。不构建、不重启、不跑 Docker，除非用户明确要求。
+默认 Python 项目边界在 `www/` 根目录；如果要跑宿主机校验或 pytest，优先用
+`uv run --extra test ...`，不要在 `marimo/` 子目录里自己拼环境。
 
 ## Workflow
 
 1. 先确认当前页面入口、ETL 输出、主题 helper、容器运行方式。
+   - 也确认当前 deploy / handoff 规则，避免把远端 deploy tree 当 Git 真相。
 2. 只问代码里无法推出的事实，一次只问一个关键问题。
 3. 新页面优先复用 `lib/theme.py`、现有 ETL 框架、现有 notebook 模式。
 4. 数据设计先定层次，再写页面：
@@ -50,6 +56,10 @@ description: Creates or updates Marimo dashboard pages in /home/dsl/projects/www
 - 聚合比例必须按分子分母求和后再算，不能 `mean()` 比例列。
 - 明细表隐藏技术编码列，但可以保留这些列用于排序和过滤。
 - 如果页面要接新 parquet，先检查导出模块、测试、文档是否要一起改。
+- 需要用户或同事接手时，把页面对应的数据入口、回归入口、部署影响补到 README / docs，
+  不要只改 notebook。
+- 不要把远端 `marimo` / `marimo-next` / `marimo-previews/*` 目录里的 Git 状态当成页面
+  是否已部署的判断依据；以 workflow SHA 和 revision label 为准。
 
 ## Validation
 
@@ -59,4 +69,13 @@ description: Creates or updates Marimo dashboard pages in /home/dsl/projects/www
 python -m py_compile marimo/merchandise/notebooks/<page>.py marimo/merchandise/lib/<module>.py marimo/merchandise/etl/fetch_data.py
 ```
 
-如果用户要求回归，优先走 `marimo-etl-test` skill，在容器里验证，不默认自己跑 Docker build。
+如果用户要求回归，优先走 `marimo-etl-test` skill，不默认自己跑 Docker build。
+
+宿主机最小回归入口：
+
+```bash
+cd <www-root>
+UV_CACHE_DIR=.uv-cache uv run --extra test pytest \
+  marimo/merchandise/tests/<target>.py \
+  --no-cov -q
+```

@@ -50,6 +50,20 @@ manifest_lines() {
   python3 "$REPO_DIR/scripts/skill_scope_manifest.py" project-lines "$MANIFEST"
 }
 
+project_skill_dirs() {
+  python3 - "$MANIFEST" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path(sys.argv[1]).read_text())
+for project in manifest.get("projects", {}).values():
+    skills_dir = project.get("skills_dir")
+    if skills_dir:
+        print(skills_dir)
+PY
+}
+
 expand_path() {
   local path="$1"
   path="${path/#\~/$HOME}"
@@ -89,17 +103,48 @@ link_skill() {
   echo "  $project_name :: $skill_name -> $source_dir"
 }
 
+cleanup_stale_project_links() {
+  local skills_dir_raw="$1"
+  local skills_dir link target valid_names
+
+  skills_dir="$(expand_path "$skills_dir_raw")"
+  [ -d "$skills_dir" ] || return 0
+  valid_names="$(awk -F '\t' -v dir="$skills_dir_raw" '$4 == dir { print $1 }' "$manifest_tmp")"
+
+  for link in "$skills_dir"/*; do
+    [ -L "$link" ] || continue
+    target="$(readlink "$link" 2>/dev/null || true)"
+    case "$target" in
+      "$REPO_DIR"/agent/skills/personal/*)
+        if ! printf '%s\n' "$valid_names" | grep -Fxq "$(basename "$link")"; then
+          run rm "$link"
+          echo "  CLEAN  stale project skill link removed: $link -> $target"
+        fi
+        ;;
+    esac
+  done
+}
+
 main() {
   if [ ! -f "$MANIFEST" ]; then
     echo "Missing skills manifest: $MANIFEST" >&2
     exit 2
   fi
 
+  manifest_tmp="$(mktemp)"
+  trap 'rm -f "$manifest_tmp"' EXIT
+  manifest_lines > "$manifest_tmp"
+
+  while IFS= read -r skills_dir; do
+    [ -n "$skills_dir" ] || continue
+    cleanup_stale_project_links "$skills_dir"
+  done < <(project_skill_dirs)
+
   echo "=== Link project-scoped skills ==="
   while IFS=$'\t' read -r skill_name source_rel project_name skills_dir; do
     [ -n "$skill_name" ] || continue
     link_skill "$skill_name" "$source_rel" "$project_name" "$skills_dir"
-  done < <(manifest_lines)
+  done < "$manifest_tmp"
 
   echo "=== Done ==="
 }

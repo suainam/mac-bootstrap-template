@@ -7,6 +7,18 @@ description: Use when building or refactoring marimo notebooks for Python data a
 
 Use marimo as a reproducible data app, not a scratchpad.
 
+Repo-specific reality for `www/marimo`:
+
+- Python project boundary is `www/`, not `marimo/`; `pyproject.toml` and
+  `uv.lock` live at the workspace root.
+- Notebook changes usually touch four layers together: notebook, `lib/`,
+  `etl/fetch_data.py`, and tests.
+- Current deploy/handoff contract is documented in `marimo/README.md`,
+  `marimo/merchandise/docs/ops-knowledge-base.md`, and
+  `marimo/merchandise/docs/deployment-update.md`.
+- Remote `marimo` / `marimo-next` / `marimo-previews/*` are deploy trees, not
+  authoritative Git worktrees.
+
 Guidelines:
 
 - Keep data loading, transformation, visualization, and export in separate cells.
@@ -16,6 +28,11 @@ Guidelines:
 - Cache expensive reads or transformations when the project convention supports
   it.
 - Keep browser-facing notebooks safe to run from a fresh container.
+- Match the repo's current `raw/agg/serve` layering instead of inventing ad hoc
+  file flows.
+- Keep ratios honest: sum numerators/denominators first, then compute ratios.
+- Reuse `lib/theme.py` and existing helper patterns before adding notebook-only
+  styling or duplicated transforms.
 
 When converting messy notebook exploration:
 
@@ -24,3 +41,14 @@ When converting messy notebook exploration:
 3. Add lightweight checks for shape, nulls, and aggregate totals.
 4. Make the final cells read like a report: input assumptions, charts/tables,
    caveats, and export.
+5. If the notebook depends on new ETL outputs or changed schema, update the
+   corresponding tests and ETL path in the same change.
+
+Validation:
+
+- Quick syntax check:
+  `python -m py_compile marimo/merchandise/notebooks/<page>.py`
+- Pytest/regression:
+  route to `marimo-etl-test`
+- Host-side project env:
+  `cd <www-root> && UV_CACHE_DIR=.uv-cache uv run --extra test ...`

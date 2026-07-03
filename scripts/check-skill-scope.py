@@ -96,6 +96,7 @@ def validate_runtime(manifest: dict) -> list[str]:
     errors: list[str] = []
     home = Path.home()
     projects = manifest["projects"]
+    project_roots = [expand_path(project["skills_dir"]) for project in projects.values()]
     global_roots = [
         home / ".agent" / "skills" / "personal",
         home / ".codex" / "skills",
@@ -126,6 +127,34 @@ def validate_runtime(manifest: dict) -> list[str]:
             leaked = root / skill_name
             if leaked.exists() or leaked.is_symlink():
                 errors.append(f"project skill leaked into global view: {leaked}")
+
+    project_skill_names = {
+        skill_name: meta["project"]
+        for skill_name, meta in manifest["skills"].items()
+        if meta["scope"] == "project"
+    }
+    source_prefix = ROOT / "agent" / "skills" / "personal"
+    for project_name, project in sorted(projects.items()):
+        skills_dir = expand_path(project["skills_dir"])
+        if not skills_dir.exists():
+            continue
+        for child in skills_dir.iterdir():
+            if not child.is_symlink():
+                continue
+            try:
+                target = child.readlink()
+            except OSError:
+                continue
+            if not str(target).startswith(str(source_prefix)):
+                continue
+            skill_name = child.name
+            expected_project = project_skill_names.get(skill_name)
+            if expected_project is None:
+                errors.append(f"stale first-party skill link outside manifest: {child}")
+            elif expected_project != project_name:
+                errors.append(
+                    f"project skill linked in wrong project view: {child} expected={expected_project}"
+                )
 
     return errors
 

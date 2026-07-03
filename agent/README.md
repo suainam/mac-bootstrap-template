@@ -156,6 +156,10 @@ make skill-route-default APPS=claude,codex,opencode,pi,reasonix,antigravity,cros
 make skill-refresh
 ```
 
+`make skill-scope-refresh` is responsible for the repo-local `.agents/skills/`
+views only. It should create the current project-scoped links and prune stale
+first-party links that no longer belong in a project's view.
+
 For personal skills:
 
 ```bash
