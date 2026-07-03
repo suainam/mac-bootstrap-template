@@ -6,7 +6,7 @@
 # From bootstrap repo root:
 make bootstrap   # Brewfile deps + shell/vim/neovim/tmux config
 make agent-sync  # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian → ~/.agent/skills/)
-make agent-tools # Configure RTK, caveman, CBM, context7 + wire skills for all agents
+make agent-tools # Configure RTK, caveman, CBM, context7, X docs + wire skills for all agents
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Sync upstreams + re-wire skills only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index

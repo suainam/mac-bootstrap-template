@@ -9,6 +9,10 @@
       "commands": ["agy", "antigravity"]
     }
   ],
+  "chrome_gemini": {
+    "enabled": true,
+    "profile": "Default"
+  },
   "managed_symlinks": {
     "~/.zprofile": "shell/zprofile",
     "~/.zshenv": "shell/zshenv",

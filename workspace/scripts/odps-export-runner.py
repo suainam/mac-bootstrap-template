@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import argparse
 from contextlib import ExitStack
+from datetime import datetime, timedelta
 import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 import pyarrow as pa
@@ -21,6 +23,7 @@ from vendor.odps_connector import ODPSConnector
 EXCEL_MAX_ROWS_PER_SHEET = int(os.environ.get("ODPS_EXPORT_MAX_ROWS_PER_SHEET", "1048576"))
 PARQUET_BATCH_SIZE = int(os.environ.get("ODPS_EXPORT_PARQUET_BATCH_SIZE", "20000"))
 EXCEL_BATCH_SIZE = int(os.environ.get("ODPS_EXPORT_EXCEL_BATCH_SIZE", "20000"))
+TEMPLATE_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def _load_config(config_path: Path) -> list[dict[str, Any]]:
@@ -35,11 +38,79 @@ def _load_config(config_path: Path) -> list[dict[str, Any]]:
     return exports
 
 
-def _build_sql(spec: dict[str, Any]) -> str:
+def _default_params() -> dict[str, str]:
+    now = datetime.now()
+    today = now.strftime("%Y%m%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y%m%d")
+    return {
+        "today": today,
+        "yesterday": yesterday,
+    }
+
+
+def _parse_cli_params(raw_params: list[str]) -> dict[str, str]:
+    params: dict[str, str] = {}
+    for raw in raw_params:
+        if "=" not in raw:
+            raise ValueError(f"invalid --param '{raw}', expected KEY=VALUE")
+        key, value = raw.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise ValueError(f"invalid --param '{raw}', empty key")
+        params[key] = value
+    return params
+
+
+def _render_template(value: str, params: dict[str, Any]) -> str:
+    def repl(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in params:
+            raise KeyError(f"missing template param: {key}")
+        return str(params[key])
+
+    return TEMPLATE_PATTERN.sub(repl, value)
+
+
+def _build_params(spec: dict[str, Any], cli_params: dict[str, str]) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    params.update(_default_params())
+    params.update(cli_params)
+    raw_spec_params = spec.get("params") or {}
+    if not isinstance(raw_spec_params, dict):
+        raise ValueError("spec params must be a dict when provided")
+
+    pending = {str(key): str(value) for key, value in raw_spec_params.items()}
+    for _ in range(len(pending) + 1):
+        changed = False
+        for key, value in pending.items():
+            rendered = _render_template(value, params)
+            if params.get(key) != rendered:
+                params[key] = rendered
+                changed = True
+        if not changed:
+            break
+    return params
+
+
+def _resolve_string(value: str | None, params: dict[str, Any]) -> str | None:
+    if value is None:
+        return None
+    return _render_template(str(value), params)
+
+
+def _build_sql(spec: dict[str, Any], config_dir: Path, params: dict[str, Any]) -> str:
+    sql_file = spec.get("sql_file")
+    if sql_file:
+        sql_path = Path(_resolve_string(str(sql_file), params) or "")
+        if not sql_path.is_absolute():
+            sql_path = config_dir / sql_path
+        sql = sql_path.read_text(encoding="utf-8")
+        return _render_template(sql.strip().rstrip(";"), params)
+
     sql = spec.get("sql")
     if sql:
-        return str(sql).strip().rstrip(";")
-    raise ValueError("each export must define sql")
+        return _render_template(str(sql).strip().rstrip(";"), params)
+    raise ValueError("each export must define sql or sql_file")
 
 
 def _header_row(ws, headers: list[str]) -> None:
@@ -167,11 +238,38 @@ def _fetch_query_to_parquet(sql: str, output: Path) -> tuple[int, list[str]]:
         return total_rows, columns
 
 
-def _run_export(spec: dict[str, Any], dry_run: bool, mode: str, reuse_parquet: bool) -> None:
-    name = str(spec.get("name") or "export")
-    output = Path(spec.get("output") or f"exports/{name}.xlsx")
-    sheet_name = str(spec.get("sheet_name") or name[:31] or "Sheet1")
-    sql = _build_sql(spec)
+def _select_exports(exports: list[dict[str, Any]], selected_names: list[str]) -> list[dict[str, Any]]:
+    if not selected_names:
+        return exports
+
+    selected = []
+    seen = set()
+    wanted = {name for name in selected_names if name}
+    for spec in exports:
+        name = str(spec.get("name") or "")
+        if name in wanted:
+            selected.append(spec)
+            seen.add(name)
+
+    missing = sorted(wanted - seen)
+    if missing:
+        raise ValueError(f"unknown export name(s): {', '.join(missing)}")
+    return selected
+
+
+def _run_export(
+    spec: dict[str, Any],
+    config_dir: Path,
+    cli_params: dict[str, str],
+    dry_run: bool,
+    mode: str,
+    reuse_parquet: bool,
+) -> None:
+    params = _build_params(spec, cli_params)
+    name = _resolve_string(str(spec.get("name") or "export"), params) or "export"
+    output = Path(_resolve_string(spec.get("output"), params) or f"exports/{name}.xlsx")
+    sheet_name = _resolve_string(spec.get("sheet_name"), params) or name[:31] or "Sheet1"
+    sql = _build_sql(spec, config_dir, params)
     parquet_path = _stage_parquet_path(output, spec)
 
     print(f"[odps-export] {name}")
@@ -219,12 +317,27 @@ def main() -> int:
         action="store_true",
         help="skip ODPS fetch when the staged parquet file already exists",
     )
+    parser.add_argument(
+        "--select",
+        default="",
+        help="comma-separated export name(s) from EXPORTS to run",
+    )
+    parser.add_argument(
+        "--param",
+        action="append",
+        default=[],
+        help="template parameter override, format KEY=VALUE",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config)
-    exports = _load_config(config_path)
+    cli_params = _parse_cli_params(args.param)
+    exports = _select_exports(
+        _load_config(config_path),
+        [part.strip() for part in args.select.split(",") if part.strip()],
+    )
     for spec in exports:
-        _run_export(spec, args.dry_run, args.mode, args.reuse_parquet)
+        _run_export(spec, config_path.parent, cli_params, args.dry_run, args.mode, args.reuse_parquet)
     return 0
 
 

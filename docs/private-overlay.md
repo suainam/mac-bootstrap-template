@@ -19,6 +19,7 @@ Files in `private/` mirror the public repo paths:
 ```text
 private/clash/work-mac.yaml
 private/editors/neovim/ai.lua
+private/agent/x-mcp.jsonc
 private/infra/code-server/env.sh
 private/python/odps_config.py
 ```
@@ -53,6 +54,11 @@ For remote code-server deployment, `infra/code-server/install.sh` first looks
 for `private/infra/code-server/env.sh` (or the same path under
 `$MAC_BOOTSTRAP_PRIVATE_DIR`) to load `CODE_SERVER_HOST` and
 `CODE_SERVER_DIR`. Keep real bastion names there, not in the public template.
+
+For optional X API MCP access, keep OAuth client values in
+`private/agent/x-mcp.jsonc`. `make agent-tools` loads that file when present and
+enables the local `xapi` bridge only when `"enabled": true`; public template
+config always includes read-only X docs MCP without requiring private secrets.
 
 Parent `bootstrap.sh`:
 

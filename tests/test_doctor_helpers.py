@@ -70,6 +70,68 @@ def test_run_doctor_checks_main_success(monkeypatch, tmp_path, capsys):
     assert "Doctor passed." in out
 
 
+def test_chrome_gemini_check_passes_for_eligible_profile(monkeypatch, tmp_path, capsys):
+    chrome_root = tmp_path / "Library/Application Support/Google/Chrome"
+    profile = chrome_root / "Default"
+    profile.mkdir(parents=True)
+    (chrome_root / "Local State").write_text(
+        json.dumps(
+            {
+                "glic": {"launcher_enabled": True},
+                "profile": {"info_cache": {"Default": {"is_glic_eligible": True}}},
+            }
+        )
+    )
+    (profile / "Preferences").write_text(
+        json.dumps({"glic": {"completed_fre": 1}, "side_panel": {"id_to_width": {"kGlic": 475}}})
+    )
+
+    monkeypatch.setattr(run_doctor_checks.Path, "home", classmethod(lambda cls: tmp_path))
+
+    failed = run_doctor_checks.check_chrome_gemini({"chrome_gemini": {"enabled": True, "profile": "Default"}})
+    out = capsys.readouterr().out
+    assert failed is False
+    assert "ok chrome gemini: launcher enabled" in out
+
+
+def test_chrome_gemini_check_fails_when_launcher_disabled(monkeypatch, tmp_path, capsys):
+    chrome_root = tmp_path / "Library/Application Support/Google/Chrome"
+    profile = chrome_root / "Default"
+    profile.mkdir(parents=True)
+    (chrome_root / "Local State").write_text(
+        json.dumps(
+            {
+                "glic": {"launcher_enabled": False},
+                "profile": {"info_cache": {"Default": {"is_glic_eligible": True}}},
+            }
+        )
+    )
+    (profile / "Preferences").write_text(json.dumps({"glic": {"completed_fre": 0}}))
+
+    monkeypatch.setattr(run_doctor_checks.Path, "home", classmethod(lambda cls: tmp_path))
+
+    failed = run_doctor_checks.check_chrome_gemini({"chrome_gemini": {"enabled": True, "profile": "Default"}})
+    out = capsys.readouterr().out
+    assert failed is True
+    assert "missing chrome gemini: launcher is disabled" in out
+    assert "missing chrome gemini: first-run flow not completed" in out
+
+
+def test_chrome_gemini_check_skips_ineligible_profile(monkeypatch, tmp_path, capsys):
+    chrome_root = tmp_path / "Library/Application Support/Google/Chrome"
+    chrome_root.mkdir(parents=True)
+    (chrome_root / "Local State").write_text(
+        json.dumps({"profile": {"info_cache": {"Default": {"is_glic_eligible": False}}}})
+    )
+
+    monkeypatch.setattr(run_doctor_checks.Path, "home", classmethod(lambda cls: tmp_path))
+
+    failed = run_doctor_checks.check_chrome_gemini({"chrome_gemini": {"enabled": True, "profile": "Default"}})
+    out = capsys.readouterr().out
+    assert failed is False
+    assert "skip chrome gemini" in out
+
+
 def test_run_doctor_checks_main_failure(monkeypatch, tmp_path, capsys):
     brewfile = tmp_path / "Brewfile"
     manifest = tmp_path / "manifest.json"

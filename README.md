@@ -324,7 +324,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 ```bash
 make bootstrap       # Brewfile + shell/vim/neovim/tmux
 make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian)
-make agent-tools     # Wire RTK, caveman, CBM, context-mode, skills for all agents
+make agent-tools     # Wire RTK, caveman, CBM, context-mode, X docs, skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
 make skill-refresh   # Sync upstreams + re-wire skills only
 make prompt-sync     # Sync prompt libraries + rebuild prompt index
@@ -348,6 +348,9 @@ scripts.
 `make doctor-agent` verifies managed symlinks against the current template
 targets, so directory refactors surface as stale-link failures instead of
 silently leaving old dotfile paths in place.
+`make doctor` also checks Chrome Gemini/Glic state when the local Chrome profile
+is eligible, so a missing Gemini launcher or incomplete first-run setup surfaces
+with the rest of the machine health report.
 
 Regression notes:
 - Do not parallelize `make -C template check` and parent `make check`; the
@@ -527,6 +530,9 @@ The analysis-subproject scaffold creates:
 
 Keep `workspace/scripts/odps-export` and `workspace/scripts/odps-export-runner.py`
 deployed as a pair. The wrapper now fails fast if the runner is missing.
+Export specs may use inline `sql` or `sql_file`, select named exports with
+`--select name[,name]`, and template `${param}` values from spec `params`,
+default `today`/`yesterday`, or repeated `--param KEY=VALUE` overrides.
 
 Data directories in the Docker Compose setup:
 

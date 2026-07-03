@@ -22,6 +22,9 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
             '[mcp_servers.context7.env]\n'
             'HTTP_PROXY = "http://old"\n'
             '\n'
+            '[mcp_servers.x-docs]\n'
+            'url = "https://old.example/mcp"\n'
+            '\n'
             '[mcp_servers.codebase-memory-mcp]\n'
             'command = "old"\n'
         )
@@ -42,6 +45,7 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
 
         assert content.count("[mcp_servers.context-mode.tools.ctx_search]") == 1
         assert content.count("[mcp_servers.context7.env]") == 0
+        assert content.count("[mcp_servers.x-docs]") == 0
         assert content.count("# BEGIN MAC-BOOTSTRAP MANAGED MCPS") == 1
         assert 'model = "gpt-5"' in content
 
@@ -69,6 +73,8 @@ def test_render_codex_mcp_block_emits_proxy_variants():
     assert '[mcp_servers.agent-prompt-library]' in result.stdout
     assert str(Path.home() / ".local/bin/agent-prompt-mcp") in result.stdout
     assert '[mcp_servers.agent-prompt-library.tools.search_prompts]' in result.stdout
+    assert '[mcp_servers.x-docs]' in result.stdout
+    assert 'url = "https://docs.x.com/mcp"' in result.stdout
 
 
 def test_agent_mcp_uses_project_python_for_codex_helpers():
@@ -85,3 +91,5 @@ def test_agent_mcp_configures_prompt_library_for_json_agents():
     assert 'cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();' in content
     assert 'command: [prompt.command].concat(prompt.args)' in content
     assert '"agent-prompt-library": getPromptLibraryConfig()' in content
+    assert 'cfg.mcpServers["x-docs"] = getXDocsConfig();' in content
+    assert '/scripts/x-mcp-bridge.sh' in content

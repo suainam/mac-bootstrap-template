@@ -9,16 +9,14 @@ CONTAINER="${ODPS_EXPORT_CONTAINER:-merchandise-dashboard}"
 MODE="${ODPS_EXPORT_MODE:-exec}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUNNER="$SCRIPT_DIR/odps-export-runner.py"
+CONFIG_PATH="$PROJECT_DIR/$CONFIG_FILE"
 
-if [ ! -f "$PROJECT_DIR/$CONFIG_FILE" ]; then
-  echo "missing config: $PROJECT_DIR/$CONFIG_FILE" >&2
-  exit 1
+if [[ "$CONFIG_FILE" = /* ]]; then
+  CONFIG_PATH="$CONFIG_FILE"
 fi
 
-if [ ! -r "$RUNNER" ]; then
-  echo "missing runner: $RUNNER" >&2
-  echo "sync both workspace/scripts/odps-export and workspace/scripts/odps-export-runner.py" >&2
+if [ ! -f "$CONFIG_PATH" ]; then
+  echo "missing config: $CONFIG_PATH" >&2
   exit 1
 fi
 
@@ -28,36 +26,67 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+build_stage_dir() {
+  local stage_dir
+  local config_name
+  stage_dir="$(mktemp -d /tmp/odps-export-stage-XXXXXX)"
+  config_name="$(basename "$CONFIG_PATH")"
+
+  cp "$CONFIG_PATH" "$stage_dir/$config_name"
+
+  find "$PROJECT_DIR" -maxdepth 1 -type f -name '*.py' -print0 | while IFS= read -r -d '' file; do
+    [ "$(basename "$file")" = "$config_name" ] && continue
+    cp "$file" "$stage_dir/"
+  done
+
+  if [ -d "$PROJECT_DIR/sql" ]; then
+    cp -R "$PROJECT_DIR/sql" "$stage_dir/sql"
+  fi
+
+  if [ -d "$PROJECT_DIR/exports" ]; then
+    cp -R "$PROJECT_DIR/exports" "$stage_dir/exports"
+  fi
+
+  printf "%s" "$stage_dir"
+}
+
 run_via_exec() {
   local temp_dir
+  local stage_dir
+  local config_name
   temp_dir="$(docker exec "$CONTAINER" sh -lc 'tmpdir=$(mktemp -d /tmp/odps-export-XXXXXX) && printf "%s" "$tmpdir"')"
   if [ -z "$temp_dir" ]; then
     echo "failed to allocate temp dir in container: $CONTAINER" >&2
     return 1
   fi
 
-  docker cp "$PROJECT_DIR/$CONFIG_FILE" "$CONTAINER:$temp_dir/$CONFIG_FILE" >/dev/null
+  config_name="$(basename "$CONFIG_PATH")"
+  stage_dir="$(build_stage_dir)"
+  docker cp "$stage_dir/." "$CONTAINER:$temp_dir/" >/dev/null
 
   docker exec -i \
-    -e ODPS_EXPORT_CONFIG="$temp_dir/$CONFIG_FILE" \
+    -e ODPS_EXPORT_CONFIG="$temp_dir/$config_name" \
     -w "$temp_dir" \
     "$CONTAINER" \
-    python - --config "$temp_dir/$CONFIG_FILE" "$@" < "$RUNNER"
+    python - --config "$temp_dir/$config_name" "$@" < "$SCRIPT_DIR/odps-export-runner.py"
 
   docker cp "$CONTAINER:$temp_dir/." "$PROJECT_DIR/" >/dev/null
   docker exec "$CONTAINER" rm -rf "$temp_dir" >/dev/null
+  rm -rf "$stage_dir"
 }
 
 run_via_run() {
+  local config_name
+  config_name="$(basename "$CONFIG_PATH")"
   docker run --rm -i \
     --entrypoint python \
     --env-file "$ENV_FILE" \
-    -e ODPS_EXPORT_CONFIG="/project/$CONFIG_FILE" \
+    -e ODPS_EXPORT_CONFIG="/project/$config_name" \
     -v "$PROJECT_DIR:/project" \
     -v "$SCRIPT_DIR:/workspace-tools:ro" \
     -w /project \
     "$IMAGE" \
-    /workspace-tools/odps-export-runner.py --config "/project/$CONFIG_FILE" "$@"
+    /workspace-tools/odps-export-runner.py --config "/project/$config_name" "$@"
 }
 
 if [ "$MODE" = "exec" ]; then

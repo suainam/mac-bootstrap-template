@@ -1,0 +1,23 @@
+{
+  // Private X API MCP bridge credentials.
+  // Create the app in https://console.x.com and enable OAuth 2.0.
+  // Local callback for xurl MCP:
+  //   http://127.0.0.1:8080/callback
+
+  "provider": "x",
+  "mcp_server": "xapi",
+  "enabled": true,
+
+  "oauth": {
+    "callback_url": "http://127.0.0.1:8080/callback",
+    "client_id": "REPLACE_ME",
+    "client_secret": "REPLACE_ME"
+  },
+
+  "notes": {
+    "app_name": "",
+    "created_at": "",
+    "owner_account": "",
+    "scopes": []
+  }
+}

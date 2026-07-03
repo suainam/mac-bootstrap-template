@@ -67,6 +67,40 @@ name = "alice"
     assert '[user]' in stripped
 
 
+def test_strip_managed_sections_removes_x_servers():
+    text = """
+[mcp_servers.x-docs]
+url = "https://docs.x.com/mcp"
+
+[mcp_servers.xapi]
+command = "npx"
+
+[keep]
+value = 1
+""".strip()
+    stripped = sync_codex_mcp_config.strip_managed_sections(text)
+    assert "[mcp_servers.x-docs]" not in stripped
+    assert "[mcp_servers.xapi]" not in stripped
+    assert "[keep]" in stripped
+
+
+def test_strip_managed_sections_removes_agent_prompt_library():
+    text = """
+[mcp_servers.agent-prompt-library]
+command = "/home/alice/.local/bin/agent-prompt-mcp"
+
+[mcp_servers.agent-prompt-library.tools.search_prompts]
+approval_mode = "approve"
+
+[keep]
+value = 1
+""".strip()
+    stripped = sync_codex_mcp_config.strip_managed_sections(text)
+    assert "[mcp_servers.agent-prompt-library]" not in stripped
+    assert "[mcp_servers.agent-prompt-library.tools.search_prompts]" not in stripped
+    assert "[keep]" in stripped
+
+
 def test_sync_codex_main_writes_from_cli_args(tmp_path):
     config = tmp_path / "config.toml"
     block = tmp_path / "block.toml"

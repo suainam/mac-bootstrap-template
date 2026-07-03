@@ -15,6 +15,9 @@ MANAGED_PREFIXES = (
     "mcp_servers.codebase-memory-mcp",
     "mcp_servers.codebase-memory-mcp",
     "mcp_servers.codebase-memory",
+    "mcp_servers.agent-prompt-library",
+    "mcp_servers.x-docs",
+    "mcp_servers.xapi",
 )
 
 

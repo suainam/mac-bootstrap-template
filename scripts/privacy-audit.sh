@@ -90,6 +90,7 @@ allowed_url_hosts = {
     "cdn.jsdelivr.net",
     "github.com",
     "raw.githubusercontent.com",
+    "docs.x.com",
 }
 allowed_path_prefixes = ("private.example/",)
 skip_suffixes = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".sqlite", ".db")

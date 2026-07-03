@@ -34,6 +34,13 @@ def has_npm(name: str) -> bool:
     return result.returncode == 0
 
 
+def read_json(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(errors="ignore"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
 def brew_list(kind: str) -> set[str]:
     return {line for line in run_stdout("brew", "list", kind).splitlines() if line}
 
@@ -81,6 +88,51 @@ def check_managed_symlinks(template_root: Path, manifest: dict) -> bool:
             continue
 
         print(f"ok symlink: {link_path}")
+
+    return missing
+
+
+def check_chrome_gemini(manifest: dict) -> bool:
+    config = manifest.get("chrome_gemini", {})
+    if not config.get("enabled"):
+        return False
+
+    profile = config.get("profile", "Default")
+    chrome_root = Path.home() / "Library/Application Support/Google/Chrome"
+    local_state = read_json(chrome_root / "Local State")
+    preferences = read_json(chrome_root / profile / "Preferences")
+    missing = False
+
+    print("=== Chrome Gemini ===")
+    if not local_state and not preferences:
+        print(f"skip chrome gemini: Chrome profile data not found ({chrome_root})")
+        return False
+
+    profile_info = local_state.get("profile", {}).get("info_cache", {}).get(profile, {})
+    if profile_info.get("is_glic_eligible") is not True:
+        print(f"skip chrome gemini: profile {profile} is not marked Glic/Gemini eligible")
+        return False
+
+    launcher_enabled = local_state.get("glic", {}).get("launcher_enabled")
+    completed_fre = preferences.get("glic", {}).get("completed_fre")
+    side_panel_width = preferences.get("side_panel", {}).get("id_to_width", {}).get("kGlic")
+
+    if launcher_enabled is True:
+        print("ok chrome gemini: launcher enabled")
+    else:
+        print("missing chrome gemini: launcher is disabled in Chrome Local State")
+        missing = True
+
+    if completed_fre == 1:
+        print("ok chrome gemini: first-run flow completed")
+    else:
+        print("missing chrome gemini: first-run flow not completed")
+        missing = True
+
+    if side_panel_width:
+        print(f"ok chrome gemini: side panel width recorded ({side_panel_width})")
+    else:
+        print("warn chrome gemini: side panel width not recorded yet")
 
     return missing
 
@@ -146,6 +198,9 @@ def main(argv: list[str]) -> int:
             missing = True
 
     if check_managed_symlinks(template_root, manifest):
+        missing = True
+
+    if check_chrome_gemini(manifest):
         missing = True
 
     print("=== npm CLIs ===")

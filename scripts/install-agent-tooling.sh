@@ -13,6 +13,8 @@ MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
 . "$BOOTSTRAP/scripts/lib/agent-mcp.sh"
 . "$BOOTSTRAP/scripts/lib/agent-configure.sh"
 
+load_x_mcp_private_env
+
 usage() {
   cat <<'EOF'
 Usage: scripts/install-agent-tooling.sh [options]
@@ -35,6 +37,7 @@ Configuration performed with --configure:
   - Caveman ultra mode (default)
   - codebase-memory-mcp MCP
   - context7 docs MCP (for library documentation queries)
+  - X docs MCP (always) + optional X API MCP bridge via xurl
   - agent-prompt helper for local prompt-library lookup
   - Pi RTK extension
   - AgentShield security scan integration
@@ -141,7 +144,7 @@ configure_context_mode_step
 print_step_header "Step 5 — Caveman"
 configure_caveman_step
 
-print_step_header "Step 6 — Codebase Memory MCP + Context7"
+print_step_header "Step 6 — Codebase Memory MCP + Context7 + X Docs"
 ensure_codebase_memory_mcp
 if [ -z "$CONTEXT7_KEY" ]; then
   echo "  NOTE: CONTEXT7_API_KEY not set — context7 may have rate limits"

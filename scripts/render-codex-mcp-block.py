@@ -43,10 +43,34 @@ no_proxy = "{no_proxy}"
 """.strip()
 
 
+def x_docs_block() -> str:
+    return """
+[mcp_servers.x-docs]
+url = "https://docs.x.com/mcp"
+""".strip()
+
+
+def x_api_block(
+    enabled: bool,
+    command: str,
+) -> str:
+    if not enabled:
+        return ""
+    lines = [
+        "[mcp_servers.xapi]",
+        f'command = "{command}"',
+        'args = []',
+        "startup_timeout_sec = 300",
+    ]
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context7-command", required=True)
     parser.add_argument("--context7-api-key")
+    parser.add_argument("--enable-x-api", action="store_true")
+    parser.add_argument("--x-api-command", default="x-mcp-bridge.sh")
     args = parser.parse_args()
 
     context7_args = []
@@ -128,6 +152,7 @@ args = []
 [mcp_servers.agent-prompt-library.tools.search_prompts]
 approval_mode = "approve"
 """.strip(),
+        x_docs_block(),
     ]
 
     context7_block = [
@@ -136,6 +161,13 @@ approval_mode = "approve"
         f'args = [{", ".join(context7_args)}]',
     ]
     sections.append("\n".join(context7_block))
+
+    xapi = x_api_block(
+        enabled=args.enable_x_api,
+        command=args.x_api_command,
+    )
+    if xapi:
+        sections.append(xapi)
 
     proxy = proxy_block()
     if proxy:

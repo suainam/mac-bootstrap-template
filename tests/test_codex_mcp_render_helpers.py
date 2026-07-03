@@ -63,3 +63,16 @@ def test_render_codex_main_npx_with_api_key(monkeypatch, capsys):
     assert 'command = "npx"' in out
     assert 'args = ["-y", "@upstash/context7-mcp", "--api-key", "abc"]' in out
     assert '[mcp_servers.context7.env]' in out
+    assert '[mcp_servers.x-docs]' in out
+
+
+def test_x_api_block_disabled_by_default():
+    assert render_codex_mcp_block.x_api_block(False, "npx") == ""
+
+
+def test_x_api_block_emits_env_when_enabled():
+    block = render_codex_mcp_block.x_api_block(True, "/tmp/x-mcp-bridge.sh")
+    assert 'command = "/tmp/x-mcp-bridge.sh"' in block
+    assert "args = []" in block
+    assert "startup_timeout_sec = 300" in block
+    assert "[mcp_servers.xapi.env]" not in block
