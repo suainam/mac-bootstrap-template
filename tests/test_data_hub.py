@@ -1,0 +1,49 @@
+import os
+import sys
+from pathlib import Path
+import pytest
+
+# 添加脚本目录到 sys.path
+scripts_dir = Path(__file__).parent.parent / "agent" / "data-hub"
+sys.path.insert(0, str(scripts_dir))
+
+import ingest_logs
+import daily_summary
+
+def test_clean_xml_tags():
+    text_with_metadata = "Hello <ADDITIONAL_METADATA>some metadata</ADDITIONAL_METADATA> World"
+    assert ingest_logs.clean_xml_tags(text_with_metadata) == "Hello  World"
+
+    text_with_settings = "Test <USER_SETTINGS_CHANGE>settings changed</USER_SETTINGS_CHANGE> Passed"
+    assert ingest_logs.clean_xml_tags(text_with_settings) == "Test  Passed"
+
+    text_with_html = "<USER_REQUEST>This is a request</USER_REQUEST>"
+    assert ingest_logs.clean_xml_tags(text_with_html) == "This is a request"
+
+def test_is_system_boilerplate():
+    assert ingest_logs.is_system_boilerplate("你是一名资深产品数据分析师的工作助理。今天是...") == True
+    assert ingest_logs.is_system_boilerplate("The user changed their mind") == True
+    assert ingest_logs.is_system_boilerplate("# AGENTS.md instructions for...") == True
+    assert ingest_logs.is_system_boilerplate(">>> TRANSCRIPT START") == True
+    assert ingest_logs.is_system_boilerplate("System: context injected") == True
+    
+    # Valid user messages
+    assert ingest_logs.is_system_boilerplate("帮我跑一下 docker images") == False
+    assert ingest_logs.is_system_boilerplate("修改为 sqlite 存储") == False
+
+def test_compute_hash():
+    h1 = ingest_logs.compute_hash("test string")
+    h2 = ingest_logs.compute_hash("test string")
+    h3 = ingest_logs.compute_hash("different string")
+    
+    assert h1 == h2
+    assert h1 != h3
+
+def test_daily_summary_helpers():
+    # 简单的格式测试
+    today = daily_summary.today_str()
+    assert len(today.split("-")) == 3
+    
+    file_path = daily_summary.get_daily_file(today)
+    assert file_path.name == f"{today}.md"
+    assert file_path.parent.name == "daily"
