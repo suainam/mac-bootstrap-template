@@ -72,6 +72,11 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
                 "deferred": "defer",
                 "merged": "merge",
             }.get(row["status"], "pending")
+            source_path = meta.get("path", "")
+            source_label = f"`{meta.get('source_type', 'unknown')}` / `{meta.get('document_title', '')}`"
+            if source_path:
+                source_label += f" / `{Path(source_path).name}`"
+            extracted_item_id = row["extracted_item_id"] if "extracted_item_id" in row.keys() else ""
             parts.extend(
                 [
                     "",
@@ -80,7 +85,8 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
                     f"- status: `{row['status']}`",
                     f"- review_action: `{review_action}`",
                     f"- confidence: `{float(row['confidence']):.2f}`",
-                    f"- source: `{meta.get('source_type', 'unknown')}` / `{meta.get('document_title', '')}`",
+                    f"- source: {source_label}",
+                    f"- trace: `{extracted_item_id}`" if extracted_item_id else "- trace: (unknown)",
                     f"- suggested_action: `{candidate_type}`",
                     f"- suggested_path: `{path_hint}`",
                     "- review_note: ",

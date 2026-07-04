@@ -140,7 +140,7 @@ def fetch_candidates(conn: sqlite3.Connection, target_date: str) -> list[sqlite3
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, candidate_type, status, title, content, confidence, metadata_json, materialized_path
+        SELECT id, extracted_item_id, candidate_type, status, title, content, confidence, metadata_json, materialized_path
         FROM knowledge_candidates
         WHERE candidate_date = ?
         ORDER BY candidate_type ASC, confidence DESC, rowid ASC

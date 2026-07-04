@@ -83,6 +83,22 @@ AGENT_DB_PATH="$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.
 - `.obsidian/plugins/periodic-notes/data.json`
 - `.obsidian/plugins/templater-obsidian/data.json`
 
+## Canonical State vs Projection
+
+数据层有两种角色，不能混淆：
+
+| 角色 | 实体 | 特性 |
+|------|------|------|
+| **Canonical State** | SQLite（`agent_history.db`） | 唯一真相，只增不删（除孤儿清理），所有状态以此为准 |
+| **Projection** | Obsidian vault 笔记 | 可由 SQLite 重建，允许被 LLM/人工覆盖，不是 source of truth |
+
+推论：
+- Obsidian 日报、ADR、Cards — 丢了可重建，跑 `materialize_candidates.py` 还原
+- SQLite 里的 `review_action`（accept/reject）— 不可从 vault 反推，必须备份 DB
+- `generate_candidates.py` 生成的 review markdown — 是 Projection，幂等重写无损
+
+备份策略：只需备份 `AGENT_DB_PATH`，vault 内容可重建。
+
 ## 幂等性约定
 
 | 脚本 | 幂等策略 |
