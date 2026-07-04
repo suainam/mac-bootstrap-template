@@ -6,18 +6,30 @@
 
 | 任务 | 命令 |
 |------|------|
-| 一键跑完整链路 | `bash .agents/skills/knowledge-source-ingestion/scripts/run-full-cycle.sh "$HOME/work/config/mac-bootstrap" $(date +%F)` |
-| 手动补跑日报 | 见下方第 1 节 |
+| 晚间全链路（自动） | `bash template/agent/data-hub/run-daily-evening.sh` |
+| 手动补跑指定日期 | 见下方第 1 节 |
+| 查看执行日志 | `sqlite3 $AGENT_DB_PATH "SELECT * FROM execution_log WHERE execution_date = '2026-07-04'"` |
+| 查看候选审核结果 | `sqlite3 $AGENT_DB_PATH "SELECT candidate_date, status, COUNT(*) FROM knowledge_candidates GROUP BY candidate_date, status"` |
 | 重刷日志入库 | 见下方第 2 节 |
 | 查看数据库 | `sqlite3 "$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db" ".tables"` |
 
-## 1. 手动补跑日报
+## 1. 手动补跑指定日期
 
 ```bash
-cd ~/work/config/mac-bootstrap/template/agent/data-hub
-source ~/work/config/mac-bootstrap/.venv/bin/activate
-export $(grep -v '^#' ../../../private/agent/.obsidian_daily.env | xargs)
-python3 daily_summary.py 2026-07-02
+cd ~/work/config/mac-bootstrap
+
+# 补跑全链路
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-02
+
+# 或跑命名 workflow
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow daily_ingest_and_review --date 2026-07-02
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow daily_promote_and_summary --date 2026-07-02
+
+# 或保留旧别名
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py --review-only --date 2026-07-02
 ```
 
 说明：参数直接传日期，格式 `YYYY-MM-DD`。
@@ -96,17 +108,8 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-bash .agents/skills/knowledge-source-ingestion/scripts/run-full-cycle.sh \
-  $HOME/work/config/mac-bootstrap \
-  2026-07-04
-```
-
-加上候选物化（当天已人工审核完）：
-
-```bash
-APPLY_REVIEWED=1 bash .agents/skills/knowledge-source-ingestion/scripts/run-full-cycle.sh \
-  $HOME/work/config/mac-bootstrap \
-  2026-07-04
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-04
 ```
 
 ## 8. 回归测试与 2.0 seam 验收
@@ -118,11 +121,18 @@ UV_CACHE_DIR=.uv-cache uv run pytest \
   tests/test_data_hub_sources.py \
   tests/test_candidate_review.py \
   tests/test_materialization.py \
-  tests/test_daily_workflows.py \
+  tests/test_phase4_weekly_summary.py \
+  tests/test_daily_summary_runtime.py \
+  tests/test_ingest_logs_runtime.py \
+  tests/test_claim_extraction.py \
+  tests/test_auto_review.py \
+  tests/test_hygiene_audit.py \
   -q
 ```
 
-关键回归点：HTML wiki adapter 抽取、日期归因策略、重跑不冲掉审核状态、孤儿候选清理、materialization 幂等性、workflow seam 结构化输出。
+生命周期覆盖：source ingest → claim extract → auto review → materialize → daily/weekly synthesis → hygiene audit（共 7 个环节，85 个测试）。
+
+关键回归点：HTML wiki adapter 抽取、日期归因策略、重跑不冲掉审核状态、孤儿候选清理、materialization 幂等性、置信度阈值边界（daily/card 0.8，adr 0.85）、hygiene audit 孤儿/重复/broken materialization 检测。
 
 Workflow dry-run：
 
@@ -132,6 +142,7 @@ cd $HOME/work/config/mac-bootstrap/template
 .venv/bin/python agent/data-hub/knowledge_workflows.py daily_promote_and_summary 2026-07-04 --dry-run
 .venv/bin/python agent/data-hub/knowledge_workflows.py weekly_hygiene_and_reuse 2026-07-04 --dry-run
 .venv/bin/python agent/data-hub/knowledge_workflows.py source_adapter_upgrade 2026-07-04 --dry-run
+.venv/bin/python agent/data-hub/knowledge_workflows.py full_cycle 2026-07-04 --dry-run
 ```
 
 ## 9. 晨间脚本验证

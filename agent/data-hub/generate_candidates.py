@@ -18,11 +18,12 @@ if str(CURRENT_DIR) not in sys.path:
 from candidate_review_io import render_candidate_markdown, stable_candidate_id
 from candidate_store import (
     fetch_candidates,
-    get_db_connection,
     iter_source_rows,
     prune_stale_candidates,
     upsert_candidates,
 )
+from db_helper import get_db_connection as get_shared_db_connection
+from execution_logger import ExecutionLogger
 
 
 def load_env() -> None:
@@ -45,17 +46,26 @@ CANDIDATE_DIR = OBSIDIAN_VAULT_DIR / "60_Inbox" / "Candidates"
 def main() -> None:
     target_date = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y-%m-%d")
     CANDIDATE_DIR.mkdir(parents=True, exist_ok=True)
-    conn = get_db_connection()
+
+    conn = get_shared_db_connection()
+    logger = ExecutionLogger(conn, target_date)
+
+    log_id = logger.start("generate_candidates")
     try:
         prune_stale_candidates(conn)
         changed = upsert_candidates(conn, target_date, iter_source_rows(conn, target_date), stable_candidate_id)
         rows = fetch_candidates(conn, target_date)
+
+        out_path = CANDIDATE_DIR / f"{target_date}.md"
+        out_path.write_text(render_candidate_markdown(target_date, rows), encoding="utf-8")
+        print(f"[generate_candidates] {target_date}: {len(changed)} upserted, {len(rows)} candidates -> {out_path}")
+
+        logger.complete(log_id, records_affected=len(changed))
+    except Exception as e:
+        logger.fail(log_id, str(e))
+        raise
     finally:
         conn.close()
-
-    out_path = CANDIDATE_DIR / f"{target_date}.md"
-    out_path.write_text(render_candidate_markdown(target_date, rows), encoding="utf-8")
-    print(f"[generate_candidates] {target_date}: {len(changed)} upserted, {len(rows)} candidates -> {out_path}")
 
 
 if __name__ == "__main__":

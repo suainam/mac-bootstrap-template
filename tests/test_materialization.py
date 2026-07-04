@@ -1,6 +1,7 @@
 import sys
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 
 SCRIPTS_DIR = Path(__file__).parent.parent / "agent" / "data-hub"
@@ -125,3 +126,49 @@ def test_apply_review_actions_updates_status_and_materialized_path(tmp_path: Pat
     note_path = vault_dir / row["materialized_path"]
     assert note_path.exists()
     assert "candidate_id: cand_demo_adr" in note_path.read_text(encoding="utf-8")
+
+
+def test_materialize_main_does_not_regenerate_candidates(tmp_path: Path, monkeypatch):
+    db_path = seed_document_with_candidate(tmp_path)
+    vault_dir = tmp_path / "vault"
+    candidate_dir = vault_dir / "60_Inbox" / "Candidates"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    (candidate_dir / "2026-07-04.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "type: candidate-review",
+                "date: 2026-07-04",
+                "status: active",
+                "---",
+                "",
+                "## ADR",
+                "",
+                "### 采用 filename_first",
+                "- candidate_id: `cand_demo_adr`",
+                "- review_action: `accept`",
+                "- review_note: 进入 ADR",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(materialize_candidates, "OBSIDIAN_VAULT_DIR", vault_dir)
+    monkeypatch.setattr(materialize_candidates, "CANDIDATE_DIR", candidate_dir)
+    monkeypatch.setattr(materialize_candidates, "get_db_connection", lambda: source_ingest_store.get_db_connection(db_path))
+    monkeypatch.setattr(materialize_candidates, "sys", SimpleNamespace(argv=["materialize_candidates.py", "2026-07-04"]))
+
+    materialize_candidates.main()
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT status, materialized_path FROM knowledge_candidates WHERE id = ?",
+            ("cand_demo_adr",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["status"] == "accepted"
+    assert row["materialized_path"].startswith("40_Knowledge/ADR/")

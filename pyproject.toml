@@ -17,6 +17,8 @@ testpaths = ["tests"]
 [tool.coverage.run]
 branch = true
 include = [
+    "agent/data-hub/*.py",
+    "agent/data-hub/source_adapters/*.py",
     "scripts/check-python-syntax.py",
     "scripts/render-codex-mcp-block.py",
     "scripts/run-doctor-checks.py",

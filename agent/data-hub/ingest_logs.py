@@ -14,6 +14,13 @@ from datetime import datetime
 from pathlib import Path
 import hashlib
 
+CURRENT_DIR = Path(__file__).resolve().parent
+if str(CURRENT_DIR) not in sys.path:
+    sys.path.insert(0, str(CURRENT_DIR))
+
+from db_helper import get_db_connection as get_shared_db_connection
+from execution_logger import ExecutionLogger
+
 # 读取环境变量
 def load_env():
     env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
@@ -30,23 +37,10 @@ load_env()
 DB_PATH = Path(os.path.expandvars(os.environ.get("AGENT_DB_PATH", str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"))))
 
 # Agent 数据目录
-AGY_BRAIN_DIR = Path.home() / ".gemini" / "antigravity-cli" / "brain"
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 OPENCODE_SESSIONS_DIR = Path.home() / ".config" / "opencode" / "sessions"
 CODEX_SESSIONS_DIR = OPENCODE_SESSIONS_DIR if OPENCODE_SESSIONS_DIR.exists() else Path.home() / ".codex" / "sessions"
 
-def get_db_connection():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    
-    # Auto-initialize schema if tables are missing
-    schema_path = Path(__file__).parent / "schema.sql"
-    if schema_path.exists():
-        conn.executescript(schema_path.read_text())
-    
-    return conn
 
 def compute_hash(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()
@@ -68,6 +62,7 @@ def is_system_boilerplate(text: str) -> bool:
 def ingest_claude(conn):
     if not CLAUDE_PROJECTS_DIR.exists(): return
     cursor = conn.cursor()
+    records_count = 0
     
     for proj_dir in CLAUDE_PROJECTS_DIR.iterdir():
         user = os.environ.get("USER", "your_name")
@@ -116,13 +111,16 @@ def ingest_claude(conn):
                                     INSERT INTO messages (session_id, timestamp, role, content)
                                     VALUES (?, ?, ?, ?)
                                 """, (session_id, ts, 'user', text))
+                                records_count += 1
             except Exception as e:
                 print(f"Error parsing Claude file {f}: {e}")
     conn.commit()
+    return records_count
 
 def ingest_codex(conn):
     if not CODEX_SESSIONS_DIR.exists(): return
     cursor = conn.cursor()
+    records_count = 0
     
     # 扫描最近一年的文件夹 (结构: year/month/day/xxx.jsonl)
     for year_dir in CODEX_SESSIONS_DIR.iterdir():
@@ -164,13 +162,17 @@ def ingest_codex(conn):
                                         INSERT INTO messages (session_id, timestamp, role, content)
                                         VALUES (?, ?, ?, ?)
                                     """, (session_id, ts, 'user', text))
+                                    records_count += 1
             except Exception as e:
                 print(f"Error parsing Codex file {f}: {e}")
     conn.commit()
+    return records_count
 
 def ingest_agy(conn):
+    AGY_BRAIN_DIR = Path.home() / ".gemini" / "antigravity-cli" / "brain"
     if not AGY_BRAIN_DIR.exists(): return
     cursor = conn.cursor()
+    records_count = 0
     
     for sid in AGY_BRAIN_DIR.iterdir():
         transcript = sid / ".system_generated" / "logs" / "transcript.jsonl"
@@ -201,28 +203,47 @@ def ingest_agy(conn):
                                 INSERT INTO messages (session_id, timestamp, role, content)
                                 VALUES (?, ?, ?, ?)
                             """, (session_id, ts, 'user', text))
+                            records_count += 1
         except Exception as e:
             print(f"Error parsing AGY file {transcript}: {e}")
     conn.commit()
+    return records_count
 
 def main():
     print("Connecting to DB:", DB_PATH)
-    conn = get_db_connection()
-    
-    print("Ingesting Claude logs...")
-    ingest_claude(conn)
-    
-    print("Ingesting Codex logs...")
-    ingest_codex(conn)
-    
-    print("Ingesting AGY logs...")
-    ingest_agy(conn)
-    
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM messages")
-    count = cursor.fetchone()[0]
-    print(f"Ingestion complete. Total messages in DB: {count}")
-    conn.close()
+    conn = get_shared_db_connection()
+    execution_date = datetime.now().strftime("%Y-%m-%d")
+    logger = ExecutionLogger(conn, execution_date)
+
+    log_id = logger.start("ingest_logs")
+    total_records = 0
+    try:
+        print("Ingesting Claude logs...")
+        count = ingest_claude(conn)
+        total_records += count
+        print(f"  -> {count} new messages")
+
+        print("Ingesting Codex logs...")
+        count = ingest_codex(conn)
+        total_records += count
+        print(f"  -> {count} new messages")
+
+        print("Ingesting AGY logs...")
+        count = ingest_agy(conn)
+        total_records += count
+        print(f"  -> {count} new messages")
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM messages")
+        total_count = cursor.fetchone()[0]
+        print(f"Ingestion complete. Total messages in DB: {total_count}")
+
+        logger.complete(log_id, records_affected=total_records)
+    except Exception as e:
+        logger.fail(log_id, str(e))
+        raise
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     main()

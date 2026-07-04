@@ -4,6 +4,7 @@
 # 此脚本将配置并启动以下定时任务：
 #   09:00  → daily_morning.sh (创建日报 + 迁移昨日计划)
 #   18:00  → run-daily-evening.sh (全链路：ingest → auto_review → materialize → summary)
+#   周五/节前 18:00  → weekly_summary.py (生成周报)
 
 set -euo pipefail
 
@@ -14,9 +15,11 @@ LOG_DIR="$HOME/Library/Logs/agent-data-hub"
 
 MORNING_LABEL="com.${USER}.daily-morning"
 EVENING_LABEL="com.${USER}.daily-evening"
+WEEKLY_LABEL="com.${USER}.weekly-summary"
 
 MORNING_PLIST="$LAUNCH_AGENTS_DIR/${MORNING_LABEL}.plist"
 EVENING_PLIST="$LAUNCH_AGENTS_DIR/${EVENING_LABEL}.plist"
+WEEKLY_PLIST="$LAUNCH_AGENTS_DIR/${WEEKLY_LABEL}.plist"
 
 PYTHON="$(which python3)"
 
@@ -24,7 +27,7 @@ mkdir -p "$LOG_DIR"
 
 # ── 卸载模式 ─────────────────────────────────────────────
 if [[ "${1:-}" == "--uninstall" ]]; then
-  for label in "$MORNING_LABEL" "$EVENING_LABEL"; do
+  for label in "$MORNING_LABEL" "$EVENING_LABEL" "$WEEKLY_LABEL"; do
     launchctl unload "$LAUNCH_AGENTS_DIR/${label}.plist" 2>/dev/null && echo "已卸载 $label" || true
     rm -f "$LAUNCH_AGENTS_DIR/${label}.plist"
   done
@@ -34,6 +37,7 @@ fi
 
 chmod +x "$SCRIPTS_DIR/daily_morning.sh"
 chmod +x "$SCRIPTS_DIR/run-daily-evening.sh"
+chmod +x "$SCRIPTS_DIR/weekly_summary.py"
 
 # ── 1. 晨间任务: 09:00 创建日报 ──────────────────────────
 cat > "$MORNING_PLIST" << EOF
@@ -111,8 +115,82 @@ cat > "$EVENING_PLIST" << PLIST_EOF
 </plist>
 PLIST_EOF
 
+# ── 3. 周报任务: 每个工作日 18:00 (脚本内判断是否需要生成) ────
+cat > "$WEEKLY_PLIST" << PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${WEEKLY_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${PYTHON}</string>
+        <string>${SCRIPTS_DIR}/weekly_summary.py</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Weekday</key>
+            <integer>1</integer>
+            <key>Hour</key>
+            <integer>18</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key>
+            <integer>2</integer>
+            <key>Hour</key>
+            <integer>18</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key>
+            <integer>3</integer>
+            <key>Hour</key>
+            <integer>18</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key>
+            <integer>4</integer>
+            <key>Hour</key>
+            <integer>18</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key>
+            <integer>5</integer>
+            <key>Hour</key>
+            <integer>18</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+    </array>
+    <key>StandardOutPath</key>
+    <string>${LOG_DIR}/weekly.log</string>
+    <key>StandardErrorPath</key>
+    <string>${LOG_DIR}/weekly.err</string>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>${HOME}</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+</dict>
+</plist>
+PLIST_EOF
+
 # ── 加载任务 ─────────────────────────────────────────────
-for plist in "$MORNING_PLIST" "$EVENING_PLIST"; do
+for plist in "$MORNING_PLIST" "$EVENING_PLIST" "$WEEKLY_PLIST"; do
   launchctl unload "$plist" 2>/dev/null || true
   launchctl load "$plist"
   echo "✅ 已加载: $(basename "$plist")"
@@ -122,7 +200,9 @@ echo ""
 echo "🎉 Agent Data Hub 定时任务安装完成！"
 echo "   09:00  创建今日日报 + 迁移昨日计划"
 echo "   18:00  全链路：ingest → auto_review → materialize → summary"
+echo "   周五 18:00  生成周报"
 echo ""
 echo "日志目录: $LOG_DIR"
 echo "配置目录: $MAC_BOOTSTRAP_DIR/private/agent/.obsidian_daily.env"
 echo "手动测试晚间: bash $SCRIPTS_DIR/run-daily-evening.sh"
+echo "手动测试周报: ${PYTHON} $SCRIPTS_DIR/weekly_summary.py"

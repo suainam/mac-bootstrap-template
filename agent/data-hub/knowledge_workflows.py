@@ -14,6 +14,7 @@ from pathlib import Path
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
+TEMPLATE_DIR = CURRENT_DIR.parents[1]
 
 
 def get_runtime_python() -> str:
@@ -21,6 +22,18 @@ def get_runtime_python() -> str:
     if venv_python.exists():
         return str(venv_python)
     return sys.executable
+
+
+def supported_workflows() -> list[str]:
+    return [
+        "daily_ingest_and_review",
+        "daily_promote_and_summary",
+        "weekly_hygiene_and_reuse",
+        "source_adapter_upgrade",
+        "auto_review_only",
+        "materialize_only",
+        "full_cycle",
+    ]
 
 
 def build_workflow_steps(workflow_name: str, target_date: str) -> list[dict]:
@@ -53,6 +66,14 @@ def build_workflow_steps(workflow_name: str, target_date: str) -> list[dict]:
                 "produces": [f"60_Inbox/Candidates/{target_date}.md"],
             },
         ]
+    if workflow_name == "auto_review_only":
+        return [
+            {
+                "name": "knowledge-auto-review",
+                "command": [python, str(CURRENT_DIR / "auto_review.py"), target_date],
+                "produces": ["knowledge_candidates.status=accepted"],
+            },
+        ]
     if workflow_name == "daily_promote_and_summary":
         return [
             {
@@ -64,6 +85,14 @@ def build_workflow_steps(workflow_name: str, target_date: str) -> list[dict]:
                 "name": "knowledge-daily-weekly-synthesis",
                 "command": [python, str(CURRENT_DIR / "daily_summary.py"), target_date],
                 "produces": [f"10_Periodic/Daily/{target_date}.md"],
+            },
+        ]
+    if workflow_name == "materialize_only":
+        return [
+            {
+                "name": "knowledge-materialization",
+                "command": [python, str(CURRENT_DIR / "materialize_candidates.py"), target_date],
+                "produces": ["40_Knowledge/*", f"10_Periodic/Daily/{target_date}.md"],
             },
         ]
     if workflow_name == "weekly_hygiene_and_reuse":
@@ -88,9 +117,15 @@ def build_workflow_steps(workflow_name: str, target_date: str) -> list[dict]:
             },
             {
                 "name": "source-regression-tests",
-                "command": [python, "-m", "pytest", "tests/test_data_hub_sources.py", "-q"],
+                "command": [python, "-m", "pytest", str(TEMPLATE_DIR / "tests" / "test_data_hub_sources.py"), "-q"],
                 "produces": ["pytest-report"],
             },
+        ]
+    if workflow_name == "full_cycle":
+        return [
+            *build_workflow_steps("daily_ingest_and_review", target_date),
+            *build_workflow_steps("auto_review_only", target_date),
+            *build_workflow_steps("daily_promote_and_summary", target_date),
         ]
     raise ValueError(f"unknown workflow: {workflow_name}")
 
@@ -116,7 +151,7 @@ def run_workflow(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run or inspect a knowledge lifecycle workflow.")
-    parser.add_argument("workflow")
+    parser.add_argument("workflow", choices=supported_workflows())
     parser.add_argument("target_date")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()

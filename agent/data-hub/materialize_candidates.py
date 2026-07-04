@@ -10,7 +10,6 @@ import json
 import os
 import re
 import sqlite3
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -218,21 +217,34 @@ def main() -> None:
             if row["materialized_path"]:
                 continue  # Already materialized
 
+            metadata = json.loads(row["metadata_json"] or "{}")
+            source = f"{metadata.get('source_type', 'unknown')} / {metadata.get('document_title', '')}"
+
             # Materialize based on candidate_type
             if row["candidate_type"] == "daily":
-                target_path = OBSIDIAN_VAULT_DIR / "10_Periodic" / "Daily" / f"{target_date}.md"
+                materialized_path = f"10_Periodic/Daily/{target_date}.md"
+                target_path = OBSIDIAN_VAULT_DIR / materialized_path
                 materialize_daily_candidate(target_path, row["id"], row["title"], row["content"])
-            elif row["candidate_type"] == "card":
-                target_path = materialize_card_or_adr(row, "card", target_date)
-            elif row["candidate_type"] == "adr":
-                target_path = materialize_card_or_adr(row, "adr", target_date)
+            elif row["candidate_type"] in {"card", "adr"}:
+                folder = "ADR" if row["candidate_type"] == "adr" else "Cards"
+                materialized_path = f"40_Knowledge/{folder}/{target_date}-{row['id'][-8:]}.md"
+                target_path = OBSIDIAN_VAULT_DIR / materialized_path
+                materialize_note_candidate(
+                    target_path,
+                    row["candidate_type"],
+                    target_date,
+                    row["title"],
+                    row["content"],
+                    source,
+                    row["id"],
+                )
             else:
                 continue
 
             # Update materialized_path
             conn.execute(
                 "UPDATE knowledge_candidates SET materialized_path = ? WHERE id = ?",
-                (str(target_path), row["id"])
+                (materialized_path, row["id"])
             )
             materialized += 1
 
@@ -245,10 +257,6 @@ def main() -> None:
         raise
     finally:
         conn.close()
-
-    # Regenerate candidate markdown
-    generator = Path(__file__).parent / "generate_candidates.py"
-    subprocess.run([sys.executable, str(generator), target_date], check=True)
 
 
 if __name__ == "__main__":

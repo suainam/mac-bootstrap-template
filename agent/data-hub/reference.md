@@ -83,6 +83,19 @@ AGENT_DB_PATH="$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.
 - `.obsidian/plugins/periodic-notes/data.json`
 - `.obsidian/plugins/templater-obsidian/data.json`
 
+### Dataview 路径约定（2026-07-05 修复）
+
+周报/月报/季报/年报模板用 `dv.pages('"文件夹路径"')` 聚合日报时，**必须使用完整大写路径，不能用小写缩写**：
+
+| 模板 | 正确查询 | 错误写法（大小写不匹配，返回空） |
+|------|---------|-------------------------------|
+| `weekly.md` | `dv.pages('"10_Periodic/Daily"')` | `dv.pages('"daily"')` |
+| `monthly.md` | `dv.pages('"10_Periodic/Daily"')` + `dv.pages('"10_Periodic/Weekly"')` | `dv.pages('"daily"')` |
+| `quarterly.md` | `dv.pages('"10_Periodic/Monthly"')` | `dv.pages('"monthly"')` |
+| `yearly.md` | `dv.pages('"10_Periodic/Quarterly"')` | `dv.pages('"quarterly"')` |
+
+Dataview 按文件夹路径过滤时**区分大小写**；vault 实际目录是 `Daily/`（大写），小写路径永远返回空集合。
+
 ## Canonical State vs Projection
 
 数据层有两种角色，不能混淆：

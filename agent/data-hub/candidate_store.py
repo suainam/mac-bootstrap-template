@@ -21,16 +21,11 @@ def load_env() -> None:
 
 load_env()
 
-DB_PATH = Path(os.path.expandvars(os.environ.get("AGENT_DB_PATH", str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"))))
-
 
 def get_db_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    schema_path = Path(__file__).parent / "schema.sql"
-    conn.executescript(schema_path.read_text())
-    return conn
+    """Get shared DB connection using db_helper."""
+    from db_helper import get_db_connection as get_shared_db_connection
+    return get_shared_db_connection()
 
 
 def candidate_type_for(item_type: str, confidence: float) -> str | None:
@@ -44,19 +39,31 @@ def candidate_type_for(item_type: str, confidence: float) -> str | None:
 
 
 def prune_stale_candidates(conn: sqlite3.Connection) -> None:
-    conn.execute(
+    stale_ids: list[str] = []
+    cursor = conn.execute(
         """
-        DELETE FROM knowledge_candidates
-        WHERE NOT EXISTS (
-                SELECT 1 FROM extracted_items
-                WHERE extracted_items.id = knowledge_candidates.extracted_item_id
-            )
-           OR NOT EXISTS (
-                SELECT 1 FROM source_documents
-                WHERE source_documents.id = knowledge_candidates.source_document_id
-            )
+        SELECT kc.id, kc.candidate_date, sd.path, sd.version_tag, sd.captured_at, sd.metadata_json
+        FROM knowledge_candidates kc
+        LEFT JOIN extracted_items ei ON ei.id = kc.extracted_item_id
+        LEFT JOIN source_documents sd ON sd.id = kc.source_document_id
         """
     )
+    for row in cursor.fetchall():
+        if row["path"] is None:
+            stale_ids.append(row["id"])
+            continue
+        if not document_matches_target(
+            row["path"],
+            row["version_tag"],
+            row["captured_at"],
+            row["metadata_json"],
+            row["candidate_date"],
+        ):
+            stale_ids.append(row["id"])
+
+    if stale_ids:
+        conn.executemany("DELETE FROM knowledge_candidates WHERE id = ?", [(candidate_id,) for candidate_id in stale_ids])
+        conn.commit()
 
 
 def iter_source_rows(conn: sqlite3.Connection, target_date: str) -> list[sqlite3.Row]:

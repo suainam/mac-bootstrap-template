@@ -157,6 +157,9 @@ def test_build_claim_packet_and_hygiene_report(tmp_path: Path, monkeypatch):
 def test_daily_workflows_define_and_run_expected_steps():
     ingest_steps = knowledge_workflows.build_workflow_steps("daily_ingest_and_review", "2026-07-04")
     promote_steps = knowledge_workflows.build_workflow_steps("daily_promote_and_summary", "2026-07-04")
+    full_cycle_steps = knowledge_workflows.build_workflow_steps("full_cycle", "2026-07-04")
+    review_only_steps = knowledge_workflows.build_workflow_steps("auto_review_only", "2026-07-04")
+    materialize_only_steps = knowledge_workflows.build_workflow_steps("materialize_only", "2026-07-04")
 
     assert [step["name"] for step in ingest_steps] == [
         "knowledge-reuse-retrieval",
@@ -166,6 +169,18 @@ def test_daily_workflows_define_and_run_expected_steps():
         "knowledge-candidate-review",
     ]
     assert [step["name"] for step in promote_steps] == [
+        "knowledge-materialization",
+        "knowledge-daily-weekly-synthesis",
+    ]
+    assert [step["name"] for step in review_only_steps] == ["knowledge-auto-review"]
+    assert [step["name"] for step in materialize_only_steps] == ["knowledge-materialization"]
+    assert [step["name"] for step in full_cycle_steps] == [
+        "knowledge-reuse-retrieval",
+        "knowledge-source-ingestion:logs",
+        "knowledge-source-ingestion:sources",
+        "knowledge-claim-extraction",
+        "knowledge-candidate-review",
+        "knowledge-auto-review",
         "knowledge-materialization",
         "knowledge-daily-weekly-synthesis",
     ]
@@ -184,3 +199,11 @@ def test_daily_workflows_define_and_run_expected_steps():
 
     assert len(seen) == 2
     assert [item["name"] for item in result] == ["knowledge-materialization", "knowledge-daily-weekly-synthesis"]
+
+
+def test_source_adapter_upgrade_uses_template_test_path():
+    steps = knowledge_workflows.build_workflow_steps("source_adapter_upgrade", "2026-07-04")
+
+    pytest_step = steps[1]["command"]
+    assert pytest_step[-2].endswith("test_data_hub_sources.py")
+    assert Path(pytest_step[-2]).is_absolute()

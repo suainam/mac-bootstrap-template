@@ -133,7 +133,7 @@ def fetch_broken_materializations(conn: sqlite3.Connection) -> list[dict]:
             )
             continue
         text = materialized_path.read_text(encoding="utf-8")
-        if row["candidate_id"] not in text:
+        if row["id"] not in text:
             broken.append(
                 {
                     "candidate_id": row["id"],

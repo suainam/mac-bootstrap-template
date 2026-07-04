@@ -18,8 +18,9 @@
 ## 3. 总结内容重复或覆盖异常
 
 检查顺序：
-1. `daily_summary.py` 的 `inject_summary_to_daily()`
-2. 日报模板中 `## AI 总结` 是否被手工改坏
+1. `obsidian_helper.write_daily_section()` 的替换逻辑
+2. 若是旧测试或旧脚本调用，检查 `daily_summary.py` 的兼容函数 `inject_summary_to_daily()`
+3. 日报模板中 `## AI 总结` 是否被手工改坏
 
 ## 4. 外部材料日期归因不符合预期
 
@@ -37,7 +38,35 @@
 2. `knowledge_candidates` 是否被孤儿清理误删
 3. 是否手工修改了 SQLite 或跳过了标准脚本
 
-## 6. Obsidian 打开日报/模板失败
+## 7. 晚间全链路未自动运行
+
+检查顺序：
+1. `~/Library/Logs/agent-data-hub/evening.log` 是否有输出
+2. launchd job 是否正常加载：`launchctl list | grep daily-evening`
+3. plist 时间是否正确：18:00 触发
+4. 脚本路径是否正确：`template/agent/data-hub/run-daily-evening.sh`
+
+## 8. 自动审核结果不符合预期
+
+检查顺序：
+1. 查看候选置信度：`sqlite3 $AGENT_DB_PATH "SELECT id, candidate_type, confidence, status FROM knowledge_candidates WHERE candidate_date = 'YYYY-MM-DD'"`
+2. 确认阈值：daily 0.8, card 0.8, adr 0.85
+3. 查看执行日志：`sqlite3 $AGENT_DB_PATH "SELECT * FROM execution_log WHERE step_name = 'auto_review' AND execution_date = 'YYYY-MM-DD'"`
+4. 若阈值需调整，编辑 `auto_review.py` 的 `THRESHOLDS` 常量
+
+## 9. 执行日志查询失败
+
+检查顺序：
+1. execution_log 表是否存在：`sqlite3 $AGENT_DB_PATH ".tables" | grep execution_log`
+2. schema.sql 是否已应用：`db_helper.get_db_connection()` 自动执行 schema
+3. 权限问题：DB 文件是否可写
+
+## 10. materialize_candidates.py 未找到 auto-accepted 候选
+
+检查顺序：
+1. auto_review 是否在 materialize 之前运行
+2. 候选状态：`SELECT status, COUNT(*) FROM knowledge_candidates WHERE candidate_date = 'YYYY-MM-DD' GROUP BY status`
+3. 执行日志确认步骤顺序：`SELECT step_name, started_at, status FROM execution_log WHERE execution_date = 'YYYY-MM-DD' ORDER BY started_at`
 
 检查插件配置是否仍指向旧目录（`daily/`、`weekly/` 等）。当前标准路径：
 

@@ -16,7 +16,7 @@ class ExecutionLogger:
 
     def start(self, step_name: str) -> str:
         """Start a step, return log_id."""
-        now = datetime.now().isoformat(timespec="seconds")
+        now = datetime.now().isoformat(timespec="microseconds")
         log_id = self._generate_id(step_name, now)
         self.conn.execute(
             """
@@ -31,7 +31,7 @@ class ExecutionLogger:
 
     def complete(self, log_id: str, records_affected: int = 0, metadata: dict | None = None):
         """Mark step as completed."""
-        now = datetime.now().isoformat(timespec="seconds")
+        now = datetime.now().isoformat(timespec="microseconds")
         metadata = metadata or {}
         self.conn.execute(
             """
@@ -45,7 +45,7 @@ class ExecutionLogger:
 
     def fail(self, log_id: str, error_message: str):
         """Mark step as failed."""
-        now = datetime.now().isoformat(timespec="seconds")
+        now = datetime.now().isoformat(timespec="microseconds")
         self.conn.execute(
             """
             UPDATE execution_log

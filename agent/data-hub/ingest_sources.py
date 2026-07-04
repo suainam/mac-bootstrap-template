@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -21,7 +22,9 @@ if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
 
 from source_adapters import iter_source_files, parse_source
-from source_ingest_store import get_db_connection, ingest_document
+from source_ingest_store import ingest_document
+from db_helper import get_db_connection as get_shared_db_connection
+from execution_logger import ExecutionLogger
 
 
 def load_env() -> None:
@@ -50,7 +53,11 @@ DB_PATH = Path(
 
 
 def main() -> None:
-    conn = get_db_connection(DB_PATH)
+    execution_date = datetime.now().strftime("%Y-%m-%d")
+    conn = get_shared_db_connection()
+    logger = ExecutionLogger(conn, execution_date)
+
+    log_id = logger.start("ingest_sources")
     ingested = 0
     total_chunks = 0
     total_items = 0
@@ -72,13 +79,17 @@ def main() -> None:
             ingested += 1
             print(f"[ingest_sources] {source_type}: {path.name} -> {chunk_count} chunks, {item_count} items")
         conn.commit()
+
+        print(
+            f"[ingest_sources] complete: {ingested} documents, "
+            f"{total_chunks} chunks, {total_items} extracted items"
+        )
+        logger.complete(log_id, records_affected=ingested)
+    except Exception as e:
+        logger.fail(log_id, str(e))
+        raise
     finally:
         conn.close()
-
-    print(
-        f"[ingest_sources] complete: {ingested} documents, "
-        f"{total_chunks} chunks, {total_items} extracted items"
-    )
 
 
 if __name__ == "__main__":

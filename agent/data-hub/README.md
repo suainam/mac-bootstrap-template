@@ -30,7 +30,14 @@
 
 ## Workflow 入口
 
-`knowledge_workflows.py` 固化了 4 条编排路径：
+对外统一入口是 `knowledge-lifecycle-manager`：
+
+```bash
+cd $HOME/work/config/mac-bootstrap
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py run --workflow full_cycle --date $(date +%F)
+```
+
+底层由 `knowledge_workflows.py` 维护标准 workflow registry：
 
 | Workflow | Skills |
 |----------|--------|
@@ -38,6 +45,9 @@
 | `daily_promote_and_summary` | materialization → daily-weekly-synthesis |
 | `weekly_hygiene_and_reuse` | hygiene-audit → reuse-retrieval |
 | `source_adapter_upgrade` | source-ingestion + regression tests |
+| `auto_review_only` | auto_review |
+| `materialize_only` | materialize |
+| `full_cycle` | ingest_and_review → auto_review → promote_and_summary |
 
 Dry-run 验证：
 
@@ -54,12 +64,21 @@ cd $HOME/work/config/mac-bootstrap/template
 | `ingest_sources.py` | 外部材料（meeting/wiki/xmind）→ source_documents/chunks/items |
 | `claim_extraction.py` | source items + chat → claim_packets + evidence_links |
 | `generate_candidates.py` | extracted_items → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
+| `auto_review.py` | 置信度阈值自动审核候选 → status='accepted' |
 | `materialize_candidates.py` | 读审核动作 → 落地 ADR/Card/日报插入 |
 | `daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
 | `hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
 | `knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
-| `knowledge_workflows.py` | 4 条编排路径入口 |
+| `knowledge_workflows.py` | workflow registry（实现层） |
+| `knowledge-lifecycle-manager` | 统一入口（运行 / 状态 / 健康检查） |
 | `daily_morning.sh` | 晨间自动建日报 + 迁移昨日计划 |
+| `run-daily-evening.sh` | 晚间全链路 manager adapter |
+
+**公用模块**：
+- `execution_logger.py` — 执行日志记录类，写 execution_log 表
+- `db_helper.py` — DB 连接与常用查询封装
+- `obsidian_helper.py` — Obsidian vault 读写（日报/周报）
+- `date_utils.py` — 工作日判断、周范围计算（chinese-calendar）
 
 ## Skill 对应关系
 
@@ -78,3 +97,38 @@ cd $HOME/work/config/mac-bootstrap/template
 已跑通全链路：chat logs / meetings / xmind / wiki pdf → SQLite → candidates → daily summary → Obsidian
 
 待增强：HTML table/callout 细结构、claims/evidence 证据链模型、OCR fallback、source family 扩展。
+
+## 测试
+
+**虚拟环境**：pytest 必须使用 `template/` 下的 venv，**不是** repo 根目录的 `.venv`。
+
+```bash
+# 正确：进 template/ 再用 .venv
+cd $HOME/work/config/mac-bootstrap/template
+.venv/bin/python -m pytest tests/ -q
+
+# 或从仓库根调用（指定完整路径）
+cd $HOME/work/config/mac-bootstrap
+template/.venv/bin/python -m pytest template/tests/ -q
+```
+
+> `uv` 等价写法（template/ 目录内）：
+> ```bash
+> cd $HOME/work/config/mac-bootstrap/template
+> UV_CACHE_DIR=.uv-cache uv run pytest tests/ -q
+> ```
+
+**当前覆盖**（85 个测试，覆盖率 ≥ 80%）：
+
+| 测试文件 | 覆盖环节 |
+|---------|---------|
+| `test_data_hub.py` | SQLite schema / 连接 |
+| `test_data_hub_sources.py` | source adapters / ingest |
+| `test_ingest_logs_runtime.py` | ingest_logs runtime |
+| `test_candidate_review.py` | generate_candidates |
+| `test_materialization.py` | materialize_candidates |
+| `test_daily_summary_runtime.py` | daily_summary |
+| `test_phase4_weekly_summary.py` | weekly_summary |
+| `test_claim_extraction.py` | claim_extraction（环节 3） |
+| `test_auto_review.py` | auto_review 阈值边界（环节 4） |
+| `test_hygiene_audit.py` | hygiene_audit 全检测项（环节 7） |

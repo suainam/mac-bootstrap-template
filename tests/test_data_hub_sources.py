@@ -311,6 +311,71 @@ def test_prune_stale_candidates_removes_orphans(tmp_path: Path):
     assert remaining == 0
 
 
+def test_prune_stale_candidates_removes_wrong_date_candidates(tmp_path: Path):
+    db_path = tmp_path / "agent_history.db"
+    source_path = tmp_path / "2026-05-14_meeting.md"
+    source_path.write_text("摘要\n待办\n· 拉取数据@南宗帅\n", encoding="utf-8")
+
+    title, chunks, items, metadata = parse_meeting_markdown(source_path)
+    content_hash = hash_text_file(source_path)
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        source_ingest_store.ingest_document(
+            conn,
+            "meeting_note",
+            source_path,
+            title,
+            chunks,
+            items,
+            {
+                **metadata,
+                "filename_date": "2026-05-14",
+                "landing_date": "2026-07-04",
+            },
+            content_hash,
+        )
+        doc_id = conn.execute("SELECT id FROM source_documents WHERE path = ?", (str(source_path),)).fetchone()[0]
+        extracted_item_id = conn.execute(
+            "SELECT id FROM extracted_items WHERE document_id = ? ORDER BY rowid LIMIT 1",
+            (doc_id,),
+        ).fetchone()[0]
+        now = datetime.now().isoformat(timespec="seconds")
+        conn.execute(
+            """
+            INSERT INTO knowledge_candidates
+                (id, extracted_item_id, source_document_id, candidate_date, candidate_type, status,
+                 title, content, confidence, metadata_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "cand_wrong_date",
+                extracted_item_id,
+                doc_id,
+                "2026-07-04",
+                "daily",
+                "pending",
+                "拉取数据",
+                "· 拉取数据@南宗帅",
+                0.9,
+                "{}",
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+
+        generate_candidates.prune_stale_candidates(conn)
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM knowledge_candidates WHERE id = ?",
+            ("cand_wrong_date",),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert remaining == 0
+
+
 def test_inject_summary_to_daily_rewrites_section_in_place(tmp_path: Path):
     daily_path = tmp_path / "2026-07-04.md"
     daily_path.write_text(

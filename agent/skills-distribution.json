@@ -18,6 +18,9 @@
         "opencode",
         "cross-agent"
       ]
+    },
+    "knowledge-lifecycle-manager": {
+      "scope": "project"
     }
   }
 }
