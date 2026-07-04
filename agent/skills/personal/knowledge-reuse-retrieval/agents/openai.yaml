@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Reuse Retrieval"
+  short_description: "Retrieve reusable knowledge packets"
+  default_prompt: "Use $knowledge-reuse-retrieval to collect reusable context before I start this task."

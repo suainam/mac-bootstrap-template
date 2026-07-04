@@ -72,6 +72,13 @@ baoyu-infographic
 baoyu-diagram
 langgpt-prompt-writer
 eval-loop
+knowledge-reuse-retrieval
+knowledge-claim-extraction
+knowledge-candidate-review
+knowledge-materialization
+knowledge-daily-weekly-synthesis
+knowledge-hygiene-audit
+knowledge-source-ingestion
 mac-bootstrap-maintenance
 network-path-triage
 franchise-store-sankey-analysis

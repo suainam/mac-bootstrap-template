@@ -16,8 +16,9 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 # 确保读取到了 OBSIDIAN_VAULT_DIR
-VAULT_DIR=$(eval echo "${OBSIDIAN_VAULT_DIR:-$HOME/work/projects/product_strategy}")
-DAILY_DIR="$VAULT_DIR/daily"
+VAULT_DIR=$(eval echo "${OBSIDIAN_VAULT_DIR:-$HOME/work/knowledge}")
+DAILY_SUBDIR="${OBSIDIAN_DAILY_DIR:-10_Periodic/Daily}"
+DAILY_DIR="$VAULT_DIR/$DAILY_SUBDIR"
 
 # ── 日期计算 ──────────────────────────────────────────────
 TODAY=$(date +%Y-%m-%d)

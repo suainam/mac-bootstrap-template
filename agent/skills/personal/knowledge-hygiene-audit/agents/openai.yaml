@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Hygiene Audit"
+  short_description: "Audit knowledge lifecycle health"
+  default_prompt: "Use $knowledge-hygiene-audit to inspect candidate, source, and materialization drift."

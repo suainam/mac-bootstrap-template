@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Candidate Review"
+  short_description: "Build and maintain candidate queues"
+  default_prompt: "Use $knowledge-candidate-review to refresh the candidate review queue for this date."

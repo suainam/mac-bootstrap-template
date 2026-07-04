@@ -1,61 +1,80 @@
-# Agent Data Hub & Daily Summary 系统运维手册
+# Agent Data Hub 运维手册
 
-本模块负责本地 AI 助手日志的定时抽取、摘要生成以及向 Obsidian 知识库的自动化回写。
+把 Agent 对话、Git 活动和外部材料（会议纪要/Wiki/XMind）汇总成可追溯的日报与知识沉淀流水线。
 
-## 架构概览 (Architecture)
+**文档导航**：
+- [ops.md](ops.md) — 日常运维命令
+- [reference.md](reference.md) — 目录约定、环境变量、Obsidian 插件、幂等性约定
+- [troubleshooting.md](troubleshooting.md) — 故障排查
+- [upgrade_plan.md](upgrade_plan.md) — 目标设计稿
 
-1. **`ingest_logs.py` (日志增量抓取)**
-   - 抓取本地 `~/.gemini/antigravity-cli/brain/` 下的 `transcript.jsonl` 文件。
-   - 解析用户的输入和工具调用的执行情况。
-   - 增量入库至 `private/agent/data/agent_history.db` (SQLite)。
+## 当前架构
 
-2. **`daily_summary.py` (日报总结与回写)**
-   - 从 `agent_history.db` 查询指定日期（默认昨日）的所有交互。
-   - 根据 `agent/skills/daily-tagger/SKILL.md` 的提示词规范，调用大语言模型进行分类和总结。
-   - 自动寻找 Obsidian Vault 中对应的 `YYYY-MM-DD.md` 日报文件，并执行幂等（Idempotent）更新（无缝替换 `## AI 总结` 标签后的内容）。
+边界约定：
 
-3. **`daily_morning.sh` (晨间初始化守护脚本)**
-   - 定时执行（如每天 08:30），自动以标准模板创建当天的 `YYYY-MM-DD.md`。
-   - 自动将前一日遗留的“明日计划” Task (`- [ ]`) 迁移到今天的“今日重点”中。
-   - 触发 macOS 本地弹窗通知提醒。
+- `SQLite` 是事件账本，保存原始日志和结构化结果
+- `Obsidian Vault` 是展示层和人工编辑层
+- `data-hub` 脚本负责采集、汇总、写回，不直接充当知识库
 
-4. **`launchd/install_obsidian_jobs.sh` (定时任务注入)**
-   - 将上述 bash 和 python 脚本打包为 macOS `launchd` plist 配置。
-   - 接管原本的 crontab，提供更原生的后台运行和唤醒能力。
+2.0 主流程：
 
----
-
-## 环境变量配置 (.env)
-
-数据中心的所有运行依赖位于 `private/agent/.obsidian_daily.env`，必须包含以下核心变量：
-```bash
-OBSIDIAN_VAULT_DIR="/Users/suai/work/knowledge"
-DATA_HUB_DB_PATH="/Users/suai/work/config/mac-bootstrap/private/agent/data/agent_history.db"
-# 以及你提供给 Python 脚本调用的大模型 API 密钥（如 OPENAI_API_KEY 或 ANTHROPIC_API_KEY）
+```
+1. preflight retrieve  →  knowledge_retrieval.py
+2. source ingest       →  ingest_logs.py + ingest_sources.py
+3. claim extract       →  claim_extraction.py
+4. candidate review    →  generate_candidates.py
+5. materialize         →  materialize_candidates.py
+6. daily synthesis     →  daily_summary.py
+7. hygiene audit       →  hygiene_audit.py
 ```
 
----
+## Workflow 入口
 
-## 日常运维与故障排查
+`knowledge_workflows.py` 固化了 4 条编排路径：
 
-### 1. 手动补跑 (Backfill) 某日的总结
-如果由于断网或关机导致昨天的 AI 总结没有成功生成，你可以手动进入本目录执行：
+| Workflow | Skills |
+|----------|--------|
+| `daily_ingest_and_review` | reuse-retrieval → source-ingestion → claim-extraction → candidate-review |
+| `daily_promote_and_summary` | materialization → daily-weekly-synthesis |
+| `weekly_hygiene_and_reuse` | hygiene-audit → reuse-retrieval |
+| `source_adapter_upgrade` | source-ingestion + regression tests |
+
+Dry-run 验证：
+
 ```bash
-# 激活环境（确保有相关 python 包如 sqlite3, openai 等）
-source /Users/suai/work/config/mac-bootstrap/.venv/bin/activate
-export $(grep -v '^#' ../../private/agent/.obsidian_daily.env | xargs)
-
-# 强制重跑特定日期的日志解析与总结
-python3 daily_summary.py --date 2026-07-02
+cd $HOME/work/config/mac-bootstrap/template
+.venv/bin/python agent/data-hub/knowledge_workflows.py daily_ingest_and_review $(date +%F) --dry-run
 ```
 
-### 2. 数据库查看
-整个历史对话都离线存在于 SQLite 中。如果你想看最近解析到了哪些对话，可以使用：
-```bash
-sqlite3 ../../private/agent/data/agent_history.db "SELECT timestamp, user_prompt FROM conversations ORDER BY timestamp DESC LIMIT 5;"
-```
-如果发现某些记录没有解析进去，可以执行 `python3 ingest_logs.py --full-refresh` 强行清空并全量重刷。
+## 组件职责速查
 
-### 3. 日志诊断
-如果 MacOS 的定时任务没有按预期工作，通过 launchd 查看标准错误输出（在 plist 配置中定义的位置），或者直接查看脚本运行时抛出的 stdout/stderr。
-如果总结发生“无限重复粘贴”，请检查 `daily_summary.py` 中的正则表达式清洗逻辑是否被意外破坏。当前设计已自带幂等保护机制。
+| 脚本 | 职责 |
+|------|------|
+| `ingest_logs.py` | 采集 Claude/Codex/Gemini 日志 → SQLite sessions/messages |
+| `ingest_sources.py` | 外部材料（meeting/wiki/xmind）→ source_documents/chunks/items |
+| `claim_extraction.py` | source items + chat → claim_packets + evidence_links |
+| `generate_candidates.py` | extracted_items → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
+| `materialize_candidates.py` | 读审核动作 → 落地 ADR/Card/日报插入 |
+| `daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
+| `hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
+| `knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
+| `knowledge_workflows.py` | 4 条编排路径入口 |
+| `daily_morning.sh` | 晨间自动建日报 + 迁移昨日计划 |
+
+## Skill 对应关系
+
+7 个 knowledge-* skills 位于 `template/agent/skills/personal/`，project-scoped（仅 mac-bootstrap 项目内可用）：
+
+- `knowledge-source-ingestion`
+- `knowledge-reuse-retrieval`
+- `knowledge-claim-extraction`
+- `knowledge-candidate-review`
+- `knowledge-materialization`
+- `knowledge-daily-weekly-synthesis`
+- `knowledge-hygiene-audit`
+
+## 当前状态
+
+已跑通全链路：chat logs / meetings / xmind / wiki pdf → SQLite → candidates → daily summary → Obsidian
+
+待增强：HTML table/callout 细结构、claims/evidence 证据链模型、OCR fallback、source family 扩展。

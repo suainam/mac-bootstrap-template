@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Claim Extraction"
+  short_description: "Extract typed claims from sources"
+  default_prompt: "Use $knowledge-claim-extraction to turn these landed sources into claim packets."

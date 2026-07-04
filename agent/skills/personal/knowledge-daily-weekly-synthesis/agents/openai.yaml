@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Daily Weekly Synthesis"
+  short_description: "Generate daily or weekly synthesis"
+  default_prompt: "Use $knowledge-daily-weekly-synthesis to generate today's knowledge summary."

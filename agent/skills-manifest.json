@@ -29,6 +29,13 @@
     "mac-bootstrap": {
       "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills",
       "skills": [
+        "knowledge-candidate-review",
+        "knowledge-claim-extraction",
+        "knowledge-daily-weekly-synthesis",
+        "knowledge-hygiene-audit",
+        "knowledge-materialization",
+        "knowledge-reuse-retrieval",
+        "knowledge-source-ingestion",
         "mac-bootstrap-maintenance",
         "network-path-triage"
       ]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Knowledge Materialization"
+  short_description: "Promote accepted candidates safely"
+  default_prompt: "Use $knowledge-materialization to materialize accepted candidates into the vault."

@@ -1,7 +1,5 @@
-import os
 import sys
 from pathlib import Path
-import pytest
 
 # 添加脚本目录到 sys.path
 scripts_dir = Path(__file__).parent.parent / "agent" / "data-hub"
@@ -40,10 +38,9 @@ def test_compute_hash():
     assert h1 != h3
 
 def test_daily_summary_helpers():
-    # 简单的格式测试
     today = daily_summary.today_str()
     assert len(today.split("-")) == 3
     
     file_path = daily_summary.get_daily_file(today)
     assert file_path.name == f"{today}.md"
-    assert file_path.parent.name == "daily"
+    assert file_path.parent.name == "Daily"
