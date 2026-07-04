@@ -99,3 +99,21 @@ CREATE TABLE IF NOT EXISTS knowledge_candidates (
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_date ON knowledge_candidates(candidate_date, status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_type ON knowledge_candidates(candidate_type, status);
+
+-- Execution log table for pipeline traceability
+CREATE TABLE IF NOT EXISTS execution_log (
+    id TEXT PRIMARY KEY,
+    execution_date TEXT NOT NULL,
+    step_name TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),
+    records_affected INTEGER,
+    error_message TEXT,
+    metadata_json TEXT,
+    UNIQUE(execution_date, step_name, started_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_execution_log_date ON execution_log(execution_date, status);
+CREATE INDEX IF NOT EXISTS idx_execution_log_step ON execution_log(step_name, started_at DESC);
+
