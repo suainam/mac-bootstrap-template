@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 from candidate_review_io import ReviewItem, parse_candidate_review
+from db_helper import get_db_connection
+from execution_logger import ExecutionLogger
 
 
 def load_env() -> None:
@@ -33,14 +35,6 @@ load_env()
 OBSIDIAN_VAULT_DIR = Path(os.path.expandvars(os.environ.get("OBSIDIAN_VAULT_DIR", str(Path.home() / "work/knowledge"))))
 DB_PATH = Path(os.path.expandvars(os.environ.get("AGENT_DB_PATH", str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"))))
 CANDIDATE_DIR = OBSIDIAN_VAULT_DIR / "60_Inbox" / "Candidates"
-
-def get_db_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    schema_path = Path(__file__).parent / "schema.sql"
-    conn.executescript(schema_path.read_text())
-    return conn
 
 
 def materialize_daily_candidate(target_path: Path, candidate_id: str, title: str, content: str) -> None:
@@ -200,24 +194,61 @@ def apply_review_actions(conn: sqlite3.Connection, target_date: str, review_item
 
 def main() -> None:
     target_date = sys.argv[1] if len(sys.argv) > 1 else datetime.now().strftime("%Y-%m-%d")
-    review_path = CANDIDATE_DIR / f"{target_date}.md"
-    if not review_path.exists():
-        raise SystemExit(f"candidate review file not found: {review_path}")
-
-    review_items = parse_candidate_review(review_path)
     conn = get_db_connection()
+    logger = ExecutionLogger(conn, target_date)
+    log_id = logger.start("materialize_candidates")
+
     try:
-        changed, materialized = apply_review_actions(conn, target_date, review_items)
+        # First, apply human review from markdown if exists
+        review_path = CANDIDATE_DIR / f"{target_date}.md"
+        changed = 0
+        if review_path.exists():
+            review_items = parse_candidate_review(review_path)
+            changed, _ = apply_review_actions(conn, target_date, review_items)
+
+        # Then materialize all accepted candidates (auto or manual)
+        cursor = conn.execute(
+            "SELECT * FROM knowledge_candidates WHERE candidate_date = ? AND status = 'accepted'",
+            (target_date,)
+        )
+        accepted_candidates = cursor.fetchall()
+        materialized = 0
+
+        for row in accepted_candidates:
+            if row["materialized_path"]:
+                continue  # Already materialized
+
+            # Materialize based on candidate_type
+            if row["candidate_type"] == "daily":
+                target_path = OBSIDIAN_VAULT_DIR / "10_Periodic" / "Daily" / f"{target_date}.md"
+                materialize_daily_candidate(target_path, row["id"], row["title"], row["content"])
+            elif row["candidate_type"] == "card":
+                target_path = materialize_card_or_adr(row, "card", target_date)
+            elif row["candidate_type"] == "adr":
+                target_path = materialize_card_or_adr(row, "adr", target_date)
+            else:
+                continue
+
+            # Update materialized_path
+            conn.execute(
+                "UPDATE knowledge_candidates SET materialized_path = ? WHERE id = ?",
+                (str(target_path), row["id"])
+            )
+            materialized += 1
+
+        conn.commit()
+        logger.complete(log_id, records_affected=materialized, metadata={"changed": changed, "materialized": materialized})
+        print(f"[materialize_candidates] {target_date}: {changed} reviewed, {materialized} materialized")
+
+    except Exception as e:
+        logger.fail(log_id, str(e))
+        raise
     finally:
         conn.close()
 
+    # Regenerate candidate markdown
     generator = Path(__file__).parent / "generate_candidates.py"
     subprocess.run([sys.executable, str(generator), target_date], check=True)
-
-    print(
-        f"[materialize_candidates] {target_date}: {changed} reviewed, "
-        f"{materialized} materialized from {review_path}"
-    )
 
 
 if __name__ == "__main__":
