@@ -26,6 +26,33 @@ from candidate_store import (
 )
 from db_helper import get_db_connection as get_shared_db_connection
 from execution_logger import ExecutionLogger
+from llm_filter import filter_candidates_batch, FilterResult
+import sqlite3
+
+def _apply_llm_enrichment(
+    conn: sqlite3.Connection,
+    pairs: list[tuple[dict | sqlite3.Row, FilterResult]],
+    target_date: str,
+) -> None:
+    """Overwrite title/confidence/review_note in DB with LLM-enriched values."""
+    now = datetime.now().isoformat(timespec="seconds")
+    for candidate, result in pairs:
+        if result.title_summary:
+            if isinstance(candidate, sqlite3.Row):
+                extracted_item_id = candidate["extracted_item_id"] if "extracted_item_id" in candidate.keys() else candidate.get("id", "")
+            else:
+                extracted_item_id = candidate.get("extracted_item_id") or candidate.get("id", "")
+                
+            conn.execute(
+                """
+                UPDATE knowledge_candidates
+                SET title = ?, confidence = ?, review_note = ?, updated_at = ?
+                WHERE extracted_item_id = ? AND candidate_date = ?
+                """,
+                (result.title_summary, result.confidence, result.reason, now,
+                 extracted_item_id, target_date),
+            )
+    conn.commit()
 
 
 def load_env() -> None:
@@ -55,8 +82,21 @@ def main() -> None:
     log_id = logger.start("generate_candidates")
     try:
         prune_stale_candidates(conn)
-        source_changed = upsert_candidates(conn, target_date, iter_source_rows(conn, target_date), stable_candidate_id)
-        chat_changed = upsert_chat_candidates(conn, target_date, iter_chat_rows(conn, target_date), stable_candidate_id)
+        
+        raw_source = list(iter_source_rows(conn, target_date))
+        raw_chat = list(iter_chat_rows(conn, target_date))
+        
+        filtered_source_pairs = filter_candidates_batch(raw_source, "external")
+        filtered_chat_pairs = filter_candidates_batch(raw_chat, "chat_response")
+        
+        filtered_source = [c for c, _ in filtered_source_pairs]
+        filtered_chat = [c for c, _ in filtered_chat_pairs]
+        
+        source_changed = upsert_candidates(conn, target_date, filtered_source, stable_candidate_id)
+        chat_changed = upsert_chat_candidates(conn, target_date, filtered_chat, stable_candidate_id)
+        
+        _apply_llm_enrichment(conn, filtered_source_pairs + filtered_chat_pairs, target_date)
+        
         changed = [*source_changed, *chat_changed]
         rows = fetch_candidates(conn, target_date)
 
