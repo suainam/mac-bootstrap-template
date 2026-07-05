@@ -112,54 +112,83 @@ def _build_external_prompt(candidate: dict | sqlite3.Row) -> str:
 type_correct 可选值：daily（行动/待办）、adr（架构决策）、card（知识点）"""
 
 
-def _call_llm(prompt: str, cfg: dict[str, Any]) -> str:
-    import sys
-    # Try API backends
-    for backend in cfg.get("backends", []):
+class LLMBackend:
+    def __init__(self, name: str):
+        self.name = name
+
+    def generate(self, prompt: str) -> str:
+        raise NotImplementedError
+
+class OpenAIAPIBackend(LLMBackend):
+    def __init__(self, cfg: dict[str, Any]):
+        super().__init__(cfg.get("name", "openai"))
+        self.base_url = cfg["base_url"]
+        self.api_key = cfg.get("api_key", "sk-placeholder")
+        self.model = cfg["model"]
+        self.timeout = cfg.get("timeout", 30)
+
+    def generate(self, prompt: str) -> str:
+        import sys
         try:
-            client = openai.OpenAI(
-                base_url=backend["base_url"],
-                api_key=backend.get("api_key", "sk-placeholder"),
-            )
+            client = openai.OpenAI(base_url=self.base_url, api_key=self.api_key)
             resp = client.chat.completions.create(
-                model=backend["model"],
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                timeout=backend.get("timeout", 30),
+                timeout=self.timeout,
             )
             return resp.choices[0].message.content or ""
         except openai.OpenAIError as e:
-            print(f"OpenAI error with backend {backend.get('name')}: {e}", file=sys.stderr)
-        except Exception as e:
-            print(f"Unexpected error with backend {backend.get('name')}: {e}", file=sys.stderr)
-            
-    # Try CLI fallbacks
-    for cli in cfg.get("cli_fallbacks", ["codex", "agy", "opencode", "claude"]):
+            print(f"OpenAI error with backend {self.name}: {e}", file=sys.stderr)
+            return ""
+
+class CLIBackend(LLMBackend):
+    def __init__(self, cli_name: str):
+        super().__init__(cli_name)
+
+    def generate(self, prompt: str) -> str:
+        import sys
+        cmd: list[str] = []
+        input_data: str | None = None
+
+        if self.name == "codex":
+            cmd = ["codex", "exec"]
+            input_data = prompt
+        elif self.name == "opencode":
+            cmd = ["opencode", "run"]
+            input_data = prompt
+        elif self.name == "agy":
+            cmd = ["agy", "-p", prompt]
+        elif self.name == "claude":
+            cmd = ["claude", "-p", prompt]
+        else:
+            cmd = [self.name, "-p", prompt]
+
         try:
-            if cli == "codex":
-                cmd = ["codex", "exec"]
-                res = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=60)
-            elif cli == "opencode":
-                cmd = ["opencode", "run"]
-                res = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=60)
-            elif cli == "agy":
-                cmd = ["agy", "-p", prompt]
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            elif cli == "claude":
-                cmd = ["claude", "-p", prompt]
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            else:
-                cmd = [cli, "-p", prompt]
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            res = subprocess.run(cmd, input=input_data, capture_output=True, text=True, timeout=10)
             if res.returncode == 0 and res.stdout.strip():
                 return res.stdout.strip()
         except subprocess.SubprocessError as e:
-            print(f"Subprocess error with cli {cli}: {e}", file=sys.stderr)
-        except OSError as e:
-            # Command not found, etc.
+            print(f"Subprocess error with cli {self.name}: {e}", file=sys.stderr)
+        except OSError:
             pass
+        return ""
+
+def _call_llm(prompt: str, cfg: dict[str, Any]) -> str:
+    import sys
+    backends: list[LLMBackend] = []
+    for backend_cfg in cfg.get("backends", []):
+        backends.append(OpenAIAPIBackend(backend_cfg))
+    for cli in cfg.get("cli_fallbacks", ["codex", "agy", "opencode", "claude"]):
+        backends.append(CLIBackend(cli))
+
+    for backend in backends:
+        try:
+            res = backend.generate(prompt)
+            if res:
+                return res
         except Exception as e:
-            print(f"Unexpected error with cli {cli}: {e}", file=sys.stderr)
+            print(f"Unexpected error with backend {backend.name}: {e}", file=sys.stderr)
             
     return ""
 
