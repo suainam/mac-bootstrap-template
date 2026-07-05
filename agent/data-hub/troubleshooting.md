@@ -11,7 +11,7 @@
 ## 2. 摘要写回位置不对
 
 检查顺序：
-1. `.obsidian_daily.env` 中 `OBSIDIAN_DAILY_DIR`
+1. `data_hub.runtime.jsonc` 中 `paths.daily_dir`
 2. `daily_summary.py` 中的 `DAILY_DIR`
 3. Obsidian 插件配置是否仍残留旧路径
 

@@ -7,7 +7,6 @@ Agent Data Hub - Ingestion Script
 
 import json
 import hashlib
-import os
 import re
 import sqlite3
 import sys
@@ -19,27 +18,24 @@ if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
 
 from db_helper import get_db_connection as get_shared_db_connection
+from data_hub_config import get_runtime_config
 from execution_logger import ExecutionLogger
 
 # 读取环境变量
 def load_env():
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 load_env()
 
-DB_PATH = Path(os.path.expandvars(os.environ.get("AGENT_DB_PATH", str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"))))
+RUNTIME_CONFIG = get_runtime_config()
+DB_PATH = RUNTIME_CONFIG.paths.db_path
 
 # Agent 数据目录
-CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
-OPENCODE_SESSIONS_DIR = Path.home() / ".config" / "opencode" / "sessions"
-CODEX_SESSIONS_DIR = OPENCODE_SESSIONS_DIR if OPENCODE_SESSIONS_DIR.exists() else Path.home() / ".codex" / "sessions"
+CLAUDE_PROJECTS_DIR = RUNTIME_CONFIG.agent_logs.claude_projects_dir
+OPENCODE_SESSIONS_DIR = RUNTIME_CONFIG.agent_logs.opencode_sessions_dir
+CODEX_SESSIONS_DIR = RUNTIME_CONFIG.agent_logs.codex_sessions_dir
+AGY_BRAIN_DIR = RUNTIME_CONFIG.agent_logs.agy_brain_dir
+DEFAULT_AGY_BRAIN_DIR = Path.home() / ".gemini" / "antigravity-cli" / "brain"
 
 
 def compute_hash(text: str) -> str:
@@ -124,6 +120,7 @@ def ingest_claude(conn):
     records_count = 0
     
     for proj_dir in CLAUDE_PROJECTS_DIR.iterdir():
+        import os
         user = os.environ.get("USER", "your_name")
         if not proj_dir.is_dir() or proj_dir.name in (f"-Users-{user}", "-"):
             continue
@@ -194,14 +191,16 @@ def ingest_codex(conn):
     return records_count
 
 def ingest_agy(conn):
-    AGY_BRAIN_DIR = Path.home() / ".gemini" / "antigravity-cli" / "brain"
-    if not AGY_BRAIN_DIR.exists():
+    agy_brain_dir = AGY_BRAIN_DIR
+    if AGY_BRAIN_DIR == DEFAULT_AGY_BRAIN_DIR:
+        agy_brain_dir = Path.home() / ".gemini" / "antigravity-cli" / "brain"
+    if not agy_brain_dir.exists():
         return 0
     cursor = conn.cursor()
     records_count = 0
     malformed_lines = 0
     
-    for sid in AGY_BRAIN_DIR.iterdir():
+    for sid in agy_brain_dir.iterdir():
         transcript = sid / ".system_generated" / "logs" / "transcript.jsonl"
         if not transcript.exists(): continue
         

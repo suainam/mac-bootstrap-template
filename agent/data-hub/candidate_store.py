@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -12,13 +11,7 @@ from source_dates import document_matches_target
 
 
 def load_env() -> None:
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 
 load_env()

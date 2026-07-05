@@ -18,26 +18,21 @@ if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
 
 from source_dates import document_matches_target
+from data_hub_config import get_runtime_config
 from db_helper import get_db_connection as get_shared_db_connection
 from execution_logger import ExecutionLogger
 from obsidian_helper import ensure_daily_note, get_daily_dir, write_daily_section
 
 # 读取环境变量
 def load_env():
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 load_env()
 
-OBSIDIAN_VAULT_DIR = Path(os.path.expandvars(os.environ.get("OBSIDIAN_VAULT_DIR", str(Path.home() / "work/knowledge"))))
+RUNTIME_CONFIG = get_runtime_config()
+OBSIDIAN_VAULT_DIR = RUNTIME_CONFIG.paths.vault_dir
 DAILY_DIR = get_daily_dir()
-GIT_SEARCH_ROOTS = [Path(os.path.expandvars(p)) for p in os.environ.get("GIT_SEARCH_ROOTS", str(Path.home() / "work/projects")).split(",")]
+GIT_SEARCH_ROOTS = RUNTIME_CONFIG.paths.git_search_roots
 LOCAL_TIMEZONE = ZoneInfo(os.environ.get("TZ", "Asia/Shanghai"))
 BARE_SUMMARY_TAG_RE = re.compile(r"(?<![\w/#-])#(?:绩效|成长|复盘)(?![/\\-])(?=\s|$|[，。；、,.!?])")
 HIERARCHICAL_SUMMARY_TAG_RE = re.compile(r"#(绩效|成长|复盘)/([\w\u4e00-\u9fff]+)")
@@ -274,7 +269,7 @@ def build_summary_prompt(
     source_digest: str,
     candidate_digest: str,
 ) -> str:
-    tagger_path = Path.home() / "work/config/mac-bootstrap/template/agent/skills/daily-tagger/SKILL.md"
+    tagger_path = RUNTIME_CONFIG.paths.template_root / "agent" / "skills" / "daily-tagger" / "SKILL.md"
     return f"""
 基于以下信息，生成「AI 总结」节的内容，要求精炼、客观、有价值。
 只输出这部分的内容（Markdown 列表形式），不要输出其他问候语或解释。

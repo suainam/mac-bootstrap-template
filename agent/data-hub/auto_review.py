@@ -2,7 +2,6 @@
 """Auto-review candidates based on confidence thresholds."""
 from __future__ import annotations
 
-import os
 import json
 import sys
 from datetime import datetime
@@ -31,14 +30,7 @@ def has_metadata_json_column(conn) -> bool:
 
 
 def load_env() -> None:
-    """Load environment from .obsidian_daily.env."""
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 
 def auto_review_candidates(conn, target_date: str, logger: ExecutionLogger) -> dict:

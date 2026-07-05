@@ -7,7 +7,6 @@ materialize accepted items into the Obsidian vault.
 from __future__ import annotations
 
 import json
-import os
 import re
 import sqlite3
 import sys
@@ -15,24 +14,20 @@ from datetime import datetime
 from pathlib import Path
 
 from candidate_review_io import ReviewItem, parse_candidate_review
+from data_hub_config import get_runtime_config
 from db_helper import get_db_connection
 from execution_logger import ExecutionLogger
 
 
 def load_env() -> None:
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 
 load_env()
 
-OBSIDIAN_VAULT_DIR = Path(os.path.expandvars(os.environ.get("OBSIDIAN_VAULT_DIR", str(Path.home() / "work/knowledge"))))
-DB_PATH = Path(os.path.expandvars(os.environ.get("AGENT_DB_PATH", str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"))))
+RUNTIME_CONFIG = get_runtime_config()
+OBSIDIAN_VAULT_DIR = RUNTIME_CONFIG.paths.vault_dir
+DB_PATH = RUNTIME_CONFIG.paths.db_path
 CANDIDATE_DIR = OBSIDIAN_VAULT_DIR / "60_Inbox" / "Candidates"
 
 

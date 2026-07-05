@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -13,10 +12,10 @@ REPO_ROOT = Path(__file__).resolve().parents[6]
 TEMPLATE_ROOT = REPO_ROOT / "template"
 DATA_HUB = TEMPLATE_ROOT / "agent" / "data-hub"
 PYTHON = TEMPLATE_ROOT / ".venv" / "bin" / "python"
-DB_PATH = REPO_ROOT / "private" / "agent" / "data" / "agent_history.db"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(DATA_HUB))
+from data_hub_config import get_runtime_config
 from db_helper import get_db_connection
 import knowledge_workflows
 import manager_reporting
@@ -27,18 +26,11 @@ def default_target_date() -> str:
 
 
 def load_env() -> None:
-    """Load private environment."""
-    env_path = REPO_ROOT / "private" / "agent" / ".obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 
 def _db_path_from_env() -> Path:
-    return Path(os.path.expandvars(os.environ.get("AGENT_DB_PATH", str(DB_PATH))))
+    return get_runtime_config().paths.db_path
 
 
 def run_workflow(

@@ -11,7 +11,6 @@ Thin orchestration layer:
 
 from __future__ import annotations
 
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,32 +23,19 @@ if str(CURRENT_DIR) not in sys.path:
 from source_adapters import iter_source_files, parse_source
 from source_ingest_store import ingest_document
 from db_helper import get_db_connection as get_shared_db_connection
+from data_hub_config import get_runtime_config
 from execution_logger import ExecutionLogger
 
 
 def load_env() -> None:
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 
 load_env()
 
-OBSIDIAN_VAULT_DIR = Path(
-    os.path.expandvars(os.environ.get("OBSIDIAN_VAULT_DIR", str(Path.home() / "work/knowledge")))
-)
-DB_PATH = Path(
-    os.path.expandvars(
-        os.environ.get(
-            "AGENT_DB_PATH",
-            str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"),
-        )
-    )
-)
+RUNTIME_CONFIG = get_runtime_config()
+OBSIDIAN_VAULT_DIR = RUNTIME_CONFIG.paths.vault_dir
+DB_PATH = RUNTIME_CONFIG.paths.db_path
 
 
 def main() -> None:

@@ -130,7 +130,8 @@ Chat-derived candidates 的边界：只从 agent/assistant 回复中提炼建议
 注意事项：
 
 - 测试和生产脚本优先使用 `template/.venv/bin/python`，不要临时切到父仓库 `.venv`。
-- Shell 中显式设置的 `AGENT_DB_PATH`、`OBSIDIAN_VAULT_DIR` 等变量优先级高于 `private/agent/.obsidian_daily.env`；env 文件只补默认值。
+- 统一运行配置为 `private/agent/data_hub.runtime.jsonc`，公开样例见 `template/agent/data-hub/data_hub.runtime.jsonc.example`。它集中管理 paths、source inputs、agent log dirs、LLM backends 和 workflow 默认值。
+- 配置优先级：显式 shell 环境变量 > `data_hub.runtime.jsonc` > 代码默认值。不要再新增 `.env` 或 LLM-only 配置文件。
 - 新机器没有 Claude/Codex/AGY 历史日志目录时，`ingest_logs.py` 应返回 0 条记录并继续，而不是失败。
 - 没有真实 LLM CLI 或不想调用外部服务时，可以在隔离验收里用临时 `PATH` 注入 fake `agy`；真实运行时应配置 `agy` 或 `claude`。
 

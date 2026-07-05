@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Iterable
 
+from data_hub_config import SourceInput, get_runtime_config
+
 from .common import Chunk, Item, sha256_bytes, sha256_text
 from .meeting_markdown import parse as parse_meeting_markdown
 from .wiki_markdown import parse as parse_wiki_markdown
@@ -41,15 +43,31 @@ SOURCE_HANDLERS: dict[str, tuple[ParserFn, HashFn]] = {
 }
 
 
+class SourceAdapterRegistry:
+    def __init__(
+        self,
+        handlers: dict[str, tuple[ParserFn, HashFn]] | None = None,
+        inputs: list[SourceInput] | None = None,
+    ):
+        self.handlers = handlers or SOURCE_HANDLERS
+        self.inputs = inputs or get_runtime_config().sources
+
+    def iter_source_files(self, vault_dir: Path) -> Iterable[tuple[str, Path]]:
+        for source in self.inputs:
+            root = vault_dir / source.relative_root
+            if not root.exists():
+                continue
+            yield from ((source.source_type, path) for path in sorted(root.glob(source.pattern)))
+
+    def parse_source(self, source_type: str, path: Path) -> tuple[str, list[Chunk], list[Item], dict, str]:
+        parser, hash_fn = self.handlers[source_type]
+        title, chunks, items, metadata = parser(path)
+        return title, chunks, items, metadata, hash_fn(path)
+
+
 def iter_source_files(vault_dir: Path) -> Iterable[tuple[str, Path]]:
-    for source_type, (relative_root, pattern) in SOURCE_DIR_NAMES.items():
-        root = vault_dir / relative_root
-        if not root.exists():
-            continue
-        yield from ((source_type, path) for path in sorted(root.glob(pattern)))
+    yield from SourceAdapterRegistry().iter_source_files(vault_dir)
 
 
 def parse_source(source_type: str, path: Path) -> tuple[str, list[Chunk], list[Item], dict, str]:
-    parser, hash_fn = SOURCE_HANDLERS[source_type]
-    title, chunks, items, metadata = parser(path)
-    return title, chunks, items, metadata, hash_fn(path)
+    return SourceAdapterRegistry().parse_source(source_type, path)

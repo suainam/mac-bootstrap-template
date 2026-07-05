@@ -1,21 +1,15 @@
 """Database helper with common connection and queries."""
 from __future__ import annotations
 
-import os
 import sqlite3
 from pathlib import Path
+
+from data_hub_config import get_db_path
 
 
 def get_db_connection() -> sqlite3.Connection:
     """Get DB connection from AGENT_DB_PATH env var."""
-    db_path = Path(
-        os.path.expandvars(
-            os.environ.get(
-                "AGENT_DB_PATH",
-                str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"),
-            )
-        )
-    )
+    db_path = get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -79,4 +73,3 @@ def query_source_documents_count(conn: sqlite3.Connection) -> int:
 def query_candidates_count(conn: sqlite3.Connection) -> int:
     """Get total candidates count."""
     return conn.execute("SELECT COUNT(*) FROM knowledge_candidates").fetchone()[0]
-

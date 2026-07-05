@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import subprocess
 import time
 from datetime import datetime
@@ -11,6 +10,7 @@ from pathlib import Path
 from typing import Mapping, Any
 
 from db_helper import get_db_connection
+from data_hub_config import get_db_path, get_runs_dir as get_configured_runs_dir
 from workflow_contracts import StageSpec, evaluate_success_checks, normalize_stage
 
 
@@ -35,21 +35,11 @@ def hash_file(path: Path) -> str:
 
 
 def db_path_from_env() -> Path:
-    return Path(
-        os.path.expandvars(
-            os.environ.get(
-                "AGENT_DB_PATH",
-                str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"),
-            )
-        )
-    )
+    return get_db_path()
 
 
 def get_runs_dir() -> Path:
-    configured = os.environ.get("AGENT_RUNS_DIR")
-    if configured:
-        return Path(os.path.expandvars(configured))
-    return db_path_from_env().parent / "runs"
+    return get_configured_runs_dir()
 
 
 def generate_run_id(workflow_name: str, target_date: str) -> str:

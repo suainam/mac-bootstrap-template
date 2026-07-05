@@ -12,15 +12,29 @@ from pathlib import Path
 CURRENT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(CURRENT_DIR.parent / "agent" / "data-hub"))
 
+import data_hub_config
 from llm_filter import (
     FilterResult,
     load_backends,
+    build_prompt,
     deduplicate,
+    _extract_json_payload,
     _parse_llm_response,
+    _parse_llm_response_strict,
     _call_llm,
     score_one,
     filter_candidates_batch,
 )
+
+
+def configure_runtime_files(monkeypatch, tmp_path, runtime_text: str | None = None, legacy_text: str | None = None):
+    private = tmp_path / "private" / "agent"
+    private.mkdir(parents=True)
+    runtime = private / "data_hub.runtime.jsonc"
+    monkeypatch.setattr(data_hub_config, "RUNTIME_CONFIG", runtime)
+    if runtime_text is not None:
+        runtime.write_text(runtime_text)
+    return runtime
 
 
 def test_deduplicate_empty_list():
@@ -53,31 +67,38 @@ def test_deduplicate_keeps_distinct_candidates():
 
 
 def test_load_backends_missing_file_returns_defaults(tmp_path, monkeypatch):
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    configure_runtime_files(monkeypatch, tmp_path)
     cfg = load_backends()
     assert "backends" in cfg
-    assert cfg["cli_fallbacks"] == ["codex", "agy", "opencode", "claude"]
+    assert cfg["backends"] == []
 
 
 def test_load_backends_strips_comment_lines(tmp_path, monkeypatch):
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    p = tmp_path / "work/config/mac-bootstrap/private/agent"
-    p.mkdir(parents=True)
-    f = p / "llm_backends.jsonc"
-    f.write_text('{\n// comment\n"backends": []\n}')
+    configure_runtime_files(monkeypatch, tmp_path, runtime_text='{\n// comment\n"llm": {"backends": []}\n}')
     cfg = load_backends()
     assert cfg["backends"] == []
 
 
 def test_load_backends_valid_jsonc(tmp_path, monkeypatch):
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    p = tmp_path / "work/config/mac-bootstrap/private/agent"
-    p.mkdir(parents=True)
-    f = p / "llm_backends.jsonc"
-    f.write_text('{"backends": [{"name": "test"}], "cli_fallbacks": ["cli1"]}')
+    configure_runtime_files(
+        monkeypatch,
+        tmp_path,
+        runtime_text='{"llm": {"backends": [{"name": "test", "kind": "opencode_cli"}]}}',
+    )
     cfg = load_backends()
     assert cfg["backends"][0]["name"] == "test"
-    assert cfg["cli_fallbacks"] == ["cli1"]
+    assert cfg["backends"][0]["kind"] == "opencode_cli"
+
+
+def test_load_backends_runtime_cli_backends_are_ordered(tmp_path, monkeypatch):
+    configure_runtime_files(
+        monkeypatch,
+        tmp_path,
+        runtime_text='{"llm": {"backends": [{"name": "api", "kind": "openai_api", "base_url": "url", "model": "model"}, {"name": "opencode", "kind": "opencode_cli"}]}}',
+    )
+    cfg = load_backends()
+    assert [b["name"] for b in cfg["backends"]] == ["api", "opencode"]
+    assert [b["kind"] for b in cfg["backends"]] == ["openai_api", "opencode_cli"]
 
 
 def test_parse_llm_response_valid_json_keep_true():
@@ -109,14 +130,44 @@ def test_parse_llm_response_missing_fields_uses_defaults():
     assert res.confidence == 0.5
 
 
+def test_parse_llm_response_strict_rejects_missing_fields():
+    assert _parse_llm_response_strict('{"keep": true}') is None
+
+
+def test_parse_llm_response_strict_accepts_complete_schema():
+    raw = '{"keep": true, "type_correct": "card", "title_summary": "test", "confidence": 0.8, "reason": "ok"}'
+    res = _parse_llm_response_strict(raw)
+    assert res is not None
+    assert res.keep is True
+    assert res.type_correct == "card"
+
+
+def test_extract_json_payload_from_noisy_cli_output():
+    raw = '\x1b[0m\n> build · model\nlogs\n{"keep": true, "type_correct": "card", "title_summary": "ok", "confidence": 0.8, "reason": "ok"}\n'
+    payload = _extract_json_payload(raw)
+    assert json.loads(payload)["title_summary"] == "ok"
+
+
+def test_build_prompt_routes_chat_meeting_mind_map_and_wiki():
+    chat = build_prompt({"content": "done", "context_str": "q"}, "chat_response")
+    meeting = build_prompt({"content": "action", "title": "m", "source_type": "meeting_note"}, "external")
+    mind_map = build_prompt({"content": "topic", "title": "x", "source_type": "mind_map"}, "external")
+    wiki = build_prompt({"content": "rule", "title": "w", "source_type": "wiki_pdf"}, "external")
+    assert "助手回复" in chat
+    assert "会议纪要" in meeting
+    assert "思维导图" in mind_map
+    assert "稳定文档知识" in wiki
+
+
 @patch("openai.OpenAI")
 def test_call_llm_first_backend_succeeds(mock_openai):
     mock_client = MagicMock()
     mock_openai.return_value = mock_client
-    mock_client.chat.completions.create.return_value.choices[0].message.content = "result"
+    raw = '{"keep": true, "type_correct": "card", "title_summary": "test", "confidence": 0.8, "reason": "ok"}'
+    mock_client.chat.completions.create.return_value.choices[0].message.content = raw
     
-    cfg = {"backends": [{"base_url": "url", "model": "model"}], "cli_fallbacks": []}
-    assert _call_llm("prompt", cfg) == "result"
+    cfg = {"backends": [{"base_url": "url", "model": "model"}]}
+    assert _call_llm("prompt", cfg) == raw
 
 
 @patch("subprocess.run")
@@ -125,11 +176,50 @@ def test_call_llm_all_backends_fail_tries_cli(mock_openai, mock_run):
     mock_openai.side_effect = Exception("fail")
     mock_res = MagicMock()
     mock_res.returncode = 0
-    mock_res.stdout = "cli_result"
+    mock_res.stdout = '{"keep": true, "type_correct": "card", "title_summary": "cli", "confidence": 0.7, "reason": "ok"}'
     mock_run.return_value = mock_res
     
     cfg = {"backends": [{"base_url": "url", "model": "model"}], "cli_fallbacks": ["cli1"]}
-    assert _call_llm("prompt", cfg) == "cli_result"
+    assert _call_llm("prompt", cfg) == mock_res.stdout
+
+
+@patch("subprocess.run")
+@patch("openai.OpenAI")
+def test_call_llm_invalid_backend_response_falls_back_to_cli(mock_openai, mock_run):
+    mock_client = MagicMock()
+    mock_openai.return_value = mock_client
+    mock_client.chat.completions.create.return_value.choices[0].message.content = "<html>bad gateway</html>"
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+    mock_res.stdout = '{"keep": true, "type_correct": "card", "title_summary": "cli", "confidence": 0.7, "reason": "ok"}'
+    mock_run.return_value = mock_res
+
+    cfg = {"backends": [{"name": "huang-gpt", "base_url": "url", "model": "model"}], "cli_fallbacks": ["cli1"]}
+    assert _call_llm("prompt", cfg) == mock_res.stdout
+
+
+@patch("subprocess.run")
+def test_call_llm_opencode_extracts_json_from_noisy_output(mock_run):
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+    mock_res.stdout = '\x1b[0m\n> build · model\n{"keep": true, "type_correct": "card", "title_summary": "cli", "confidence": 0.7, "reason": "ok"}'
+    mock_res.stderr = ""
+    mock_run.return_value = mock_res
+
+    cfg = {"backends": [{"name": "opencode", "kind": "opencode_cli", "timeout": 10}]}
+    assert json.loads(_call_llm("prompt", cfg))["title_summary"] == "cli"
+
+
+@patch("subprocess.run")
+def test_call_llm_agy_empty_stdout_fails_open(mock_run):
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+    mock_res.stdout = ""
+    mock_res.stderr = ""
+    mock_run.return_value = mock_res
+
+    cfg = {"backends": [{"name": "agy", "kind": "agy_cli", "timeout": 10}]}
+    assert _call_llm("prompt", cfg) == ""
 
 
 @patch("llm_filter._call_llm")

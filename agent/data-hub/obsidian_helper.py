@@ -6,19 +6,18 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from data_hub_config import get_runtime_config
+
 
 def get_vault_dir() -> Path:
     """Get Obsidian vault directory from env."""
-    return Path(
-        os.path.expandvars(os.environ.get("OBSIDIAN_VAULT_DIR", str(Path.home() / "work/knowledge")))
-    )
+    return get_runtime_config().paths.vault_dir
 
 
 def get_daily_dir() -> Path:
     """Get daily notes directory."""
-    vault = get_vault_dir()
-    daily_subdir = os.environ.get("OBSIDIAN_DAILY_DIR", "10_Periodic/Daily")
-    return vault / daily_subdir
+    config = get_runtime_config()
+    return config.paths.vault_dir / config.paths.daily_dir
 
 
 def render_daily_note(date: str) -> str:

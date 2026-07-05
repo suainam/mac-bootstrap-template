@@ -21,14 +21,7 @@ from execution_logger import ExecutionLogger
 
 # 读取环境变量
 def load_env():
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 load_env()
 
@@ -194,4 +187,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

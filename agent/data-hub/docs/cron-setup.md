@@ -24,7 +24,7 @@ To enable notifications when failures are detected:
 export ENABLE_NOTIFICATIONS=true
 ```
 
-Add this to your `~/.zshrc` or `private/agent/.obsidian_daily.env` file.
+Add this to `private/agent/data_hub.runtime.jsonc`.
 
 ## Full Pipeline Automation
 

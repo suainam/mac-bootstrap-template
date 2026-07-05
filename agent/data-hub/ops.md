@@ -58,7 +58,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 ```bash
 cd ~/work/config/mac-bootstrap/template/agent/data-hub
 source ~/work/config/mac-bootstrap/.venv/bin/activate
-export $(grep -v '^#' ../../../private/agent/.obsidian_daily.env | xargs)
+test -f ../../../private/agent/data_hub.runtime.jsonc
 python3 ingest_logs.py
 ```
 

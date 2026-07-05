@@ -9,33 +9,20 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import sqlite3
 from pathlib import Path
 
+from data_hub_config import get_runtime_config
 from source_dates import document_matches_target
 
 
 def load_env() -> None:
-    env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    return None
 
 
 load_env()
 
-DB_PATH = Path(
-    os.path.expandvars(
-        os.environ.get(
-            "AGENT_DB_PATH",
-            str(Path.home() / "work/config/mac-bootstrap/private/agent/data/agent_history.db"),
-        )
-    )
-)
+DB_PATH = get_runtime_config().paths.db_path
 
 
 SOURCE_ITEM_TO_CLAIM_TYPE = {

@@ -6,9 +6,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from data_hub_config import get_vault_dir as get_configured_vault_dir
+
 
 def get_vault_dir() -> Path:
-    return Path(os.path.expandvars(os.environ.get("OBSIDIAN_VAULT_DIR", str(Path.home() / "work/knowledge"))))
+    return get_configured_vault_dir()
 
 
 @dataclass(frozen=True)

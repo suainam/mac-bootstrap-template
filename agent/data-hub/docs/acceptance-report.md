@@ -34,7 +34,7 @@ backup_log: status=completed, count=1
 | claude CLI | `command -v claude` | available |
 | repo gate | `make check` | 收尾阶段重新执行，见第 9 节 |
 
-实际配置由 `manager.py` 加载 `private/agent/.obsidian_daily.env` 后得到：
+实际配置由 `manager.py` 通过 `private/agent/data_hub.runtime.jsonc` 得到：
 
 ```text
 AGENT_DB_PATH=$REPO/private/agent/data/agent_history.db
@@ -586,7 +586,7 @@ legacy error marker: absent
 
 - 可执行 workflow/scripts：`ingest_*.py`、`generate_candidates.py`、`materialize_candidates.py`、`daily_summary.py`、`knowledge_workflows.py` 等。
 - 一线文档：`README.md`、`ops.md`、`reference.md`、`troubleshooting.md`。
-- 契约/配置：`schema.sql`、`config.env.example`。
+- 契约/配置：`schema.sql`、`data_hub.runtime.jsonc.example`。
 
 支持材料移动到 `docs/`：
 

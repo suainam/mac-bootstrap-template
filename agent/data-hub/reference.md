@@ -46,30 +46,33 @@
 
 `knowledge/` 给人和 Obsidian 用；`data/agent-hub/` 给脚本和中间产物。
 
-## 环境变量
+## 运行配置
 
-配置文件：`private/agent/.obsidian_daily.env`
+主配置文件：`private/agent/data_hub.runtime.jsonc`，公开样例：
+`template/agent/data-hub/data_hub.runtime.jsonc.example`。
 
-```bash
-OBSIDIAN_VAULT_DIR="$HOME/work/knowledge"
-OBSIDIAN_DAILY_DIR="10_Periodic/Daily"
-GIT_SEARCH_ROOTS="$HOME/work/config,$HOME/work/projects"
-AGENT_DB_PATH="$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db"
-# AGENT_RUNS_DIR="$HOME/work/config/mac-bootstrap/private/agent/data/runs"
-# EXTERNAL_SOURCE_DATE_MODE="filename_first"  # 默认值，一般不需要改
-```
+该文件集中管理：
 
-| 变量 | 说明 |
+- `paths`：repo、template、data-hub、SQLite、vault、runs、Git 搜索根
+- `sources.inputs`：会议纪要、思维导图、Wiki 等来源目录和文件 pattern
+- `agent_logs`：Claude/Codex/OpenCode/AGY 日志目录
+- `llm`：有序 LLM backend fallback 列表和过滤阈值
+- `workflow`：durable workflow 默认参数
+
+不要再新增 `.env` 或 LLM-only 配置文件。
+
+| 配置键 | 说明 |
 |------|------|
-| `OBSIDIAN_VAULT_DIR` | Vault 根目录 |
-| `OBSIDIAN_DAILY_DIR` | 日报子目录（相对 Vault） |
-| `GIT_SEARCH_ROOTS` | Git 活动搜索根，逗号分隔 |
-| `AGENT_DB_PATH` | SQLite 账本绝对路径 |
-| `AGENT_RUNS_DIR` | durable workflow stdout/stderr 日志目录，默认在 DB 同级 `runs/` |
-| `EXTERNAL_SOURCE_DATE_MODE` | 外部材料日期归因策略，默认 `filename_first` |
+| `paths.vault_dir` | Vault 根目录 |
+| `paths.daily_dir` | 日报子目录（相对 Vault） |
+| `paths.git_search_roots` | Git 活动搜索根，逗号分隔 |
+| `paths.db_path` | SQLite 账本绝对路径 |
+| `paths.runs_dir` | durable workflow stdout/stderr 日志目录，默认在 DB 同级 `runs/` |
+| `sources.inputs` | 外部材料来源目录和文件 pattern |
+| `agent_logs` | Claude/Codex/OpenCode/AGY 日志目录 |
+| `llm.backends` | 有序 LLM fallback 列表 |
 
-优先级：调用命令时显式传入的 shell 环境变量优先，`private/agent/.obsidian_daily.env`
-只补缺省值。隔离验收、临时 DB、临时 vault 或 CI 环境应使用显式 env，避免误读真实
+优先级：调用命令时显式传入的 shell 环境变量 > `data_hub.runtime.jsonc` > 代码默认值。隔离验收、临时 DB、临时 vault 或 CI 环境应使用显式 env，避免误读真实
 `~/work/knowledge` 或 private DB。
 
 ## Obsidian 插件约定
