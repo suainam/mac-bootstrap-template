@@ -136,7 +136,18 @@ def _call_llm(prompt: str, cfg: dict[str, Any]) -> str:
     # Try CLI fallbacks
     for cli in cfg.get("cli_fallbacks", ["codex", "agy", "opencode", "claude"]):
         try:
-            res = subprocess.run([cli, "-p", prompt], capture_output=True, text=True, timeout=60)
+            if cli == "codex":
+                cmd = ["codex", "exec", prompt]
+            elif cli == "opencode":
+                cmd = ["opencode", "run", prompt]
+            elif cli == "agy":
+                cmd = ["agy", "-p", prompt]
+            elif cli == "claude":
+                cmd = ["claude", "-p", prompt]
+            else:
+                cmd = [cli, "-p", prompt]
+                
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if res.returncode == 0 and res.stdout.strip():
                 return res.stdout.strip()
         except subprocess.SubprocessError as e:
