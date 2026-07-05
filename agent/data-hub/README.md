@@ -76,8 +76,8 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 | `ingest_logs.py` | 采集 Claude/Codex/Gemini 日志 → SQLite sessions/messages |
 | `ingest_sources.py` | 外部材料（meeting/wiki/xmind）→ source_documents/chunks/items |
 | `claim_extraction.py` | source items + chat → claim_packets + evidence_links |
-| `generate_candidates.py` | extracted_items → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
-| `auto_review.py` | 置信度阈值自动审核候选 → status='accepted' |
+| `generate_candidates.py` | extracted_items + chat claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
+| `auto_review.py` | 外部材料候选按置信度阈值自动审核；chat candidates 保持 pending |
 | `materialize_candidates.py` | 读审核动作 → 落地 ADR/Card/日报插入 |
 | `daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
 | `hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
@@ -178,7 +178,7 @@ find "$OBSIDIAN_VAULT_DIR" -maxdepth 5 -type f | sort
 2026-07-05 本机验收记录：
 
 - 依赖：`python3 3.13.13`，`template/.venv/bin/python 3.13.13`，`uv 0.11.26`，`sqlite3 3.51.0`。
-- 基线测试：Data Hub 相关 pytest `110 passed`。
+- 基线测试：Data Hub 相关 pytest `115 passed`。
 - 恢复路径：第一次 `acceptance_full` 暴露出空日志目录 bug；修复后 `--retry-failed acceptance_full` 从失败 step 继续，8 步最终 completed。
 - 干净路径：`acceptance_clean` 在全新临时目录中 8/8 completed，`manager.py health` 返回 `All clear`。
 - 干净路径产物计数：`source_documents=2`，`document_chunks=7`，`extracted_items=7`，`knowledge_candidates=6`，`artifact_manifest=16`。

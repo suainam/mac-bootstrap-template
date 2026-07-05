@@ -458,7 +458,7 @@ template/.venv/bin/python -m pytest \
 输出摘要：
 
 ```text
-110 passed in 1.50s
+115 passed in 1.63s
 ```
 
 完整仓库门禁：
@@ -473,14 +473,14 @@ make check
 parent privacy-audit: ok
 privacy-audit: ok (public files, values suppressed)
 Doctor passed.
-348 passed, 9 skipped, 1 warning in 32.88s
-coverage: 81.39% (required 80.0%)
+353 passed, 9 skipped, 1 warning in 32.78s
+coverage: 82.08% (required 80.0%)
 ```
 
 非阻断 warning：
 
 ```text
-tests/test_data_hub_helpers.py::test_execution_logger_lifecycle
+tests/test_daily_workflows.py::test_durable_workflow_retry_failed_resumes_from_failed_step
 ResourceWarning: unclosed database in sqlite3.Connection
 ```
 
@@ -594,3 +594,76 @@ legacy error marker: absent
 - `docs/cron-setup.md`
 - `docs/upgrade-plan.md`
 - `docs/archive/phase-5-6-summary.md`
+
+## 12. Chat Candidates 接入验收
+
+日期：2026-07-05  
+策略：聊天记录只做候选准入，全部保持 `pending`，`auto_review.py` 不自动 accepted。
+
+### 12.1 实现规则
+
+- `generate_candidates.py` 同时读取外部材料 extracted items 和 chat claims。
+- chat claim 使用 `source_type='chat_message'` 的合成 `source_documents/extracted_items` 投影，保持现有 schema 和外键结构。
+- `decision -> adr`，`action/open_loop -> daily`，`risk -> card`。
+- 普通 `insight_candidate` 不进入 candidates，避免把过程闲聊写入长期知识。
+- `auto_review.py` 遇到 `metadata_json.source_kind == "chat_message"` 时计入 `skipped`，不改 status。
+
+### 12.2 隔离 smoke test
+
+临时 DB 只放 chat messages，不放 `50_Sources`：
+
+```text
+[generate_candidates] 2026-07-04: 2 upserted, 2 candidates
+[auto_review] 2026-07-04: accepted=0, pending=0, skipped=2
+candidate_counts:
+  adr|pending|1
+  daily|pending|1
+source_types:
+  chat_message|1
+chat_source_mentions: 2
+message_trace_mentions: 2
+```
+
+### 12.3 真实本机验收
+
+执行前备份：
+
+```text
+backup: $REPO/private/agent/data/backups/agent_history-2026-07-05-161119.db
+sha256: 844de86e6dba012f2e31f93af4797ab9c1775be18ac6b83d6f1face15b8dc0a0
+```
+
+标准 manager run：
+
+```text
+real_accept_chat_candidates_20260705  daily_ingest_and_review  completed
+real_accept_chat_auto_20260705        auto_review_only          completed
+```
+
+输出摘要：
+
+```text
+[generate_candidates] 2026-07-05: 12 upserted, 12 candidates
+[auto_review] 2026-07-05: accepted=0, pending=0, skipped=12
+```
+
+DB 结构性结果：
+
+```text
+chat_message|adr|pending|3
+chat_message|card|pending|6
+chat_message|daily|pending|3
+source_documents source_type=chat_message: 7
+```
+
+Candidate markdown 结构：
+
+```text
+candidate_file_exists: True
+candidate_file_lines: 418
+chat_source_mentions: 12
+message_trace_mentions: 12
+sections: DAILY=1, ADR=1, CARD=1
+```
+
+结论：AI 聊天记录现在会进入 candidate review，但不会自动落地；人工审核仍是 chat-derived knowledge 的质量闸门。

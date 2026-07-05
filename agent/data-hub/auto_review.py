@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,10 @@ THRESHOLDS = {
 }
 
 
+def has_metadata_json_column(conn) -> bool:
+    return any(row[1] == "metadata_json" for row in conn.execute("PRAGMA table_info(knowledge_candidates)"))
+
+
 def load_env() -> None:
     """Load environment from .obsidian_daily.env."""
     env_path = Path.home() / "work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
@@ -36,9 +41,10 @@ def load_env() -> None:
 
 def auto_review_candidates(conn, target_date: str, logger: ExecutionLogger) -> dict:
     """Auto-review candidates by confidence threshold, update status to accepted/pending."""
+    metadata_select = "metadata_json" if has_metadata_json_column(conn) else "NULL AS metadata_json"
     cursor = conn.execute(
-        """
-        SELECT id, candidate_type, confidence, status
+        f"""
+        SELECT id, candidate_type, confidence, status, {metadata_select}
         FROM knowledge_candidates
         WHERE candidate_date = ? AND status = 'pending'
         """,
@@ -49,7 +55,12 @@ def auto_review_candidates(conn, target_date: str, logger: ExecutionLogger) -> d
     stats = {"accepted": 0, "pending": 0, "skipped": 0}
 
     for row in candidates:
-        cand_id, cand_type, confidence, status = row
+        cand_id, cand_type, confidence, status, metadata_json = row
+        metadata = json.loads(metadata_json or "{}")
+        if metadata.get("source_kind") == "chat_message":
+            stats["skipped"] += 1
+            continue
+
         threshold = THRESHOLDS.get(cand_type, 0.9)
 
         if confidence >= threshold:
@@ -75,7 +86,10 @@ def main() -> None:
     try:
         stats = auto_review_candidates(conn, target_date, logger)
         logger.complete(log_id, records_affected=stats["accepted"], metadata=stats)
-        print(f"[auto_review] {target_date}: accepted={stats['accepted']}, pending={stats['pending']}")
+        print(
+            f"[auto_review] {target_date}: "
+            f"accepted={stats['accepted']}, pending={stats['pending']}, skipped={stats['skipped']}"
+        )
     except Exception as e:
         logger.fail(log_id, str(e))
         raise
@@ -85,4 +99,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

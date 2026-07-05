@@ -18,8 +18,10 @@ if str(CURRENT_DIR) not in sys.path:
 from candidate_review_io import render_candidate_markdown, stable_candidate_id
 from candidate_store import (
     fetch_candidates,
+    iter_chat_rows,
     iter_source_rows,
     prune_stale_candidates,
+    upsert_chat_candidates,
     upsert_candidates,
 )
 from db_helper import get_db_connection as get_shared_db_connection
@@ -53,7 +55,9 @@ def main() -> None:
     log_id = logger.start("generate_candidates")
     try:
         prune_stale_candidates(conn)
-        changed = upsert_candidates(conn, target_date, iter_source_rows(conn, target_date), stable_candidate_id)
+        source_changed = upsert_candidates(conn, target_date, iter_source_rows(conn, target_date), stable_candidate_id)
+        chat_changed = upsert_chat_candidates(conn, target_date, iter_chat_rows(conn, target_date), stable_candidate_id)
+        changed = [*source_changed, *chat_changed]
         rows = fetch_candidates(conn, target_date)
 
         out_path = CANDIDATE_DIR / f"{target_date}.md"

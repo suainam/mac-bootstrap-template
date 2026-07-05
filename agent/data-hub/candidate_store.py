@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from claim_extraction import classify_chat_message
 from source_dates import document_matches_target
 
 
@@ -20,6 +22,9 @@ def load_env() -> None:
 
 
 load_env()
+
+CHAT_SOURCE_TYPE = "chat_message"
+CHAT_PARSER_VERSION = "chat-claim-v1"
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -38,17 +43,44 @@ def candidate_type_for(item_type: str, confidence: float) -> str | None:
     return None
 
 
+def stable_id(prefix: str, *parts: str) -> str:
+    digest = hashlib.sha1("::".join(parts).encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}_{digest}"
+
+
+def chat_candidate_type_for(claim_type: str) -> str | None:
+    if claim_type == "decision":
+        return "adr"
+    if claim_type in {"action", "open_loop"}:
+        return "daily"
+    if claim_type == "risk":
+        return "card"
+    return None
+
+
 def prune_stale_candidates(conn: sqlite3.Connection) -> None:
     stale_ids: list[str] = []
     cursor = conn.execute(
         """
-        SELECT kc.id, kc.candidate_date, sd.path, sd.version_tag, sd.captured_at, sd.metadata_json
+        SELECT kc.id, kc.candidate_date, kc.metadata_json AS candidate_metadata_json,
+               sd.path, sd.version_tag, sd.captured_at, sd.metadata_json
         FROM knowledge_candidates kc
         LEFT JOIN extracted_items ei ON ei.id = kc.extracted_item_id
         LEFT JOIN source_documents sd ON sd.id = kc.source_document_id
         """
     )
     for row in cursor.fetchall():
+        candidate_metadata = json.loads(row["candidate_metadata_json"] or "{}")
+        if candidate_metadata.get("source_kind") == CHAT_SOURCE_TYPE:
+            message_id = candidate_metadata.get("message_id")
+            if not message_id:
+                stale_ids.append(row["id"])
+                continue
+            exists = conn.execute("SELECT 1 FROM messages WHERE id = ?", (message_id,)).fetchone()
+            if not exists:
+                stale_ids.append(row["id"])
+            continue
+
         if row["path"] is None:
             stale_ids.append(row["id"])
             continue
@@ -87,6 +119,43 @@ def iter_source_rows(conn: sqlite3.Connection, target_date: str) -> list[sqlite3
             target_date,
         )
     ]
+
+
+def iter_chat_rows(conn: sqlite3.Connection, target_date: str) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT m.id AS message_id, m.session_id, m.timestamp, m.content,
+               s.agent_type, s.project_path
+        FROM messages m
+        JOIN sessions s ON s.id = m.session_id
+        WHERE m.role = 'user' AND m.timestamp LIKE ?
+        ORDER BY m.timestamp ASC, m.id ASC
+        """,
+        (f"{target_date}%",),
+    ).fetchall()
+
+    candidates = []
+    for row in rows:
+        claim_type, confidence = classify_chat_message(row["content"])
+        candidate_type = chat_candidate_type_for(claim_type)
+        if candidate_type is None:
+            continue
+        title = str(row["content"]).splitlines()[0].strip()[:80]
+        candidates.append(
+            {
+                "message_id": int(row["message_id"]),
+                "session_id": row["session_id"],
+                "timestamp": row["timestamp"],
+                "content": row["content"],
+                "title": title or f"chat-message-{row['message_id']}",
+                "claim_type": claim_type,
+                "candidate_type": candidate_type,
+                "confidence": confidence,
+                "agent_type": row["agent_type"],
+                "project_path": row["project_path"],
+            }
+        )
+    return candidates
 
 
 def upsert_candidates(
@@ -134,6 +203,130 @@ def upsert_candidates(
                 row["content"],
                 float(row["confidence"]),
                 json.dumps(metadata, ensure_ascii=False),
+                now,
+                now,
+            ),
+        )
+        inserted_or_updated.append(row)
+    conn.commit()
+    return inserted_or_updated
+
+
+def upsert_chat_candidates(
+    conn: sqlite3.Connection,
+    target_date: str,
+    rows: list[dict],
+    build_candidate_id,
+) -> list[dict]:
+    now = datetime.now().isoformat(timespec="seconds")
+    inserted_or_updated = []
+    for row in rows:
+        message_id = str(row["message_id"])
+        session_id = str(row["session_id"])
+        document_id = stable_id("chatdoc", session_id)
+        document_path = f"chat://{session_id}"
+        extracted_item_id = stable_id("chatmsg", message_id, row["claim_type"])
+        content = str(row["content"])
+        document_metadata = {
+            "source_kind": CHAT_SOURCE_TYPE,
+            "agent_type": row["agent_type"],
+            "project_path": row["project_path"],
+        }
+        item_metadata = {
+            "source_kind": CHAT_SOURCE_TYPE,
+            "message_id": row["message_id"],
+            "session_id": row["session_id"],
+            "agent_type": row["agent_type"],
+            "project_path": row["project_path"],
+            "timestamp": row["timestamp"],
+            "claim_type": row["claim_type"],
+        }
+        conn.execute(
+            """
+            INSERT INTO source_documents
+                (id, source_type, title, path, content_hash, version_tag, captured_at, parser_version, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                title=excluded.title,
+                content_hash=excluded.content_hash,
+                version_tag=excluded.version_tag,
+                captured_at=excluded.captured_at,
+                parser_version=excluded.parser_version,
+                metadata_json=excluded.metadata_json
+            """,
+            (
+                document_id,
+                CHAT_SOURCE_TYPE,
+                f"Chat session {session_id}",
+                document_path,
+                stable_id("hash", session_id, str(row["timestamp"]), content),
+                str(row["timestamp"]),
+                str(row["timestamp"]),
+                CHAT_PARSER_VERSION,
+                json.dumps(document_metadata, ensure_ascii=False),
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO extracted_items
+                (id, document_id, chunk_id, item_type, title, content, confidence, status, metadata_json)
+            VALUES (?, ?, NULL, ?, ?, ?, ?, 'candidate', ?)
+            ON CONFLICT(id) DO UPDATE SET
+                document_id=excluded.document_id,
+                item_type=excluded.item_type,
+                title=excluded.title,
+                content=excluded.content,
+                confidence=excluded.confidence,
+                metadata_json=excluded.metadata_json
+            """,
+            (
+                extracted_item_id,
+                document_id,
+                row["claim_type"],
+                row["title"],
+                content,
+                float(row["confidence"]),
+                json.dumps(item_metadata, ensure_ascii=False),
+            ),
+        )
+        candidate_id = build_candidate_id(extracted_item_id, target_date, row["candidate_type"])
+        candidate_metadata = {
+            "source_kind": CHAT_SOURCE_TYPE,
+            "source_type": CHAT_SOURCE_TYPE,
+            "document_title": f"Chat session {session_id}",
+            "path": document_path,
+            "item_type": row["claim_type"],
+            "message_id": row["message_id"],
+            "session_id": row["session_id"],
+            "agent_type": row["agent_type"],
+            "project_path": row["project_path"],
+            "timestamp": row["timestamp"],
+        }
+        conn.execute(
+            """
+            INSERT INTO knowledge_candidates
+                (id, extracted_item_id, source_document_id, candidate_date, candidate_type, status,
+                 title, content, confidence, metadata_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(extracted_item_id) DO UPDATE SET
+                candidate_date=excluded.candidate_date,
+                candidate_type=excluded.candidate_type,
+                title=excluded.title,
+                content=excluded.content,
+                confidence=excluded.confidence,
+                metadata_json=excluded.metadata_json,
+                updated_at=excluded.updated_at
+            """,
+            (
+                candidate_id,
+                extracted_item_id,
+                document_id,
+                target_date,
+                row["candidate_type"],
+                row["title"],
+                content,
+                float(row["confidence"]),
+                json.dumps(candidate_metadata, ensure_ascii=False),
                 now,
                 now,
             ),

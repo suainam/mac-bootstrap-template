@@ -73,10 +73,17 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
                 "merged": "merge",
             }.get(row["status"], "pending")
             source_path = meta.get("path", "")
-            source_label = f"`{meta.get('source_type', 'unknown')}` / `{meta.get('document_title', '')}`"
-            if source_path:
-                source_label += f" / `{Path(source_path).name}`"
+            if meta.get("source_kind") == "chat_message":
+                source_label = (
+                    f"`chat_message` / `{meta.get('agent_type', '')}` / "
+                    f"`{meta.get('project_path', '')}` / `{meta.get('timestamp', '')}`"
+                )
+            else:
+                source_label = f"`{meta.get('source_type', 'unknown')}` / `{meta.get('document_title', '')}`"
+                if source_path:
+                    source_label += f" / `{Path(source_path).name}`"
             extracted_item_id = row["extracted_item_id"] if "extracted_item_id" in row.keys() else ""
+            trace = f"message:{meta.get('message_id')}" if meta.get("source_kind") == "chat_message" else extracted_item_id
             parts.extend(
                 [
                     "",
@@ -86,7 +93,7 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
                     f"- review_action: `{review_action}`",
                     f"- confidence: `{float(row['confidence']):.2f}`",
                     f"- source: {source_label}",
-                    f"- trace: `{extracted_item_id}`" if extracted_item_id else "- trace: (unknown)",
+                    f"- trace: `{trace}`" if trace else "- trace: (unknown)",
                     f"- suggested_action: `{candidate_type}`",
                     f"- suggested_path: `{path_hint}`",
                     "- review_note: ",

@@ -4,6 +4,7 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -226,3 +227,42 @@ def test_auto_review_only_processes_target_date(tmp_path):
 
     assert status == "pending"   # untouched
     assert stats["accepted"] == 0
+
+
+def test_auto_review_skips_chat_candidates(tmp_path):
+    conn = _make_conn(tmp_path)
+    cand_id = _seed_candidate(conn, tmp_path, candidate_type="adr", confidence=0.95, suffix="chat")
+    conn.execute(
+        "UPDATE knowledge_candidates SET metadata_json = ? WHERE id = ?",
+        ('{"source_kind":"chat_message","message_id":1}', cand_id),
+    )
+    conn.commit()
+
+    from execution_logger import ExecutionLogger
+    logger = ExecutionLogger(conn, "2026-07-04")
+    stats = auto_review.auto_review_candidates(conn, "2026-07-04", logger)
+
+    status = conn.execute(
+        "SELECT status FROM knowledge_candidates WHERE id = ?", (cand_id,)
+    ).fetchone()[0]
+    conn.close()
+
+    assert status == "pending"
+    assert stats == {"accepted": 0, "pending": 0, "skipped": 1}
+
+
+def test_auto_review_main_prints_skipped_count(monkeypatch, capsys):
+    monkeypatch.setattr(auto_review, "load_env", lambda: None)
+    monkeypatch.setattr(auto_review, "get_db_connection", lambda: SimpleNamespace(close=lambda: None))
+    monkeypatch.setattr(auto_review.ExecutionLogger, "start", lambda self, step_name: "log-1")
+    monkeypatch.setattr(auto_review.ExecutionLogger, "complete", lambda self, log_id, records_affected, metadata=None: None)
+    monkeypatch.setattr(
+        auto_review,
+        "auto_review_candidates",
+        lambda conn, target_date, logger: {"accepted": 1, "pending": 2, "skipped": 3},
+    )
+    monkeypatch.setattr(sys, "argv", ["auto_review.py", "2026-07-04"])
+
+    auto_review.main()
+
+    assert "[auto_review] 2026-07-04: accepted=1, pending=2, skipped=3" in capsys.readouterr().out
