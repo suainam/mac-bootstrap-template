@@ -35,6 +35,10 @@ def suggested_materialized_path(target_date: str, candidate_type: str, candidate
     return f"40_Knowledge/{folder}/{target_date}-{suffix}.md"
 
 
+def is_chat_source(meta: dict) -> bool:
+    return meta.get("source_kind") in {"chat_response", "chat_message"}
+
+
 def render_candidate_markdown(target_date: str, rows: list) -> str:
     grouped: dict[str, list] = defaultdict(list)
     for row in rows:
@@ -73,9 +77,10 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
                 "merged": "merge",
             }.get(row["status"], "pending")
             source_path = meta.get("path", "")
-            if meta.get("source_kind") == "chat_message":
+            if is_chat_source(meta):
+                source_kind = meta.get("source_kind", "chat_response")
                 source_label = (
-                    f"`chat_message` / `{meta.get('agent_type', '')}` / "
+                    f"`{source_kind}` / `{meta.get('agent_type', '')}` / "
                     f"`{meta.get('project_path', '')}` / `{meta.get('timestamp', '')}`"
                 )
             else:
@@ -83,7 +88,8 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
                 if source_path:
                     source_label += f" / `{Path(source_path).name}`"
             extracted_item_id = row["extracted_item_id"] if "extracted_item_id" in row.keys() else ""
-            trace = f"message:{meta.get('message_id')}" if meta.get("source_kind") == "chat_message" else extracted_item_id
+            trace = f"message:{meta.get('message_id')}" if is_chat_source(meta) else extracted_item_id
+            background_prompt = meta.get("background_prompt")
             parts.extend(
                 [
                     "",
@@ -94,6 +100,7 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
                     f"- confidence: `{float(row['confidence']):.2f}`",
                     f"- source: {source_label}",
                     f"- trace: `{trace}`" if trace else "- trace: (unknown)",
+                    f"- background: `{background_prompt}`" if background_prompt else "- background: ",
                     f"- suggested_action: `{candidate_type}`",
                     f"- suggested_path: `{path_hint}`",
                     "- review_note: ",

@@ -43,6 +43,30 @@ def test_classify_chat_message_confidence_in_range():
         assert 0.0 <= confidence <= 1.0
 
 
+@pytest.mark.parametrize("text,expected_type,min_conf", [
+    ("决定采用 chat candidates 保守 pending 策略，用户提问只作为背景。", "decision", 0.70),
+    ("下一步需要补充 chat candidate 回归测试，并验证 review markdown。", "action", 0.60),
+    ("风险：聊天记录噪音会污染长期知识库，因此 auto-review 必须保持 skipped。", "risk", 0.60),
+    ("建议把标签改成 绩效-计划组织 这样的层级表达，避免过大的顶层标签。", "insight_candidate", 0.60),
+])
+def test_classify_chat_response_keeps_assistant_advice(text, expected_type, min_conf):
+    classified = claim_extraction.classify_chat_response(text)
+    assert classified is not None
+    claim_type, confidence, reason = classified
+    assert claim_type == expected_type
+    assert confidence >= min_conf
+    assert reason
+
+
+@pytest.mark.parametrize("text", [
+    "好的，我来帮你实现。",
+    "我会先查看代码。",
+    "```python\nprint('ok')\n```",
+])
+def test_classify_chat_response_skips_status_or_low_value_replies(text):
+    assert claim_extraction.classify_chat_response(text) is None
+
+
 # ---------------------------------------------------------------------------
 # stable_id
 # ---------------------------------------------------------------------------
@@ -134,11 +158,12 @@ def _seed_chat_db(tmp_path: Path) -> tuple[Path, str]:
             "INSERT INTO messages (session_id, role, content, timestamp)"
             " VALUES (?, ?, ?, ?)",
             [
-                ("sess_test_001", "user", "决定采用 sqlite 作为后端存储。", "2026-07-04T09:01:00"),
-                ("sess_test_001", "assistant", "好的，我来帮你实现。", "2026-07-04T09:02:00"),
-                ("sess_test_001", "user", "待办：整理 schema 设计文档。", "2026-07-04T09:03:00"),
+                ("sess_test_001", "user", "这些提问审核后有什么意义吗？", "2026-07-04T09:01:00"),
+                ("sess_test_001", "assistant", "决定采用 sqlite 作为后端存储，用户提问只作为背景。", "2026-07-04T09:02:00"),
+                ("sess_test_001", "user", "那下一步是什么？", "2026-07-04T09:03:00"),
+                ("sess_test_001", "assistant", "下一步需要整理 schema 设计文档。", "2026-07-04T09:04:00"),
                 # next day — should NOT appear when querying 2026-07-04
-                ("sess_test_001", "user", "昨天的问题已经解决了。", "2026-07-05T09:00:00"),
+                ("sess_test_001", "assistant", "风险：昨天的问题已经解决了，但要补回归测试。", "2026-07-05T09:00:00"),
             ],
         )
         conn.commit()
@@ -186,6 +211,37 @@ def test_fetch_source_claims_maps_to_valid_claim_types(tmp_path):
     assert {c["claim_type"] for c in claims}.issubset(valid)
 
 
+def test_fetch_source_claims_skips_generated_chat_projections(tmp_path):
+    db_path, target_date = _seed_source_db(tmp_path)
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO source_documents
+                (id, source_type, title, path, content_hash, version_tag, captured_at, parser_version, metadata_json)
+            VALUES
+                ('chat_projection_doc', 'chat_response', 'Chat session', 'chat-response://session', 'hash',
+                 '2026-07-04', '2026-07-04T09:00:00', 'chat-answer-v2', '{"source_kind":"chat_response"}')
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO extracted_items
+                (id, document_id, item_type, title, content, confidence, status, metadata_json)
+            VALUES
+                ('chat_projection_item', 'chat_projection_doc', 'decision', 'Chat projection',
+                 '决定采用来自回复的候选。', 0.76, 'candidate', '{"source_kind":"chat_response"}')
+            """
+        )
+        conn.commit()
+
+        claims, _ = claim_extraction.fetch_source_claims(conn, target_date)
+    finally:
+        conn.close()
+
+    assert all(claim["source_ref"]["source_type"] != "chat_response" for claim in claims)
+
+
 # ---------------------------------------------------------------------------
 # fetch_chat_claims
 # ---------------------------------------------------------------------------
@@ -197,10 +253,11 @@ def test_fetch_chat_claims_filters_by_date(tmp_path):
         claims, evidence = claim_extraction.fetch_chat_claims(conn, target_date)
     finally:
         conn.close()
-    # 2 user messages on 2026-07-04 (assistant + 2026-07-05 excluded)
+    # 2 candidate-worthy assistant replies on 2026-07-04 (user questions + 2026-07-05 excluded)
     assert len(claims) == 2
     assert all(c["source_date"] == target_date for c in claims)
-    assert all(c["source_kind"] == "chat_message" for c in claims)
+    assert all(c["source_kind"] == "chat_response" for c in claims)
+    assert all(c["source_ref"]["background_message_id"] for c in claims)
     assert len(evidence) == 2
 
 
@@ -212,8 +269,8 @@ def test_fetch_chat_claims_classifies_correctly(tmp_path):
     finally:
         conn.close()
     types = {c["claim_type"] for c in claims}
-    assert "decision" in types   # "决定采用 sqlite"
-    assert "action" in types     # "待办：整理 schema"
+    assert "decision" in types   # assistant recommendation
+    assert "action" in types     # assistant next step
 
 
 # ---------------------------------------------------------------------------

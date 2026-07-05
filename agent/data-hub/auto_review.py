@@ -23,6 +23,8 @@ THRESHOLDS = {
     "adr": 0.85,     # decision
 }
 
+CHAT_SOURCE_KINDS = {"chat_response", "chat_message"}
+
 
 def has_metadata_json_column(conn) -> bool:
     return any(row[1] == "metadata_json" for row in conn.execute("PRAGMA table_info(knowledge_candidates)"))
@@ -57,7 +59,7 @@ def auto_review_candidates(conn, target_date: str, logger: ExecutionLogger) -> d
     for row in candidates:
         cand_id, cand_type, confidence, status, metadata_json = row
         metadata = json.loads(metadata_json or "{}")
-        if metadata.get("source_kind") == "chat_message":
+        if metadata.get("source_kind") in CHAT_SOURCE_KINDS:
             stats["skipped"] += 1
             continue
 

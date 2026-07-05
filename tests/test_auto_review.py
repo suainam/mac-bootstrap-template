@@ -234,7 +234,7 @@ def test_auto_review_skips_chat_candidates(tmp_path):
     cand_id = _seed_candidate(conn, tmp_path, candidate_type="adr", confidence=0.95, suffix="chat")
     conn.execute(
         "UPDATE knowledge_candidates SET metadata_json = ? WHERE id = ?",
-        ('{"source_kind":"chat_message","message_id":1}', cand_id),
+        ('{"source_kind":"chat_response","message_id":1}', cand_id),
     )
     conn.commit()
 

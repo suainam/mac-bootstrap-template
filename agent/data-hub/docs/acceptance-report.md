@@ -600,31 +600,50 @@ legacy error marker: absent
 日期：2026-07-05  
 策略：聊天记录只做候选准入，全部保持 `pending`，`auto_review.py` 不自动 accepted。
 
+2026-07-05 复核修正：前一轮把 user prompts 当作 chat candidates，实际审核价值低；现行规则改为只从 agent/assistant 回复中提炼候选，用户提问只作为 `background_prompt` 辅助人工审核。
+
 ### 12.1 实现规则
 
-- `generate_candidates.py` 同时读取外部材料 extracted items 和 chat claims。
-- chat claim 使用 `source_type='chat_message'` 的合成 `source_documents/extracted_items` 投影，保持现有 schema 和外键结构。
-- `decision -> adr`，`action/open_loop -> daily`，`risk -> card`。
-- 普通 `insight_candidate` 不进入 candidates，避免把过程闲聊写入长期知识。
-- `auto_review.py` 遇到 `metadata_json.source_kind == "chat_message"` 时计入 `skipped`，不改 status。
+- `ingest_logs.py` 会落库 user 和 assistant 两类可见消息；Claude 只取 `text`，Codex 只取 user/assistant/`agent_message`，AGY 只取 `USER_INPUT` 和有 `content` 的 `PLANNER_RESPONSE`。
+- `generate_candidates.py` 同时读取外部材料 extracted items 和 assistant response claims。
+- chat response 使用 `source_type='chat_response'`、`parser_version='chat-answer-v2'` 的合成 `source_documents/extracted_items` 投影，保持现有 schema 和外键结构。
+- 旧 `source_type='chat_message'`、`parser_version='chat-claim-v1'` 用户提问投影会在重建 chat candidates 前清理。
+- `decision -> adr`，`action/open_loop -> daily`，`risk/insight_candidate -> card`。
+- 纯提问、状态回复、工具/思考日志不进入 candidates，避免把过程噪音写入长期知识。
+- `auto_review.py` 遇到 `metadata_json.source_kind in ('chat_response', 'chat_message')` 时计入 `skipped`，不改 status。
 
 ### 12.2 隔离 smoke test
 
-临时 DB 只放 chat messages，不放 `50_Sources`：
+临时 DB 只放 user prompts + assistant replies，不放 `50_Sources`：
 
 ```text
-[generate_candidates] 2026-07-04: 2 upserted, 2 candidates
-[auto_review] 2026-07-04: accepted=0, pending=0, skipped=2
-candidate_counts:
-  adr|pending|1
-  daily|pending|1
-source_types:
-  chat_message|1
-chat_source_mentions: 2
-message_trace_mentions: 2
+template/.venv/bin/python -m pytest \
+  template/tests/test_ingest_logs_runtime.py \
+  template/tests/test_candidate_review.py \
+  template/tests/test_auto_review.py \
+  template/tests/test_claim_extraction.py
+
+55 passed in 0.66s
+
+template/.venv/bin/python -m pytest template/tests \
+  -k 'data_hub or workflow or candidate or claim or ingest_logs or auto_review or materialize or daily_summary or backup or source'
+
+118 passed, 1 skipped, 252 deselected in 1.58s
 ```
 
-### 12.3 真实本机验收
+结构性断言：
+
+```text
+user questions do not generate chat candidates
+assistant status-only replies do not generate chat candidates
+metadata_json.source_kind == chat_response
+metadata_json.response_role == assistant
+metadata_json.background_prompt records the previous user prompt
+legacy chat_message/chat-claim-v1 projection is removed during rebuild
+auto_review skipped chat_response candidates
+```
+
+### 12.3 前一轮真实本机验收发现
 
 执行前备份：
 
@@ -666,4 +685,69 @@ message_trace_mentions: 12
 sections: DAILY=1, ADR=1, CARD=1
 ```
 
-结论：AI 聊天记录现在会进入 candidate review，但不会自动落地；人工审核仍是 chat-derived knowledge 的质量闸门。
+结论：这轮证明了 chat-derived knowledge 可以进入人工 review 且不会自动落地，但也暴露出 question-based 提炼质量不足。因此已在本轮改为 answer-based 提炼；后续真实重跑应期望 `chat_response/chat-answer-v2` 取代上述 `chat_message/chat-claim-v1` 结果。
+
+### 12.4 Answer-based 真实本机复验
+
+执行前备份：
+
+```text
+backup: $REPO/private/agent/data/backups/agent_history-2026-07-05-162924.db
+sha256: 4fb84e7277e2e7917b754137d09c0fa97bde66d260f32deb828b4a0c391288d1
+```
+
+最终复验 run：
+
+```text
+real_accept_chat_response_candidates_v3_20260705  daily_ingest_and_review  completed
+real_accept_chat_response_auto_v3_20260705        auto_review_only          completed
+```
+
+输出摘要：
+
+```text
+[generate_candidates] 2026-07-05: 101 upserted, 101 candidates
+[auto_review] 2026-07-05: accepted=0, pending=0, skipped=101
+```
+
+DB 结构性结果：
+
+```text
+chat_response|adr|pending|64
+chat_response|card|pending|8
+chat_response|daily|pending|29
+source_docs|chat_response|chat-answer-v2|6
+role_meta|101
+background_meta|101
+```
+
+Candidate markdown 结构：
+
+```text
+candidate_file_exists: True
+candidate_file_lines: 2499
+source_chat_response_lines: 101
+source_chat_message_lines: 0
+message_trace_mentions: 101
+background_lines: 101
+```
+
+Claim artifact 结构性核对：
+
+```text
+source_type_chat_message_mentions: 0
+source_type_chat_response_mentions: 0
+source_kind_chat_response_mentions: 128
+background_prompt_mentions: 128
+```
+
+结论：现行 chat candidates 已改为从 assistant replies 提炼，用户提问只作为 background；旧 `chat_message/chat-claim-v1` 投影不再出现在 candidate markdown，也不会被 source claim/candidate iterator 二次处理。所有 chat-derived candidates 仍保持 pending，并在 auto-review 中 skipped。
+
+最终测试门禁：
+
+```text
+Data Hub subset: 120 passed, 1 skipped, 252 deselected in 1.82s
+make check: 364 passed, 9 skipped, 1 warning in 32.96s
+coverage: 81.99% >= 80%
+warning: tests/test_lifecycle_manager_cli.py::test_main_delegates_status_command reports an unclosed sqlite3 ResourceWarning; non-blocking and unrelated to chat response extraction.
+```

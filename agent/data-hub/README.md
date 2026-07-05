@@ -75,9 +75,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 |------|------|
 | `ingest_logs.py` | 采集 Claude/Codex/Gemini 日志 → SQLite sessions/messages |
 | `ingest_sources.py` | 外部材料（meeting/wiki/xmind）→ source_documents/chunks/items |
-| `claim_extraction.py` | source items + chat → claim_packets + evidence_links |
-| `generate_candidates.py` | extracted_items + chat claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
-| `auto_review.py` | 外部材料候选按置信度阈值自动审核；chat candidates 保持 pending |
+| `claim_extraction.py` | source items + assistant chat responses → claim_packets + evidence_links |
+| `generate_candidates.py` | extracted_items + assistant response claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
+| `auto_review.py` | 外部材料候选按置信度阈值自动审核；chat response candidates 保持 pending |
 | `materialize_candidates.py` | 读审核动作 → 落地 ADR/Card/日报插入 |
 | `daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
 | `hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
@@ -108,7 +108,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 ## 当前状态
 
-已跑通全链路：chat logs / meetings / xmind / wiki pdf → SQLite → candidates → daily summary → Obsidian
+已跑通全链路：assistant chat responses / meetings / xmind / wiki pdf → SQLite → candidates → daily summary → Obsidian
+
+Chat-derived candidates 的边界：只从 agent/assistant 回复中提炼建议、方案、决策、风险和后续动作；用户提问只写入候选 metadata 的 `background_prompt`，用于审核上下文，不单独生成候选。旧版 `chat_message/chat-claim-v1` 用户提问投影会在重建候选时清理；新版来源为 `chat_response/chat-answer-v2`，并且始终跳过自动审核。
 
 待增强：HTML table/callout 细结构、claims/evidence 证据链模型、OCR fallback、source family 扩展。
 

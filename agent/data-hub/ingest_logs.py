@@ -6,13 +6,13 @@ Agent Data Hub - Ingestion Script
 """
 
 import json
+import hashlib
 import os
 import re
 import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
-import hashlib
 
 CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
@@ -45,11 +45,69 @@ CODEX_SESSIONS_DIR = OPENCODE_SESSIONS_DIR if OPENCODE_SESSIONS_DIR.exists() els
 def compute_hash(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
+
 def clean_xml_tags(text: str) -> str:
     text = re.sub(r"<ADDITIONAL_METADATA>.*?</ADDITIONAL_METADATA>", "", text, flags=re.DOTALL)
     text = re.sub(r"<USER_SETTINGS_CHANGE>.*?</USER_SETTINGS_CHANGE>", "", text, flags=re.DOTALL)
     text = re.sub(r"<[^>]+>", "", text)
     return text.strip()
+
+
+def extract_text_parts(content_obj, allowed_types: tuple[str, ...]) -> list[str]:
+    """Extract human-visible text from common chat-log content shapes."""
+    if isinstance(content_obj, str):
+        return [content_obj]
+    if not isinstance(content_obj, list):
+        return []
+
+    parts: list[str] = []
+    for item in content_obj:
+        if isinstance(item, str):
+            parts.append(item)
+        elif isinstance(item, dict) and item.get("type") in allowed_types:
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return parts
+
+
+def normalize_message_text(texts: list[str], min_length: int) -> str:
+    text = clean_xml_tags("\n".join(texts).strip())
+    if not text or is_system_boilerplate(text) or len(text) < min_length:
+        return ""
+    return text
+
+
+def insert_message(
+    cursor: sqlite3.Cursor,
+    session_id: str,
+    agent_type: str,
+    project_path: str,
+    timestamp: str,
+    role: str,
+    text: str,
+) -> bool:
+    cursor.execute(
+        """
+        INSERT OR IGNORE INTO sessions (id, agent_type, project_path, start_time, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (session_id, agent_type, project_path, timestamp, timestamp),
+    )
+    cursor.execute(
+        "SELECT 1 FROM messages WHERE session_id=? AND timestamp=? AND role=? AND content=?",
+        (session_id, timestamp, role, text),
+    )
+    if cursor.fetchone():
+        return False
+    cursor.execute(
+        """
+        INSERT INTO messages (session_id, timestamp, role, content)
+        VALUES (?, ?, ?, ?)
+        """,
+        (session_id, timestamp, role, text),
+    )
+    return True
 
 def is_system_boilerplate(text: str) -> bool:
     if "你是一名资深产品数据分析师" in text or "The user changed" in text:
@@ -75,43 +133,17 @@ def ingest_claude(conn):
                 with open(f, encoding="utf-8") as file:
                     for line in file:
                         d = json.loads(line)
-                        if d.get("type") == "user":
-                            msg_id = d.get("uuid")
+                        event_type = d.get("type")
+                        if event_type in {"user", "assistant"}:
                             ts = d.get("timestamp")
                             session_id = d.get("sessionId", f.stem)
-                            
                             content_obj = d.get("message", {}).get("content", "")
-                            texts = []
-                            if isinstance(content_obj, list):
-                                for c in content_obj:
-                                    if isinstance(c, dict) and c.get("type") == "text":
-                                        texts.append(c["text"])
-                            elif isinstance(content_obj, str):
-                                texts.append(content_obj)
-                            
-                            text = "\n".join(texts).strip()
-                            if not text or is_system_boilerplate(text):
+                            texts = extract_text_parts(content_obj, ("text",))
+                            text = normalize_message_text(texts, 5)
+                            if not text:
                                 continue
-                                
-                            text = clean_xml_tags(text)
-                            if len(text) < 5: continue
-                            
-                            # 插入 sessions (ignore if exists)
-                            cursor.execute("""
-                                INSERT OR IGNORE INTO sessions (id, agent_type, project_path, start_time, updated_at)
-                                VALUES (?, ?, ?, ?, ?)
-                            """, (session_id, 'claude', proj_dir.name, ts, ts))
-                            
-                            # 插入 messages (避免重复，用 message_id 或 hash 去重)
-                            mid = msg_id or compute_hash(session_id + ts + text[:50])
-                            
-                            # 先检查是否已经存在
-                            cursor.execute("SELECT 1 FROM messages WHERE session_id=? AND timestamp=? AND content=?", (session_id, ts, text))
-                            if not cursor.fetchone():
-                                cursor.execute("""
-                                    INSERT INTO messages (session_id, timestamp, role, content)
-                                    VALUES (?, ?, ?, ?)
-                                """, (session_id, ts, 'user', text))
+
+                            if insert_message(cursor, session_id, "claude", proj_dir.name, ts, event_type, text):
                                 records_count += 1
             except Exception as e:
                 print(f"Error parsing Claude file {f}: {e}")
@@ -134,36 +166,27 @@ def ingest_codex(conn):
                         d = json.loads(line)
                         if d.get("type") in ("event_msg", "response_item", "message"):
                             payload = d.get("payload", d)
-                            if isinstance(payload, dict) and payload.get("role") == "user":
+                            if isinstance(payload, dict):
                                 ts = d.get("timestamp", datetime.now().isoformat())
                                 session_id = f.stem
-                                
-                                content_obj = payload.get("content", "")
-                                texts = []
-                                if isinstance(content_obj, list):
-                                    for c in content_obj:
-                                        if isinstance(c, dict) and c.get("type") == "input_text":
-                                            texts.append(c.get("text", ""))
-                                elif isinstance(content_obj, str):
-                                    texts.append(content_obj)
-                                
-                                text = "\n".join(texts).strip()
-                                if not text or is_system_boilerplate(text):
+                                role = payload.get("role")
+                                payload_type = payload.get("type")
+                                if role == "user":
+                                    texts = extract_text_parts(payload.get("content", ""), ("input_text", "text"))
+                                elif role == "assistant":
+                                    texts = extract_text_parts(payload.get("content", ""), ("output_text", "text"))
+                                elif payload_type == "agent_message":
+                                    role = "assistant"
+                                    message = payload.get("message", "")
+                                    texts = [message] if isinstance(message, str) else []
+                                else:
                                     continue
-                                    
-                                if len(text) < 5 or text.startswith("<skill>"): continue
-                                
-                                cursor.execute("""
-                                    INSERT OR IGNORE INTO sessions (id, agent_type, project_path, start_time, updated_at)
-                                    VALUES (?, ?, ?, ?, ?)
-                                """, (session_id, 'codex', 'Workspace', ts, ts))
-                                
-                                cursor.execute("SELECT 1 FROM messages WHERE session_id=? AND timestamp=? AND content=?", (session_id, ts, text))
-                                if not cursor.fetchone():
-                                    cursor.execute("""
-                                        INSERT INTO messages (session_id, timestamp, role, content)
-                                        VALUES (?, ?, ?, ?)
-                                    """, (session_id, ts, 'user', text))
+
+                                text = normalize_message_text(texts, 5)
+                                if not text or text.startswith("<skill>"):
+                                    continue
+
+                                if insert_message(cursor, session_id, "codex", "Workspace", ts, role, text):
                                     records_count += 1
             except Exception as e:
                 print(f"Error parsing Codex file {f}: {e}")
@@ -192,25 +215,18 @@ def ingest_agy(conn):
                         malformed_lines += 1
                         continue
                     t = d.get("type", "")
-                    if t == "USER_INPUT":
+                    if t in {"USER_INPUT", "PLANNER_RESPONSE"}:
                         ts = d.get("created_at", datetime.now().isoformat())
                         content = d.get("content", "")
-                        
-                        text = clean_xml_tags(content)
-                        if not text or is_system_boilerplate(text) or len(text) < 10:
+                        role = "user" if t == "USER_INPUT" else "assistant"
+                        if not isinstance(content, str):
                             continue
-                            
-                        cursor.execute("""
-                            INSERT OR IGNORE INTO sessions (id, agent_type, project_path, start_time, updated_at)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (session_id, 'agy', 'AGY Workspace', ts, ts))
-                        
-                        cursor.execute("SELECT 1 FROM messages WHERE session_id=? AND content=?", (session_id, text))
-                        if not cursor.fetchone():
-                            cursor.execute("""
-                                INSERT INTO messages (session_id, timestamp, role, content)
-                                VALUES (?, ?, ?, ?)
-                            """, (session_id, ts, 'user', text))
+
+                        text = normalize_message_text([content], 10)
+                        if not text:
+                            continue
+
+                        if insert_message(cursor, session_id, "agy", "AGY Workspace", ts, role, text):
                             records_count += 1
         except Exception as e:
             print(f"Error parsing AGY file {transcript}: {e}")

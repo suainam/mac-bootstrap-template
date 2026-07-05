@@ -38,6 +38,20 @@ def test_ingest_logs_end_to_end_and_main(temp_db_and_vault, monkeypatch, tmp_pat
                         "message": {"content": "System: context injected"},
                     }
                 ),
+                json.dumps(
+                    {
+                        "type": "assistant",
+                        "uuid": "claude-3",
+                        "timestamp": "2026-07-08T10:02:00",
+                        "sessionId": "claude-session",
+                        "message": {
+                            "content": [
+                                {"type": "thinking", "thinking": "hidden"},
+                                {"type": "text", "text": "建议采用 assistant 回复作为 chat candidate 来源。"},
+                            ]
+                        },
+                    }
+                ),
             ]
         ),
         encoding="utf-8",
@@ -62,6 +76,13 @@ def test_ingest_logs_end_to_end_and_main(temp_db_and_vault, monkeypatch, tmp_pat
                         "payload": {"role": "user", "content": "<skill>skip</skill>"},
                     }
                 ),
+                json.dumps(
+                    {
+                        "type": "event_msg",
+                        "timestamp": "2026-07-08T11:06:00",
+                        "payload": {"type": "agent_message", "message": "决定把用户问题降级为背景 metadata。"},
+                    }
+                ),
             ]
         ),
         encoding="utf-8",
@@ -70,7 +91,14 @@ def test_ingest_logs_end_to_end_and_main(temp_db_and_vault, monkeypatch, tmp_pat
     agy_dir = tmp_path / ".gemini" / "antigravity-cli" / "brain" / "sess-1" / ".system_generated" / "logs"
     agy_dir.mkdir(parents=True, exist_ok=True)
     (agy_dir / "transcript.jsonl").write_text(
-        json.dumps({"type": "USER_INPUT", "created_at": "2026-07-08T12:00:00", "content": "<USER_REQUEST>总结 AGY 事项并输出行动列表</USER_REQUEST>"}) + "\n",
+        "\n".join(
+            [
+                json.dumps({"type": "USER_INPUT", "created_at": "2026-07-08T12:00:00", "content": "<USER_REQUEST>总结 AGY 事项并输出行动列表</USER_REQUEST>"}),
+                json.dumps({"type": "PLANNER_RESPONSE", "created_at": "2026-07-08T12:01:00", "content": "下一步需要把 AGY 回复纳入 assistant message。"}),
+                json.dumps({"type": "PLANNER_RESPONSE", "created_at": "2026-07-08T12:02:00", "tool_calls": [{"name": "noop"}]}),
+            ]
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -81,21 +109,28 @@ def test_ingest_logs_end_to_end_and_main(temp_db_and_vault, monkeypatch, tmp_pat
 
     conn = get_db_connection()
     try:
-        assert ingest_logs.ingest_claude(conn) == 1
-        assert ingest_logs.ingest_codex(conn) == 1
+        assert ingest_logs.ingest_claude(conn) == 2
+        assert ingest_logs.ingest_codex(conn) == 2
         monkeypatch.setattr(ingest_logs.Path, "home", staticmethod(lambda: tmp_path))
-        assert ingest_logs.ingest_agy(conn) == 1
+        assert ingest_logs.ingest_agy(conn) == 2
     finally:
         conn.close()
 
     conn = get_db_connection()
     try:
         assert query_sessions_count(conn) == 3
-        assert query_messages_count(conn) == 3
-        contents = [row["content"] for row in conn.execute("SELECT content FROM messages ORDER BY timestamp").fetchall()]
+        assert query_messages_count(conn) == 6
+        rows = conn.execute("SELECT role, content FROM messages ORDER BY timestamp").fetchall()
     finally:
         conn.close()
-    assert contents == ["Hello  World", "整理 sqlite 方案", "总结 AGY 事项并输出行动列表"]
+    assert [(row["role"], row["content"]) for row in rows] == [
+        ("user", "Hello  World"),
+        ("assistant", "建议采用 assistant 回复作为 chat candidate 来源。"),
+        ("user", "整理 sqlite 方案"),
+        ("assistant", "决定把用户问题降级为背景 metadata。"),
+        ("user", "总结 AGY 事项并输出行动列表"),
+        ("assistant", "下一步需要把 AGY 回复纳入 assistant message。"),
+    ]
 
     monkeypatch.setattr(ingest_logs, "ingest_claude", lambda conn: 2)
     monkeypatch.setattr(ingest_logs, "ingest_codex", lambda conn: 3)

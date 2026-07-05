@@ -114,7 +114,7 @@ Dataview 按文件夹路径过滤时**区分大小写**；vault 实际目录是 
 推论：
 - Obsidian 日报、ADR、Cards — 丢了可重建，跑 `materialize_candidates.py` 还原
 - SQLite 里的 `review_action`（accept/reject）— 不可从 vault 反推，必须备份 DB
-- `generate_candidates.py` 生成的 review markdown — 是 Projection，幂等重写无损；来源包括外部材料 extracted items 和 chat claims
+- `generate_candidates.py` 生成的 review markdown — 是 Projection，幂等重写无损；来源包括外部材料 extracted items 和 assistant chat response claims
 
 备份策略：只需备份 `AGENT_DB_PATH`，vault 内容可重建。
 
@@ -137,8 +137,8 @@ Dataview 按文件夹路径过滤时**区分大小写**；vault 实际目录是 
 |------|---------|
 | `ingest_logs.py` | SQLite 按现有去重/增量逻辑，不重复写入 |
 | `ingest_sources.py` | source 未变化直接跳过；变化时重建该 document 的 chunks/items |
-| `generate_candidates.py` | 对 `extracted_item_id` 做 upsert；chat messages 会生成 `chat_message` 投影并保持 pending；markdown 审核清单每次整文件重写 |
-| `auto_review.py` | 外部材料按阈值自动 accepted；chat candidates 一律 skipped，必须人工审核 |
+| `generate_candidates.py` | 对 `extracted_item_id` 做 upsert；assistant replies 会生成 `chat_response/chat-answer-v2` 投影并保持 pending；旧 `chat_message/chat-claim-v1` 用户提问投影会被清理；markdown 审核清单每次整文件重写 |
+| `auto_review.py` | 外部材料按阈值自动 accepted；chat response candidates 一律 skipped，必须人工审核 |
 | `daily_summary.py` | 只重写 `## AI 总结` 一节，不重复追加 |
 | `materialize_candidates.py` | `daily` 依赖 `<!-- knowledge_candidate:<id> -->` marker 防重复；`adr/card` 依赖 frontmatter `candidate_id` 防重复 |
 

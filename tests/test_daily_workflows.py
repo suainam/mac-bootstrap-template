@@ -39,6 +39,7 @@ def seed_knowledge_db(db_path: Path, vault_dir: Path) -> None:
             [
                 Chunk(chunk_type="paragraph", locator="p1", content="决定采用 filename_first。", metadata={}),
                 Chunk(chunk_type="bullet", locator="p2", content="· 跟进门店实验@南宗帅", metadata={}),
+                Chunk(chunk_type="paragraph", locator="p3", content="开放问题：如何复用之前的增长实验结论？", metadata={}),
             ],
         )
         source_ingest_store.insert_items(
@@ -60,6 +61,14 @@ def seed_knowledge_db(db_path: Path, vault_dir: Path) -> None:
                     content="联系运营确认实验窗口。",
                     confidence=0.89,
                     chunk_index=1,
+                    metadata={},
+                ),
+                Item(
+                    item_type="open_loop",
+                    title="复用增长实验结论",
+                    content="如何复用之前的增长实验结论？",
+                    confidence=0.72,
+                    chunk_index=2,
                     metadata={},
                 ),
             ],

@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from claim_extraction import classify_chat_message
+from claim_extraction import CHAT_RESPONSE_SOURCE_KIND, classify_chat_response
 from source_dates import document_matches_target
 
 
@@ -23,8 +23,10 @@ def load_env() -> None:
 
 load_env()
 
-CHAT_SOURCE_TYPE = "chat_message"
-CHAT_PARSER_VERSION = "chat-claim-v1"
+CHAT_SOURCE_TYPE = CHAT_RESPONSE_SOURCE_KIND
+CHAT_PARSER_VERSION = "chat-answer-v2"
+LEGACY_CHAT_SOURCE_TYPE = "chat_message"
+LEGACY_CHAT_PARSER_VERSION = "chat-claim-v1"
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -58,6 +60,28 @@ def chat_candidate_type_for(claim_type: str) -> str | None:
     return None
 
 
+def is_chat_source_kind(source_kind: str | None) -> bool:
+    return source_kind in {CHAT_SOURCE_TYPE, LEGACY_CHAT_SOURCE_TYPE}
+
+
+def truncate_background(text: str | None, limit: int = 300) -> str:
+    if not text:
+        return ""
+    compact = " ".join(str(text).split())
+    return compact[:limit]
+
+
+def prune_legacy_chat_projection(conn: sqlite3.Connection) -> None:
+    """Remove v1 user-question chat projections before rebuilding reply-based ones."""
+    conn.execute(
+        """
+        DELETE FROM source_documents
+        WHERE source_type = ? AND parser_version = ?
+        """,
+        (LEGACY_CHAT_SOURCE_TYPE, LEGACY_CHAT_PARSER_VERSION),
+    )
+
+
 def prune_stale_candidates(conn: sqlite3.Connection) -> None:
     stale_ids: list[str] = []
     cursor = conn.execute(
@@ -71,7 +95,7 @@ def prune_stale_candidates(conn: sqlite3.Connection) -> None:
     )
     for row in cursor.fetchall():
         candidate_metadata = json.loads(row["candidate_metadata_json"] or "{}")
-        if candidate_metadata.get("source_kind") == CHAT_SOURCE_TYPE:
+        if is_chat_source_kind(candidate_metadata.get("source_kind")):
             message_id = candidate_metadata.get("message_id")
             if not message_id:
                 stale_ids.append(row["id"])
@@ -111,7 +135,8 @@ def iter_source_rows(conn: sqlite3.Connection, target_date: str) -> list[sqlite3
     )
     return [
         row for row in cursor.fetchall()
-        if document_matches_target(
+        if row["source_type"] not in {CHAT_SOURCE_TYPE, LEGACY_CHAT_SOURCE_TYPE}
+        and document_matches_target(
             row["path"],
             row["version_tag"],
             row["captured_at"],
@@ -125,10 +150,28 @@ def iter_chat_rows(conn: sqlite3.Connection, target_date: str) -> list[dict]:
     rows = conn.execute(
         """
         SELECT m.id AS message_id, m.session_id, m.timestamp, m.content,
-               s.agent_type, s.project_path
+               s.agent_type, s.project_path,
+               (
+                   SELECT u.id
+                   FROM messages u
+                   WHERE u.session_id = m.session_id
+                     AND u.role = 'user'
+                     AND (u.timestamp < m.timestamp OR (u.timestamp = m.timestamp AND u.id < m.id))
+                   ORDER BY u.timestamp DESC, u.id DESC
+                   LIMIT 1
+               ) AS background_message_id,
+               (
+                   SELECT u.content
+                   FROM messages u
+                   WHERE u.session_id = m.session_id
+                     AND u.role = 'user'
+                     AND (u.timestamp < m.timestamp OR (u.timestamp = m.timestamp AND u.id < m.id))
+                   ORDER BY u.timestamp DESC, u.id DESC
+                   LIMIT 1
+               ) AS background_prompt
         FROM messages m
         JOIN sessions s ON s.id = m.session_id
-        WHERE m.role = 'user' AND m.timestamp LIKE ?
+        WHERE m.role = 'assistant' AND m.timestamp LIKE ?
         ORDER BY m.timestamp ASC, m.id ASC
         """,
         (f"{target_date}%",),
@@ -136,7 +179,10 @@ def iter_chat_rows(conn: sqlite3.Connection, target_date: str) -> list[dict]:
 
     candidates = []
     for row in rows:
-        claim_type, confidence = classify_chat_message(row["content"])
+        classified = classify_chat_response(row["content"])
+        if classified is None:
+            continue
+        claim_type, confidence, reason = classified
         candidate_type = chat_candidate_type_for(claim_type)
         if candidate_type is None:
             continue
@@ -153,6 +199,9 @@ def iter_chat_rows(conn: sqlite3.Connection, target_date: str) -> list[dict]:
                 "confidence": confidence,
                 "agent_type": row["agent_type"],
                 "project_path": row["project_path"],
+                "background_message_id": row["background_message_id"],
+                "background_prompt": truncate_background(row["background_prompt"]),
+                "why_candidate": reason,
             }
         )
     return candidates
@@ -220,17 +269,19 @@ def upsert_chat_candidates(
 ) -> list[dict]:
     now = datetime.now().isoformat(timespec="seconds")
     inserted_or_updated = []
+    prune_legacy_chat_projection(conn)
     for row in rows:
         message_id = str(row["message_id"])
         session_id = str(row["session_id"])
         document_id = stable_id("chatdoc", session_id)
-        document_path = f"chat://{session_id}"
+        document_path = f"chat-response://{session_id}"
         extracted_item_id = stable_id("chatmsg", message_id, row["claim_type"])
         content = str(row["content"])
         document_metadata = {
             "source_kind": CHAT_SOURCE_TYPE,
             "agent_type": row["agent_type"],
             "project_path": row["project_path"],
+            "parser_version": CHAT_PARSER_VERSION,
         }
         item_metadata = {
             "source_kind": CHAT_SOURCE_TYPE,
@@ -240,6 +291,10 @@ def upsert_chat_candidates(
             "project_path": row["project_path"],
             "timestamp": row["timestamp"],
             "claim_type": row["claim_type"],
+            "response_role": "assistant",
+            "background_message_id": row["background_message_id"],
+            "background_prompt": row["background_prompt"],
+            "why_candidate": row["why_candidate"],
         }
         conn.execute(
             """
@@ -301,6 +356,11 @@ def upsert_chat_candidates(
             "agent_type": row["agent_type"],
             "project_path": row["project_path"],
             "timestamp": row["timestamp"],
+            "response_role": "assistant",
+            "background_message_id": row["background_message_id"],
+            "background_prompt": row["background_prompt"],
+            "why_candidate": row["why_candidate"],
+            "parser_version": CHAT_PARSER_VERSION,
         }
         conn.execute(
             """

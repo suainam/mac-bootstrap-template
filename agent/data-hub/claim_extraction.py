@@ -48,6 +48,70 @@ SOURCE_ITEM_TO_CLAIM_TYPE = {
     "topic": "insight_candidate",
 }
 
+CHAT_RESPONSE_SOURCE_KIND = "chat_response"
+CHAT_PROJECTION_SOURCE_TYPES = {"chat_message", "chat_response"}
+
+STATUS_PREFIXES = (
+    "我会先",
+    "我先",
+    "接下来我会",
+    "现在我会",
+    "我已经",
+    "已完成",
+    "正在",
+    "我来",
+    "好的，我来",
+)
+
+DECISION_TOKENS = (
+    "决定",
+    "采用",
+    "改成",
+    "方案",
+    "策略",
+    "结论",
+    "定下来",
+    "建议采用",
+    "recommend",
+    "switch to",
+    "change to",
+)
+
+ACTION_TOKENS = (
+    "下一步",
+    "待办",
+    "后续",
+    "需要补",
+    "需要处理",
+    "需要执行",
+    "follow up",
+    "next step",
+    "todo",
+)
+
+RISK_TOKENS = (
+    "风险",
+    "注意",
+    "问题在于",
+    "阻塞",
+    "blocked",
+    "issue",
+    "caveat",
+)
+
+KNOWLEDGE_TOKENS = (
+    "建议",
+    "原则",
+    "规则",
+    "最好",
+    "应该",
+    "可以参考",
+    "经验",
+    "做法",
+    "pattern",
+    "best practice",
+)
+
 
 def stable_id(prefix: str, *parts: str) -> str:
     digest = hashlib.sha1("::".join(parts).encode("utf-8")).hexdigest()[:16]
@@ -73,6 +137,32 @@ def classify_chat_message(text: str) -> tuple[str, float]:
     return "insight_candidate", 0.45
 
 
+def classify_chat_response(text: str) -> tuple[str, float, str] | None:
+    """Classify assistant replies that contain reusable advice, decisions, or actions."""
+    stripped = text.strip()
+    if len(stripped) < 20:
+        return None
+
+    lowered = stripped.lower()
+    first_line = stripped.splitlines()[0].strip()
+    if first_line.startswith(STATUS_PREFIXES) and not any(token in lowered for token in DECISION_TOKENS + KNOWLEDGE_TOKENS):
+        return None
+    if "```" in stripped and len(stripped.replace("```", "").strip()) < 60:
+        return None
+
+    if lowered.startswith("建议") and "建议采用" not in lowered and "recommend" not in lowered:
+        return "insight_candidate", 0.66, "assistant reply contains reusable advice"
+    if any(token in lowered for token in DECISION_TOKENS):
+        return "decision", 0.76, "assistant reply states or recommends a concrete decision/plan"
+    if any(token in lowered for token in ACTION_TOKENS):
+        return "action", 0.68, "assistant reply contains follow-up work"
+    if any(token in lowered for token in RISK_TOKENS):
+        return "risk", 0.66, "assistant reply captures a risk or caveat"
+    if any(token in lowered for token in KNOWLEDGE_TOKENS):
+        return "insight_candidate", 0.66, "assistant reply contains reusable advice"
+    return None
+
+
 def fetch_source_claims(conn: sqlite3.Connection, target_date: str) -> tuple[list[dict], list[dict]]:
     rows = conn.execute(
         """
@@ -87,6 +177,8 @@ def fetch_source_claims(conn: sqlite3.Connection, target_date: str) -> tuple[lis
     claim_packets: list[dict] = []
     evidence_links: list[dict] = []
     for row in rows:
+        if row["source_type"] in CHAT_PROJECTION_SOURCE_TYPES:
+            continue
         if not document_matches_target(
             row["path"],
             row["version_tag"],
@@ -131,10 +223,28 @@ def fetch_source_claims(conn: sqlite3.Connection, target_date: str) -> tuple[lis
 def fetch_chat_claims(conn: sqlite3.Connection, target_date: str) -> tuple[list[dict], list[dict]]:
     rows = conn.execute(
         """
-        SELECT m.id, m.timestamp, m.content, s.agent_type, s.project_path
+        SELECT m.id, m.session_id, m.timestamp, m.content, s.agent_type, s.project_path,
+               (
+                   SELECT u.id
+                   FROM messages u
+                   WHERE u.session_id = m.session_id
+                     AND u.role = 'user'
+                     AND (u.timestamp < m.timestamp OR (u.timestamp = m.timestamp AND u.id < m.id))
+                   ORDER BY u.timestamp DESC, u.id DESC
+                   LIMIT 1
+               ) AS background_message_id,
+               (
+                   SELECT u.content
+                   FROM messages u
+                   WHERE u.session_id = m.session_id
+                     AND u.role = 'user'
+                     AND (u.timestamp < m.timestamp OR (u.timestamp = m.timestamp AND u.id < m.id))
+                   ORDER BY u.timestamp DESC, u.id DESC
+                   LIMIT 1
+               ) AS background_prompt
         FROM messages m
         JOIN sessions s ON s.id = m.session_id
-        WHERE m.role = 'user' AND m.timestamp LIKE ?
+        WHERE m.role = 'assistant' AND m.timestamp LIKE ?
         ORDER BY m.timestamp ASC, m.id ASC
         """,
         (f"{target_date}%",),
@@ -143,7 +253,10 @@ def fetch_chat_claims(conn: sqlite3.Connection, target_date: str) -> tuple[list[
     claim_packets: list[dict] = []
     evidence_links: list[dict] = []
     for row in rows:
-        claim_type, confidence = classify_chat_message(row["content"])
+        classified = classify_chat_response(row["content"])
+        if classified is None:
+            continue
+        claim_type, confidence, reason = classified
         claim_id = stable_id("clm", "msg", str(row["id"]), target_date, claim_type)
         evidence_id = stable_id("evd", "msg", str(row["id"]))
         title = row["content"].splitlines()[0].strip()[:80]
@@ -154,12 +267,16 @@ def fetch_chat_claims(conn: sqlite3.Connection, target_date: str) -> tuple[list[
                 "title": title or f"chat-message-{row['id']}",
                 "content": row["content"],
                 "confidence": confidence,
-                "source_kind": "chat_message",
+                "source_kind": CHAT_RESPONSE_SOURCE_KIND,
                 "source_ref": {
                     "message_id": row["id"],
+                    "session_id": row["session_id"],
                     "agent_type": row["agent_type"],
                     "project_path": row["project_path"],
                     "timestamp": row["timestamp"],
+                    "background_message_id": row["background_message_id"],
+                    "background_prompt": (row["background_prompt"] or "")[:300],
+                    "why_candidate": reason,
                 },
                 "source_date": target_date,
             }
@@ -168,7 +285,7 @@ def fetch_chat_claims(conn: sqlite3.Connection, target_date: str) -> tuple[list[
             {
                 "claim_id": claim_id,
                 "evidence_id": evidence_id,
-                "evidence_type": "human_assertion",
+                "evidence_type": "assistant_response",
                 "source_table": "messages",
                 "source_id": row["id"],
             }
