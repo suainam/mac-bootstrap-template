@@ -117,3 +117,73 @@ CREATE TABLE IF NOT EXISTS execution_log (
 CREATE INDEX IF NOT EXISTS idx_execution_log_date ON execution_log(execution_date, status);
 CREATE INDEX IF NOT EXISTS idx_execution_log_step ON execution_log(step_name, started_at DESC);
 
+-- Durable workflow run state for resumable industrialized execution.
+CREATE TABLE IF NOT EXISTS workflow_runs (
+    id TEXT PRIMARY KEY,
+    workflow_name TEXT NOT NULL,
+    target_date TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed', 'degraded')),
+    started_at TEXT NOT NULL,
+    completed_at TEXT,
+    max_attempts INTEGER NOT NULL DEFAULT 1,
+    resumed_from_run_id TEXT,
+    error_message TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_runs_date ON workflow_runs(target_date, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS workflow_steps (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    step_index INTEGER NOT NULL,
+    step_name TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'running', 'completed', 'failed', 'skipped', 'degraded')),
+    attempt INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT,
+    completed_at TEXT,
+    exit_code INTEGER,
+    command_json TEXT NOT NULL,
+    produces_json TEXT NOT NULL,
+    stdout_path TEXT,
+    stderr_path TEXT,
+    input_hash TEXT,
+    output_hash TEXT,
+    error_message TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(run_id) REFERENCES workflow_runs(id) ON DELETE CASCADE,
+    UNIQUE(run_id, step_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_steps_run ON workflow_steps(run_id, step_index);
+CREATE INDEX IF NOT EXISTS idx_workflow_steps_status ON workflow_steps(status, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS artifact_manifest (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    step_id TEXT,
+    artifact_path TEXT NOT NULL,
+    artifact_kind TEXT NOT NULL,
+    content_hash TEXT,
+    created_at TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(run_id) REFERENCES workflow_runs(id) ON DELETE CASCADE,
+    FOREIGN KEY(step_id) REFERENCES workflow_steps(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifact_manifest_run ON artifact_manifest(run_id, created_at);
+
+CREATE TABLE IF NOT EXISTS backup_log (
+    id TEXT PRIMARY KEY,
+    run_id TEXT,
+    backup_path TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('completed', 'failed')),
+    error_message TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(run_id) REFERENCES workflow_runs(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_backup_log_created ON backup_log(created_at DESC);

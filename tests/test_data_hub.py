@@ -7,6 +7,7 @@ sys.path.insert(0, str(scripts_dir))
 
 import ingest_logs
 import daily_summary
+from db_helper import get_db_connection
 
 def test_clean_xml_tags():
     text_with_metadata = "Hello <ADDITIONAL_METADATA>some metadata</ADDITIONAL_METADATA> World"
@@ -44,3 +45,19 @@ def test_daily_summary_helpers():
     file_path = daily_summary.get_daily_file(today)
     assert file_path.name == f"{today}.md"
     assert file_path.parent.name == "Daily"
+
+
+def test_schema_includes_durable_workflow_tables(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENT_DB_PATH", str(tmp_path / "agent_history.db"))
+    conn = get_db_connection()
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert {"workflow_runs", "workflow_steps", "artifact_manifest", "backup_log"} <= tables

@@ -1,6 +1,9 @@
 import sys
+import subprocess
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 
 SCRIPTS_DIR = Path(__file__).parent.parent / "agent" / "data-hub"
@@ -11,6 +14,7 @@ import hygiene_audit
 import knowledge_retrieval
 import knowledge_workflows
 import source_ingest_store
+from workflow_contracts import StageSpec, SuccessCheck
 from source_adapters.common import Chunk, Item
 
 
@@ -42,8 +46,22 @@ def seed_knowledge_db(db_path: Path, vault_dir: Path) -> None:
             doc_id,
             chunk_ids,
             [
-                Item(item_type="decision", title="采用 filename_first", content="默认按文件名日期归因。", confidence=0.92, chunk_index=0, metadata={}),
-                Item(item_type="action", title="跟进门店实验", content="联系运营确认实验窗口。", confidence=0.89, chunk_index=1, metadata={}),
+                Item(
+                    item_type="decision",
+                    title="采用 filename_first",
+                    content="默认按文件名日期归因。",
+                    confidence=0.92,
+                    chunk_index=0,
+                    metadata={},
+                ),
+                Item(
+                    item_type="action",
+                    title="跟进门店实验",
+                    content="联系运营确认实验窗口。",
+                    confidence=0.89,
+                    chunk_index=1,
+                    metadata={},
+                ),
             ],
         )
 
@@ -201,9 +219,352 @@ def test_daily_workflows_define_and_run_expected_steps():
     assert [item["name"] for item in result] == ["knowledge-materialization", "knowledge-daily-weekly-synthesis"]
 
 
+def test_daily_workflow_dry_run_returns_json_ready_contracts():
+    result = knowledge_workflows.run_workflow("daily_promote_and_summary", "2026-07-04", dry_run=True)
+
+    assert result[0]["name"] == "knowledge-materialization"
+    assert result[0]["success_checks"] == [
+        {"kind": "file_exists", "target": "10_Periodic/Daily/2026-07-04.md", "expected": True},
+        {"kind": "output_not_contains", "target": "combined", "expected": ["duplicate marker failure"]},
+    ]
+    assert result[1]["degraded_ok"] is True
+    assert result[1]["success_checks"] == [
+        {"kind": "file_exists", "target": "10_Periodic/Daily/2026-07-04.md", "expected": True},
+        {
+            "kind": "output_not_contains",
+            "target": "combined",
+            "expected": ["LLM generation failed", "生成总结失败", "调用 LLM 失败"],
+        },
+    ]
+
+
 def test_source_adapter_upgrade_uses_template_test_path():
     steps = knowledge_workflows.build_workflow_steps("source_adapter_upgrade", "2026-07-04")
 
     pytest_step = steps[1]["command"]
     assert pytest_step[-2].endswith("test_data_hub_sources.py")
     assert Path(pytest_step[-2]).is_absolute()
+
+
+def test_durable_workflow_records_failure_and_logs(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    calls = []
+
+    def fake_command_runner(command, cwd, capture_output, text):
+        calls.append(command)
+        assert cwd == knowledge_workflows.CURRENT_DIR
+        assert capture_output is True
+        assert text is True
+        return subprocess.CompletedProcess(command, 7, stdout="partial output", stderr="boom")
+
+    results = knowledge_workflows.run_durable_workflow(
+        "auto_review_only",
+        "2026-07-04",
+        run_id="run_test_failure",
+        command_runner=fake_command_runner,
+        runs_dir=tmp_path / "runs",
+        max_attempts=1,
+    )
+
+    assert results[0]["status"] == "failed"
+    assert Path(results[0]["stdout_path"]).read_text(encoding="utf-8") == "partial output"
+    assert Path(results[0]["stderr_path"]).read_text(encoding="utf-8") == "boom"
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        run = conn.execute(
+            "SELECT status, error_message FROM workflow_runs WHERE id = ?",
+            ("run_test_failure",),
+        ).fetchone()
+        step = conn.execute(
+            "SELECT status, attempt, exit_code FROM workflow_steps WHERE run_id = ?",
+            ("run_test_failure",),
+        ).fetchone()
+        artifacts = conn.execute(
+            "SELECT COUNT(*) FROM artifact_manifest WHERE run_id = ?",
+            ("run_test_failure",),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert run["status"] == "failed"
+    assert "boom" in run["error_message"]
+    assert dict(step) == {"status": "failed", "attempt": 1, "exit_code": 7}
+    assert artifacts == 2
+
+
+def test_durable_runner_executes_stage_spec(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+
+    def fake_command_runner(command, cwd, capture_output, text):
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    results = knowledge_workflows.run_durable_workflow(
+        "auto_review_only",
+        "2026-07-04",
+        run_id="run_stage_spec",
+        command_runner=fake_command_runner,
+        runs_dir=tmp_path / "runs",
+    )
+
+    assert results[0]["status"] == "completed"
+
+
+def test_durable_runner_fails_when_success_check_fails(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    runs_dir = tmp_path / "runs"
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    monkeypatch.setenv("OBSIDIAN_VAULT_DIR", str(tmp_path / "vault"))
+    stage = StageSpec(
+        name="requires-file",
+        command=["python", "noop.py"],
+        success_checks=[SuccessCheck("file_exists", "10_Periodic/Daily/2026-07-04.md")],
+    )
+
+    def fake_command_runner(command, cwd, capture_output, text):
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    with knowledge_workflows.WorkflowRunner(command_runner=fake_command_runner, runs_dir=runs_dir) as runner:
+        results = runner.run("custom", "2026-07-04", [stage], run_id="run_check_failed")
+
+    assert results[0]["status"] == "failed"
+    assert "expected file exists" in results[0]["error_message"]
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        run = conn.execute(
+            "SELECT status, error_message FROM workflow_runs WHERE id = ?",
+            ("run_check_failed",),
+        ).fetchone()
+        step = conn.execute(
+            "SELECT status, exit_code, error_message FROM workflow_steps WHERE run_id = ?",
+            ("run_check_failed",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert run["status"] == "failed"
+    assert "expected file exists" in run["error_message"]
+    assert dict(step) == {"status": "failed", "exit_code": 0, "error_message": results[0]["error_message"]}
+
+
+def test_durable_runner_records_command_exception_as_failed(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    stage = StageSpec(name="raises", command=["missing-command"])
+
+    def fake_command_runner(command, cwd, capture_output, text):
+        raise FileNotFoundError("missing-command")
+
+    with knowledge_workflows.WorkflowRunner(command_runner=fake_command_runner, runs_dir=tmp_path / "runs") as runner:
+        results = runner.run("custom", "2026-07-04", [stage], run_id="run_exception")
+
+    assert results[0]["status"] == "failed"
+    assert "missing-command" in results[0]["error_message"]
+    assert Path(results[0]["stderr_path"]).read_text(encoding="utf-8") == "missing-command"
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        run = conn.execute(
+            "SELECT status, error_message FROM workflow_runs WHERE id = ?",
+            ("run_exception",),
+        ).fetchone()
+        step = conn.execute(
+            "SELECT status, exit_code, error_message FROM workflow_steps WHERE run_id = ?",
+            ("run_exception",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert run["status"] == "failed"
+    assert dict(step) == {"status": "failed", "exit_code": -1, "error_message": "missing-command"}
+
+
+def test_durable_runner_rejects_conflicting_run_modes(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    stage = StageSpec(name="noop", command=["python", "noop.py"])
+
+    with knowledge_workflows.WorkflowRunner(runs_dir=tmp_path / "runs") as runner:
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            runner.run("custom", "2026-07-04", [stage], run_id="new", resume_run_id="old")
+
+
+def test_durable_runner_marks_degraded_stage_and_run(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    vault_dir = tmp_path / "vault"
+    daily_note = vault_dir / "10_Periodic" / "Daily" / "2026-07-04.md"
+    daily_note.parent.mkdir(parents=True, exist_ok=True)
+    daily_note.write_text("# 2026-07-04\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    monkeypatch.setenv("OBSIDIAN_VAULT_DIR", str(vault_dir))
+
+    def fake_command_runner(command, cwd, capture_output, text):
+        return subprocess.CompletedProcess(command, 0, stdout="LLM generation failed", stderr="")
+
+    runner = knowledge_workflows.WorkflowRunner(command_runner=fake_command_runner, runs_dir=tmp_path / "runs")
+    results = runner.run(
+        "custom",
+        "2026-07-04",
+        [knowledge_workflows.daily_summary_stage("python", "2026-07-04")],
+        run_id="run_degraded",
+    )
+
+    assert results[0]["status"] == "degraded"
+    assert "LLM generation failed" in results[0]["error_message"]
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        run_status = conn.execute(
+            "SELECT status FROM workflow_runs WHERE id = ?",
+            ("run_degraded",),
+        ).fetchone()[0]
+        step_status = conn.execute(
+            "SELECT status FROM workflow_steps WHERE run_id = ?",
+            ("run_degraded",),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert run_status == "degraded"
+    assert step_status == "degraded"
+
+
+def test_durable_runner_resume_preserves_degraded_run_status(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    vault_dir = tmp_path / "vault"
+    daily_note = vault_dir / "10_Periodic" / "Daily" / "2026-07-04.md"
+    daily_note.parent.mkdir(parents=True, exist_ok=True)
+    daily_note.write_text("# 2026-07-04\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    monkeypatch.setenv("OBSIDIAN_VAULT_DIR", str(vault_dir))
+
+    def first_runner(command, cwd, capture_output, text):
+        return subprocess.CompletedProcess(command, 0, stdout="LLM generation failed", stderr="")
+
+    stage = knowledge_workflows.daily_summary_stage("python", "2026-07-04")
+    with knowledge_workflows.WorkflowRunner(command_runner=first_runner, runs_dir=tmp_path / "runs") as runner:
+        first = runner.run("custom", "2026-07-04", [stage], run_id="run_resume_degraded")
+
+    assert first[0]["status"] == "degraded"
+
+    def second_runner(command, cwd, capture_output, text):
+        raise AssertionError("resume should skip degraded completed step")
+
+    with knowledge_workflows.WorkflowRunner(command_runner=second_runner, runs_dir=tmp_path / "runs") as runner:
+        second = runner.run("custom", "2026-07-04", [stage], resume_run_id="run_resume_degraded")
+
+    assert second == [
+        {
+            "name": "knowledge-daily-weekly-synthesis",
+            "status": "skipped",
+            "run_id": "run_resume_degraded",
+        }
+    ]
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        run_status = conn.execute(
+            "SELECT status FROM workflow_runs WHERE id = ?",
+            ("run_resume_degraded",),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert run_status == "degraded"
+
+
+def test_durable_runner_from_step_reruns_completed_step(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    stage = StageSpec(name="rerunnable", command=["python", "noop.py"])
+    calls = []
+
+    def first_runner(command, cwd, capture_output, text):
+        calls.append("first")
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    with knowledge_workflows.WorkflowRunner(command_runner=first_runner, runs_dir=tmp_path / "runs") as runner:
+        first = runner.run("custom", "2026-07-04", [stage], run_id="run_from_step")
+
+    assert first[0]["status"] == "completed"
+
+    def second_runner(command, cwd, capture_output, text):
+        calls.append("second")
+        return subprocess.CompletedProcess(command, 0, stdout="rerun", stderr="")
+
+    with knowledge_workflows.WorkflowRunner(command_runner=second_runner, runs_dir=tmp_path / "runs") as runner:
+        second = runner.run(
+            "custom",
+            "2026-07-04",
+            [stage],
+            resume_run_id="run_from_step",
+            from_step="rerunnable",
+        )
+
+    assert [item["status"] for item in second] == ["completed"]
+    assert calls == ["first", "second"]
+
+
+def test_durable_workflow_retry_failed_resumes_from_failed_step(tmp_path: Path, monkeypatch):
+    db_path = tmp_path / "agent_history.db"
+    vault_dir = tmp_path / "vault"
+    daily_note = vault_dir / "10_Periodic" / "Daily" / "2026-07-04.md"
+    daily_note.parent.mkdir(parents=True, exist_ok=True)
+    daily_note.write_text("# 2026-07-04\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
+    monkeypatch.setenv("OBSIDIAN_VAULT_DIR", str(vault_dir))
+    call_count = 0
+
+    def first_runner(command, cwd, capture_output, text):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+        return subprocess.CompletedProcess(command, 2, stdout="", stderr="failed second")
+
+    first = knowledge_workflows.run_durable_workflow(
+        "daily_promote_and_summary",
+        "2026-07-04",
+        run_id="run_retry",
+        command_runner=first_runner,
+        runs_dir=tmp_path / "runs",
+        max_attempts=1,
+    )
+    assert [item["status"] for item in first] == ["completed", "failed"]
+
+    retry_calls = []
+
+    def retry_runner(command, cwd, capture_output, text):
+        retry_calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="recovered", stderr="")
+
+    second = knowledge_workflows.run_durable_workflow(
+        "daily_promote_and_summary",
+        "2026-07-04",
+        retry_failed_run_id="run_retry",
+        command_runner=retry_runner,
+        runs_dir=tmp_path / "runs",
+        max_attempts=1,
+    )
+
+    assert [item["status"] for item in second] == ["skipped", "completed"]
+    assert len(retry_calls) == 1
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        run_status = conn.execute("SELECT status FROM workflow_runs WHERE id = ?", ("run_retry",)).fetchone()[0]
+        step_statuses = [
+            row[0]
+            for row in conn.execute(
+                "SELECT status FROM workflow_steps WHERE run_id = ? ORDER BY step_index",
+                ("run_retry",),
+            ).fetchall()
+        ]
+    finally:
+        conn.close()
+
+    assert run_status == "completed"
+    assert step_statuses == ["completed", "completed"]

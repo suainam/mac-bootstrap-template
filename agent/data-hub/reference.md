@@ -55,6 +55,7 @@ OBSIDIAN_VAULT_DIR="$HOME/work/knowledge"
 OBSIDIAN_DAILY_DIR="10_Periodic/Daily"
 GIT_SEARCH_ROOTS="$HOME/work/config,$HOME/work/projects"
 AGENT_DB_PATH="$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db"
+# AGENT_RUNS_DIR="$HOME/work/config/mac-bootstrap/private/agent/data/runs"
 # EXTERNAL_SOURCE_DATE_MODE="filename_first"  # 默认值，一般不需要改
 ```
 
@@ -64,6 +65,7 @@ AGENT_DB_PATH="$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.
 | `OBSIDIAN_DAILY_DIR` | 日报子目录（相对 Vault） |
 | `GIT_SEARCH_ROOTS` | Git 活动搜索根，逗号分隔 |
 | `AGENT_DB_PATH` | SQLite 账本绝对路径 |
+| `AGENT_RUNS_DIR` | durable workflow stdout/stderr 日志目录，默认在 DB 同级 `runs/` |
 | `EXTERNAL_SOURCE_DATE_MODE` | 外部材料日期归因策略，默认 `filename_first` |
 
 ## Obsidian 插件约定
@@ -111,6 +113,19 @@ Dataview 按文件夹路径过滤时**区分大小写**；vault 实际目录是 
 - `generate_candidates.py` 生成的 review markdown — 是 Projection，幂等重写无损
 
 备份策略：只需备份 `AGENT_DB_PATH`，vault 内容可重建。
+
+## Durable Workflow State
+
+工业化运行新增 4 类状态表：
+
+| 表 | 用途 |
+|----|------|
+| `workflow_runs` | workflow 级 run_id、状态、日期、错误 |
+| `workflow_steps` | step 级 attempt、exit_code、日志路径、输入/输出 hash |
+| `artifact_manifest` | stdout/stderr 等产物登记 |
+| `backup_log` | SQLite 备份路径、checksum、结果 |
+
+`execution_log` 保留给单个脚本内部记录；`workflow_*` 负责跨脚本编排和恢复。
 
 ## 幂等性约定
 

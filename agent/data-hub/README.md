@@ -56,6 +56,15 @@ cd $HOME/work/config/mac-bootstrap/template
 .venv/bin/python agent/data-hub/knowledge_workflows.py daily_ingest_and_review $(date +%F) --dry-run
 ```
 
+工业化运行默认使用 durable runner：每次运行生成 `run_id`，写入
+`workflow_runs` / `workflow_steps`，并把每步 stdout/stderr 落盘到
+`private/agent/data/runs/<run_id>/`。失败后可按 run_id 恢复：
+
+```bash
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-04 --retry-failed <run_id>
+```
+
 ## 组件职责速查
 
 | 脚本 | 职责 |
@@ -70,6 +79,7 @@ cd $HOME/work/config/mac-bootstrap/template
 | `hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
 | `knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
 | `knowledge_workflows.py` | workflow registry（实现层） |
+| `workflow_runner.py` | durable workflow 状态、日志、重试、恢复 |
 | `knowledge-lifecycle-manager` | 统一入口（运行 / 状态 / 健康检查） |
 | `daily_morning.sh` | 晨间自动建日报 + 迁移昨日计划 |
 | `run-daily-evening.sh` | 晚间全链路 manager adapter |
@@ -118,7 +128,7 @@ template/.venv/bin/python -m pytest template/tests/ -q
 > UV_CACHE_DIR=.uv-cache uv run pytest tests/ -q
 > ```
 
-**当前覆盖**（85 个测试，覆盖率 ≥ 80%）：
+**当前覆盖**（覆盖率 ≥ 80%）：
 
 | 测试文件 | 覆盖环节 |
 |---------|---------|

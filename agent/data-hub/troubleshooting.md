@@ -45,6 +45,14 @@
 2. launchd job 是否正常加载：`launchctl list | grep daily-evening`
 3. plist 时间是否正确：18:00 触发
 4. 脚本路径是否正确：`template/agent/data-hub/run-daily-evening.sh`
+5. durable run 状态：`manager.py status --date YYYY-MM-DD`
+
+失败恢复：
+
+```bash
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date YYYY-MM-DD --retry-failed <run_id>
+```
 
 ## 8. 自动审核结果不符合预期
 
@@ -60,6 +68,7 @@
 1. execution_log 表是否存在：`sqlite3 $AGENT_DB_PATH ".tables" | grep execution_log`
 2. schema.sql 是否已应用：`db_helper.get_db_connection()` 自动执行 schema
 3. 权限问题：DB 文件是否可写
+4. durable 表是否存在：`sqlite3 $AGENT_DB_PATH ".tables" | grep workflow_runs`
 
 ## 10. materialize_candidates.py 未找到 auto-accepted 候选
 
@@ -67,6 +76,14 @@
 1. auto_review 是否在 materialize 之前运行
 2. 候选状态：`SELECT status, COUNT(*) FROM knowledge_candidates WHERE candidate_date = 'YYYY-MM-DD' GROUP BY status`
 3. 执行日志确认步骤顺序：`SELECT step_name, started_at, status FROM execution_log WHERE execution_date = 'YYYY-MM-DD' ORDER BY started_at`
+
+## 11. durable run 卡在 running
+
+检查顺序：
+1. `manager.py health` 是否提示 stale runs
+2. `manager.py status --date YYYY-MM-DD` 查看最后一个 step
+3. 打开 `workflow_steps.stdout_path` / `stderr_path`
+4. 若确认进程已结束，使用 `--retry-failed <run_id>` 或 `--resume <run_id> --from-step <step_name>` 补跑
 
 检查插件配置是否仍指向旧目录（`daily/`、`weekly/` 等）。当前标准路径：
 

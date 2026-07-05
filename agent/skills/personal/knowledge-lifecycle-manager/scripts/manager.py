@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 
@@ -16,9 +15,11 @@ DATA_HUB = TEMPLATE_ROOT / "agent" / "data-hub"
 PYTHON = TEMPLATE_ROOT / ".venv" / "bin" / "python"
 DB_PATH = REPO_ROOT / "private" / "agent" / "data" / "agent_history.db"
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(DATA_HUB))
 from db_helper import get_db_connection
 import knowledge_workflows
+import manager_reporting
 
 
 def default_target_date() -> str:
@@ -36,145 +37,81 @@ def load_env() -> None:
                 os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
 
-def run_workflow(workflow_name: str, target_date: str) -> None:
+def _db_path_from_env() -> Path:
+    return Path(os.path.expandvars(os.environ.get("AGENT_DB_PATH", str(DB_PATH))))
+
+
+def run_workflow(
+    workflow_name: str,
+    target_date: str,
+    *,
+    run_id: str | None = None,
+    resume_run_id: str | None = None,
+    retry_failed_run_id: str | None = None,
+    from_step: str | None = None,
+    max_attempts: int = 1,
+) -> None:
     """Run a named workflow for target_date."""
     print(f"\nStarting workflow={workflow_name} for {target_date}\n")
 
-    steps = knowledge_workflows.build_workflow_steps(workflow_name, target_date)
-    for index, step in enumerate(steps, start=1):
-        print(f"[{index}/{len(steps)}] {step['name']}")
-        result = subprocess.run(
-            step["command"],
-            cwd=DATA_HUB,
-            capture_output=True,
-            text=True,
-        )
+    results = knowledge_workflows.run_workflow(
+        workflow_name,
+        target_date,
+        durable=True,
+        run_id=run_id,
+        resume_run_id=resume_run_id,
+        retry_failed_run_id=retry_failed_run_id,
+        from_step=from_step,
+        max_attempts=max_attempts,
+    )
 
-        if result.returncode != 0:
-            if result.stdout.strip():
-                print(result.stdout.strip())
-            print(result.stderr.strip() or f"{step['name']} failed")
-            sys.exit(1)
+    active_run_id = results[0]["run_id"] if results else run_id or resume_run_id or retry_failed_run_id
+    if active_run_id:
+        print(f"Run ID: {active_run_id}")
 
-        if result.stdout.strip():
-            print(result.stdout.strip())
+    failed = None
+    for index, result in enumerate(results, start=1):
+        print(f"[{index}/{len(results)}] {result['name']}: {result['status']}")
+        if result.get("stdout_path"):
+            print(f"  stdout: {result['stdout_path']}")
+        if result.get("stderr_path"):
+            print(f"  stderr: {result['stderr_path']}")
+        if result["status"] == "failed":
+            failed = result
+            break
+
+    if failed:
+        print(f"\nWorkflow {workflow_name} failed at {failed['name']}")
+        if active_run_id:
+            print(f"Resume: {Path(__file__)} run --workflow {workflow_name} --date {target_date} --retry-failed {active_run_id}")
+        sys.exit(1)
 
     print(f"\nWorkflow {workflow_name} completed for {target_date}\n")
 
 
 def show_status(target_date: str) -> None:
     """Show execution status for target_date."""
-    load_env()
-    conn = get_db_connection()
-    cursor = conn.execute(
-        """
-        SELECT step_name, started_at, completed_at, status, records_affected, error_message
-        FROM execution_log
-        WHERE execution_date = ?
-        ORDER BY started_at ASC
-        """,
-        (target_date,),
-    )
-
-    rows = cursor.fetchall()
-    if not rows:
-        print(f"No execution logs found for {target_date}")
-        return
-
-    print(f"\nExecution Status for {target_date}\n")
-    print(f"{'Step':<25} {'Status':<10} {'Records':<10} {'Duration':<12} {'Error'}")
-    print("-" * 90)
-
-    for row in rows:
-        step, started, completed, status, records, error = row
-        duration = ""
-        if started and completed:
-            start_dt = datetime.fromisoformat(started)
-            end_dt = datetime.fromisoformat(completed)
-            duration = f"{(end_dt - start_dt).total_seconds():.1f}s"
-
-        status_icon = {"completed": "OK", "failed": "FAIL", "running": "RUN"}.get(status, "UNK")
-        error_msg = error[:40] if error else ""
-
-        print(f"{step:<25} {status_icon} {status:<8} {records:<10} {duration:<12} {error_msg}")
-
-    conn.close()
-    print()
+    manager_reporting.show_status(target_date, load_env=load_env, get_db_connection=get_db_connection)
 
 
 def show_candidates(target_date: str) -> None:
     """Show candidate queue statistics for target_date."""
-    load_env()
-    conn = get_db_connection()
-
-    cursor = conn.execute(
-        """
-        SELECT status, candidate_type, COUNT(*) as count
-        FROM knowledge_candidates
-        WHERE candidate_date = ?
-        GROUP BY status, candidate_type
-        ORDER BY status, candidate_type
-        """,
-        (target_date,),
-    )
-
-    rows = cursor.fetchall()
-    if not rows:
-        print(f"No candidates found for {target_date}")
-        conn.close()
-        return
-
-    print(f"\nCandidate Queue for {target_date}\n")
-    print(f"{'Status':<12} {'Type':<15} {'Count'}")
-    print("-" * 40)
-
-    total_by_status: dict[str, int] = {}
-    for status, cand_type, count in rows:
-        print(f"{status:<12} {cand_type:<15} {count}")
-        total_by_status[status] = total_by_status.get(status, 0) + count
-
-    print("-" * 40)
-    for status, total in sorted(total_by_status.items()):
-        print(f"{'Total':<12} {status:<15} {total}")
-
-    conn.close()
-    print()
+    manager_reporting.show_candidates(target_date, load_env=load_env, get_db_connection=get_db_connection)
 
 
 def health_check() -> None:
     """Check last 3 days for failed steps."""
-    load_env()
-    conn = get_db_connection()
+    manager_reporting.health_check(load_env=load_env, get_db_connection=get_db_connection)
 
-    today = datetime.now().date()
-    dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(3)]
 
-    cursor = conn.execute(
-        """
-        SELECT execution_date, step_name, status, error_message
-        FROM execution_log
-        WHERE execution_date IN (?, ?, ?) AND status = 'failed'
-        ORDER BY execution_date DESC, started_at DESC
-        """,
-        tuple(dates),
+def backup_database(target_date: str) -> None:
+    """Create a verified SQLite backup and record it in backup_log."""
+    manager_reporting.backup_database(
+        target_date,
+        db_path=_db_path_from_env(),
+        load_env=load_env,
+        get_db_connection=get_db_connection,
     )
-
-    rows = cursor.fetchall()
-    if not rows:
-        print("\nHealth Check: All clear (last 3 days)\n")
-        conn.close()
-        return
-
-    print(f"\nHealth Check: {len(rows)} failed steps in last 3 days\n")
-    print(f"{'Date':<12} {'Step':<25} {'Error'}")
-    print("-" * 80)
-
-    for date, step, _status, error in rows:
-        error_msg = error[:50] if error else "Unknown error"
-        print(f"{date:<12} {step:<25} {error_msg}")
-
-    conn.close()
-    print()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -188,6 +125,7 @@ Examples:
   %(prog)s status --date 2026-07-01
   %(prog)s candidates 2026-07-01
   %(prog)s health
+  %(prog)s backup --date 2026-07-01
 
 Legacy aliases:
   %(prog)s --ingest-only
@@ -198,41 +136,49 @@ Legacy aliases:
   %(prog)s --health
         """,
     )
-    parser.add_argument("command", nargs="?", choices=["run", "status", "candidates", "health"])
+    parser.add_argument("command", nargs="?", choices=["run", "status", "candidates", "health", "backup"])
     parser.add_argument("value", nargs="?")
     parser.add_argument("--run", action="store_true", help="Run a workflow (default)")
     parser.add_argument("--workflow", choices=knowledge_workflows.supported_workflows(), default="full_cycle")
     parser.add_argument("--date", type=str, help="Target date (YYYY-MM-DD)")
+    parser.add_argument("--run-id", help="Explicit durable run id")
+    parser.add_argument("--resume", help="Resume an existing durable run id")
+    parser.add_argument("--retry-failed", help="Retry from the first failed step in an existing run id")
+    parser.add_argument("--from-step", help="Start at a named workflow step")
+    parser.add_argument("--max-attempts", type=int, default=1, help="Attempts per step")
     parser.add_argument("--ingest-only", action="store_true", help="Legacy alias for daily_ingest_and_review")
     parser.add_argument("--review-only", action="store_true", help="Legacy alias for auto_review_only")
     parser.add_argument("--materialize-only", action="store_true", help="Legacy alias for materialize_only")
     parser.add_argument("--status", action="store_true", help="Show execution status")
     parser.add_argument("--candidates", nargs="?", const="TODAY", help="Show candidate queue")
     parser.add_argument("--health", action="store_true", help="Health check (last 3 days)")
+    parser.add_argument("--backup", action="store_true", help="Create a SQLite backup")
     return parser
 
 
 def resolve_action(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
     target_date = args.date or default_target_date()
 
-    if args.health or args.command == "health":
+    if getattr(args, "health", False) or args.command == "health":
         return ("health", None, None)
-    if args.status or args.command == "status":
+    if getattr(args, "backup", False) or args.command == "backup":
+        return ("backup", None, target_date)
+    if getattr(args, "status", False) or args.command == "status":
         status_date = args.date or args.value or default_target_date()
         return ("status", None, status_date)
-    if args.candidates is not None or args.command == "candidates":
-        if args.candidates is not None:
+    if getattr(args, "candidates", None) is not None or args.command == "candidates":
+        if getattr(args, "candidates", None) is not None:
             candidate_date = default_target_date() if args.candidates == "TODAY" else args.candidates
         else:
             candidate_date = args.date or args.value or default_target_date()
         return ("candidates", None, candidate_date)
-    if args.ingest_only:
+    if getattr(args, "ingest_only", False):
         return ("run", "daily_ingest_and_review", target_date)
-    if args.review_only:
+    if getattr(args, "review_only", False):
         return ("run", "auto_review_only", target_date)
-    if args.materialize_only:
+    if getattr(args, "materialize_only", False):
         return ("run", "materialize_only", target_date)
-    if args.command == "run" or args.run:
+    if args.command == "run" or getattr(args, "run", False):
         return ("run", args.workflow, target_date)
     return ("run", args.workflow, target_date)
 
@@ -245,11 +191,27 @@ def main(argv: list[str] | None = None) -> None:
     if action == "health":
         health_check()
         return
+    if action == "backup":
+        backup_database(target_date or default_target_date())
+        return
     if action == "status":
         show_status(target_date or default_target_date())
         return
     if action == "candidates":
         show_candidates(target_date or default_target_date())
+        return
+
+    advanced = args.run_id or args.resume or args.retry_failed or args.from_step or args.max_attempts != 1
+    if advanced:
+        run_workflow(
+            workflow_name or "full_cycle",
+            target_date or default_target_date(),
+            run_id=args.run_id,
+            resume_run_id=args.resume,
+            retry_failed_run_id=args.retry_failed,
+            from_step=args.from_step,
+            max_attempts=args.max_attempts,
+        )
         return
 
     run_workflow(workflow_name or "full_cycle", target_date or default_target_date())

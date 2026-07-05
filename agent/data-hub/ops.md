@@ -8,7 +8,9 @@
 |------|------|
 | 晚间全链路（自动） | `bash template/agent/data-hub/run-daily-evening.sh` |
 | 手动补跑指定日期 | 见下方第 1 节 |
-| 查看执行日志 | `sqlite3 $AGENT_DB_PATH "SELECT * FROM execution_log WHERE execution_date = '2026-07-04'"` |
+| 查看执行状态 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py status --date 2026-07-04` |
+| 健康检查 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py health` |
+| SQLite 备份 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py backup --date 2026-07-04` |
 | 查看候选审核结果 | `sqlite3 $AGENT_DB_PATH "SELECT candidate_date, status, COUNT(*) FROM knowledge_candidates GROUP BY candidate_date, status"` |
 | 重刷日志入库 | 见下方第 2 节 |
 | 查看数据库 | `sqlite3 "$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db" ".tables"` |
@@ -33,6 +35,22 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 ```
 
 说明：参数直接传日期，格式 `YYYY-MM-DD`。
+
+失败恢复：
+
+```bash
+# 查看 run_id 和失败 step
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  status --date 2026-07-02
+
+# 从第一个 failed step 继续
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-02 --retry-failed <run_id>
+
+# 从指定 step 继续
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-02 --resume <run_id> --from-step knowledge-materialization
+```
 
 ## 2. 手动重刷日志入库
 
@@ -111,6 +129,9 @@ cd $HOME/work/config/mac-bootstrap
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow full_cycle --date 2026-07-04
 ```
+
+运行结果会写入 `workflow_runs` / `workflow_steps`，每步日志在
+`private/agent/data/runs/<run_id>/`。
 
 ## 8. 回归测试与 2.0 seam 验收
 
