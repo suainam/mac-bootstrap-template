@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 SCRIPTS_DIR = Path(__file__).parent.parent / "agent" / "data-hub"
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -30,10 +29,6 @@ def test_daily_summary_helpers_and_main(temp_db_and_vault, monkeypatch) -> None:
     assert "wiki_page | 增长方案" in source_digest
     assert "采用 filename_first" in candidate_digest
 
-    def fake_run(cmd: list[str], **_: object) -> SimpleNamespace:
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(daily_summary.subprocess, "run", fake_run)
     monkeypatch.setattr(daily_summary, "get_git_logs", lambda _: ["**repo**\n- abc123 change"])
     monkeypatch.setattr(daily_summary, "generate_summary", lambda _: "## AI 总结\n- 汇总完成")
     monkeypatch.setattr(sys, "argv", ["daily_summary.py", "2026-07-08"])
@@ -58,28 +53,17 @@ def test_daily_summary_generate_summary_and_failure_logging(temp_db_and_vault, m
     daily_note.write_text("# 2026-07-09\n\n## AI 总结\n\n旧总结\n", encoding="utf-8")
     monkeypatch.setattr(daily_summary, "DAILY_DIR", daily_note.parent)
 
-    responses = iter(
-        [
-            Exception("agy down"),
-            SimpleNamespace(returncode=0, stdout="claude summary", stderr=""),
-        ]
-    )
+    monkeypatch.setattr(daily_summary, "call_llm_raw", lambda p: "llm result")
+    assert daily_summary.generate_summary("prompt") == "llm result"
 
-    def fake_run(*_: object, **__: object) -> SimpleNamespace:
-        value = next(responses)
-        if isinstance(value, Exception):
-            raise value
-        return value
-
-    monkeypatch.setattr(daily_summary.subprocess, "run", fake_run)
-    assert daily_summary.generate_summary("prompt") == "claude summary"
+    monkeypatch.setattr(daily_summary, "call_llm_raw", lambda p: "")
+    assert daily_summary.generate_summary("prompt") == "调用 LLM 失败，未能生成总结。"
 
     monkeypatch.setattr(daily_summary, "get_git_logs", lambda _: [])
     monkeypatch.setattr(daily_summary, "get_agent_logs_from_db", lambda _: "")
     monkeypatch.setattr(daily_summary, "get_external_source_digest", lambda _: "")
     monkeypatch.setattr(daily_summary, "get_candidate_digest", lambda _: "")
     monkeypatch.setattr(daily_summary, "generate_summary", lambda _: "调用 LLM 失败，未能生成总结。")
-    monkeypatch.setattr(daily_summary.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""))
     monkeypatch.setattr(sys, "argv", ["daily_summary.py", "2026-07-09"])
 
     daily_summary.main()
@@ -143,6 +127,21 @@ def test_get_agent_logs_from_db_uses_local_date_for_utc_timestamps(temp_db_and_v
     assert "这条消息在本地时区属于 2026-07-05" in digest
 
 
+def test_build_summary_prompt_uses_langgpt_structure() -> None:
+    prompt = daily_summary.build_summary_prompt(
+        git_digest="test git",
+        agent_digest="test agent",
+        source_digest="test source",
+        candidate_digest="test candidate",
+    )
+    assert "# Role" in prompt
+    assert "## Profile" in prompt
+    assert "## Skills" in prompt
+    assert "## Rules" in prompt
+    assert "## OutputFormat" in prompt
+    assert "## Input Data" in prompt
+
+
 def test_daily_summary_prompt_requires_specific_hierarchical_tags() -> None:
     prompt = daily_summary.build_summary_prompt(
         git_digest="**repo**\n- ship data hub acceptance",
@@ -166,3 +165,11 @@ def test_daily_summary_sanitizes_and_normalizes_summary_tags() -> None:
     assert "#绩效-计划组织" in sanitized
     assert "#复盘-做得好" in sanitized
     assert "`#绩效-计划组织`" not in sanitized
+
+
+def test_generate_summary_delegates_to_call_llm_raw(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(daily_summary, "call_llm_raw", lambda p: calls.append(p) or "mocked summary", raising=False)
+    result = daily_summary.generate_summary("my prompt")
+    assert calls == ["my prompt"]
+    assert result == "mocked summary"
