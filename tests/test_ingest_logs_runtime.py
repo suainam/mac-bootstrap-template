@@ -109,3 +109,17 @@ def test_ingest_logs_end_to_end_and_main(temp_db_and_vault, monkeypatch, tmp_pat
     finally:
         conn.close()
     assert any(log["step_name"] == "ingest_logs" and log["records_affected"] == 9 for log in logs)
+
+
+def test_ingest_logs_missing_agent_dirs_return_zero(temp_db_and_vault, monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(ingest_logs, "CLAUDE_PROJECTS_DIR", tmp_path / "missing-claude")
+    monkeypatch.setattr(ingest_logs, "CODEX_SESSIONS_DIR", tmp_path / "missing-codex")
+    monkeypatch.setattr(ingest_logs.Path, "home", staticmethod(lambda: tmp_path / "missing-home"))
+
+    conn = get_db_connection()
+    try:
+        assert ingest_logs.ingest_claude(conn) == 0
+        assert ingest_logs.ingest_codex(conn) == 0
+        assert ingest_logs.ingest_agy(conn) == 0
+    finally:
+        conn.close()

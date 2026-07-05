@@ -108,6 +108,80 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 待增强：HTML table/callout 细结构、claims/evidence 证据链模型、OCR fallback、source family 扩展。
 
+## 新机前置依赖
+
+最小可用环境：
+
+| 依赖 | 用途 | 验收命令 |
+|------|------|----------|
+| Python 3.13+ | 运行 data-hub 脚本和 pytest | `python3 --version` |
+| template venv | 仓库维护的稳定 Python runtime | `template/.venv/bin/python --version` |
+| uv | 创建/维护 venv，备用运行 pytest | `uv --version` |
+| sqlite3 CLI | 人工检查账本和验收 SQL | `sqlite3 --version` |
+| make | 运行仓库门禁 | `make check` |
+| agy 或 claude CLI | `daily_summary.py` 的 LLM 摘要来源 | `agy --help` 或 `claude --help` |
+
+注意事项：
+
+- 测试和生产脚本优先使用 `template/.venv/bin/python`，不要临时切到父仓库 `.venv`。
+- Shell 中显式设置的 `AGENT_DB_PATH`、`OBSIDIAN_VAULT_DIR` 等变量优先级高于 `private/agent/.obsidian_daily.env`；env 文件只补默认值。
+- 新机器没有 Claude/Codex/AGY 历史日志目录时，`ingest_logs.py` 应返回 0 条记录并继续，而不是失败。
+- 没有真实 LLM CLI 或不想调用外部服务时，可以在隔离验收里用临时 `PATH` 注入 fake `agy`；真实运行时应配置 `agy` 或 `claude`。
+
+## 隔离实机验收
+
+目标：在不读取真实 `~/work/knowledge`、真实 agent 日志或 private secrets 的前提下，证明 full lifecycle 可在新机器上跑通。
+
+1. 创建临时 HOME、vault、DB、runs、git roots 和 fake `agy`。
+2. 在临时 vault 写入最小 source fixture：
+   - `50_Sources/Meetings/YYYY-MM-DD_*.md`
+   - `50_Sources/Wiki-Clips/YYYY-MM-DD_*.md`
+3. 设置隔离环境。注意先保存 `REPO`，再覆盖 `HOME`：
+
+```bash
+export ACCEPT=/tmp/data-hub-acceptance
+export REPO=$HOME/work/config/mac-bootstrap
+export HOME=$ACCEPT/home
+export OBSIDIAN_VAULT_DIR=$ACCEPT/vault
+export OBSIDIAN_DAILY_DIR=10_Periodic/Daily
+export AGENT_DB_PATH=$ACCEPT/agent_history.db
+export AGENT_RUNS_DIR=$ACCEPT/runs
+export GIT_SEARCH_ROOTS=$ACCEPT/git-roots
+export PATH=$ACCEPT/bin:$PATH
+cd "$REPO"
+```
+
+4. 执行 dry-run 和 durable full cycle：
+
+```bash
+template/.venv/bin/python template/agent/data-hub/knowledge_workflows.py full_cycle 2026-07-04 --dry-run
+
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-04 --run-id acceptance_clean
+```
+
+5. 验收证据：
+
+```bash
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py status --date 2026-07-04
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py candidates 2026-07-04
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py health
+sqlite3 "$AGENT_DB_PATH" \
+  "SELECT COUNT(*) FROM source_documents; SELECT COUNT(*) FROM knowledge_candidates; SELECT COUNT(*) FROM artifact_manifest;"
+find "$OBSIDIAN_VAULT_DIR" -maxdepth 5 -type f | sort
+```
+
+2026-07-05 本机验收记录：
+
+- 依赖：`python3 3.13.13`，`template/.venv/bin/python 3.13.13`，`uv 0.11.26`，`sqlite3 3.51.0`。
+- 基线测试：Data Hub 相关 pytest `106 passed`。
+- 恢复路径：第一次 `acceptance_full` 暴露出空日志目录 bug；修复后 `--retry-failed acceptance_full` 从失败 step 继续，8 步最终 completed。
+- 干净路径：`acceptance_clean` 在全新临时目录中 8/8 completed，`manager.py health` 返回 `All clear`。
+- 干净路径产物计数：`source_documents=2`，`document_chunks=7`，`extracted_items=7`，`knowledge_candidates=6`，`artifact_manifest=16`。
+- 候选结果：`daily accepted=3`，`card accepted=1`，`adr pending=2`。
+- vault 产物：`10_Periodic/Daily/2026-07-04.md`、`60_Inbox/Candidates/2026-07-04.md`、`40_Knowledge/Cards/*.md`。
+- 备份命令：`manager.py backup --date 2026-07-04` 生成 SQLite 备份并记录 sha256。
+
 ## 测试
 
 **虚拟环境**：pytest 必须使用 `template/` 下的 venv，**不是** repo 根目录的 `.venv`。

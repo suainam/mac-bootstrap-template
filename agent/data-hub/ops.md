@@ -14,6 +14,7 @@
 | 查看候选审核结果 | `sqlite3 $AGENT_DB_PATH "SELECT candidate_date, status, COUNT(*) FROM knowledge_candidates GROUP BY candidate_date, status"` |
 | 重刷日志入库 | 见下方第 2 节 |
 | 查看数据库 | `sqlite3 "$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db" ".tables"` |
+| 新机隔离验收 | 见下方第 10 节 |
 
 ## 1. 手动补跑指定日期
 
@@ -174,3 +175,97 @@ bash daily_morning.sh
 ```
 
 验证点：是否生成今日日报、是否迁移上一工作日 `明日计划`、Obsidian 模板是否正确展开。
+
+## 10. 新机隔离验收
+
+目的：完整跑通 Data Hub lifecycle，但不读取真实 vault、真实 agent 日志、真实 private DB 或外部 LLM 服务。
+
+准备临时目录和 fixture：
+
+```bash
+ACCEPT=/tmp/data-hub-acceptance
+mkdir -p \
+  "$ACCEPT/home" \
+  "$ACCEPT/vault/50_Sources/Meetings" \
+  "$ACCEPT/vault/50_Sources/Wiki-Clips" \
+  "$ACCEPT/vault/10_Periodic/Daily" \
+  "$ACCEPT/vault/40_Knowledge/Cards" \
+  "$ACCEPT/vault/40_Knowledge/ADR" \
+  "$ACCEPT/runs" \
+  "$ACCEPT/git-roots" \
+  "$ACCEPT/bin"
+
+cat > "$ACCEPT/vault/50_Sources/Meetings/2026-07-04_data-hub-acceptance.md" <<'EOF'
+会议纪要
+
+决定使用隔离 vault 和 SQLite 验收 Data Hub 流程。
+
+待办
+· 跟进 Data Hub 新机器验收@codex
+EOF
+
+cat > "$ACCEPT/vault/50_Sources/Wiki-Clips/2026-07-04_data-hub-runbook.md" <<'EOF'
+# Data Hub Runbook
+
+- 决定所有验收数据必须放在临时目录，避免污染真实 vault。
+- TODO: 记录 uv、Python、SQLite 和 make check 的前置依赖。
+EOF
+
+cat > "$ACCEPT/bin/agy" <<'EOF'
+#!/bin/sh
+printf '%s\n' '- Data Hub 隔离验收流程已跑通，临时 vault/SQLite/日志产物均可追溯。 #复盘'
+EOF
+chmod +x "$ACCEPT/bin/agy"
+```
+
+设置隔离环境：
+
+```bash
+export REPO="$HOME/work/config/mac-bootstrap"
+export HOME="$ACCEPT/home"
+export OBSIDIAN_VAULT_DIR="$ACCEPT/vault"
+export OBSIDIAN_DAILY_DIR="10_Periodic/Daily"
+export AGENT_DB_PATH="$ACCEPT/agent_history.db"
+export AGENT_RUNS_DIR="$ACCEPT/runs"
+export GIT_SEARCH_ROOTS="$ACCEPT/git-roots"
+export PATH="$ACCEPT/bin:$PATH"
+```
+
+执行验收：
+
+```bash
+cd "$REPO"
+
+template/.venv/bin/python template/agent/data-hub/knowledge_workflows.py full_cycle 2026-07-04 --dry-run
+
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-04 --run-id acceptance_clean
+
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  status --date 2026-07-04
+
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  candidates 2026-07-04
+
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py health
+```
+
+验收点：
+
+```bash
+sqlite3 "$AGENT_DB_PATH" \
+  "SELECT candidate_type, status, COUNT(*) FROM knowledge_candidates GROUP BY candidate_type, status ORDER BY candidate_type, status;"
+
+sqlite3 "$AGENT_DB_PATH" \
+  "SELECT step_index, step_name, status, exit_code FROM workflow_steps ORDER BY step_index;"
+
+find "$OBSIDIAN_VAULT_DIR" -maxdepth 5 -type f | sort
+find "$AGENT_RUNS_DIR" -type f | sort
+```
+
+若某一步失败：
+
+```bash
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow full_cycle --date 2026-07-04 --retry-failed <run_id>
+```

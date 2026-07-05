@@ -31,7 +31,7 @@ def load_env() -> None:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
-                os.environ[k.strip()] = v.strip().strip('"').strip("'")
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
 def auto_review_candidates(conn, target_date: str, logger: ExecutionLogger) -> dict:

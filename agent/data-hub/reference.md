@@ -68,6 +68,10 @@ AGENT_DB_PATH="$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.
 | `AGENT_RUNS_DIR` | durable workflow stdout/stderr 日志目录，默认在 DB 同级 `runs/` |
 | `EXTERNAL_SOURCE_DATE_MODE` | 外部材料日期归因策略，默认 `filename_first` |
 
+优先级：调用命令时显式传入的 shell 环境变量优先，`private/agent/.obsidian_daily.env`
+只补缺省值。隔离验收、临时 DB、临时 vault 或 CI 环境应使用显式 env，避免误读真实
+`~/work/knowledge` 或 private DB。
+
 ## Obsidian 插件约定
 
 插件目录必须与 Vault 结构保持一致：

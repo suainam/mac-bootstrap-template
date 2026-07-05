@@ -30,7 +30,7 @@ def load_env():
             if line and not line.startswith("#"):
                 if "=" in line:
                     k, v = line.split("=", 1)
-                    os.environ[k.strip()] = v.strip().strip('"').strip("'")
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 load_env()
 
@@ -60,7 +60,8 @@ def is_system_boilerplate(text: str) -> bool:
     return False
 
 def ingest_claude(conn):
-    if not CLAUDE_PROJECTS_DIR.exists(): return
+    if not CLAUDE_PROJECTS_DIR.exists():
+        return 0
     cursor = conn.cursor()
     records_count = 0
     
@@ -118,7 +119,8 @@ def ingest_claude(conn):
     return records_count
 
 def ingest_codex(conn):
-    if not CODEX_SESSIONS_DIR.exists(): return
+    if not CODEX_SESSIONS_DIR.exists():
+        return 0
     cursor = conn.cursor()
     records_count = 0
     
@@ -170,7 +172,8 @@ def ingest_codex(conn):
 
 def ingest_agy(conn):
     AGY_BRAIN_DIR = Path.home() / ".gemini" / "antigravity-cli" / "brain"
-    if not AGY_BRAIN_DIR.exists(): return
+    if not AGY_BRAIN_DIR.exists():
+        return 0
     cursor = conn.cursor()
     records_count = 0
     

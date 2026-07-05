@@ -31,7 +31,7 @@ def load_env():
             if line and not line.startswith("#"):
                 if "=" in line:
                     k, v = line.split("=", 1)
-                    os.environ[k.strip()] = v.strip().strip('"').strip("'")
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 load_env()
 

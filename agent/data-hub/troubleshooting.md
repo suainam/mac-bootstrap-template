@@ -85,6 +85,25 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 3. 打开 `workflow_steps.stdout_path` / `stderr_path`
 4. 若确认进程已结束，使用 `--retry-failed <run_id>` 或 `--resume <run_id> --from-step <step_name>` 补跑
 
+## 12. 新机器没有 agent 日志目录
+
+表现：`ingest_logs.py` 在没有 `~/.claude/projects`、`~/.codex/sessions`、OpenCode 或 AGY 日志目录时应输出 0 条记录并继续。
+
+检查顺序：
+1. 是否使用了最新脚本；旧版本可能在 `total_records += count` 处因 `None` 失败
+2. `workflow_steps.stderr_path` 是否包含 `unsupported operand type(s) for +=`
+3. 修复后用 `--retry-failed <run_id>` 从 `knowledge-source-ingestion:logs` 继续
+
+## 13. 临时 env 没生效或读到了真实 DB/vault
+
+表现：明明设置了 `AGENT_DB_PATH` / `OBSIDIAN_VAULT_DIR`，但 `manager.py status` 看不到临时 run，或读到了真实 private DB。
+
+检查顺序：
+1. 命令前是否显式导出了 `AGENT_DB_PATH`、`OBSIDIAN_VAULT_DIR`、`OBSIDIAN_DAILY_DIR`
+2. 当前脚本是否使用“shell env 优先，env 文件补默认”的版本
+3. 若在隔离验收中覆盖 `HOME`，先保存 `REPO=$HOME/work/config/mac-bootstrap`，再设置临时 `HOME`
+4. 用 `sqlite3 "$AGENT_DB_PATH" ".tables"` 确认实际 DB 路径
+
 检查插件配置是否仍指向旧目录（`daily/`、`weekly/` 等）。当前标准路径：
 
 | 旧路径 | 新路径 |
