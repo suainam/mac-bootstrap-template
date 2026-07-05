@@ -458,7 +458,7 @@ template/.venv/bin/python -m pytest \
 输出摘要：
 
 ```text
-107 passed in 1.58s
+110 passed in 1.50s
 ```
 
 完整仓库门禁：
@@ -473,14 +473,14 @@ make check
 parent privacy-audit: ok
 privacy-audit: ok (public files, values suppressed)
 Doctor passed.
-345 passed, 9 skipped, 1 warning in 32.85s
-coverage: 81.25% (required 80.0%)
+348 passed, 9 skipped, 1 warning in 32.88s
+coverage: 81.39% (required 80.0%)
 ```
 
 非阻断 warning：
 
 ```text
-tests/test_data_hub_helpers.py::test_date_utils_workday
+tests/test_data_hub_helpers.py::test_execution_logger_lifecycle
 ResourceWarning: unclosed database in sqlite3.Connection
 ```
 
@@ -509,3 +509,88 @@ ResourceWarning: unclosed database in sqlite3.Connection
 - 给 `manager.py health` 增加 legacy failure 与 durable failure 的分区显示或静默阈值。
 - 增加一个公开 fixture 的 accepted ADR/Card materialization smoke test，补足真实零候选日期无法覆盖的路径。
 - 在 README 中把“真实验收”和“隔离验收”的适用场景分开：新机器优先跑隔离验收；维护机器升级前先备份 DB 后跑真实验收。
+
+## 11. Follow-up 修复验收
+
+日期：2026-07-05  
+分支：`data-hub-real-acceptance-fixes`
+
+### 11.1 零候选路径解释
+
+本次真实日期 `2026-07-05` 没有新增 ADR/Card 是正常结果：
+
+- `daily_ingest_and_review` 产出的 candidate review 为零候选，`manager.py candidates --date 2026-07-05` 显示 `No candidates found`。
+- `auto_review_only` 没有候选可提升为 `accepted`。
+- `materialize_candidates.py` 只 materialize `status='accepted'` 的候选，因此 `0 reviewed, 0 materialized` 是正确 no-op。
+- `$VAULT/10_Periodic/Daily/2026-07-05.md` 已存在，`daily_summary.py` 只重写 `## AI 总结`，不会另建第二份 daily note。
+
+需要专门覆盖 ADR/Card 新增路径时，应使用隔离 fixture 或选择有 accepted candidates 的日期，避免为了验收强行改写真实知识库。
+
+### 11.2 标签契约优化
+
+标签格式从 slash 层级改为 hyphen 层级：
+
+```text
+推荐：#绩效-计划组织 #成长-新贡献 #复盘-做得好
+禁止：#绩效 #成长 #复盘
+兼容清理：#绩效/计划组织 -> #绩效-计划组织
+```
+
+原因：
+
+- `#绩效-计划组织` 保留父子语义，但在 Obsidian/Dataview/搜索里是单个稳定标签。
+- `#绩效/计划组织` 会触发 Obsidian 层级标签 UI，适合导航，但不如扁平标签便于按完整维度聚合。
+- `daily_summary.py` 增加 `sanitize_summary_tags()`，会删除粗标签、规范化旧 slash 标签，并去掉 LLM 偶发生成的反引号包裹。
+
+真实日报结构检查：
+
+```text
+ai_summary_sections: 1
+ai_summary_lines: 8
+hyphen_tags: #复盘-做得好, #成长-新贡献, #绩效-专业知识, #绩效-计划组织
+broad_tags: []
+slash_tags: []
+backticked_tags: []
+```
+
+### 11.3 AGY transcript 解析修复
+
+修复前：单行坏 JSON 会触发 `Error parsing AGY file ...`，真实验收报告中记录为 warning。  
+修复后：`ingest_agy()` 改为行级容错，跳过坏 JSON 行，继续保留同一 transcript 内的有效 `USER_INPUT`。
+
+真实运行输出摘要：
+
+```text
+Ingesting AGY logs...
+[ingest_agy] skipped 8 malformed AGY json lines
+  -> 29 new messages
+Ingestion complete. Total messages in DB: 2103
+```
+
+标准 manager durable run 复核：
+
+```text
+run_id: real_accept_fix_ingest_20260705
+workflow: daily_ingest_and_review
+step: knowledge-source-ingestion:logs
+artifact: $AGENT_RUNS_DIR/real_accept_fix_ingest_20260705/02-knowledge-source-ingestion_logs.stdout.log
+summary: [ingest_agy] skipped 9 malformed AGY json lines; -> 2 new messages; Total messages in DB: 2105
+legacy error marker: absent
+```
+
+结论：AGY warning 已从文件级 error 降为结构化汇总，主链路不再输出 `Error parsing AGY file`。
+
+### 11.4 目录整理
+
+`data-hub/` 根目录保留一线入口：
+
+- 可执行 workflow/scripts：`ingest_*.py`、`generate_candidates.py`、`materialize_candidates.py`、`daily_summary.py`、`knowledge_workflows.py` 等。
+- 一线文档：`README.md`、`ops.md`、`reference.md`、`troubleshooting.md`。
+- 契约/配置：`schema.sql`、`config.env.example`。
+
+支持材料移动到 `docs/`：
+
+- `docs/acceptance-report.md`
+- `docs/cron-setup.md`
+- `docs/upgrade-plan.md`
+- `docs/archive/phase-5-6-summary.md`

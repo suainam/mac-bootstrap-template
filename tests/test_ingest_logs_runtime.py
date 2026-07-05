@@ -123,3 +123,36 @@ def test_ingest_logs_missing_agent_dirs_return_zero(temp_db_and_vault, monkeypat
         assert ingest_logs.ingest_agy(conn) == 0
     finally:
         conn.close()
+
+
+def test_ingest_agy_skips_malformed_jsonl_lines(temp_db_and_vault, monkeypatch, tmp_path, capsys) -> None:
+    agy_dir = tmp_path / ".gemini" / "antigravity-cli" / "brain" / "sess-bad" / ".system_generated" / "logs"
+    agy_dir.mkdir(parents=True, exist_ok=True)
+    (agy_dir / "transcript.jsonl").write_text(
+        "\n".join(
+            [
+                '{"type": "USER_INPUT", "created_at": "2026-07-08T12:00:00", "content": "<USER_REQUEST>保留这条有效 AGY 输入用于验收</USER_REQUEST>"}',
+                '{"type": "USER_INPUT", ',
+                'not-json',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ingest_logs.Path, "home", staticmethod(lambda: tmp_path))
+
+    conn = get_db_connection()
+    try:
+        assert ingest_logs.ingest_agy(conn) == 1
+    finally:
+        conn.close()
+
+    captured = capsys.readouterr()
+    assert "Error parsing AGY file" not in captured.out
+    assert "skipped 2 malformed AGY json lines" in captured.out
+
+    conn = get_db_connection()
+    try:
+        rows = conn.execute("SELECT content FROM messages WHERE session_id = 'sess-bad'").fetchall()
+    finally:
+        conn.close()
+    assert [row["content"] for row in rows] == ["保留这条有效 AGY 输入用于验收"]

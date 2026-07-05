@@ -141,3 +141,28 @@ def test_get_agent_logs_from_db_uses_local_date_for_utc_timestamps(temp_db_and_v
     digest = daily_summary.get_agent_logs_from_db("2026-07-05")
 
     assert "这条消息在本地时区属于 2026-07-05" in digest
+
+
+def test_daily_summary_prompt_requires_specific_hierarchical_tags() -> None:
+    prompt = daily_summary.build_summary_prompt(
+        git_digest="**repo**\n- ship data hub acceptance",
+        agent_digest="完成 pipeline 验收并记录上下游风险",
+        source_digest="无",
+        candidate_digest="无",
+    )
+
+    assert "#绩效-计划组织" in prompt
+    assert "#复盘-做得好" in prompt
+    assert "禁止使用 `#绩效`、`#成长`、`#复盘` 这类只有一级的粗标签" in prompt
+
+
+def test_daily_summary_sanitizes_and_normalizes_summary_tags() -> None:
+    summary = "- 完成验收。 #绩效 #复盘\n- 产出报告。 `#绩效/计划组织` `#复盘/做得好`"
+
+    sanitized = daily_summary.sanitize_summary_tags(summary)
+
+    assert "#绩效 " not in f"{sanitized} "
+    assert "#复盘\n" not in f"{sanitized}\n"
+    assert "#绩效-计划组织" in sanitized
+    assert "#复盘-做得好" in sanitized
+    assert "`#绩效-计划组织`" not in sanitized

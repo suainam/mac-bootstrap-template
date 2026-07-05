@@ -6,7 +6,11 @@
 - [ops.md](ops.md) — 日常运维命令
 - [reference.md](reference.md) — 目录约定、环境变量、Obsidian 插件、幂等性约定
 - [troubleshooting.md](troubleshooting.md) — 故障排查
-- [upgrade_plan.md](upgrade_plan.md) — 目标设计稿
+- [docs/acceptance-report.md](docs/acceptance-report.md) — 真实本机验收报告
+- [docs/upgrade-plan.md](docs/upgrade-plan.md) — 目标设计稿
+- [docs/cron-setup.md](docs/cron-setup.md) — cron/定时任务参考
+
+根目录保留可执行脚本、schema、配置样例和一线运维文档；阶段总结、验收报告、升级设计等支持材料统一放在 `docs/`。
 
 ## 当前架构
 
@@ -174,7 +178,7 @@ find "$OBSIDIAN_VAULT_DIR" -maxdepth 5 -type f | sort
 2026-07-05 本机验收记录：
 
 - 依赖：`python3 3.13.13`，`template/.venv/bin/python 3.13.13`，`uv 0.11.26`，`sqlite3 3.51.0`。
-- 基线测试：Data Hub 相关 pytest `106 passed`。
+- 基线测试：Data Hub 相关 pytest `110 passed`。
 - 恢复路径：第一次 `acceptance_full` 暴露出空日志目录 bug；修复后 `--retry-failed acceptance_full` 从失败 step 继续，8 步最终 completed。
 - 干净路径：`acceptance_clean` 在全新临时目录中 8/8 completed，`manager.py health` 返回 `All clear`。
 - 干净路径产物计数：`source_documents=2`，`document_chunks=7`，`extracted_items=7`，`knowledge_candidates=6`，`artifact_manifest=16`。

@@ -39,6 +39,9 @@ OBSIDIAN_VAULT_DIR = Path(os.path.expandvars(os.environ.get("OBSIDIAN_VAULT_DIR"
 DAILY_DIR = get_daily_dir()
 GIT_SEARCH_ROOTS = [Path(os.path.expandvars(p)) for p in os.environ.get("GIT_SEARCH_ROOTS", str(Path.home() / "work/projects")).split(",")]
 LOCAL_TIMEZONE = ZoneInfo(os.environ.get("TZ", "Asia/Shanghai"))
+BARE_SUMMARY_TAG_RE = re.compile(r"(?<![\w/#-])#(?:绩效|成长|复盘)(?![/\\-])(?=\s|$|[，。；、,.!?])")
+HIERARCHICAL_SUMMARY_TAG_RE = re.compile(r"#(绩效|成长|复盘)/([\w\u4e00-\u9fff]+)")
+BACKTICKED_SUMMARY_TAG_RE = re.compile(r"`(#(?:绩效|成长|复盘)[-/][\w\u4e00-\u9fff]+)`")
 
 
 def get_runtime_python() -> str:
@@ -252,6 +255,55 @@ def generate_summary(prompt: str) -> str:
     return "调用 LLM 失败，未能生成总结。"
 
 
+def sanitize_summary_tags(summary: str) -> str:
+    """Normalize summary tags and remove broad top-level tags."""
+    lines = []
+    for line in summary.splitlines():
+        cleaned = BACKTICKED_SUMMARY_TAG_RE.sub(r"\1", line)
+        cleaned = HIERARCHICAL_SUMMARY_TAG_RE.sub(r"#\1-\2", cleaned)
+        cleaned = BARE_SUMMARY_TAG_RE.sub("", cleaned)
+        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned).rstrip()
+        lines.append(cleaned)
+    return "\n".join(lines).strip()
+
+
+def build_summary_prompt(
+    *,
+    git_digest: str,
+    agent_digest: str,
+    source_digest: str,
+    candidate_digest: str,
+) -> str:
+    tagger_path = Path.home() / "work/config/mac-bootstrap/template/agent/skills/daily-tagger/SKILL.md"
+    return f"""
+基于以下信息，生成「AI 总结」节的内容，要求精炼、客观、有价值。
+只输出这部分的内容（Markdown 列表形式），不要输出其他问候语或解释。
+
+【核心要求：自动打标】
+在每一条总结的末尾，请根据其内容，严格参考下面的《每日总结自动打标指南》为其自动附上对应的绩效、成长或复盘标签（可多选，没有就不加）。
+
+必须使用指南里的完整层级标签，例如 `#绩效-计划组织`、`#绩效-专业知识`、`#成长-新贡献`、`#复盘-做得好`。
+禁止使用 `#绩效`、`#成长`、`#复盘` 这类只有一级的粗标签；如果只能判断到一级，就不要打这个标签。
+禁止使用 slash 形式标签，例如 `#绩效/计划组织`；统一写成 hyphen 形式 `#绩效-计划组织`，这样更适合 Dataview/搜索落地。
+标签不要用反引号包裹；正确写法是 `完成验收。 #绩效-计划组织 #复盘-做得好` 这种普通 Markdown 文本。
+每条总结最多 1~3 个标签，标签直接跟在句子末尾，用空格分隔。
+
+@{tagger_path}
+
+## Git 提交记录
+{git_digest}
+
+## AI 辅助事项 (从 Agent 会话推断)
+{agent_digest or '无'}
+
+## 外部材料候选项
+{source_digest or '无'}
+
+## 候选知识清单
+{candidate_digest or '无'}
+"""
+
+
 def main():
     explicit_date = len(sys.argv) > 1
     target_date = sys.argv[1] if explicit_date else today_str()
@@ -281,33 +333,19 @@ def main():
         source_digest = get_external_source_digest(target_date)
         candidate_digest = get_candidate_digest(target_date)
 
-        prompt = f"""
-基于以下信息，生成「AI 总结」节的内容，要求精炼、客观、有价值。
-只输出这部分的内容（Markdown 列表形式），不要输出其他问候语或解释。
-
-【核心要求：自动打标】
-在每一条总结的末尾，请根据其内容，严格参考下面的《每日总结自动打标指南》为其自动附上对应的绩效、成长或复盘标签（可多选，没有就不加）。
-
-@{Path.home()}/work/config/mac-bootstrap/template/agent/skills/daily-tagger/SKILL.md
-
-## Git 提交记录
-{git_digest}
-
-## AI 辅助事项 (从 Agent 会话推断)
-{agent_digest or '无'}
-
-## 外部材料候选项
-{source_digest or '无'}
-
-## 候选知识清单
-{candidate_digest or '无'}
-"""
+        prompt = build_summary_prompt(
+            git_digest=git_digest,
+            agent_digest=agent_digest,
+            source_digest=source_digest,
+            candidate_digest=candidate_digest,
+        )
         print("[daily_summary] 调用 LLM 生成总结...")
         summary = generate_summary(prompt)
 
         if summary and "调用 LLM 失败" not in summary:
             summary = summary.replace("## AI 总结", "").strip()
             summary = summary.lstrip("\n")
+            summary = sanitize_summary_tags(summary)
             write_daily_section(target_date, "AI 总结", summary)
             print("✅ 总结已成功写入。")
             logger.complete(log_id, records_affected=1)

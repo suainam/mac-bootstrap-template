@@ -176,6 +176,7 @@ def ingest_agy(conn):
         return 0
     cursor = conn.cursor()
     records_count = 0
+    malformed_lines = 0
     
     for sid in AGY_BRAIN_DIR.iterdir():
         transcript = sid / ".system_generated" / "logs" / "transcript.jsonl"
@@ -185,7 +186,11 @@ def ingest_agy(conn):
         try:
             with open(transcript, encoding="utf-8") as file:
                 for line in file:
-                    d = json.loads(line)
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        malformed_lines += 1
+                        continue
                     t = d.get("type", "")
                     if t == "USER_INPUT":
                         ts = d.get("created_at", datetime.now().isoformat())
@@ -210,6 +215,8 @@ def ingest_agy(conn):
         except Exception as e:
             print(f"Error parsing AGY file {transcript}: {e}")
     conn.commit()
+    if malformed_lines:
+        print(f"[ingest_agy] skipped {malformed_lines} malformed AGY json lines")
     return records_count
 
 def main():

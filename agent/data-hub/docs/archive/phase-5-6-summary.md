@@ -13,7 +13,7 @@
   - Optional macOS notifications via osascript (when `ENABLE_NOTIFICATIONS=true`)
 
 ### Cron Configuration
-- **Documentation**: `CRON_SETUP.md`
+- **Documentation**: `../cron-setup.md`
 - **Schedule**: Every day at 18:10
 - **Command**: `python /path/to/health_check.py`
 - **Setup**: Use `/cron create` in Codex
@@ -132,7 +132,7 @@ Results show completed logs for all refactored scripts.
 ## Files Modified
 
 1. `$MAC_BOOTSTRAP_DIR/template/agent/data-hub/health_check.py` (NEW)
-2. `$MAC_BOOTSTRAP_DIR/template/agent/data-hub/CRON_SETUP.md` (NEW)
+2. `$MAC_BOOTSTRAP_DIR/template/agent/data-hub/docs/cron-setup.md` (NEW)
 3. `$MAC_BOOTSTRAP_DIR/template/agent/data-hub/ingest_logs.py` (REFACTORED)
 4. `$MAC_BOOTSTRAP_DIR/template/agent/data-hub/ingest_sources.py` (REFACTORED)
 5. `$MAC_BOOTSTRAP_DIR/template/agent/data-hub/generate_candidates.py` (REFACTORED)
@@ -151,7 +151,7 @@ Results show completed logs for all refactored scripts.
    echo 'export ENABLE_NOTIFICATIONS=true' >> ~/.zshrc
    ```
 
-3. Optional: Automate full pipeline (see CRON_SETUP.md)
+3. Optional: Automate full pipeline (see `../cron-setup.md`)
 
 ## Benefits Achieved
 

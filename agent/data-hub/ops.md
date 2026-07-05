@@ -213,7 +213,7 @@ EOF
 
 cat > "$ACCEPT/bin/agy" <<'EOF'
 #!/bin/sh
-printf '%s\n' '- Data Hub 隔离验收流程已跑通，临时 vault/SQLite/日志产物均可追溯。 #复盘'
+printf '%s\n' '- Data Hub 隔离验收流程已跑通，临时 vault/SQLite/日志产物均可追溯。 #复盘-做得好'
 EOF
 chmod +x "$ACCEPT/bin/agy"
 ```
