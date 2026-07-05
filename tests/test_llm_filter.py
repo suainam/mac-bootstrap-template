@@ -15,6 +15,7 @@ sys.path.insert(0, str(CURRENT_DIR.parent / "agent" / "data-hub"))
 import data_hub_config
 from llm_filter import (
     FilterResult,
+    BackendResponse,
     load_backends,
     build_prompt,
     deduplicate,
@@ -22,6 +23,7 @@ from llm_filter import (
     _parse_llm_response,
     _parse_llm_response_strict,
     _call_llm,
+    call_llm_raw,
     score_one,
     filter_candidates_batch,
 )
@@ -270,3 +272,44 @@ def test_filter_candidates_batch_some_dropped(mock_score):
     res = filter_candidates_batch([c1, c2], "chat", cfg={"filter": {"max_workers": 1}})
     assert len(res) == 1
     assert res[0][0] == c1
+
+
+def make_fake_backend_config() -> dict:
+    return {"backends": [{"name": "fake_cli", "kind": "generic_cli", "timeout": 5}], "_normalized": True}
+
+
+def test_call_llm_raw_returns_first_nonempty(monkeypatch):
+    class FakeBackend:
+        def __init__(self, _cfg):
+            self.name = "fake_cli"
+            self.timeout = 5
+        def generate(self, request):
+            return BackendResponse(name="fake_cli", kind="generic_cli", ok=True, raw_text="hello world")
+
+    monkeypatch.setattr("llm_filter.BACKEND_CLASSES", {"generic_cli": lambda cfg: FakeBackend(cfg)})
+    result = call_llm_raw("test prompt", make_fake_backend_config())
+    assert result == "hello world"
+
+
+def test_call_llm_raw_empty_on_all_fail(monkeypatch):
+    class FailingBackend:
+        def __init__(self, _cfg):
+            self.name = "failing"
+            self.timeout = 5
+        def generate(self, request):
+            return BackendResponse(name="failing", kind="generic_cli", ok=False, raw_text="", error="fail")
+
+    monkeypatch.setattr("llm_filter.BACKEND_CLASSES", {"generic_cli": lambda cfg: FailingBackend(cfg)})
+    result = call_llm_raw("test", make_fake_backend_config())
+    assert result == ""
+
+
+def test_call_llm_raw_uses_default_cfg_when_none(monkeypatch):
+    calls = []
+    def mock_load():
+        calls.append("called")
+        return {"backends": [], "_normalized": True}
+    monkeypatch.setattr("llm_filter.load_backends", mock_load)
+    result = call_llm_raw("test")
+    assert calls == ["called"]
+    assert result == ""

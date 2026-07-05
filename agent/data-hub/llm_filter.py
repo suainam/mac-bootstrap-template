@@ -387,6 +387,30 @@ def _call_llm(prompt: str, cfg: dict[str, Any]) -> str:
     return ""
 
 
+def call_llm_raw(prompt: str, cfg: dict[str, Any] | None = None) -> str:
+    """遍历 backends 返回第一个非空文本（不做 FilterResult schema 校验）。
+
+    供 daily_summary / weekly_summary 等自由文本调用使用。
+    失败返回空字符串。
+    """
+    import sys
+    if cfg is None:
+        cfg = load_backends()
+    normalized_cfg = _normalize_backend_config(cfg)
+    registry = LLMBackendRegistry()
+    for backend_cfg in normalized_cfg.get("backends", []):
+        backend = registry.build(backend_cfg)
+        if backend is None:
+            continue
+        try:
+            response = backend.generate(BackendRequest(prompt=prompt, timeout=backend.timeout))
+            if response.ok and response.raw_text.strip():
+                return response.raw_text.strip()
+        except Exception as e:
+            print(f"[call_llm_raw] backend={backend.name} error={e}", file=sys.stderr)
+    return ""
+
+
 def _extract_json_payload(raw: str) -> str:
     raw = _strip_ansi(raw)
     if "```json" in raw:
