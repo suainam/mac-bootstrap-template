@@ -6,9 +6,9 @@ TARGET_DATE="${2:-$(date +%F)}"
 
 cd "$ROOT"
 
-template/.venv/bin/python template/agent/data-hub/ingest_logs.py
-template/.venv/bin/python template/agent/data-hub/ingest_sources.py
-template/.venv/bin/python template/agent/data-hub/generate_candidates.py "$TARGET_DATE"
+template/.venv/bin/python template/agent/data-hub/scripts/ingest_logs.py
+template/.venv/bin/python template/agent/data-hub/scripts/ingest_sources.py
+template/.venv/bin/python template/agent/data-hub/scripts/generate_candidates.py "$TARGET_DATE"
 
 echo
 echo "== chat tables =="

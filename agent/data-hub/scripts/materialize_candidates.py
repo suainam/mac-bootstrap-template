@@ -13,6 +13,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+CURRENT_DIR = Path(__file__).resolve().parent
+DATA_HUB_DIR = CURRENT_DIR.parent
+if str(DATA_HUB_DIR) not in sys.path:
+    sys.path.insert(0, str(DATA_HUB_DIR))
+
 from candidate_review_io import ReviewItem, parse_candidate_review
 from data_hub_config import get_runtime_config
 from db_helper import get_db_connection
@@ -29,6 +34,10 @@ RUNTIME_CONFIG = get_runtime_config()
 OBSIDIAN_VAULT_DIR = RUNTIME_CONFIG.paths.vault_dir
 DB_PATH = RUNTIME_CONFIG.paths.db_path
 CANDIDATE_DIR = OBSIDIAN_VAULT_DIR / "60_Inbox" / "Candidates"
+
+
+def table_has_column(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
+    return any(row[1] == column_name for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall())
 
 
 def materialize_daily_candidate(target_path: Path, candidate_id: str, title: str, content: str) -> None:
@@ -244,11 +253,19 @@ def main() -> None:
             materialized += 1
 
         # Also materialize skill-generated records
-        cursor = conn.execute(
-            "SELECT * FROM knowledge_records WHERE candidate_date = ? AND status = 'accepted'",
-            (target_date,)
-        )
-        skill_rows = cursor.fetchall()
+        if table_has_column(conn, "knowledge_records", "record_revision"):
+            cursor = conn.execute(
+                """
+                SELECT * FROM knowledge_records
+                WHERE candidate_date = ?
+                  AND status = 'accepted'
+                  AND record_revision IS NOT NULL
+                """,
+                (target_date,)
+            )
+            skill_rows = cursor.fetchall()
+        else:
+            skill_rows = []
 
         for row in skill_rows:
             if row["materialized_path"]:

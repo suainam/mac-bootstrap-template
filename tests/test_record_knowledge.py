@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import time
 from pathlib import Path
 
 
 SCRIPTS_DIR = (
     Path(__file__).parent.parent
-    / "agent" / "skills" / "personal" / "knowledge-record" / "scripts"
+    / "agent" / "skills" / "personal" / "knowledge-lifecycle-manager" / "scripts"
 )
 sys.path.insert(0, str(SCRIPTS_DIR.resolve()))
 
@@ -115,6 +116,13 @@ class TestBuildRecord:
         r2 = record_knowledge.build_record(args)
         assert r1["id"] == r2["id"]
 
+    def test_record_id_stable_across_retry_seconds(self):
+        args = make_args()
+        r1 = record_knowledge.build_record(args)
+        time.sleep(1.01)
+        r2 = record_knowledge.build_record(args)
+        assert r1["id"] == r2["id"]
+
     def test_record_id_changes_with_content(self):
         args1 = make_args(content="content A")
         args2 = make_args(content="content B")
@@ -138,6 +146,18 @@ class TestInsertRecord:
         assert row["record_type"] == "adr"
         assert row["title"] == "测试知识"
         assert row["status"] == "accepted"
+
+        contract = conn.execute(
+            """
+            SELECT record_revision, authority, source_kind
+            FROM knowledge_records
+            WHERE id = ?
+            """,
+            (record_id,),
+        ).fetchone()
+        assert contract["record_revision"] == "kr-v1"
+        assert contract["authority"] == "trusted_agent"
+        assert contract["source_kind"] == "live_agent"
 
     def test_idempotent_insert(self, tmp_path):
         conn = make_conn(tmp_path)
@@ -199,3 +219,54 @@ class TestInsertRecord:
         assert row["agent_type"] == "codex"
         assert row["session_id"] == "sess-123"
         assert row["message_id"] == 42
+
+    def test_schema_migration_does_not_upgrade_old_records(self, tmp_path):
+        conn = sqlite3.connect(str(tmp_path / "legacy.db"))
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """
+            CREATE TABLE knowledge_records (
+                id TEXT PRIMARY KEY,
+                record_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                recorded_at TEXT NOT NULL,
+                candidate_date TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'accepted',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO knowledge_records
+                (id, record_type, title, content, agent_type, recorded_at, candidate_date, status, created_at, updated_at)
+            VALUES
+                ('kr-old', 'card', '旧记录', '旧内容', 'codex', '2026-07-01T00:00:00', '2026-07-01', 'accepted', '2026-07-01T00:00:00', '2026-07-01T00:00:00')
+            """
+        )
+        conn.commit()
+
+        record = record_knowledge.build_record(make_args(title="新记录", content="新内容", date="2026-07-01"))
+        record_knowledge.insert_record(conn, record)
+
+        old_row = conn.execute("SELECT record_revision FROM knowledge_records WHERE id = 'kr-old'").fetchone()
+        new_row = conn.execute("SELECT record_revision FROM knowledge_records WHERE id = ?", (record["id"],)).fetchone()
+        assert old_row["record_revision"] is None
+        assert new_row["record_revision"] == "kr-v1"
+
+
+def test_find_db_path_uses_runtime_config_from_repo_root(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    runtime_dir = repo / "private" / "agent"
+    runtime_dir.mkdir(parents=True)
+    expected_db = tmp_path / "runtime.db"
+    (runtime_dir / "data_hub.runtime.jsonc").write_text(
+        '{"paths": {"db_path": "%s"}}' % str(expected_db),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(repo)
+
+    assert record_knowledge.find_db_path() == expected_db

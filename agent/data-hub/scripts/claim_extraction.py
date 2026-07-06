@@ -10,7 +10,13 @@ import argparse
 import hashlib
 import json
 import sqlite3
+import sys
 from pathlib import Path
+
+CURRENT_DIR = Path(__file__).resolve().parent
+DATA_HUB_DIR = CURRENT_DIR.parent
+if str(DATA_HUB_DIR) not in sys.path:
+    sys.path.insert(0, str(DATA_HUB_DIR))
 
 from data_hub_config import get_runtime_config
 from source_dates import document_matches_target

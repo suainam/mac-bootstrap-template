@@ -14,8 +14,9 @@ from datetime import datetime
 from pathlib import Path
 
 CURRENT_DIR = Path(__file__).resolve().parent
-if str(CURRENT_DIR) not in sys.path:
-    sys.path.insert(0, str(CURRENT_DIR))
+DATA_HUB_DIR = CURRENT_DIR.parent
+if str(DATA_HUB_DIR) not in sys.path:
+    sys.path.insert(0, str(DATA_HUB_DIR))
 
 from db_helper import get_db_connection as get_shared_db_connection
 from data_hub_config import get_runtime_config

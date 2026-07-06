@@ -78,16 +78,19 @@ def test_global_skills_match_personal_dir():
         ), f"Missing SKILL.md for global skill: {skill}"
 
 
-def test_knowledge_record_skill_registered():
-    skill = "knowledge-record"
-    assert os.path.exists(
-        os.path.join(TEMPLATE, "agent", "skills", "personal", skill, "SKILL.md")
-    )
-
+def test_knowledge_record_is_merged_into_lifecycle_manager():
     with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
         manifest = json.load(fh)
-    assert skill in manifest["global_skills"]
+    assert "knowledge-record" not in manifest["global_skills"]
+    assert "knowledge-lifecycle-manager" in manifest["projects"]["mac-bootstrap"]["skills"]
 
     with open(os.path.join(TEMPLATE, "agent", "skills-distribution.json")) as fh:
         distribution = json.load(fh)
-    assert skill in distribution["skills"]
+    assert "knowledge-record" not in distribution["skills"]
+
+    lifecycle_skill = os.path.join(
+        TEMPLATE, "agent", "skills", "personal", "knowledge-lifecycle-manager", "SKILL.md"
+    )
+    lifecycle_text = open(lifecycle_skill).read()
+    assert "record knowledge" in lifecycle_text
+    assert "knowledge_records" in lifecycle_text

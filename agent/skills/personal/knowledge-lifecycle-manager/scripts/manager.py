@@ -19,6 +19,7 @@ from data_hub_config import get_runtime_config
 from db_helper import get_db_connection
 import knowledge_workflows
 import manager_reporting
+import record_knowledge
 
 
 def default_target_date() -> str:
@@ -106,6 +107,42 @@ def backup_database(target_date: str) -> None:
     )
 
 
+def record_knowledge_entry(args: argparse.Namespace, target_date: str) -> None:
+    """Record a live agent knowledge item through the unified manager."""
+    record_args = [
+        "--type",
+        args.record_type,
+        "--title",
+        args.title,
+        "--content",
+        args.content,
+        "--date",
+        target_date,
+    ]
+    optional_pairs = [
+        ("--background", args.background),
+        ("--tags", args.tags),
+        ("--impact", args.impact),
+        ("--references", args.references),
+        ("--project", args.project),
+        ("--expires-at", args.expires_at),
+        ("--why-record", args.why_record),
+        ("--agent", args.agent),
+        ("--session-id", args.session_id),
+        ("--message-id", str(args.message_id) if args.message_id is not None else None),
+        ("--project-path", args.project_path),
+        ("--db-path", args.db_path),
+    ]
+    for flag, value in optional_pairs:
+        if value:
+            record_args.extend([flag, value])
+    if args.is_actionable:
+        record_args.append("--is-actionable")
+    if args.dry_run:
+        record_args.append("--dry-run")
+    raise SystemExit(record_knowledge.main(record_args))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Knowledge Lifecycle Manager - Unified data-hub pipeline control",
@@ -118,17 +155,13 @@ Examples:
   %(prog)s candidates 2026-07-01
   %(prog)s health
   %(prog)s backup --date 2026-07-01
-
-Legacy aliases:
-  %(prog)s --ingest-only
-  %(prog)s --review-only
-  %(prog)s --materialize-only
+  %(prog)s record --type adr --title "..." --content "..."
   %(prog)s --status
   %(prog)s --candidates
   %(prog)s --health
         """,
     )
-    parser.add_argument("command", nargs="?", choices=["run", "status", "candidates", "health", "backup"])
+    parser.add_argument("command", nargs="?", choices=["run", "status", "candidates", "health", "backup", "record"])
     parser.add_argument("value", nargs="?")
     parser.add_argument("--run", action="store_true", help="Run a workflow (default)")
     parser.add_argument("--workflow", choices=knowledge_workflows.supported_workflows(), default="full_cycle")
@@ -138,13 +171,27 @@ Legacy aliases:
     parser.add_argument("--retry-failed", help="Retry from the first failed step in an existing run id")
     parser.add_argument("--from-step", help="Start at a named workflow step")
     parser.add_argument("--max-attempts", type=int, default=1, help="Attempts per step")
-    parser.add_argument("--ingest-only", action="store_true", help="Legacy alias for daily_ingest_and_review")
-    parser.add_argument("--review-only", action="store_true", help="Legacy alias for auto_review_only")
-    parser.add_argument("--materialize-only", action="store_true", help="Legacy alias for materialize_only")
     parser.add_argument("--status", action="store_true", help="Show execution status")
     parser.add_argument("--candidates", nargs="?", const="TODAY", help="Show candidate queue")
     parser.add_argument("--health", action="store_true", help="Health check (last 3 days)")
     parser.add_argument("--backup", action="store_true", help="Create a SQLite backup")
+    parser.add_argument("--type", dest="record_type", choices=["adr", "card", "daily"], help="Record type for record command")
+    parser.add_argument("--title", help="Knowledge title for record command")
+    parser.add_argument("--content", help="Knowledge content for record command")
+    parser.add_argument("--background")
+    parser.add_argument("--tags")
+    parser.add_argument("--impact", choices=["high", "medium", "low"])
+    parser.add_argument("--is-actionable", action="store_true")
+    parser.add_argument("--references")
+    parser.add_argument("--project")
+    parser.add_argument("--expires-at")
+    parser.add_argument("--why-record")
+    parser.add_argument("--agent")
+    parser.add_argument("--session-id")
+    parser.add_argument("--message-id", type=int)
+    parser.add_argument("--project-path")
+    parser.add_argument("--db-path")
+    parser.add_argument("--dry-run", action="store_true")
     return parser
 
 
@@ -164,12 +211,8 @@ def resolve_action(args: argparse.Namespace) -> tuple[str, str | None, str | Non
         else:
             candidate_date = args.date or args.value or default_target_date()
         return ("candidates", None, candidate_date)
-    if getattr(args, "ingest_only", False):
-        return ("run", "daily_ingest_and_review", target_date)
-    if getattr(args, "review_only", False):
-        return ("run", "auto_review_only", target_date)
-    if getattr(args, "materialize_only", False):
-        return ("run", "materialize_only", target_date)
+    if args.command == "record":
+        return ("record", None, target_date)
     if args.command == "run" or getattr(args, "run", False):
         return ("run", args.workflow, target_date)
     return ("run", args.workflow, target_date)
@@ -191,6 +234,11 @@ def main(argv: list[str] | None = None) -> None:
         return
     if action == "candidates":
         show_candidates(target_date or default_target_date())
+        return
+    if action == "record":
+        if not args.record_type or not args.title or not args.content:
+            parser.error("record requires --type, --title, and --content")
+        record_knowledge_entry(args, target_date or default_target_date())
         return
 
     advanced = args.run_id or args.resume or args.retry_failed or args.from_step or args.max_attempts != 1

@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 
-SCRIPTS_DIR = Path(__file__).parent.parent / "agent" / "data-hub"
+DATA_HUB_DIR = Path(__file__).parent.parent / "agent" / "data-hub"
+SCRIPTS_DIR = DATA_HUB_DIR / "scripts"
+sys.path.insert(0, str(DATA_HUB_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import claim_extraction
@@ -182,11 +184,9 @@ def test_build_claim_packet_and_hygiene_report(tmp_path: Path, monkeypatch):
 
 
 def test_daily_workflows_define_and_run_expected_steps():
-    ingest_steps = knowledge_workflows.build_workflow_steps("daily_ingest_and_review", "2026-07-04")
-    promote_steps = knowledge_workflows.build_workflow_steps("daily_promote_and_summary", "2026-07-04")
+    ingest_steps = knowledge_workflows.build_workflow_steps("archive_to_sqlite", "2026-07-04")
+    promote_steps = knowledge_workflows.build_workflow_steps("render_obsidian", "2026-07-04")
     full_cycle_steps = knowledge_workflows.build_workflow_steps("full_cycle", "2026-07-04")
-    review_only_steps = knowledge_workflows.build_workflow_steps("auto_review_only", "2026-07-04")
-    materialize_only_steps = knowledge_workflows.build_workflow_steps("materialize_only", "2026-07-04")
 
     assert [step["name"] for step in ingest_steps] == [
         "knowledge-reuse-retrieval",
@@ -199,15 +199,12 @@ def test_daily_workflows_define_and_run_expected_steps():
         "knowledge-materialization",
         "knowledge-daily-weekly-synthesis",
     ]
-    assert [step["name"] for step in review_only_steps] == ["knowledge-auto-review"]
-    assert [step["name"] for step in materialize_only_steps] == ["knowledge-materialization"]
     assert [step["name"] for step in full_cycle_steps] == [
         "knowledge-reuse-retrieval",
         "knowledge-source-ingestion:logs",
         "knowledge-source-ingestion:sources",
         "knowledge-claim-extraction",
         "knowledge-candidate-review",
-        "knowledge-auto-review",
         "knowledge-materialization",
         "knowledge-daily-weekly-synthesis",
     ]
@@ -219,7 +216,7 @@ def test_daily_workflows_define_and_run_expected_steps():
         seen.append(command)
 
     result = knowledge_workflows.run_workflow(
-        "daily_promote_and_summary",
+        "render_obsidian",
         "2026-07-04",
         runner=fake_runner,
     )
@@ -229,7 +226,7 @@ def test_daily_workflows_define_and_run_expected_steps():
 
 
 def test_daily_workflow_dry_run_returns_json_ready_contracts():
-    result = knowledge_workflows.run_workflow("daily_promote_and_summary", "2026-07-04", dry_run=True)
+    result = knowledge_workflows.run_workflow("render_obsidian", "2026-07-04", dry_run=True)
 
     assert result[0]["name"] == "knowledge-materialization"
     assert result[0]["success_checks"] == [
@@ -247,12 +244,12 @@ def test_daily_workflow_dry_run_returns_json_ready_contracts():
     ]
 
 
-def test_source_adapter_upgrade_uses_template_test_path():
-    steps = knowledge_workflows.build_workflow_steps("source_adapter_upgrade", "2026-07-04")
-
-    pytest_step = steps[1]["command"]
-    assert pytest_step[-2].endswith("test_data_hub_sources.py")
-    assert Path(pytest_step[-2]).is_absolute()
+def test_supported_workflows_match_three_layer_model():
+    assert knowledge_workflows.supported_workflows() == [
+        "archive_to_sqlite",
+        "render_obsidian",
+        "full_cycle",
+    ]
 
 
 def test_durable_workflow_records_failure_and_logs(tmp_path: Path, monkeypatch):
@@ -268,7 +265,7 @@ def test_durable_workflow_records_failure_and_logs(tmp_path: Path, monkeypatch):
         return subprocess.CompletedProcess(command, 7, stdout="partial output", stderr="boom")
 
     results = knowledge_workflows.run_durable_workflow(
-        "auto_review_only",
+        "archive_to_sqlite",
         "2026-07-04",
         run_id="run_test_failure",
         command_runner=fake_command_runner,
@@ -311,7 +308,7 @@ def test_durable_runner_executes_stage_spec(tmp_path: Path, monkeypatch):
         return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
 
     results = knowledge_workflows.run_durable_workflow(
-        "auto_review_only",
+        "render_obsidian",
         "2026-07-04",
         run_id="run_stage_spec",
         command_runner=fake_command_runner,
@@ -535,7 +532,7 @@ def test_durable_workflow_retry_failed_resumes_from_failed_step(tmp_path: Path, 
         return subprocess.CompletedProcess(command, 2, stdout="", stderr="failed second")
 
     first = knowledge_workflows.run_durable_workflow(
-        "daily_promote_and_summary",
+        "render_obsidian",
         "2026-07-04",
         run_id="run_retry",
         command_runner=first_runner,
@@ -551,7 +548,7 @@ def test_durable_workflow_retry_failed_resumes_from_failed_step(tmp_path: Path, 
         return subprocess.CompletedProcess(command, 0, stdout="recovered", stderr="")
 
     second = knowledge_workflows.run_durable_workflow(
-        "daily_promote_and_summary",
+        "render_obsidian",
         "2026-07-04",
         retry_failed_run_id="run_retry",
         command_runner=retry_runner,

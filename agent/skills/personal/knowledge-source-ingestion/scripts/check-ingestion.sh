@@ -6,12 +6,12 @@ DB="$ROOT/private/agent/data/agent_history.db"
 
 cd "$ROOT"
 
-template/.venv/bin/python template/agent/data-hub/ingest_sources.py
+template/.venv/bin/python template/agent/data-hub/scripts/ingest_sources.py
 template/.venv/bin/python -m py_compile \
-  template/agent/data-hub/ingest_sources.py \
-  template/agent/data-hub/generate_candidates.py \
-  template/agent/data-hub/materialize_candidates.py \
-  template/agent/data-hub/daily_summary.py
+  template/agent/data-hub/scripts/ingest_sources.py \
+  template/agent/data-hub/scripts/generate_candidates.py \
+  template/agent/data-hub/scripts/materialize_candidates.py \
+  template/agent/data-hub/scripts/daily_summary.py
 
 sqlite3 "$DB" \
   "SELECT source_type, title, path FROM source_documents ORDER BY captured_at DESC;"

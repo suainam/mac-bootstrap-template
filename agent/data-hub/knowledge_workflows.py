@@ -16,6 +16,7 @@ from workflow_runner import WorkflowRunner
 
 CURRENT_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = CURRENT_DIR.parents[1]
+SCRIPTS_DIR = CURRENT_DIR / "scripts"
 
 
 def get_runtime_python() -> str:
@@ -27,25 +28,21 @@ def get_runtime_python() -> str:
 
 def supported_workflows() -> list[str]:
     return [
-        "daily_ingest_and_review",
-        "daily_promote_and_summary",
-        "weekly_hygiene_and_reuse",
-        "source_adapter_upgrade",
-        "auto_review_only",
-        "materialize_only",
+        "archive_to_sqlite",
+        "render_obsidian",
         "full_cycle",
     ]
 
 
 def build_workflow_steps(workflow_name: str, target_date: str) -> list[StageSpec]:
     python = get_runtime_python()
-    if workflow_name == "daily_ingest_and_review":
+    if workflow_name == "archive_to_sqlite":
         return [
             StageSpec(
                 name="knowledge-reuse-retrieval",
                 command=[
                     python,
-                    str(CURRENT_DIR / "knowledge_retrieval.py"),
+                    str(SCRIPTS_DIR / "knowledge_retrieval.py"),
                     "--task-goal",
                     workflow_name,
                     "--keyword",
@@ -55,84 +52,37 @@ def build_workflow_steps(workflow_name: str, target_date: str) -> list[StageSpec
             ),
             StageSpec(
                 name="knowledge-source-ingestion:logs",
-                command=[python, str(CURRENT_DIR / "ingest_logs.py")],
+                command=[python, str(SCRIPTS_DIR / "ingest_logs.py")],
                 produces=["sessions", "messages"],
             ),
             StageSpec(
                 name="knowledge-source-ingestion:sources",
-                command=[python, str(CURRENT_DIR / "ingest_sources.py")],
+                command=[python, str(SCRIPTS_DIR / "ingest_sources.py")],
                 produces=["source_documents", "document_chunks", "extracted_items"],
             ),
             StageSpec(
                 name="knowledge-claim-extraction",
-                command=[python, str(CURRENT_DIR / "claim_extraction.py"), target_date],
+                command=[python, str(SCRIPTS_DIR / "claim_extraction.py"), target_date],
                 produces=["claim_packets.json"],
             ),
             StageSpec(
                 name="knowledge-candidate-review",
-                command=[python, str(CURRENT_DIR / "generate_candidates.py"), target_date],
+                command=[python, str(SCRIPTS_DIR / "generate_candidates.py"), target_date],
                 produces=[f"60_Inbox/Candidates/{target_date}.md"],
                 success_checks=[
                     SuccessCheck("file_exists", f"60_Inbox/Candidates/{target_date}.md"),
                 ],
             ),
         ]
-    if workflow_name == "auto_review_only":
-        return [
-            StageSpec(
-                name="knowledge-auto-review",
-                command=[python, str(CURRENT_DIR / "auto_review.py"), target_date],
-                produces=["knowledge_candidates.status=accepted"],
-            ),
-        ]
-    if workflow_name == "daily_promote_and_summary":
+    if workflow_name == "render_obsidian":
         return [
             materialization_stage(python, target_date),
             daily_summary_stage(python, target_date),
         ]
-    if workflow_name == "materialize_only":
-        return [
-            materialization_stage(python, target_date),
-        ]
-    if workflow_name == "weekly_hygiene_and_reuse":
-        return [
-            StageSpec(
-                name="knowledge-hygiene-audit",
-                command=[python, str(CURRENT_DIR / "hygiene_audit.py"), "--stale-before", target_date],
-                produces=["knowledge_hygiene_report.json"],
-            ),
-            StageSpec(
-                name="knowledge-reuse-retrieval",
-                command=[
-                    python,
-                    str(CURRENT_DIR / "knowledge_retrieval.py"),
-                    "--task-goal",
-                    workflow_name,
-                    "--keyword",
-                    target_date,
-                ],
-                produces=["retrieval_packet.json"],
-            ),
-        ]
-    if workflow_name == "source_adapter_upgrade":
-        return [
-            StageSpec(
-                name="knowledge-source-ingestion:sources",
-                command=[python, str(CURRENT_DIR / "ingest_sources.py")],
-                produces=["source_documents", "document_chunks", "extracted_items"],
-            ),
-            StageSpec(
-                name="source-regression-tests",
-                command=[python, "-m", "pytest", str(TEMPLATE_DIR / "tests" / "test_data_hub_sources.py"), "-q"],
-                produces=["pytest-report"],
-                success_checks=[SuccessCheck("stdout_exists", "stdout")],
-            ),
-        ]
     if workflow_name == "full_cycle":
         return [
-            *build_workflow_steps("daily_ingest_and_review", target_date),
-            *build_workflow_steps("auto_review_only", target_date),
-            *build_workflow_steps("daily_promote_and_summary", target_date),
+            *build_workflow_steps("archive_to_sqlite", target_date),
+            *build_workflow_steps("render_obsidian", target_date),
         ]
     raise ValueError(f"unknown workflow: {workflow_name}")
 
@@ -140,7 +90,7 @@ def build_workflow_steps(workflow_name: str, target_date: str) -> list[StageSpec
 def materialization_stage(python: str, target_date: str) -> StageSpec:
     return StageSpec(
         name="knowledge-materialization",
-        command=[python, str(CURRENT_DIR / "materialize_candidates.py"), target_date],
+        command=[python, str(SCRIPTS_DIR / "materialize_candidates.py"), target_date],
         produces=["40_Knowledge/*", f"10_Periodic/Daily/{target_date}.md"],
         success_checks=[
             SuccessCheck("file_exists", f"10_Periodic/Daily/{target_date}.md"),
@@ -152,7 +102,7 @@ def materialization_stage(python: str, target_date: str) -> StageSpec:
 def daily_summary_stage(python: str, target_date: str) -> StageSpec:
     return StageSpec(
         name="knowledge-daily-weekly-synthesis",
-        command=[python, str(CURRENT_DIR / "daily_summary.py"), target_date],
+        command=[python, str(SCRIPTS_DIR / "daily_summary.py"), target_date],
         produces=[f"10_Periodic/Daily/{target_date}.md"],
         success_checks=[
             SuccessCheck("file_exists", f"10_Periodic/Daily/{target_date}.md"),

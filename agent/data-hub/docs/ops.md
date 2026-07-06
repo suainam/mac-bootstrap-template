@@ -27,12 +27,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 # 或跑命名 workflow
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow daily_ingest_and_review --date 2026-07-02
+  run --workflow archive_to_sqlite --date 2026-07-02
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow daily_promote_and_summary --date 2026-07-02
-
-# 或保留旧别名
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py --review-only --date 2026-07-02
+  run --workflow render_obsidian --date 2026-07-02
 ```
 
 说明：参数直接传日期，格式 `YYYY-MM-DD`。
@@ -59,7 +56,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 cd ~/work/config/mac-bootstrap/template/agent/data-hub
 source ~/work/config/mac-bootstrap/.venv/bin/activate
 test -f ../../../private/agent/data_hub.runtime.jsonc
-python3 ingest_logs.py
+python3 scripts/ingest_logs.py
 ```
 
 ## 3. 查看数据库
@@ -73,7 +70,7 @@ sqlite3 ~/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-python3 template/agent/data-hub/ingest_sources.py
+python3 template/agent/data-hub/scripts/ingest_sources.py
 ```
 
 常用检查：
@@ -92,7 +89,7 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-template/.venv/bin/python template/agent/data-hub/generate_candidates.py 2026-07-04
+template/.venv/bin/python template/agent/data-hub/scripts/generate_candidates.py 2026-07-04
 ```
 
 常用检查：
@@ -108,7 +105,7 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-template/.venv/bin/python template/agent/data-hub/materialize_candidates.py 2026-07-04
+template/.venv/bin/python template/agent/data-hub/scripts/materialize_candidates.py 2026-07-04
 ```
 
 常用检查：
@@ -152,18 +149,16 @@ UV_CACHE_DIR=.uv-cache uv run pytest \
   -q
 ```
 
-生命周期覆盖：source ingest → claim extract → auto review → materialize → daily/weekly synthesis → hygiene audit（共 7 个环节，85 个测试）。
+生命周期覆盖：archive_to_sqlite（retrieve → source ingest → claim extract → candidate review）和 render_obsidian（materialize → daily/weekly synthesis）。
 
-关键回归点：HTML wiki adapter 抽取、日期归因策略、重跑不冲掉审核状态、孤儿候选清理、materialization 幂等性、置信度阈值边界（daily/card 0.8，adr 0.85）、hygiene audit 孤儿/重复/broken materialization 检测。
+关键回归点：HTML wiki adapter 抽取、日期归因策略、重跑不冲掉审核状态、materialization 幂等性、Daily/ADR/Card 投影不重复追加。
 
 Workflow dry-run：
 
 ```bash
 cd $HOME/work/config/mac-bootstrap/template
-.venv/bin/python agent/data-hub/knowledge_workflows.py daily_ingest_and_review 2026-07-04 --dry-run
-.venv/bin/python agent/data-hub/knowledge_workflows.py daily_promote_and_summary 2026-07-04 --dry-run
-.venv/bin/python agent/data-hub/knowledge_workflows.py weekly_hygiene_and_reuse 2026-07-04 --dry-run
-.venv/bin/python agent/data-hub/knowledge_workflows.py source_adapter_upgrade 2026-07-04 --dry-run
+.venv/bin/python agent/data-hub/knowledge_workflows.py archive_to_sqlite 2026-07-04 --dry-run
+.venv/bin/python agent/data-hub/knowledge_workflows.py render_obsidian 2026-07-04 --dry-run
 .venv/bin/python agent/data-hub/knowledge_workflows.py full_cycle 2026-07-04 --dry-run
 ```
 

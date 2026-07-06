@@ -17,8 +17,9 @@ from pathlib import Path
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
-if str(CURRENT_DIR) not in sys.path:
-    sys.path.insert(0, str(CURRENT_DIR))
+DATA_HUB_DIR = CURRENT_DIR.parent
+if str(DATA_HUB_DIR) not in sys.path:
+    sys.path.insert(0, str(DATA_HUB_DIR))
 
 from source_adapters import iter_source_files, parse_source
 from source_ingest_store import ingest_document

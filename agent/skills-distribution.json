@@ -21,7 +21,6 @@
     },
     "knowledge-lifecycle-manager": {
       "scope": "project"
-    },
-    "knowledge-record": {}
+    }
   }
 }

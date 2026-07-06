@@ -122,12 +122,36 @@ CREATE TABLE IF NOT EXISTS knowledge_records (
     candidate_date TEXT NOT NULL,
     materialized_path TEXT,
     status TEXT NOT NULL DEFAULT 'accepted',
+    record_revision TEXT,
+    authority TEXT,
+    source_kind TEXT,
+    source_fingerprint TEXT,
+    raw_refs_json TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_kr_date ON knowledge_records(candidate_date, status);
 CREATE INDEX IF NOT EXISTS idx_kr_type ON knowledge_records(record_type, status);
+CREATE INDEX IF NOT EXISTS idx_kr_revision ON knowledge_records(record_revision);
+
+CREATE TABLE IF NOT EXISTS materializations (
+    projection_key TEXT PRIMARY KEY,
+    record_id TEXT NOT NULL,
+    projection_type TEXT NOT NULL,
+    logical_target TEXT NOT NULL,
+    block_id TEXT NOT NULL,
+    target_path TEXT,
+    template_version TEXT NOT NULL,
+    input_fingerprint TEXT NOT NULL,
+    state_watermark TEXT NOT NULL,
+    rendered_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'rendered',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(record_id) REFERENCES knowledge_records(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_materializations_record ON materializations(record_id, projection_type);
 
 -- Execution log table for pipeline traceability
 CREATE TABLE IF NOT EXISTS execution_log (

@@ -5,7 +5,8 @@ Unified command center for the data-hub knowledge pipeline.
 ## Purpose
 
 Single entry point for all knowledge pipeline operations:
-- Run daily workflow (ingest → auto_review → materialize → summary)
+- Record live agent knowledge into `knowledge_records`
+- Run archive/render workflows (`archive_to_sqlite`, `render_obsidian`, `full_cycle`)
 - Check execution status and health
 - Inspect candidate queues
 - Rerun specific dates or stages
@@ -22,14 +23,12 @@ Single entry point for all knowledge pipeline operations:
 ./run.sh run --workflow full_cycle --date 2026-07-01
 
 # Named workflows
-./run.sh run --workflow daily_ingest_and_review --date 2026-07-01
-./run.sh run --workflow daily_promote_and_summary --date 2026-07-01
-./run.sh run --workflow weekly_hygiene_and_reuse --date 2026-07-01
+./run.sh run --workflow archive_to_sqlite --date 2026-07-01
+./run.sh run --workflow render_obsidian --date 2026-07-01
+./run.sh run --workflow full_cycle --date 2026-07-01
 
-# Legacy aliases
-./run.sh --ingest-only
-./run.sh --review-only
-./run.sh --materialize-only
+# Record live knowledge
+./run.sh record --type adr --title "..." --content "..." --date 2026-07-01
 ```
 
 ### Status & Monitoring
@@ -51,7 +50,8 @@ Single entry point for all knowledge pipeline operations:
 
 - `SKILL.md` — Skill metadata for Claude Code
 - `run.sh` — Shell wrapper for direct invocation
-- `scripts/manager.py` — Public control plane for run/status/candidates/health
+- `scripts/manager.py` — Public control plane for run/status/candidates/health/record
+- `scripts/record_knowledge.py` — Push-path writer for `knowledge_records`
 - `template/agent/data-hub/knowledge_workflows.py` — Canonical workflow registry
 - `template/agent/data-hub/run-daily-evening.sh` — Thin adapter that delegates to manager
 

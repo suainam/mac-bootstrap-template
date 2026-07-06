@@ -17,6 +17,7 @@ import pytest
 
 # Add data-hub to sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
 
 
 @pytest.fixture

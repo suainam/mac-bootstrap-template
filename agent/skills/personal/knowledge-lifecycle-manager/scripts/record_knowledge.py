@@ -30,25 +30,38 @@ from pathlib import Path
 
 def find_db_path() -> Path:
     cwd = Path.cwd()
-    if (cwd / "data_hub_config.py").exists():
-        for candidate in ("db_path", ".db_path"):
-            full = cwd / candidate
-        for candidate in cwd.rglob("*.runtime.jsonc"):
-            try:
-                data = json.loads(candidate.read_text())
-                path = data.get("paths", {}).get("db_path", "")
-                if path:
-                    return Path(path).expanduser()
-            except (json.JSONDecodeError, KeyError):
-                continue
-    candidate = Path("template/agent/data-hub/data_hub.db")
+    for candidate in (
+        cwd / "private" / "agent" / "data_hub.runtime.jsonc",
+        cwd / "data_hub.runtime.jsonc",
+    ):
+        if not candidate.exists():
+            continue
+        try:
+            data = json.loads(candidate.read_text())
+            path = data.get("paths", {}).get("db_path", "")
+            if path:
+                return Path(path).expanduser()
+        except json.JSONDecodeError:
+            continue
+
+    template_data_hub = cwd / "template" / "agent" / "data-hub"
+    if str(template_data_hub) not in sys.path:
+        sys.path.insert(0, str(template_data_hub))
+    try:
+        from data_hub_config import get_runtime_config
+
+        return get_runtime_config().paths.db_path
+    except Exception:
+        pass
+
+    candidate = cwd / "template" / "agent" / "data-hub" / "data_hub.db"
     if candidate.exists():
         return candidate.resolve()
-    return Path.cwd() / "data_hub.db"
+    return cwd / "data_hub.db"
 
 
-def make_id(title: str, content: str, agent_type: str, timestamp: str) -> str:
-    raw = f"{title}|{content}|{agent_type}|{timestamp}"
+def make_id(title: str, content: str, agent_type: str, project_path: str, record_date: str) -> str:
+    raw = f"{title}|{content}|{agent_type}|{project_path}|{record_date}"
     return "kr-" + hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -66,7 +79,7 @@ def build_record(args: argparse.Namespace) -> dict:
     project_path = args.project_path or os.getcwd()
     session_id = args.session_id or os.environ.get("SESSION_ID", "")
     project = args.project or Path(project_path).name
-    record_id = make_id(args.title, args.content, agent_type, now)
+    record_id = make_id(args.title, args.content, agent_type, project_path, record_date)
 
     return {
         "id": record_id,
@@ -87,21 +100,79 @@ def build_record(args: argparse.Namespace) -> dict:
         "project_path": project_path,
         "recorded_at": now,
         "candidate_date": record_date,
+        "record_revision": "kr-v1",
+        "authority": "trusted_agent",
+        "source_kind": "live_agent",
+        "source_fingerprint": hashlib.sha256(f"{args.title}|{args.content}|{project_path}".encode()).hexdigest(),
+        "raw_refs_json": "[]",
         "created_at": now,
         "updated_at": now,
         "status": "accepted",
     }
 
 
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    """Extend older SQLite files to the current knowledge_records contract."""
+    existing = set()
+    for row in conn.execute("PRAGMA table_info(knowledge_records)").fetchall():
+        existing.add(row["name"] if isinstance(row, sqlite3.Row) else row[1])
+    required_columns = {
+        "background": "TEXT",
+        "tags": "TEXT",
+        "impact": "TEXT",
+        "is_actionable": "INTEGER NOT NULL DEFAULT 0",
+        "references_json": "TEXT",
+        "project": "TEXT",
+        "expires_at": "TEXT",
+        "why_record": "TEXT",
+        "session_id": "TEXT",
+        "message_id": "INTEGER",
+        "project_path": "TEXT",
+        "materialized_path": "TEXT",
+        "record_revision": "TEXT",
+        "authority": "TEXT",
+        "source_kind": "TEXT",
+        "source_fingerprint": "TEXT",
+        "raw_refs_json": "TEXT",
+    }
+    for name, definition in required_columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE knowledge_records ADD COLUMN {name} {definition}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kr_revision ON knowledge_records(record_revision)")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS materializations (
+            projection_key TEXT PRIMARY KEY,
+            record_id TEXT NOT NULL,
+            projection_type TEXT NOT NULL,
+            logical_target TEXT NOT NULL,
+            block_id TEXT NOT NULL,
+            target_path TEXT,
+            template_version TEXT NOT NULL,
+            input_fingerprint TEXT NOT NULL,
+            state_watermark TEXT NOT NULL,
+            rendered_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'rendered',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY(record_id) REFERENCES knowledge_records(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_materializations_record ON materializations(record_id, projection_type)")
+    conn.commit()
+
+
 def insert_record(conn: sqlite3.Connection, record: dict) -> str | None:
+    ensure_schema(conn)
     conn.execute(
         """
         INSERT OR IGNORE INTO knowledge_records
             (id, record_type, title, content, background, tags, impact,
              is_actionable, references_json, project, expires_at, why_record,
              agent_type, session_id, message_id, project_path,
-             recorded_at, candidate_date, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             recorded_at, candidate_date, status, record_revision, authority,
+             source_kind, source_fingerprint, raw_refs_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             record["id"],
@@ -123,6 +194,11 @@ def insert_record(conn: sqlite3.Connection, record: dict) -> str | None:
             record["recorded_at"],
             record["candidate_date"],
             record["status"],
+            record["record_revision"],
+            record["authority"],
+            record["source_kind"],
+            record["source_fingerprint"],
+            record["raw_refs_json"],
             record["created_at"],
             record["updated_at"],
         ),
@@ -131,7 +207,7 @@ def insert_record(conn: sqlite3.Connection, record: dict) -> str | None:
     return record["id"]
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Record knowledge into data hub")
     parser.add_argument("--type", required=True, choices=["adr", "card", "daily"])
     parser.add_argument("--title", required=True)
@@ -153,7 +229,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-vault-init", action="store_true",
                         help="Skip automatic vault_directory.json creation")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     record = build_record(args)
 

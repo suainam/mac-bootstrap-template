@@ -16,12 +16,10 @@ def test_resolve_action_defaults_to_full_cycle_run() -> None:
             run=False,
             workflow="full_cycle",
             date=None,
-            ingest_only=False,
-            review_only=False,
-            materialize_only=False,
             status=False,
             candidates=None,
             health=False,
+            backup=False,
         )
     )
 
@@ -30,26 +28,24 @@ def test_resolve_action_defaults_to_full_cycle_run() -> None:
     assert target_date
 
 
-def test_resolve_action_maps_legacy_aliases() -> None:
-    manager = load_manager_module("manager_cli_aliases")
+def test_resolve_action_supports_record_command() -> None:
+    manager = load_manager_module("manager_cli_record")
 
     action, workflow_name, target_date = manager.resolve_action(
         Namespace(
-            command=None,
+            command="record",
             value=None,
             run=False,
             workflow="full_cycle",
             date="2026-07-01",
-            ingest_only=False,
-            review_only=True,
-            materialize_only=False,
             status=False,
             candidates=None,
             health=False,
+            backup=False,
         )
     )
 
-    assert (action, workflow_name, target_date) == ("run", "auto_review_only", "2026-07-01")
+    assert (action, workflow_name, target_date) == ("record", None, "2026-07-01")
 
 
 def test_resolve_action_supports_command_style_candidates() -> None:
@@ -62,12 +58,10 @@ def test_resolve_action_supports_command_style_candidates() -> None:
             run=False,
             workflow="full_cycle",
             date=None,
-            ingest_only=False,
-            review_only=False,
-            materialize_only=False,
             status=False,
             candidates=None,
             health=False,
+            backup=False,
         )
     )
 
@@ -86,10 +80,10 @@ def test_main_delegates_run_command(monkeypatch) -> None:
 
     monkeypatch.setattr(manager, "run_workflow", fake_run_workflow)
 
-    manager.main(["run", "--workflow", "daily_promote_and_summary", "--date", "2026-07-03"])
+    manager.main(["run", "--workflow", "render_obsidian", "--date", "2026-07-03"])
 
     assert captured == {
-        "workflow_name": "daily_promote_and_summary",
+        "workflow_name": "render_obsidian",
         "target_date": "2026-07-03",
     }
 

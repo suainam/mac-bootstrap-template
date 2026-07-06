@@ -20,31 +20,22 @@
 - `Obsidian Vault` 是展示层和人工编辑层
 - `data-hub` 脚本负责采集、汇总、写回，不直接充当知识库
 
-数据来源分两条路径：
+数据流分三层：
 
-**Pull 路径**（主流水线）—— 从 agent 日志和外部材料中自动发现知识：
+**1. Push + Archive → SQLite** —— 当前对话由 `knowledge-lifecycle-manager record` 直接写 `knowledge_records`；历史/外部材料进入 SQLite 原始表和候选表，保留追溯链：
 
 ```
 1. preflight retrieve  →  knowledge_retrieval.py
 2. source ingest       →  ingest_logs.py + ingest_sources.py
 3. claim extract       →  claim_extraction.py
 4. candidate review    →  generate_candidates.py
-5. materialize         →  materialize_candidates.py
-6. daily synthesis     →  daily_summary.py
-7. hygiene audit       →  hygiene_audit.py
 ```
 
-**Push 路径**（手动记录）—— agent 在对话中直接写入知识：
+**2. Render → Obsidian Markdown** —— 从 SQLite accepted 记录和人工审核结果生成/更新 Markdown 投影，由 `materialize_candidates.py` 和 `daily_summary.py` 负责。
 
-```
-agent (knowledge-record skill)  →  record_knowledge.py
-                                    ↓
-                              knowledge_records (status=accepted)
-                                    ↓
-                              materialize_candidates.py (nightly)
-```
+**3. Obsidian 呈现** —— Obsidian 只负责阅读、双链、人工编辑和插件呈现；不作为账本源头。
 
-Push 路径不走 classification / llm_filter / auto_review，写入即 accepted。详见 [`docs/data-hub-record-knowledge.md`](../../docs/data-hub-record-knowledge.md)。
+Push 记录不走 classification / llm_filter / auto_review，写入即 accepted。详见 [`docs/data-hub-record-knowledge.md`](../../docs/data-hub-record-knowledge.md)。
 
 ## Workflow 入口
 
@@ -59,19 +50,15 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 | Workflow | Skills |
 |----------|--------|
-| `daily_ingest_and_review` | reuse-retrieval → source-ingestion → claim-extraction → candidate-review |
-| `daily_promote_and_summary` | materialization → daily-weekly-synthesis |
-| `weekly_hygiene_and_reuse` | hygiene-audit → reuse-retrieval |
-| `source_adapter_upgrade` | source-ingestion + regression tests |
-| `auto_review_only` | auto_review |
-| `materialize_only` | materialize |
-| `full_cycle` | ingest_and_review → auto_review → promote_and_summary |
+| `archive_to_sqlite` | reuse-retrieval → source-ingestion → claim-extraction → candidate-review |
+| `render_obsidian` | materialization → daily-weekly-synthesis |
+| `full_cycle` | archive_to_sqlite → render_obsidian |
 
 Dry-run 验证：
 
 ```bash
 cd $HOME/work/config/mac-bootstrap/template
-.venv/bin/python agent/data-hub/knowledge_workflows.py daily_ingest_and_review $(date +%F) --dry-run
+.venv/bin/python agent/data-hub/knowledge_workflows.py archive_to_sqlite $(date +%F) --dry-run
 ```
 
 工业化运行默认使用 durable runner：每次运行生成 `run_id`，写入
@@ -87,16 +74,15 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 | 脚本 | 职责 |
 |------|------|
-| `ingest_logs.py` | 采集 Claude/Codex/Gemini 日志 → SQLite sessions/messages |
-| `ingest_sources.py` | 外部材料（meeting/wiki/xmind）→ source_documents/chunks/items |
-| `claim_extraction.py` | source items + assistant chat responses → claim_packets + evidence_links |
-| `generate_candidates.py` | extracted_items + assistant response claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
-| `auto_review.py` | 外部材料候选按置信度阈值自动审核；chat response candidates 保持 pending |
-| `materialize_candidates.py` | 读审核动作 + 读 `knowledge_records` → 落地 ADR/Card/日报插入 |
-| `record_knowledge.py` | Push 路径入口：agent 写 knowledge_records（status=accepted，跳过 pipeline） |
-| `daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
-| `hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
-| `knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
+| `scripts/ingest_logs.py` | 采集 Claude/Codex/Gemini 日志 → SQLite sessions/messages |
+| `scripts/ingest_sources.py` | 外部材料（meeting/wiki/xmind）→ source_documents/chunks/items |
+| `scripts/claim_extraction.py` | source items + assistant chat responses → claim_packets + evidence_links |
+| `scripts/generate_candidates.py` | extracted_items + assistant response claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
+| `scripts/materialize_candidates.py` | 读审核动作 + 读 `knowledge_records` → 落地 ADR/Card/日报插入 |
+| `knowledge-lifecycle-manager/scripts/record_knowledge.py` | Push 记录实现：agent 写 knowledge_records（status=accepted，跳过 archive） |
+| `scripts/daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
+| `scripts/hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
+| `scripts/knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
 | `knowledge_workflows.py` | workflow registry（实现层） |
 | `workflow_runner.py` | durable workflow 状态、日志、重试、恢复 |
 | `knowledge-lifecycle-manager` | 统一入口（运行 / 状态 / 健康检查） |
@@ -113,7 +99,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 8 个 knowledge-* skills 位于 `template/agent/skills/personal/`。其中 7 个 project-scoped（仅 mac-bootstrap 项目内可用），1 个 global-scoped（全项目可用）：
 
-**Pull 路径（project-scoped）：**
+**Archive/Render 路径（project-scoped）：**
 - `knowledge-source-ingestion`
 - `knowledge-reuse-retrieval`
 - `knowledge-claim-extraction`
@@ -122,8 +108,8 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 - `knowledge-daily-weekly-synthesis`
 - `knowledge-hygiene-audit`
 
-**Push 路径（global-scoped）：**
-- `knowledge-record` — 对话中直接写入 `knowledge_records` 表，跳过 pipeline
+**Push 记录入口（project-scoped）：**
+- `knowledge-lifecycle-manager record` — 对话中直接写入 `knowledge_records` 表，跳过 archive
 
 ## 当前状态
 

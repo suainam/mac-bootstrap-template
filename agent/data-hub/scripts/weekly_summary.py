@@ -9,8 +9,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 CURRENT_DIR = Path(__file__).resolve().parent
-if str(CURRENT_DIR) not in sys.path:
-    sys.path.insert(0, str(CURRENT_DIR))
+DATA_HUB_DIR = CURRENT_DIR.parent
+if str(DATA_HUB_DIR) not in sys.path:
+    sys.path.insert(0, str(DATA_HUB_DIR))
 
 from data_hub_config import load_prompt_template
 from date_utils import get_week_range, get_year_week, is_day_before_weekend_or_holiday
