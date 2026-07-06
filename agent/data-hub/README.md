@@ -3,14 +3,14 @@
 把 Agent 对话、Git 活动和外部材料（会议纪要/Wiki/XMind）汇总成可追溯的日报与知识沉淀流水线。
 
 **文档导航**：
-- [ops.md](ops.md) — 日常运维命令
-- [reference.md](reference.md) — 目录约定、环境变量、Obsidian 插件、幂等性约定
-- [troubleshooting.md](troubleshooting.md) — 故障排查
+- [docs/ops.md](docs/ops.md) — 日常运维命令
+- [docs/reference.md](docs/reference.md) — 目录约定、环境变量、Obsidian 插件、幂等性约定
+- [docs/troubleshooting.md](docs/troubleshooting.md) — 故障排查
 - [docs/acceptance-report.md](docs/acceptance-report.md) — 真实本机验收报告
 - [docs/upgrade-plan.md](docs/upgrade-plan.md) — 目标设计稿
 - [docs/cron-setup.md](docs/cron-setup.md) — cron/定时任务参考
 
-根目录保留可执行脚本、schema、配置样例和一线运维文档；阶段总结、验收报告、升级设计等支持材料统一放在 `docs/`。
+根目录保留 Python workflow 模块、shell 入口、schema、配置样例和 README；一线运维、阶段总结、验收报告、升级设计等支持材料统一放在 `docs/`，LLM 提示词统一放在 `prompts/`。
 
 ## 当前架构
 
@@ -44,7 +44,7 @@ agent (knowledge-record skill)  →  record_knowledge.py
                               materialize_candidates.py (nightly)
 ```
 
-Push 路径不走 classification / llm_filter / auto_review，写入即 accepted。详见 [`docs/data-hub-record-knowledge.md`](../docs/data-hub-record-knowledge.md)。
+Push 路径不走 classification / llm_filter / auto_review，写入即 accepted。详见 [`docs/data-hub-record-knowledge.md`](../../docs/data-hub-record-knowledge.md)。
 
 ## Workflow 入口
 

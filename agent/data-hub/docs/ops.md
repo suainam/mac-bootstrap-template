@@ -1,6 +1,6 @@
 # Data Hub 日常运维
 
-> 参考：[README.md](README.md) 架构概览，[reference.md](reference.md) 目录约定与环境变量，[troubleshooting.md](troubleshooting.md) 故障排查。
+> 参考：[README.md](../README.md) 架构概览，[reference.md](reference.md) 目录约定与环境变量，[troubleshooting.md](troubleshooting.md) 故障排查。
 
 ## 快速入口
 

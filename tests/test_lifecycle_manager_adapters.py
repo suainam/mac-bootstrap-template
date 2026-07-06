@@ -15,7 +15,7 @@ def test_run_daily_evening_delegates_to_manager() -> None:
 
 def test_docs_present_manager_as_unified_entry() -> None:
     readme_path = Path(__file__).parent.parent / "agent" / "data-hub" / "README.md"
-    ops_path = Path(__file__).parent.parent / "agent" / "data-hub" / "ops.md"
+    ops_path = Path(__file__).parent.parent / "agent" / "data-hub" / "docs" / "ops.md"
 
     readme_text = readme_path.read_text(encoding="utf-8")
     ops_text = ops_path.read_text(encoding="utf-8")

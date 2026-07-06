@@ -585,7 +585,7 @@ legacy error marker: absent
 `data-hub/` 根目录保留一线入口：
 
 - 可执行 workflow/scripts：`ingest_*.py`、`generate_candidates.py`、`materialize_candidates.py`、`daily_summary.py`、`knowledge_workflows.py` 等。
-- 一线文档：`README.md`、`ops.md`、`reference.md`、`troubleshooting.md`。
+- 一线文档：`README.md`、`docs/ops.md`、`docs/reference.md`、`docs/troubleshooting.md`。
 - 契约/配置：`schema.sql`、`data_hub.runtime.jsonc.example`。
 
 支持材料移动到 `docs/`：
