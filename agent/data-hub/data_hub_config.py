@@ -4,6 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from string import Template
 from typing import Any
 
 
@@ -64,9 +65,20 @@ def expand_path(value: str | Path) -> Path:
     return Path(os.path.expandvars(str(value))).expanduser()
 
 
+def expand_env_values(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: expand_env_values(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [expand_env_values(item) for item in value]
+    if isinstance(value, str):
+        return os.path.expandvars(value)
+    return value
+
+
 def load_runtime_json() -> tuple[dict[str, Any], Path]:
     if RUNTIME_CONFIG.exists():
-        return json.loads(strip_jsonc_comments(RUNTIME_CONFIG.read_text(encoding="utf-8"))), RUNTIME_CONFIG
+        raw = json.loads(strip_jsonc_comments(RUNTIME_CONFIG.read_text(encoding="utf-8")))
+        return expand_env_values(raw), RUNTIME_CONFIG
     return {}, RUNTIME_CONFIG
 
 
@@ -177,3 +189,14 @@ def get_vault_dir() -> Path:
 
 def get_runs_dir() -> Path:
     return get_runtime_config().paths.runs_dir
+
+
+def load_prompt_template(name: str) -> Template | None:
+    """加载 prompt 模板，优先 private 覆盖，回退 template 默认。"""
+    config = get_runtime_config()
+    private_path = config.paths.repo_root / "private" / "agent" / "prompts" / name
+    template_path = config.paths.template_root / "agent" / "data-hub" / "prompts" / name
+    for path in [private_path, template_path]:
+        if path.exists():
+            return Template(path.read_text(encoding="utf-8"))
+    return None

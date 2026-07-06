@@ -11,8 +11,9 @@ Usage: scripts/sync-agent-upstreams.sh [--dry-run]
 Clone or fast-forward agent upstream material libraries into ~/.agent, then
 promote a small whitelist of useful skills.
 
-Skill promotion lists live in agent/skills-promote.txt (canonical source).
-Edit that file, not this script.
+Upstream promotion lists live in agent/skills-promote.txt.
+Global personal skills are declared in agent/skills-manifest.json.
+Edit those files, not this script.
 
 Environment:
   AGENT_HOME  Override target agent home. Defaults to ~/.agent.
@@ -113,6 +114,10 @@ first_party_skill_source() {
   python3 "$REPO_DIR/scripts/skill_scope_manifest.py" skill-source "$SKILL_SCOPE_FILE" "$skill"
 }
 
+global_skills_list() {
+  python3 "$REPO_DIR/scripts/skill_scope_manifest.py" global-skills "$SKILL_SCOPE_FILE"
+}
+
 read_section() {
   local section="$1"
   awk -v sec="$section" '
@@ -156,7 +161,7 @@ done < <(read_section "obsidian-skills")
 
 while IFS= read -r skill; do
   PERSONAL_SKILLS+=("$skill")
-done < <(read_section "personal")
+done < <(global_skills_list)
 
 run mkdir -p "$AGENT_HOME/upstream" "$AGENT_HOME/skills/upstream" "$AGENT_HOME/skills/personal"
 
@@ -260,11 +265,6 @@ done
 echo "=== Link personal data skills ==="
 for skill in "${PERSONAL_SKILLS[@]}"; do
   dest="$AGENT_HOME/skills/personal/$skill"
-  if [ "$(first_party_skill_scope "$skill")" != "global" ]; then
-    run rm -rf "$dest"
-    echo "  Skip non-global first-party skill: $skill"
-    continue
-  fi
 
   src="$REPO_DIR/$(first_party_skill_source "$skill")"
   run mkdir -p "$(dirname "$dest")"

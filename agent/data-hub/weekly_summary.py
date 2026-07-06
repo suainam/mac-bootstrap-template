@@ -4,8 +4,6 @@ Agent Data Hub - Weekly Summary Script
 聚合本周所有日报的 AI 总结，生成周报。
 """
 
-import os
-import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,7 +12,9 @@ CURRENT_DIR = Path(__file__).resolve().parent
 if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
 
+from data_hub_config import load_prompt_template
 from date_utils import get_week_range, get_year_week, is_day_before_weekend_or_holiday
+from llm_filter import call_llm_raw
 from obsidian_helper import read_daily, write_weekly
 from db_helper import get_db_connection
 from execution_logger import ExecutionLogger
@@ -68,43 +68,19 @@ def generate_weekly_summary(week_summaries: dict[str, str]) -> str:
     if not week_summaries:
         return "本周无日报数据。"
 
-    # 构建 prompt
     daily_digests = []
     for date, summary in sorted(week_summaries.items()):
         day_name = datetime.strptime(date, "%Y-%m-%d").strftime("%A")
         daily_digests.append(f"### {date} ({day_name})\n\n{summary}")
 
-    prompt = f"""
-基于以下本周每日的 AI 总结，生成一份周报摘要。要求：
-
-1. 横向汇总：将本周的工作内容按主题归类（项目、研究、学习、优化等）
-2. 纵向追踪：识别持续推进的任务和阶段性成果
-3. 高亮重点：标注重要里程碑、突破或关键决策
-4. 精炼输出：3-5 个要点，每个 1-2 句话
-
-只输出周报内容（Markdown 列表形式），不要输出其他问候语或解释。
-
-## 本周日报汇总
-
-{chr(10).join(daily_digests)}
-"""
+    template = load_prompt_template("weekly-summary.md")
+    if template is None:
+        raise RuntimeError("Prompt template not found: weekly-summary.md")
+    prompt = template.substitute(daily_digests="\n\n".join(daily_digests))
 
     print("[weekly_summary] 调用 LLM 生成周报...")
-    try:
-        res = subprocess.run(["agy", "-p", prompt], capture_output=True, text=True, timeout=180)
-        if res.returncode == 0 and res.stdout.strip():
-            return res.stdout.strip()
-    except Exception:
-        pass
-
-    try:
-        res = subprocess.run(["claude", "-p", prompt], capture_output=True, text=True, timeout=180)
-        if res.returncode == 0 and res.stdout.strip():
-            return res.stdout.strip()
-    except Exception:
-        pass
-
-    return "调用 LLM 失败，未能生成周报。"
+    result = call_llm_raw(prompt)
+    return result if result else "调用 LLM 失败，未能生成周报。"
 
 
 def main():

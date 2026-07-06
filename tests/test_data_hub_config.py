@@ -58,6 +58,27 @@ def test_runtime_config_loads_paths_sources_and_llm(monkeypatch, tmp_path):
     assert cfg.llm["backends"][0]["name"] == "api"
 
 
+def test_runtime_config_expands_env_vars_inside_llm_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("TEST_LLM_API_KEY", "secret-from-env")
+    configure_files(
+        monkeypatch,
+        tmp_path,
+        runtime_text="""{
+          "llm": {
+            "backends": [
+              {
+                "name": "api",
+                "kind": "openai_api",
+                "api_key": "$TEST_LLM_API_KEY"
+              }
+            ]
+          }
+        }""",
+    )
+    cfg = data_hub_config.get_runtime_config()
+    assert cfg.llm["backends"][0]["api_key"] == "secret-from-env"
+
+
 def test_shell_env_overrides_runtime_and_env_file(monkeypatch, tmp_path):
     configure_files(
         monkeypatch,
@@ -75,3 +96,41 @@ def test_default_paths_apply_when_runtime_and_shell_env_missing(monkeypatch, tmp
     monkeypatch.delenv("OBSIDIAN_VAULT_DIR", raising=False)
     cfg = data_hub_config.get_runtime_config()
     assert cfg.paths.vault_dir == Path.home() / "work" / "knowledge"
+
+
+def test_load_prompt_template_returns_template_when_file_exists(monkeypatch, tmp_path):
+    runtime = configure_files(monkeypatch, tmp_path)
+    template_dir = tmp_path / "template" / "agent" / "data-hub" / "prompts"
+    template_dir.mkdir(parents=True)
+    (template_dir / "test-prompt.md").write_text("Hello, $name!")
+    runtime.write_text(f'{{"paths":{{"repo_root":"{tmp_path}","template_root":"{tmp_path}/template"}}}}')
+    monkeypatch.setattr(data_hub_config, "RUNTIME_CONFIG", runtime)
+
+    result = data_hub_config.load_prompt_template("test-prompt.md")
+    assert result is not None
+    assert result.substitute(name="World") == "Hello, World!"
+
+
+def test_load_prompt_template_returns_none_when_not_found(monkeypatch, tmp_path):
+    runtime = configure_files(monkeypatch, tmp_path)
+    runtime.write_text(f'{{"paths":{{"repo_root":"{tmp_path}","template_root":"{tmp_path}/template"}}}}')
+    monkeypatch.setattr(data_hub_config, "RUNTIME_CONFIG", runtime)
+
+    result = data_hub_config.load_prompt_template("nonexistent.md")
+    assert result is None
+
+
+def test_load_prompt_template_private_overrides_template(monkeypatch, tmp_path):
+    runtime = configure_files(monkeypatch, tmp_path)
+    template_dir = tmp_path / "template" / "agent" / "data-hub" / "prompts"
+    template_dir.mkdir(parents=True)
+    (template_dir / "shared.md").write_text("Template version")
+    private_dir = tmp_path / "private" / "agent" / "prompts"
+    private_dir.mkdir(parents=True)
+    (private_dir / "shared.md").write_text("Private override, $name!")
+    runtime.write_text(f'{{"paths":{{"repo_root":"{tmp_path}","template_root":"{tmp_path}/template"}}}}')
+    monkeypatch.setattr(data_hub_config, "RUNTIME_CONFIG", runtime)
+
+    result = data_hub_config.load_prompt_template("shared.md")
+    assert result is not None
+    assert result.substitute(name="test") == "Private override, test!"

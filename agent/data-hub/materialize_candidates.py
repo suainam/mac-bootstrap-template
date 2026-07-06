@@ -243,9 +243,48 @@ def main() -> None:
             )
             materialized += 1
 
+        # Also materialize skill-generated records
+        cursor = conn.execute(
+            "SELECT * FROM knowledge_records WHERE candidate_date = ? AND status = 'accepted'",
+            (target_date,)
+        )
+        skill_rows = cursor.fetchall()
+
+        for row in skill_rows:
+            if row["materialized_path"]:
+                continue
+
+            source = f"skill-record: {row['agent_type']}"
+
+            if row["record_type"] == "daily":
+                materialized_path = f"10_Periodic/Daily/{target_date}.md"
+                target_path = OBSIDIAN_VAULT_DIR / materialized_path
+                materialize_daily_candidate(target_path, row["id"], row["title"], row["content"])
+            elif row["record_type"] in {"card", "adr"}:
+                folder = "ADR" if row["record_type"] == "adr" else "Cards"
+                materialized_path = f"40_Knowledge/{folder}/{target_date}-{row['id'][-8:]}.md"
+                target_path = OBSIDIAN_VAULT_DIR / materialized_path
+                materialize_note_candidate(
+                    target_path,
+                    row["record_type"],
+                    target_date,
+                    row["title"],
+                    row["content"],
+                    source,
+                    row["id"],
+                )
+            else:
+                continue
+
+            conn.execute(
+                "UPDATE knowledge_records SET materialized_path = ? WHERE id = ?",
+                (materialized_path, row["id"])
+            )
+            materialized += 1
+
         conn.commit()
-        logger.complete(log_id, records_affected=materialized, metadata={"changed": changed, "materialized": materialized})
-        print(f"[materialize_candidates] {target_date}: {changed} reviewed, {materialized} materialized")
+        logger.complete(log_id, records_affected=materialized, metadata={"changed": changed, "materialized": materialized, "from_skill": len(skill_rows)})
+        print(f"[materialize_candidates] {target_date}: {changed} reviewed, {materialized} materialized (skill: {len(skill_rows)})")
 
     except Exception as e:
         logger.fail(log_id, str(e))

@@ -165,14 +165,12 @@ For personal skills:
 ```bash
 template/agent/skills/personal/<skill>/SKILL.md   # create or edit source
 agent/skills-manifest.json                        # add to global_skills or projects.<name>.skills
-agent/skills-promote.txt                          # add/remove first-party publish name
 agent/skills-distribution.json                    # optional agent routing for global skills
 make skill-refresh
 ```
 
-To delete a first-party skill, remove it from `agent/skills-manifest.json` and
-`agent/skills-promote.txt`, delete the personal source dir if applicable, then
-run `make skill-refresh`.
+To delete a first-party skill, remove it from `agent/skills-manifest.json`,
+delete the personal source dir if applicable, then run `make skill-refresh`.
 
 Source-of-truth split:
 
@@ -187,8 +185,8 @@ Skill source matrix:
 
 | Source class | Canonical source | Admission control | Scope control | Agent control | Delivered by |
 |-------|-----------------|-------------|-------------|-------------|-------------|
-| First-party global | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-promote.txt` `personal` | Add name to `agent/skills-manifest.json` `global_skills` | Default all-apps, or override in `agent/skills-distribution.json` | `make skill-refresh` |
-| First-party project | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-promote.txt` `personal` | Add name to `agent/skills-manifest.json` `projects.<name>.skills` | Not agent-routed; only the target project's `.agents/skills/` sees it | `make skill-refresh` |
+| First-party global | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-manifest.json` `global_skills` | Add name to `agent/skills-manifest.json` `global_skills` | Default all-apps, or override in `agent/skills-distribution.json` | `make skill-refresh` |
+| First-party project | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-manifest.json` `projects.<name>.skills` | Add name to `agent/skills-manifest.json` `projects.<name>.skills` | Not agent-routed; only the target project's `.agents/skills/` sees it | `make skill-refresh` |
 | Upstream whitelisted | `~/.agent/skills/upstream/<source>/<skill>/` after sync | Add name to the matching section in `agent/skills-promote.txt` | Always global shared skill | Default all-apps, or override in `agent/skills-distribution.json` | `make skill-refresh` |
 | Plugin / curated runtime skills | Plugin cache or bundled runtime, for example `.codex/plugins/cache/.../skills/...` | Managed by plugin/runtime install, not `skills-promote.txt` | Outside `skills-manifest.json` | Outside `skills-distribution.json` unless you copy/promote them into your own skill tree | Plugin/runtime itself |
 
@@ -308,7 +306,6 @@ manifest:
 ```bash
 template/agent/skills/personal/my-skill/SKILL.md
 template/agent/skills-manifest.json     # choose global or project scope
-template/agent/skills-promote.txt       # include under personal
 make skill-refresh
 ```
 

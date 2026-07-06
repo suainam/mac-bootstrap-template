@@ -18,7 +18,7 @@ if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
 
 from source_dates import document_matches_target
-from data_hub_config import get_runtime_config
+from data_hub_config import get_runtime_config, load_prompt_template
 from db_helper import get_db_connection as get_shared_db_connection
 from execution_logger import ExecutionLogger
 from obsidian_helper import ensure_daily_note, get_daily_dir, write_daily_section
@@ -257,50 +257,17 @@ def build_summary_prompt(
     source_digest: str,
     candidate_digest: str,
 ) -> str:
+    template = load_prompt_template("daily-summary.md")
+    if template is None:
+        raise RuntimeError("Prompt template not found: daily-summary.md")
     tagger_path = RUNTIME_CONFIG.paths.template_root / "agent" / "skills" / "daily-tagger" / "SKILL.md"
-    return f"""# Role: 日报摘要生成专家
-
-## Profile
-- Language: 中文
-- Description: 根据 Git 提交、Agent 会话、外部材料和候选知识，生成精炼客观的日报 AI 总结，并自动打标。
-
-## Skills
-### Skill-1: 信息提炼
-1. 从分散源数据中提取每日关键产出、决策和风险
-2. 去噪：过滤"先切分支"/"测试已补"/"下一步我来"等对话状态汇报
-3. 每条总结以 Markdown 列表项呈现，每条一行
-
-### Skill-2: 自动打标
-1. 严格使用《每日总结自动打标指南》中的完整层级标签，例如 `#绩效-计划组织`、`#绩效-专业知识`、`#成长-新贡献`、`#复盘-做得好`
-2. 禁止使用 `#绩效`、`#成长`、`#复盘` 这类只有一级的粗标签；如果只能判断到一级，就不要打这个标签
-3. 禁止使用 slash 形式标签，例如 `#绩效/计划组织`；统一写成 hyphen 形式 `#绩效-计划组织`
-4. 标签不要用反引号包裹；正确写法是 `完成验收。 #绩效-计划组织 #复盘-做得好` 这种普通 Markdown 文本
-5. 每条总结最多 1~3 个标签，标签直接跟在句子末尾，用空格分隔
-
-## Rules
-1. 只输出 Markdown 列表内容，不输出问候语、解释或额外段落
-2. 精炼、客观、有价值
-
-## OutputFormat
-- Markdown 无序列表（`- ` 开头）
-- 格式：`- 内容要点。 #绩效-XX #成长-XX`
-
-## Daily Summary Tag Reference
-@{tagger_path}
-
-## Input Data
-### Git 提交记录
-{git_digest}
-
-### AI 辅助事项
-{agent_digest or '无'}
-
-### 外部材料候选项
-{source_digest or '无'}
-
-### 候选知识清单
-{candidate_digest or '无'}
-"""
+    return template.substitute(
+        tagger_path=str(tagger_path),
+        git_digest=git_digest,
+        agent_digest=agent_digest or "无",
+        source_digest=source_digest or "无",
+        candidate_digest=candidate_digest or "无",
+    )
 
 
 def main():

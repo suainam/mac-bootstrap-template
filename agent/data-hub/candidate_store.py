@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from claim_extraction import CHAT_RESPONSE_SOURCE_KIND, classify_chat_response
+from llm_filter import FilterResult
 from source_dates import document_matches_target
 
 
@@ -41,6 +42,20 @@ def candidate_type_for(item_type: str, confidence: float) -> str | None:
 def stable_id(prefix: str, *parts: str) -> str:
     digest = hashlib.sha1("::".join(parts).encode("utf-8")).hexdigest()[:16]
     return f"{prefix}_{digest}"
+
+
+def content_hash(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def default_filter_result() -> FilterResult:
+    return FilterResult(keep=True, type_correct="", title_summary="", confidence=0.5, reason="not_filtered")
+
+
+def normalize_filter_pair(item):
+    if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], FilterResult):
+        return item
+    return item, default_filter_result()
 
 
 def chat_candidate_type_for(claim_type: str) -> str | None:
@@ -203,12 +218,13 @@ def iter_chat_rows(conn: sqlite3.Connection, target_date: str) -> list[dict]:
 def upsert_candidates(
     conn: sqlite3.Connection,
     target_date: str,
-    rows: list[sqlite3.Row],
+    pairs: list[tuple[sqlite3.Row, FilterResult] | sqlite3.Row],
     build_candidate_id,
 ) -> list[sqlite3.Row]:
     now = datetime.now().isoformat(timespec="seconds")
     inserted_or_updated = []
-    for row in rows:
+    for item in pairs:
+        row, result = normalize_filter_pair(item)
         candidate_type = candidate_type_for(row["item_type"], float(row["confidence"]))
         if not candidate_type:
             continue
@@ -220,15 +236,21 @@ def upsert_candidates(
             "item_type": row["item_type"],
             "raw_metadata": json.loads(row["metadata_json"] or "{}"),
         }
+        status = 'pending' if result.keep else 'rejected'
         conn.execute(
             """
             INSERT INTO knowledge_candidates
                 (id, extracted_item_id, source_document_id, candidate_date, candidate_type, status,
                  title, content, confidence, metadata_json, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(extracted_item_id) DO UPDATE SET
                 candidate_date=excluded.candidate_date,
                 candidate_type=excluded.candidate_type,
+                status=CASE
+                    WHEN knowledge_candidates.status IN ('accepted', 'merged', 'deferred')
+                    THEN knowledge_candidates.status
+                    ELSE excluded.status
+                END,
                 title=excluded.title,
                 content=excluded.content,
                 confidence=excluded.confidence,
@@ -241,6 +263,7 @@ def upsert_candidates(
                 row["document_id"],
                 target_date,
                 candidate_type,
+                status,
                 row["title"],
                 row["content"],
                 float(row["confidence"]),
@@ -257,13 +280,14 @@ def upsert_candidates(
 def upsert_chat_candidates(
     conn: sqlite3.Connection,
     target_date: str,
-    rows: list[dict],
+    pairs: list[tuple[dict, FilterResult] | dict],
     build_candidate_id,
 ) -> list[dict]:
     now = datetime.now().isoformat(timespec="seconds")
     inserted_or_updated = []
     prune_legacy_chat_projection(conn)
-    for row in rows:
+    for item in pairs:
+        row, result = normalize_filter_pair(item)
         message_id = str(row["message_id"])
         session_id = str(row["session_id"])
         document_id = stable_id("chatdoc", session_id)
@@ -305,11 +329,11 @@ def upsert_chat_candidates(
             (
                 document_id,
                 CHAT_SOURCE_TYPE,
-                f"Chat session {session_id}",
+                f"Agent Session: {session_id}",
                 document_path,
-                stable_id("hash", session_id, str(row["timestamp"]), content),
-                str(row["timestamp"]),
-                str(row["timestamp"]),
+                content_hash(content),
+                now,
+                row["timestamp"],
                 CHAT_PARSER_VERSION,
                 json.dumps(document_metadata, ensure_ascii=False),
             ),
@@ -317,10 +341,9 @@ def upsert_chat_candidates(
         conn.execute(
             """
             INSERT INTO extracted_items
-                (id, document_id, chunk_id, item_type, title, content, confidence, status, metadata_json)
-            VALUES (?, ?, NULL, ?, ?, ?, ?, 'candidate', ?)
+                (id, document_id, item_type, title, content, confidence, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
-                document_id=excluded.document_id,
                 item_type=excluded.item_type,
                 title=excluded.title,
                 content=excluded.content,
@@ -330,10 +353,10 @@ def upsert_chat_candidates(
             (
                 extracted_item_id,
                 document_id,
-                row["claim_type"],
+                CHAT_RESPONSE_SOURCE_KIND,
                 row["title"],
                 content,
-                float(row["confidence"]),
+                row["confidence"],
                 json.dumps(item_metadata, ensure_ascii=False),
             ),
         )
@@ -341,7 +364,7 @@ def upsert_chat_candidates(
         candidate_metadata = {
             "source_kind": CHAT_SOURCE_TYPE,
             "source_type": CHAT_SOURCE_TYPE,
-            "document_title": f"Chat session {session_id}",
+            "document_title": f"Agent Session: {session_id}",
             "path": document_path,
             "item_type": row["claim_type"],
             "message_id": row["message_id"],
@@ -354,16 +377,23 @@ def upsert_chat_candidates(
             "background_prompt": row["background_prompt"],
             "why_candidate": row["why_candidate"],
             "parser_version": CHAT_PARSER_VERSION,
+            "filter_reason": result.reason,
         }
+        status = 'pending' if result.keep else 'rejected'
         conn.execute(
             """
             INSERT INTO knowledge_candidates
                 (id, extracted_item_id, source_document_id, candidate_date, candidate_type, status,
                  title, content, confidence, metadata_json, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(extracted_item_id) DO UPDATE SET
                 candidate_date=excluded.candidate_date,
                 candidate_type=excluded.candidate_type,
+                status=CASE
+                    WHEN knowledge_candidates.status IN ('accepted', 'merged', 'deferred')
+                    THEN knowledge_candidates.status
+                    ELSE excluded.status
+                END,
                 title=excluded.title,
                 content=excluded.content,
                 confidence=excluded.confidence,
@@ -376,9 +406,10 @@ def upsert_chat_candidates(
                 document_id,
                 target_date,
                 row["candidate_type"],
+                status,
                 row["title"],
                 content,
-                float(row["confidence"]),
+                row["confidence"],
                 json.dumps(candidate_metadata, ensure_ascii=False),
                 now,
                 now,
@@ -395,7 +426,7 @@ def fetch_candidates(conn: sqlite3.Connection, target_date: str) -> list[sqlite3
         """
         SELECT id, extracted_item_id, candidate_type, status, title, content, confidence, metadata_json, materialized_path
         FROM knowledge_candidates
-        WHERE candidate_date = ?
+        WHERE candidate_date = ? AND status != 'rejected'
         ORDER BY candidate_type ASC, confidence DESC, rowid ASC
         """,
         (target_date,),

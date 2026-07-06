@@ -82,10 +82,7 @@ def validate_manifest() -> tuple[dict, list[str]]:
 
     promote_personal = read_promote_personal()
     manifest_skills = set(manifest["skills"])
-    missing_promote = manifest_skills - promote_personal
     missing_manifest = promote_personal - manifest_skills
-    for skill_name in sorted(missing_promote):
-        errors.append(f"manifest skill missing from personal promote list: {skill_name}")
     for skill_name in sorted(missing_manifest):
         errors.append(f"personal promote skill missing from manifest: {skill_name}")
 

@@ -21,11 +21,13 @@ def test_obsidian_skills_promoted():
 
 def test_langgpt_prompt_writer_skill_registered():
     skill = "langgpt-prompt-writer"
-    promote = open(os.path.join(TEMPLATE, "agent", "skills-promote.txt")).read()
-    assert skill in promote
     assert os.path.exists(
         os.path.join(TEMPLATE, "agent", "skills", "personal", skill, "SKILL.md")
     )
+
+    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
+        manifest = json.load(fh)
+    assert skill in manifest["global_skills"]
 
     with open(os.path.join(TEMPLATE, "agent", "skills-distribution.json")) as fh:
         distribution = json.load(fh)
@@ -39,8 +41,6 @@ def test_langgpt_prompt_writer_skill_registered():
 
 def test_decrypt_materialize_skill_registered_for_product_strategy_scope():
     skill = "decrypt-materialize"
-    promote = open(os.path.join(TEMPLATE, "agent", "skills-promote.txt")).read()
-    assert skill in promote
     assert os.path.exists(
         os.path.join(TEMPLATE, "agent", "skills", "personal", skill, "SKILL.md")
     )
@@ -52,3 +52,42 @@ def test_decrypt_materialize_skill_registered_for_product_strategy_scope():
         manifest["projects"]["product_strategy"]["skills_dir"]
         == "${HOME}/work/projects/product_strategy/.agents/skills"
     )
+
+
+def test_sync_agent_upstreams_reads_global_skills_from_manifest():
+    content = open(
+        os.path.join(TEMPLATE, "scripts", "sync-agent-upstreams.sh")
+    ).read()
+    assert "global-skills" in content
+    assert "skill_scope_manifest.py" in content
+
+
+def test_global_skills_match_personal_dir():
+    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
+        manifest = json.load(fh)
+
+    personal_dir = os.path.join(TEMPLATE, "agent", "skills", "personal")
+    on_disk = {d for d in os.listdir(personal_dir) if os.path.isdir(os.path.join(personal_dir, d))}
+
+    for skill in manifest["global_skills"]:
+        assert skill in on_disk, (
+            f"global_skills has '{skill}' but no SKILL.md at agent/skills/personal/{skill}/"
+        )
+        assert os.path.exists(
+            os.path.join(personal_dir, skill, "SKILL.md")
+        ), f"Missing SKILL.md for global skill: {skill}"
+
+
+def test_knowledge_record_skill_registered():
+    skill = "knowledge-record"
+    assert os.path.exists(
+        os.path.join(TEMPLATE, "agent", "skills", "personal", skill, "SKILL.md")
+    )
+
+    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
+        manifest = json.load(fh)
+    assert skill in manifest["global_skills"]
+
+    with open(os.path.join(TEMPLATE, "agent", "skills-distribution.json")) as fh:
+        distribution = json.load(fh)
+    assert skill in distribution["skills"]

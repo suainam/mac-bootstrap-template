@@ -40,18 +40,32 @@ def _apply_llm_enrichment(
         if result.title_summary:
             if isinstance(candidate, sqlite3.Row):
                 extracted_item_id = candidate["extracted_item_id"] if "extracted_item_id" in candidate.keys() else candidate.get("id", "")
+                original_content = candidate["content"] if "content" in candidate.keys() else ""
             else:
                 extracted_item_id = candidate.get("extracted_item_id") or candidate.get("id", "")
+                original_content = candidate.get("content", "")
                 
-            conn.execute(
-                """
-                UPDATE knowledge_candidates
-                SET title = ?, confidence = ?, review_note = ?, updated_at = ?
-                WHERE extracted_item_id = ? AND candidate_date = ?
-                """,
-                (result.title_summary, result.confidence, result.reason, now,
-                 extracted_item_id, target_date),
-            )
+            if getattr(result, "refined_knowledge", None):
+                new_content = f"{result.refined_knowledge}\n\n---\n**原始出处内容**:\n{original_content}"
+                conn.execute(
+                    """
+                    UPDATE knowledge_candidates
+                    SET title = ?, confidence = ?, review_note = ?, content = ?, updated_at = ?
+                    WHERE extracted_item_id = ? AND candidate_date = ?
+                    """,
+                    (result.title_summary, result.confidence, result.reason, new_content, now,
+                     extracted_item_id, target_date),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE knowledge_candidates
+                    SET title = ?, confidence = ?, review_note = ?, updated_at = ?
+                    WHERE extracted_item_id = ? AND candidate_date = ?
+                    """,
+                    (result.title_summary, result.confidence, result.reason, now,
+                     extracted_item_id, target_date),
+                )
     conn.commit()
 
 
@@ -84,11 +98,8 @@ def main() -> None:
         filtered_source_pairs = filter_candidates_batch(raw_source, "external")
         filtered_chat_pairs = filter_candidates_batch(raw_chat, "chat_response")
         
-        filtered_source = [c for c, _ in filtered_source_pairs]
-        filtered_chat = [c for c, _ in filtered_chat_pairs]
-        
-        source_changed = upsert_candidates(conn, target_date, filtered_source, stable_candidate_id)
-        chat_changed = upsert_chat_candidates(conn, target_date, filtered_chat, stable_candidate_id)
+        source_changed = upsert_candidates(conn, target_date, filtered_source_pairs, stable_candidate_id)
+        chat_changed = upsert_chat_candidates(conn, target_date, filtered_chat_pairs, stable_candidate_id)
         
         _apply_llm_enrichment(conn, filtered_source_pairs + filtered_chat_pairs, target_date)
         

@@ -23,6 +23,7 @@ class FilterResult:
     title_summary: str
     confidence: float
     reason: str
+    refined_knowledge: str = ""
 
 
 @dataclass
@@ -123,7 +124,7 @@ def deduplicate(candidates: list[dict | sqlite3.Row]) -> list[dict | sqlite3.Row
 
 
 OUTPUT_SCHEMA_INSTRUCTION = """返回 JSON（仅返回 JSON，不要解释）：
-{"keep": true, "type_correct": "card", "title_summary": "≤30字摘要", "confidence": 0.82, "reason": "一句话说明"}
+{"keep": true, "type_correct": "card", "title_summary": "≤30字摘要", "refined_knowledge": "摘要", "confidence": 0.82, "reason": "一句话说明"}
 type_correct 可选值：daily（行动/待办）、adr（架构决策）、card（知识点）"""
 
 
@@ -133,19 +134,29 @@ def _candidate_value(candidate: dict | sqlite3.Row, key: str, default: str = "")
     return str(candidate.get(key, default) or "")
 
 
+def _build_chat_prompt_batch(batch: list[dict | sqlite3.Row]) -> str:
+    batch_data = []
+    for c in batch:
+        content = _candidate_value(c, "content")
+        background = _candidate_value(c, "context_str", _candidate_value(c, "background_prompt", ""))
+        cid = _candidate_value(c, "id", _candidate_value(c, "extracted_item_id", str(id(c))))
+        batch_data.append({
+            "id": str(cid),
+            "background": background[:200],
+            "content": content[:800]
+        })
+    batch_json = json.dumps(batch_data, ensure_ascii=False, indent=2)
+    
+    from data_hub_config import load_prompt_template
+    tmpl = load_prompt_template("chat_review.md")
+    if tmpl:
+        return tmpl.safe_substitute(batch_json=batch_json)
+        
+    return f"""# Role: 知识管理专家\n\n输入：\n```json\n{batch_json}\n```\n\n请输出 JSON 数组..."""
+
+
 def _build_chat_prompt(candidate: dict | sqlite3.Row) -> str:
-    content = candidate["content"] if isinstance(candidate, sqlite3.Row) else candidate.get("content", "")
-    background = candidate["context_str"] if isinstance(candidate, sqlite3.Row) else candidate.get("context_str", "")
-    return f"""你是知识管理助手。判断以下 AI 助手回复是否包含值得长期沉淀的知识。
-
-背景问题：{background[:200]}
-助手回复：{content[:500]}
-
-判断标准：
-- keep=true：通用原则、架构决策、踩坑经验、可复用方案建议
-- keep=false：工作状态汇报（"先切分支"/"测试已补"/"下一步我来"）、单次任务操作步骤、对话过程确认、重复状态报告
-
-{OUTPUT_SCHEMA_INSTRUCTION}"""
+    return _build_chat_prompt_batch([candidate])
 
 
 def _build_meeting_prompt(candidate: dict | sqlite3.Row) -> str:
@@ -159,6 +170,8 @@ def _build_meeting_prompt(candidate: dict | sqlite3.Row) -> str:
 - keep=true：会议结论、决策依据、行动项、风险、负责人/时间约束、可复用沟通背景
 - keep=false：寒暄、重复议程、无明确含义的片段
 - 行动项用 daily，架构/策略决策用 adr，稳定背景知识用 card
+
+要求：在 `refined_knowledge` 中，请直接陈述具体的行动项、决策或知识点，禁止使用“该内容描述了...”这种元评论。
 
 {OUTPUT_SCHEMA_INSTRUCTION}"""
 
@@ -174,6 +187,8 @@ def _build_mind_map_prompt(candidate: dict | sqlite3.Row) -> str:
 - keep=true：主题层级、分类框架、策略结构、关键问题、可复用分析路径
 - keep=false：孤立词、无上下文节点、重复节点
 - 后续任务用 daily，策略/结构决策用 adr，知识框架用 card
+
+要求：在 `refined_knowledge` 中，请结合标题和内容，将其展开为一个连贯的知识框架解释，禁止使用“该节点属于...”这种元评论，必须直接陈述框架或知识本身。
 
 {OUTPUT_SCHEMA_INSTRUCTION}"""
 
@@ -191,6 +206,8 @@ def _build_wiki_prompt(candidate: dict | sqlite3.Row) -> str:
 - keep=false：页眉页脚、目录碎片、版权/导航噪音、缺上下文片段
 - 操作待办用 daily，重要方案/约束决策用 adr，说明性知识用 card
 
+要求：在 `refined_knowledge` 中，直接总结或重写这部分技术内容/业务规则，禁止使用元评论，提取出能够独立存在的知识卡片。
+
 {OUTPUT_SCHEMA_INSTRUCTION}"""
 
 
@@ -202,7 +219,7 @@ def _build_external_prompt(candidate: dict | sqlite3.Row) -> str:
 
 内容：{content[:500]}
 
-规则：外部材料默认保留（keep=true），除非内容明显无意义或纯噪音。
+规则：外部材料默认保留（keep=true），除非内容明显无意义或纯噪音。在 `refined_knowledge` 中，直接重写核心知识点，禁止使用“这部分描述了...”之类的套话。
 {OUTPUT_SCHEMA_INSTRUCTION}"""
 
 
@@ -445,7 +462,7 @@ def _extract_last_json_object(text: str) -> str | None:
     return last_obj
 
 
-def _parse_llm_response_strict(raw: str) -> FilterResult | None:
+def _parse_llm_response_strict(raw: str) -> FilterResult | list[FilterResult] | None:
     if not raw.strip():
         return None
 
@@ -454,13 +471,33 @@ def _parse_llm_response_strict(raw: str) -> FilterResult | None:
     except json.JSONDecodeError:
         return None
 
+    if isinstance(data, list):
+        results = []
+        for item in data:
+            if not isinstance(item, dict): continue
+            try:
+                confidence = float(item.get("confidence", 0.5))
+            except (TypeError, ValueError):
+                confidence = 0.5
+            keep = item.get("keep", True)
+            if isinstance(keep, str): keep = keep.lower() == "true"
+            results.append(FilterResult(
+                keep=bool(keep),
+                type_correct=str(item.get("type_correct", "")),
+                title_summary=str(item.get("title_summary", "")),
+                confidence=confidence,
+                reason=str(item.get("reason", "")),
+                refined_knowledge=str(item.get("refined_knowledge", ""))
+            ))
+        return results if results else None
+
     required_keys = {"keep", "type_correct", "title_summary", "confidence", "reason"}
     if not required_keys.issubset(data):
         return None
 
     if not isinstance(data["keep"], bool):
         return None
-    if data["type_correct"] not in {"daily", "adr", "card"}:
+    if data["type_correct"] not in {"daily", "adr", "card", ""}:
         return None
     if not isinstance(data["title_summary"], str):
         return None
@@ -482,22 +519,45 @@ def _parse_llm_response_strict(raw: str) -> FilterResult | None:
     )
 
 
-def _parse_llm_response(raw: str, default_keep: bool = True) -> FilterResult:
+def _parse_llm_response(raw: str, default_keep: bool = True) -> FilterResult | list[FilterResult]:
     if not raw.strip():
-        return FilterResult(keep=default_keep, type_correct="", title_summary="", confidence=0.5, reason="empty_response")
+        return FilterResult(keep=default_keep, type_correct="", title_summary="", confidence=0.5, reason="[LLM Failed] empty_response")
     try:
         data = json.loads(_extract_json_payload(raw))
+        if isinstance(data, list):
+            results = []
+            for item in data:
+                if not isinstance(item, dict): continue
+                keep_val = item.get("keep", default_keep)
+                if isinstance(keep_val, str):
+                    keep = keep_val.lower() == "true"
+                else:
+                    keep = bool(keep_val)
+                results.append(FilterResult(
+                    keep=keep,
+                    type_correct=str(item.get("type_correct", "")),
+                    title_summary=str(item.get("title_summary", "")),
+                    confidence=float(item.get("confidence", 0.5)),
+                    reason=str(item.get("reason", "")),
+                    refined_knowledge=str(item.get("refined_knowledge", ""))
+                ))
+            return results
+        
+        keep_val = data.get("keep", default_keep)
+        if isinstance(keep_val, str):
+            keep = keep_val.lower() == "true"
+        else:
+            keep = bool(keep_val)
         return FilterResult(
-            keep=bool(data.get("keep", default_keep)),
+            keep=keep,
             type_correct=str(data.get("type_correct", "")),
             title_summary=str(data.get("title_summary", "")),
             confidence=float(data.get("confidence", 0.5)),
             reason=str(data.get("reason", "")),
+            refined_knowledge=str(data.get("refined_knowledge", ""))
         )
-    except json.JSONDecodeError:
-        return FilterResult(keep=default_keep, type_correct="", title_summary="", confidence=0.5, reason="parse_error")
-    except Exception:
-        return FilterResult(keep=default_keep, type_correct="", title_summary="", confidence=0.5, reason="unexpected_error")
+    except Exception as e:
+        return FilterResult(keep=default_keep, type_correct="", title_summary="", confidence=0.5, reason=f"[LLM Failed] parse_error: {str(e)}")
 
 
 def score_one(candidate: dict | sqlite3.Row, source_kind: str, cfg: dict[str, Any]) -> FilterResult:
@@ -531,26 +591,56 @@ def filter_candidates_batch(
         cfg = load_backends()
         
     deduped = deduplicate(candidates)
-    max_workers = cfg.get("filter", {}).get("max_workers", 10)
     
-    results = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_cand = {
-            executor.submit(score_one, c, source_kind, cfg): c
-            for c in deduped
-        }
-        for future in as_completed(future_to_cand):
-            c = future_to_cand[future]
-            try:
-                res = future.result()
-                if res.keep:
+    if source_kind == "chat_response":
+        threshold = cfg.get("filter", {}).get("chat_threshold", 0.5)
+        # Batching for chat responses
+        batch_size = 20
+        batches = [deduped[i:i + batch_size] for i in range(0, len(deduped), batch_size)]
+        
+        results = []
+        max_workers = cfg.get("filter", {}).get("max_workers", 2)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_batch = {
+                executor.submit(_call_llm, _build_chat_prompt_batch(batch), cfg): batch
+                for batch in batches
+            }
+            for future in as_completed(future_to_batch):
+                batch = future_to_batch[future]
+                try:
+                    raw_response = future.result()
+                    parsed = _parse_llm_response(raw_response, default_keep=True)
+                    parsed_list = parsed if isinstance(parsed, list) else [parsed]
+                    
+                    for idx, c in enumerate(batch):
+                        res = parsed_list[idx] if idx < len(parsed_list) else FilterResult(keep=True, type_correct="", title_summary="", confidence=0.5, reason="[LLM Failed] missing_in_batch")
+                        if res.keep and res.confidence < threshold:
+                            res.keep = False
+                            res.reason += f" (dropped: confidence {res.confidence} < {threshold})"
+                        results.append((c, res))
+                except Exception as e:
+                    import sys
+                    print(f"Error scoring batch: {e}", file=sys.stderr)
+                    for c in batch:
+                        results.append((c, FilterResult(keep=True, type_correct="", title_summary="", confidence=0.5, reason=f"error: {e}")))
+        return results
+    else:
+        # For non-chat, we keep the concurrent individual scoring but don't drop keep=False items
+        max_workers = cfg.get("filter", {}).get("max_workers", 2)
+        results = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_cand = {
+                executor.submit(score_one, c, source_kind, cfg): c
+                for c in deduped
+            }
+            for future in as_completed(future_to_cand):
+                c = future_to_cand[future]
+                try:
+                    res = future.result()
                     results.append((c, res))
-            except Exception as e:
-                import sys
-                print(f"Error scoring candidate: {e}", file=sys.stderr)
-                # fail-open
-                results.append((c, FilterResult(keep=True, type_correct="", title_summary="", confidence=0.5, reason=f"error: {e}")))
-                
-    # keep order of original candidates if possible, or just return results
-    # thread pool output is unordered. Let's return as is.
-    return results
+                except Exception as e:
+                    import sys
+                    print(f"Error scoring candidate: {e}", file=sys.stderr)
+                    # fail-open
+                    results.append((c, FilterResult(keep=True, type_correct="", title_summary="", confidence=0.5, reason=f"error: {e}")))
+        return results

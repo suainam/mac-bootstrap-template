@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import sqlite3
-import subprocess
 import tempfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -198,14 +197,7 @@ def test_weekly_summary_content_format(temp_vault, mock_daily_notes, temp_db, mo
 
     with patch("weekly_summary.read_daily", side_effect=mock_read_daily):
         with patch("weekly_summary.get_db_connection", return_value=temp_db):
-            # Mock LLM call
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(
-                    returncode=0,
-                    stdout="Weekly summary: Key events and achievements.",
-                    stderr=""
-                )
-
+            with patch("weekly_summary.call_llm_raw", return_value="Weekly summary: Key events and achievements."):
                 from weekly_summary import collect_week_summaries, generate_weekly_summary
 
                 start = date(2026, 7, 6)
@@ -237,9 +229,7 @@ def test_weekly_summary_logs_execution(temp_vault, mock_daily_notes, temp_db):
             check_conn.row_factory = sqlite3.Row
 
             with patch.object(weekly_summary, "get_db_connection", return_value=temp_db):
-                with patch("subprocess.run") as mock_run:
-                    mock_run.return_value = MagicMock(returncode=0, stdout="Test summary", stderr="")
-
+                with patch("weekly_summary.call_llm_raw", return_value="Test summary"):
                     with patch.object(weekly_summary, "write_weekly"):
                         weekly_summary.main()
 

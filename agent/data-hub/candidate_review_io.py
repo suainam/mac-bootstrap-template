@@ -86,7 +86,7 @@ def render_candidate_markdown(target_date: str, rows: list) -> str:
             else:
                 source_label = f"`{meta.get('source_type', 'unknown')}` / `{meta.get('document_title', '')}`"
                 if source_path:
-                    source_label += f" / `{Path(source_path).name}`"
+                    source_label += f" / [[{Path(source_path).name}]]"
             extracted_item_id = row["extracted_item_id"] if "extracted_item_id" in row.keys() else ""
             trace = f"message:{meta.get('message_id')}" if is_chat_source(meta) else extracted_item_id
             background_prompt = meta.get("background_prompt")

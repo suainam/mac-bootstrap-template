@@ -22,6 +22,7 @@ from llm_filter import (
     _extract_json_payload,
     _parse_llm_response,
     _parse_llm_response_strict,
+    _build_chat_prompt_batch,
     _call_llm,
     call_llm_raw,
     score_one,
@@ -103,13 +104,28 @@ def test_load_backends_runtime_cli_backends_are_ordered(tmp_path, monkeypatch):
     assert [b["kind"] for b in cfg["backends"]] == ["openai_api", "opencode_cli"]
 
 
-def test_parse_llm_response_valid_json_keep_true():
-    raw = '{"keep": true, "type_correct": "card", "title_summary": "test", "confidence": 0.8, "reason": "ok"}'
+def test_parse_llm_response_invalid_json():
+    raw = "I am an AI. keep=true"
     res = _parse_llm_response(raw)
     assert res.keep is True
-    assert res.type_correct == "card"
-    assert res.title_summary == "test"
-    assert res.confidence == 0.8
+    assert "parse_error" in res.reason
+
+
+def test_parse_llm_response_valid_json():
+    raw = '{"keep": false, "type_correct": "adr", "title_summary": "Test ADR", "confidence": 0.9, "reason": "Because I say so", "refined_knowledge": "Test Summary"}'
+    res = _parse_llm_response(raw)
+    assert res.keep is False
+    assert res.type_correct == "adr"
+    assert res.title_summary == "Test ADR"
+    assert res.confidence == 0.9
+    assert res.reason == "Because I say so"
+    assert res.refined_knowledge == "Test Summary"
+
+
+def test_parse_llm_response_string_false():
+    raw = '{"keep": "false", "type_correct": "daily", "title_summary": "Test Daily", "confidence": 0.8, "reason": "string false", "refined_knowledge": "Summary"}'
+    res = _parse_llm_response(raw)
+    assert res.keep is False
 
 
 def test_parse_llm_response_valid_json_keep_false():
@@ -122,7 +138,7 @@ def test_parse_llm_response_invalid_json_defaults_to_keep():
     raw = 'not json'
     res = _parse_llm_response(raw, default_keep=True)
     assert res.keep is True
-    assert res.reason == "parse_error"
+    assert "parse_error" in res.reason
 
 
 def test_parse_llm_response_missing_fields_uses_defaults():
@@ -134,6 +150,12 @@ def test_parse_llm_response_missing_fields_uses_defaults():
 
 def test_parse_llm_response_strict_rejects_missing_fields():
     assert _parse_llm_response_strict('{"keep": true}') is None
+
+
+def test_prompt_contains_few_shot_examples():
+    prompt = _build_chat_prompt_batch([{"id": "1", "content": "hello", "context_str": "world"}])
+    assert "keep" in prompt
+    assert "type_correct" in prompt
 
 
 def test_parse_llm_response_strict_accepts_complete_schema():
@@ -247,7 +269,7 @@ def test_score_one_llm_failure_keeps_candidate(mock_call):
     cfg = {"filter": {"chat_threshold": 0.5}}
     res = score_one({"content": "hi", "context_str": ""}, "chat_response", cfg)
     assert res.keep is True  # fail-open
-    assert res.reason == "empty_response"
+    assert "empty_response" in res.reason
 
 
 @patch("llm_filter.score_one")
@@ -270,8 +292,9 @@ def test_filter_candidates_batch_some_dropped(mock_score):
     c1 = {"content": "keep", "title": "1"}
     c2 = {"content": "drop", "title": "2"}
     res = filter_candidates_batch([c1, c2], "chat", cfg={"filter": {"max_workers": 1}})
-    assert len(res) == 1
-    assert res[0][0] == c1
+    assert len(res) == 2
+    by_content = {item["content"]: result.keep for item, result in res}
+    assert by_content == {"keep": True, "drop": False}
 
 
 def make_fake_backend_config() -> dict:

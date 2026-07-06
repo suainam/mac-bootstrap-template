@@ -20,7 +20,9 @@
 - `Obsidian Vault` 是展示层和人工编辑层
 - `data-hub` 脚本负责采集、汇总、写回，不直接充当知识库
 
-2.0 主流程：
+数据来源分两条路径：
+
+**Pull 路径**（主流水线）—— 从 agent 日志和外部材料中自动发现知识：
 
 ```
 1. preflight retrieve  →  knowledge_retrieval.py
@@ -31,6 +33,18 @@
 6. daily synthesis     →  daily_summary.py
 7. hygiene audit       →  hygiene_audit.py
 ```
+
+**Push 路径**（手动记录）—— agent 在对话中直接写入知识：
+
+```
+agent (knowledge-record skill)  →  record_knowledge.py
+                                    ↓
+                              knowledge_records (status=accepted)
+                                    ↓
+                              materialize_candidates.py (nightly)
+```
+
+Push 路径不走 classification / llm_filter / auto_review，写入即 accepted。详见 [`docs/data-hub-record-knowledge.md`](../docs/data-hub-record-knowledge.md)。
 
 ## Workflow 入口
 
@@ -78,7 +92,8 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 | `claim_extraction.py` | source items + assistant chat responses → claim_packets + evidence_links |
 | `generate_candidates.py` | extracted_items + assistant response claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
 | `auto_review.py` | 外部材料候选按置信度阈值自动审核；chat response candidates 保持 pending |
-| `materialize_candidates.py` | 读审核动作 → 落地 ADR/Card/日报插入 |
+| `materialize_candidates.py` | 读审核动作 + 读 `knowledge_records` → 落地 ADR/Card/日报插入 |
+| `record_knowledge.py` | Push 路径入口：agent 写 knowledge_records（status=accepted，跳过 pipeline） |
 | `daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
 | `hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
 | `knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
@@ -96,8 +111,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 ## Skill 对应关系
 
-7 个 knowledge-* skills 位于 `template/agent/skills/personal/`，project-scoped（仅 mac-bootstrap 项目内可用）：
+8 个 knowledge-* skills 位于 `template/agent/skills/personal/`。其中 7 个 project-scoped（仅 mac-bootstrap 项目内可用），1 个 global-scoped（全项目可用）：
 
+**Pull 路径（project-scoped）：**
 - `knowledge-source-ingestion`
 - `knowledge-reuse-retrieval`
 - `knowledge-claim-extraction`
@@ -105,6 +121,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 - `knowledge-materialization`
 - `knowledge-daily-weekly-synthesis`
 - `knowledge-hygiene-audit`
+
+**Push 路径（global-scoped）：**
+- `knowledge-record` — 对话中直接写入 `knowledge_records` 表，跳过 pipeline
 
 ## 当前状态
 

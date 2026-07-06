@@ -32,7 +32,8 @@ This is the pattern established by `pi-packages.txt` and `skills-promote.txt`.
 |-----------|---------|
 | `Brewfile` | Homebrew formula/cask/npm manifest |
 | `agent/pi-packages.txt` | Pi package references |
-| `agent/skills-promote.txt` | Agent skill promotion whitelist |
+| `agent/skills-promote.txt` | Upstream skill promotion whitelist |
+| `agent/skills-manifest.json` | First-party skill global/project scope |
 | `infra/python/requirements-common.txt` | Python data-analysis dependencies |
 | `editors/vscode/extensions.txt` | VS Code extension IDs |
 | `editors/obsidian/vault/` | Reusable Obsidian vault config and templates |
