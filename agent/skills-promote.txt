@@ -79,6 +79,7 @@ knowledge-materialization
 knowledge-daily-weekly-synthesis
 knowledge-hygiene-audit
 knowledge-source-ingestion
+knowledge-record
 mac-bootstrap-maintenance
 network-path-triage
 franchise-store-sankey-analysis
