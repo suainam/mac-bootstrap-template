@@ -100,6 +100,35 @@ CREATE TABLE IF NOT EXISTS knowledge_candidates (
 CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_date ON knowledge_candidates(candidate_date, status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_type ON knowledge_candidates(candidate_type, status);
 
+-- Skill-recorded knowledge (agent writes directly, bypassing pipeline)
+CREATE TABLE IF NOT EXISTS knowledge_records (
+    id TEXT PRIMARY KEY,
+    record_type TEXT NOT NULL CHECK(record_type IN ('adr', 'card', 'daily')),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    background TEXT,
+    tags TEXT,
+    impact TEXT CHECK(impact IN ('high', 'medium', 'low')),
+    is_actionable INTEGER NOT NULL DEFAULT 0,
+    references_json TEXT,
+    project TEXT,
+    expires_at TEXT,
+    why_record TEXT,
+    agent_type TEXT NOT NULL,
+    session_id TEXT,
+    message_id INTEGER,
+    project_path TEXT,
+    recorded_at TEXT NOT NULL,
+    candidate_date TEXT NOT NULL,
+    materialized_path TEXT,
+    status TEXT NOT NULL DEFAULT 'accepted',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_kr_date ON knowledge_records(candidate_date, status);
+CREATE INDEX IF NOT EXISTS idx_kr_type ON knowledge_records(record_type, status);
+
 -- Execution log table for pipeline traceability
 CREATE TABLE IF NOT EXISTS execution_log (
     id TEXT PRIMARY KEY,
