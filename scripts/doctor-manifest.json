@@ -6,7 +6,10 @@
   "standalone_clis": [
     {
       "name": "antigravity",
-      "commands": ["agy", "antigravity"]
+      "commands": [
+        "agy",
+        "antigravity"
+      ]
     }
   ],
   "chrome_gemini": {
@@ -47,10 +50,10 @@
       "app": "Clash Verge.app"
     },
     "uuremote": {
-      "app": "UU远程.app"
+      "app": "UU\u8fdc\u7a0b.app"
     },
     "xiaomi-cloud": {
-      "app": "小米互联服务.app"
+      "app": "\u5c0f\u7c73\u4e92\u8054\u670d\u52a1.app"
     },
     "claude-code": {
       "app": "Claude Code.app",
@@ -81,6 +84,9 @@
     },
     "miniforge": {
       "app": "Miniforge-Navigator.app"
+    },
+    "workbuddy": {
+      "app": "WorkBuddy.app"
     }
   }
 }

@@ -7,7 +7,8 @@ PYTHON ?= .venv/bin/python
 	install-antigravity-cli install agent-sync agent-tools agent-refresh skill-route skill-route-clear \
 	skill-route-show skill-route-list skill-route-default skill-scope-check skill-scope-refresh skill-refresh prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
-	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair
+	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
+	install-workbuddy
 
 help:
 	@echo "Usage: make <target>"
@@ -337,6 +338,10 @@ theme-switch:
 theme-list:
 	@echo "catppuccin-mocha"
 	@echo "gruvbox-dark"
+
+# ── WorkBuddy ────────────────────────────────────────────────────────
+install-workbuddy:
+	./scripts/install-workbuddy.sh
 
 # ── Cold Start (Proxy Bootstrap) ────────────────────────────────────
 cold-start:

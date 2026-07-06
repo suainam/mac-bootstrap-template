@@ -73,6 +73,7 @@ cask "wpsoffice"
 cask "wechatwork"
 cask "obs"
 cask "obsidian"
+cask "workbuddy"
 
 # ========== 数据科学 ==========
 cask "miniforge"
