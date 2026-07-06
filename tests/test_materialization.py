@@ -98,6 +98,85 @@ def test_materialize_note_candidate_is_idempotent(tmp_path: Path):
     assert text.count("# 线下实验不能只看销售额") == 1
 
 
+def test_materialize_daily_candidate_inserts_once_into_existing_daily(tmp_path: Path):
+    daily_path = tmp_path / "10_Periodic" / "Daily" / "2026-07-04.md"
+    daily_path.parent.mkdir(parents=True)
+    daily_path.write_text(
+        "\n".join(
+            [
+                "---",
+                "type: journal",
+                "---",
+                "",
+                "# 2026-07-04",
+                "",
+                "## AI 总结",
+                "",
+                "已有总结",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    materialize_candidates.materialize_daily_candidate(
+        daily_path,
+        "kr_daily_demo",
+        "记录知识库分层决策",
+        "push/archive/render/obsidian 三层职责需要清晰。",
+    )
+    materialize_candidates.materialize_daily_candidate(
+        daily_path,
+        "kr_daily_demo",
+        "记录知识库分层决策",
+        "push/archive/render/obsidian 三层职责需要清晰。",
+    )
+
+    text = daily_path.read_text(encoding="utf-8")
+    assert "## 候选事项" in text
+    assert text.count("knowledge_candidate:kr_daily_demo") == 1
+    assert "## AI 总结" in text
+
+
+def test_materialize_daily_candidate_creates_daily_file(tmp_path: Path):
+    daily_path = tmp_path / "10_Periodic" / "Daily" / "2026-07-04.md"
+
+    materialize_candidates.materialize_daily_candidate(
+        daily_path,
+        "kr_daily_new",
+        "新增日报知识",
+        "新增日报知识",
+    )
+
+    text = daily_path.read_text(encoding="utf-8")
+    assert "type: journal" in text
+    assert "# 2026-07-04" in text
+    assert text.count("knowledge_candidate:kr_daily_new") == 1
+
+
+def test_materialize_daily_candidate_supports_common_insert_positions(tmp_path: Path):
+    cases = {
+        "has_candidates": "## 候选事项\n\n已有事项\n",
+        "has_tomorrow": "## 明日计划\n\n继续推进\n",
+        "plain": "## 其他\n\n普通内容\n",
+    }
+
+    for name, body in cases.items():
+        daily_path = tmp_path / f"{name}.md"
+        daily_path.write_text(f"# {name}\n\n{body}", encoding="utf-8")
+
+        materialize_candidates.materialize_daily_candidate(
+            daily_path,
+            f"kr_{name}",
+            "补充候选事项",
+            "补充候选事项",
+        )
+
+        text = daily_path.read_text(encoding="utf-8")
+        assert "## 候选事项" in text
+        assert text.count(f"knowledge_candidate:kr_{name}") == 1
+
+
 def test_apply_review_actions_updates_status_and_materialized_path(tmp_path: Path, monkeypatch):
     db_path = seed_document_with_candidate(tmp_path)
     vault_dir = tmp_path / "vault"
@@ -172,3 +251,152 @@ def test_materialize_main_does_not_regenerate_candidates(tmp_path: Path, monkeyp
 
     assert row["status"] == "accepted"
     assert row["materialized_path"].startswith("40_Knowledge/ADR/")
+
+
+def test_materialize_main_materializes_preaccepted_candidate(tmp_path: Path, monkeypatch):
+    db_path = seed_document_with_candidate(tmp_path)
+    vault_dir = tmp_path / "vault"
+    candidate_dir = vault_dir / "60_Inbox" / "Candidates"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE knowledge_candidates
+            SET status = 'accepted', candidate_type = 'card', materialized_path = NULL
+            WHERE id = ?
+            """,
+            ("cand_demo_adr",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(materialize_candidates, "OBSIDIAN_VAULT_DIR", vault_dir)
+    monkeypatch.setattr(materialize_candidates, "CANDIDATE_DIR", candidate_dir)
+    monkeypatch.setattr(materialize_candidates, "get_db_connection", lambda: source_ingest_store.get_db_connection(db_path))
+    monkeypatch.setattr(materialize_candidates, "sys", SimpleNamespace(argv=["materialize_candidates.py", "2026-07-04"]))
+
+    materialize_candidates.main()
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT status, materialized_path FROM knowledge_candidates WHERE id = ?",
+            ("cand_demo_adr",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["status"] == "accepted"
+    assert row["materialized_path"].startswith("40_Knowledge/Cards/")
+    assert (vault_dir / row["materialized_path"]).exists()
+
+
+def test_materialize_main_materializes_skill_record(tmp_path: Path, monkeypatch):
+    db_path = seed_document_with_candidate(tmp_path)
+    vault_dir = tmp_path / "vault"
+    candidate_dir = vault_dir / "60_Inbox" / "Candidates"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().isoformat(timespec="seconds")
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO knowledge_records
+                (id, record_type, title, content, agent_type, recorded_at,
+                 candidate_date, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "kr_skill_card",
+                "card",
+                "知识记录直接落库",
+                "对话中确认的知识应进入 knowledge_records。",
+                "codex",
+                now,
+                "2026-07-04",
+                "accepted",
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(materialize_candidates, "OBSIDIAN_VAULT_DIR", vault_dir)
+    monkeypatch.setattr(materialize_candidates, "CANDIDATE_DIR", candidate_dir)
+    monkeypatch.setattr(materialize_candidates, "get_db_connection", lambda: source_ingest_store.get_db_connection(db_path))
+    monkeypatch.setattr(materialize_candidates, "sys", SimpleNamespace(argv=["materialize_candidates.py", "2026-07-04"]))
+
+    materialize_candidates.main()
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT materialized_path FROM knowledge_records WHERE id = ?",
+            ("kr_skill_card",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["materialized_path"].startswith("40_Knowledge/Cards/")
+    note_path = vault_dir / row["materialized_path"]
+    assert "skill-record: codex" in note_path.read_text(encoding="utf-8")
+
+
+def test_materialize_main_materializes_skill_daily_record(tmp_path: Path, monkeypatch):
+    db_path = seed_document_with_candidate(tmp_path)
+    vault_dir = tmp_path / "vault"
+    candidate_dir = vault_dir / "60_Inbox" / "Candidates"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().isoformat(timespec="seconds")
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO knowledge_records
+                (id, record_type, title, content, agent_type, recorded_at,
+                 candidate_date, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "kr_skill_daily",
+                "daily",
+                "当天补充事项",
+                "把知识记录路径纳入日常复盘。",
+                "codex",
+                now,
+                "2026-07-04",
+                "accepted",
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(materialize_candidates, "OBSIDIAN_VAULT_DIR", vault_dir)
+    monkeypatch.setattr(materialize_candidates, "CANDIDATE_DIR", candidate_dir)
+    monkeypatch.setattr(materialize_candidates, "get_db_connection", lambda: source_ingest_store.get_db_connection(db_path))
+    monkeypatch.setattr(materialize_candidates, "sys", SimpleNamespace(argv=["materialize_candidates.py", "2026-07-04"]))
+
+    materialize_candidates.main()
+
+    conn = source_ingest_store.get_db_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT materialized_path FROM knowledge_records WHERE id = ?",
+            ("kr_skill_daily",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["materialized_path"] == "10_Periodic/Daily/2026-07-04.md"
+    daily_path = vault_dir / row["materialized_path"]
+    assert "knowledge_candidate:kr_skill_daily" in daily_path.read_text(encoding="utf-8")
