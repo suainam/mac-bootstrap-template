@@ -89,7 +89,7 @@ class TestBuildRecord:
         assert record["is_actionable"] == 1
 
     def test_project_auto_detected(self):
-        args = make_args(project_path="/Users/test/work/my-project")
+        args = make_args(project_path="/tmp/work/my-project")
         record = record_knowledge.build_record(args)
         assert record["project"] == "my-project"
 
