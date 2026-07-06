@@ -270,3 +270,18 @@ def test_find_db_path_uses_runtime_config_from_repo_root(tmp_path, monkeypatch):
     monkeypatch.chdir(repo)
 
     assert record_knowledge.find_db_path() == expected_db
+
+
+def test_find_db_path_expands_environment_variables(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    runtime_dir = repo / "private" / "agent"
+    runtime_dir.mkdir(parents=True)
+    expected_db = tmp_path / "home" / "work" / "config" / "mac-bootstrap" / "private" / "agent" / "data" / "agent_history.db"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (runtime_dir / "data_hub.runtime.jsonc").write_text(
+        '{"paths": {"db_path": "$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(repo)
+
+    assert record_knowledge.find_db_path() == expected_db

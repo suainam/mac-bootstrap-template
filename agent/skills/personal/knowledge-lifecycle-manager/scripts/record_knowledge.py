@@ -40,7 +40,7 @@ def find_db_path() -> Path:
             data = json.loads(candidate.read_text())
             path = data.get("paths", {}).get("db_path", "")
             if path:
-                return Path(path).expanduser()
+                return Path(os.path.expandvars(path)).expanduser()
         except json.JSONDecodeError:
             continue
 
