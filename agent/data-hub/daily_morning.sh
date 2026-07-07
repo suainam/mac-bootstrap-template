@@ -35,8 +35,9 @@ WEEKDAY="${WEEKDAY_ZH[$WEEKDAY_NUM]}"
 
 YEAR=$(date +%Y)
 MONTH=$(date +%m)
+MONTH_NUM=$((10#$MONTH))
 WEEK=$(date +%V)
-QUARTER=$(( (10#$MONTH - 1) / 3 + 1 ))
+QUARTER=$(( (MONTH_NUM - 1) / 3 + 1 ))
 
 OUTFILE="$DAILY_DIR/${TODAY}.md"
 
@@ -56,12 +57,12 @@ status: active
 owner: ${USER:-your_name}
 date: ${TODAY}
 week: ${YEAR}-W$(printf '%02d' "$WEEK")
-month: ${YEAR}-$(printf '%02d' "10#$MONTH")
+month: ${YEAR}-$(printf '%02d' "$MONTH_NUM")
 quarter: ${YEAR}-Q${QUARTER}
 tags: [daily, work-log]
 ---
 
-# ${YEAR}年$(printf '%02d' "10#$MONTH")月$(date +%d)日 ${WEEKDAY}
+# ${YEAR}年$(printf '%02d' "$MONTH_NUM")月$(date +%d)日 ${WEEKDAY}
 
 ## 今日重点
 

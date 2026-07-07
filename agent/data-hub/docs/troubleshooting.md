@@ -104,6 +104,32 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 3. 若在隔离验收中覆盖 `HOME`，先保存 `REPO=$HOME/work/config/mac-bootstrap`，再设置临时 `HOME`
 4. 用 `sqlite3 "$AGENT_DB_PATH" ".tables"` 确认实际 DB 路径
 
+## 14. `llm_filter` 走不到内网 backend 或意外 fallback 到 CLI
+
+表现：
+- `generate_candidates.py` 明明配置了内网 backend，却直接掉到 `opencode` / `codex` / `agy`
+- telemetry 里出现 `401`、`Connection error`、`invalid_json_schema`
+- `daily_summary.py` / `weekly_summary.py` 变慢，因为前置 API backend 失败后才轮到 CLI
+
+检查顺序：
+1. 确认 `private/agent/data_hub.runtime.jsonc` 的 `llm.backends` 顺序是否符合预期
+2. 确认 `api_key` 是单一最终值，不要在同一个 backend 对象里重复写两次 `api_key`
+3. 若 `api_key` 写成 `$ENV_VAR`，检查环境变量是否真实导出；未导出时占位符字符串会原样传给 backend
+4. 直接做最小探针，确认当前生效配置：
+
+```bash
+cd ~/work/config/mac-bootstrap
+template/.venv/bin/python -c 'import json, sys; sys.path.insert(0, "template/agent/data-hub"); from llm_filter import load_backends, OpenAIAPIBackend, BackendRequest; cfg=load_backends()["backends"][0]; resp=OpenAIAPIBackend(cfg).generate(BackendRequest(prompt="只返回 JSON: {\"ok\": true}", timeout=15)); print(json.dumps(resp.__dict__, ensure_ascii=False))'
+```
+
+5. 若探针返回 `401`，先看 key；若返回 `Connection error`，再看内网路由、代理/TUN、sandbox 或宿主机网络
+6. 若 API 已返回文本但仍 fallback，检查返回内容是不是完整 JSON schema；结构化筛选路径会把缺字段或 HTML 错页视为失败
+
+补充说明：
+- `call_llm_raw()` 只要求首个非空文本，适用于 `daily_summary.py` / `weekly_summary.py`
+- `score_one()` / `filter_candidates_batch()` 要求完整 `FilterResult` schema，适用于 `generate_candidates.py`
+- 因此“backend 能聊天”不等于“llm_filter 结构化筛选一定成功”；还要看输出是否符合 schema
+
 检查插件配置是否仍指向旧目录（`daily/`、`weekly/` 等）。当前标准路径：
 
 | 旧路径 | 新路径 |

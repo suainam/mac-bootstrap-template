@@ -5,6 +5,7 @@ Agent Data Hub - Weekly Summary Script
 """
 
 import sys
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -16,7 +17,7 @@ if str(DATA_HUB_DIR) not in sys.path:
 from data_hub_config import load_prompt_template
 from date_utils import get_week_range, get_year_week, is_day_before_weekend_or_holiday
 from llm_filter import call_llm_raw
-from obsidian_helper import read_daily, write_weekly
+from obsidian_helper import read_daily, write_weekly_section
 from db_helper import get_db_connection
 from execution_logger import ExecutionLogger
 
@@ -25,6 +26,23 @@ def load_env():
     return None
 
 load_env()
+
+MAX_WEEKLY_RETRIES = 1
+WEEKLY_RETRY_INSTRUCTION = (
+    "上一次输出未通过本地事实校验。请重写，并严格遵守："
+    "1) 只能使用输入日报中明确出现的事实；"
+    "2) 禁止新增数字、百分比、版本号、季度/里程碑结论；"
+    "3) 每条必须保留依据日期，格式为（依据：YYYY-MM-DD[, YYYY-MM-DD]）；"
+    "4) 若证据不足，请改写成保守描述。"
+)
+NUMERIC_TOKEN_RE = re.compile(r"(?:\d+(?:\.\d+)?%|Q[1-4]|V\d+(?:\.\d+)?|\d+(?:\.\d+)?)")
+ASCII_TOKEN_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9_.-]*\b")
+CJK_PHRASE_RE = re.compile(r"[\u4e00-\u9fff]{2,8}")
+CITATION_RE = re.compile(r"（依据：([0-9,\-、，\s]+)）\s*$")
+STOP_PHRASES = {
+    "本周", "工作", "事项", "问题", "总结", "推进", "跟进", "整理", "讨论", "验证", "相关",
+    "完成", "优化", "技术", "方案", "能力", "流程", "配置", "系统", "模块", "支持", "生成",
+}
 
 
 def today_str() -> str:
@@ -65,10 +83,11 @@ def collect_week_summaries(start_date, end_date) -> dict[str, str]:
 
 
 def generate_weekly_summary(week_summaries: dict[str, str]) -> str:
-    """调用 LLM 生成周报总结"""
+    """调用 LLM 生成周报总结；失败时返回空字符串供上层 fallback。"""
     if not week_summaries:
         return "本周无日报数据。"
 
+    summary_dates = sorted(week_summaries)
     daily_digests = []
     for date, summary in sorted(week_summaries.items()):
         day_name = datetime.strptime(date, "%Y-%m-%d").strftime("%A")
@@ -77,11 +96,111 @@ def generate_weekly_summary(week_summaries: dict[str, str]) -> str:
     template = load_prompt_template("weekly-summary.md")
     if template is None:
         raise RuntimeError("Prompt template not found: weekly-summary.md")
-    prompt = template.substitute(daily_digests="\n\n".join(daily_digests))
+    base_prompt = template.substitute(daily_digests="\n\n".join(daily_digests))
 
-    print("[weekly_summary] 调用 LLM 生成周报...")
-    result = call_llm_raw(prompt)
-    return result if result else "调用 LLM 失败，未能生成周报。"
+    for attempt in range(MAX_WEEKLY_RETRIES + 1):
+        prompt = base_prompt if attempt == 0 else f"{base_prompt}\n\n{WEEKLY_RETRY_INSTRUCTION}"
+        print("[weekly_summary] 调用 LLM 生成周报...")
+        result = call_llm_raw(prompt)
+        if not result:
+            continue
+        normalized = normalize_weekly_summary(result)
+        ok, reason = validate_weekly_summary(normalized, week_summaries)
+        if ok:
+            return normalized
+        print(f"[weekly_summary] 周报事实校验失败: {reason}")
+        if attempt < MAX_WEEKLY_RETRIES:
+            print("[weekly_summary] 使用更严格约束重试一次...")
+    return ""
+
+
+def normalize_weekly_summary(summary: str) -> str:
+    summary = summary.strip()
+    if summary.startswith("```"):
+        lines = summary.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        summary = "\n".join(lines).strip()
+    return summary
+
+
+def _extract_bullets(summary: str) -> list[str]:
+    return [line.strip() for line in summary.splitlines() if line.strip().startswith("- ")]
+
+
+def _parse_bullet_citations(bullet: str) -> tuple[str, list[str]] | None:
+    match = CITATION_RE.search(bullet)
+    if not match:
+        return None
+    body = bullet[:match.start()].strip()
+    dates = [part.strip() for part in re.split(r"[,、，]\s*", match.group(1).strip()) if part.strip()]
+    return body, dates
+
+
+def _collect_source_text(cited_dates: list[str], week_summaries: dict[str, str]) -> str:
+    return "\n".join(week_summaries[date] for date in cited_dates if date in week_summaries)
+
+
+def _has_supported_phrase(body: str, source_text: str) -> bool:
+    body_ascii_tokens = ASCII_TOKEN_RE.findall(body)
+    if any(token in source_text for token in body_ascii_tokens):
+        return True
+    for phrase in CJK_PHRASE_RE.findall(body):
+        if len(phrase) < 3 or phrase in STOP_PHRASES:
+            continue
+        if phrase in source_text:
+            return True
+    body_cjk = "".join(ch for ch in body if "\u4e00" <= ch <= "\u9fff")
+    source_cjk = "".join(ch for ch in source_text if "\u4e00" <= ch <= "\u9fff")
+    if len(body_cjk) >= 4 and len(source_cjk) >= 4:
+        body_bigrams = {body_cjk[i : i + 2] for i in range(len(body_cjk) - 1)}
+        source_bigrams = {source_cjk[i : i + 2] for i in range(len(source_cjk) - 1)}
+        if len(body_bigrams & source_bigrams) >= 2:
+            return True
+    return False
+
+
+def validate_weekly_summary(summary: str, week_summaries: dict[str, str]) -> tuple[bool, str]:
+    bullets = _extract_bullets(summary)
+    if not 1 <= len(bullets) <= 5:
+        return False, f"invalid_bullet_count:{len(bullets)}"
+
+    available_dates = set(week_summaries)
+    for bullet in bullets:
+        parsed = _parse_bullet_citations(bullet)
+        if parsed is None:
+            return False, "missing_citation"
+        body, cited_dates = parsed
+        if not cited_dates or any(date not in available_dates for date in cited_dates):
+            return False, f"invalid_citation_dates:{cited_dates}"
+        source_text = _collect_source_text(cited_dates, week_summaries)
+        if not source_text:
+            return False, "empty_source_text"
+        for token in NUMERIC_TOKEN_RE.findall(body):
+            if token not in source_text:
+                return False, f"unsupported_numeric:{token}"
+        for token in ASCII_TOKEN_RE.findall(body):
+            if token.lower() in {"ai", "llm", "api"}:
+                continue
+            if token not in source_text:
+                return False, f"unsupported_ascii:{token}"
+        if not _has_supported_phrase(body, source_text):
+            return False, "low_source_overlap"
+    return True, "ok"
+
+
+def generate_fallback_weekly_summary(week_summaries: dict[str, str]) -> str:
+    """Generate a deterministic weekly summary when LLM backends are unavailable."""
+    if not week_summaries:
+        return "本周无日报数据。"
+    lines = [
+        "- 本周已自动汇总现有日报 AI 总结；LLM 后端暂不可用，因此先生成本地 fallback 版周报。",
+        f"- 覆盖 {len(week_summaries)} 天日报：" + "、".join(sorted(week_summaries.keys())) + "。",
+        "- 重点内容请查看下方“每日详情”；外部模型恢复后可重新运行周报脚本生成归纳版摘要。",
+    ]
+    return "\n".join(lines)
 
 
 def main():
@@ -125,30 +244,25 @@ def main():
 
         # 生成周报
         summary = generate_weekly_summary(week_summaries)
+        used_fallback = False
 
-        if summary and "调用 LLM 失败" not in summary:
-            # 构建完整周报内容
-            weekly_content = f"""# {year_week} 周报
+        if not summary:
+            print("[weekly_summary] LLM 不可用，使用本地 fallback 周报。")
+            summary = generate_fallback_weekly_summary(week_summaries)
+            used_fallback = True
 
-## 本周摘要
-
-{summary}
-
-## 每日详情
-
-"""
-            for date in sorted(week_summaries.keys()):
-                day_name = datetime.strptime(date, "%Y-%m-%d").strftime("%A")
-                weekly_content += f"### [[{date}]] ({day_name})\n\n{week_summaries[date]}\n\n"
-
-            # 写入周报
-            write_weekly(year_week, weekly_content)
-            print(f"✅ 周报已写入: {year_week}.md")
+        if summary:
+            write_weekly_section(year_week, target_date.strftime("%Y-%m-%d"), "AI 总结", summary)
+            print(f"✅ 周报 AI 总结已写入: {year_week}.md")
 
             logger.complete(
                 log_id,
                 records_affected=len(week_summaries),
-                metadata={"year_week": year_week, "days_count": len(week_summaries)},
+                metadata={
+                    "year_week": year_week,
+                    "days_count": len(week_summaries),
+                    "fallback": used_fallback,
+                },
             )
         else:
             print("❌ 生成周报失败。")

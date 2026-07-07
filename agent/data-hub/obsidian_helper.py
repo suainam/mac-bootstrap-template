@@ -20,6 +20,19 @@ def get_daily_dir() -> Path:
     return config.paths.vault_dir / config.paths.daily_dir
 
 
+def get_weekly_dir() -> Path:
+    """Get weekly notes directory."""
+    return get_vault_dir() / "10_Periodic" / "Weekly"
+
+
+def _template_path(name: str) -> Path:
+    config = get_runtime_config()
+    vault_template = config.paths.vault_dir / "00_System" / "Templates" / name
+    if vault_template.exists():
+        return vault_template
+    return config.paths.template_root / "editors" / "obsidian" / "vault" / "docs" / "templates" / name
+
+
 def render_daily_note(date: str) -> str:
     """Render a default daily note template."""
     dt = datetime.strptime(date, "%Y-%m-%d")
@@ -77,6 +90,30 @@ def render_daily_note(date: str) -> str:
     )
 
 
+def render_weekly_note(target_date: str) -> str:
+    """Render the Obsidian weekly template for target_date."""
+    dt = datetime.strptime(target_date, "%Y-%m-%d")
+    week_start = dt.date().fromordinal(dt.date().toordinal() - dt.weekday())
+    week_end = week_start.fromordinal(week_start.toordinal() + 6)
+    year_week = f"{dt.year}-W{dt.strftime('%V')}"
+    quarter = (dt.month - 1) // 3 + 1
+    template = _template_path("weekly.md").read_text(encoding="utf-8")
+    replacements = {
+        "{{date:YYYY-[W]ww}}": year_week,
+        "{{monday:YYYY-MM-DD}}": week_start.isoformat(),
+        "{{sunday:YYYY-MM-DD}}": week_end.isoformat(),
+        "{{date:YYYY-MM}}": f"{dt.year}-{dt.month:02d}",
+        "{{date:YYYY-[Q]Q}}": f"{dt.year}-Q{quarter}",
+        "{{date:YYYY}}": str(dt.year),
+        "{{date:YYYY年第ww周}}": f"{dt.year}年第{dt.strftime('%V')}周",
+        "{{monday:MM.DD}}": f"{week_start.month:02d}.{week_start.day:02d}",
+        "{{sunday:MM.DD}}": f"{week_end.month:02d}.{week_end.day:02d}",
+    }
+    for old, new in replacements.items():
+        template = template.replace(old, new)
+    return template
+
+
 def ensure_daily_note(date: str) -> Path:
     """Ensure a daily note exists and return its path."""
     daily_dir = get_daily_dir()
@@ -116,18 +153,41 @@ def write_daily_section(date: str, section_title: str, content: str):
 
 def read_weekly(year_week: str) -> str:
     """Read weekly note content for given year-week (e.g., '2026-W27')."""
-    vault = get_vault_dir()
-    weekly_dir = vault / "10_Periodic" / "Weekly"
+    weekly_dir = get_weekly_dir()
     weekly_path = weekly_dir / f"{year_week}.md"
     if not weekly_path.exists():
         return ""
     return weekly_path.read_text(encoding="utf-8")
 
 
+def ensure_weekly_note(year_week: str, target_date: str) -> Path:
+    """Ensure a weekly note exists from the Obsidian weekly template."""
+    weekly_dir = get_weekly_dir()
+    weekly_dir.mkdir(parents=True, exist_ok=True)
+    weekly_path = weekly_dir / f"{year_week}.md"
+    if not weekly_path.exists():
+        weekly_path.write_text(render_weekly_note(target_date), encoding="utf-8")
+    return weekly_path
+
+
+def write_weekly_section(year_week: str, target_date: str, section_title: str, content: str) -> None:
+    """Write or replace a section in weekly note without touching other sections."""
+    weekly_path = ensure_weekly_note(year_week, target_date)
+    text = weekly_path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf"(^## {re.escape(section_title)}\n)(.*?)(^## |\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    if pattern.search(text):
+        new_text = pattern.sub(rf"\1\n{content}\n\n\3", text, count=1)
+    else:
+        new_text = text.rstrip() + f"\n\n## {section_title}\n\n{content}\n"
+    weekly_path.write_text(new_text, encoding="utf-8")
+
+
 def write_weekly(year_week: str, content: str):
     """Write weekly note."""
-    vault = get_vault_dir()
-    weekly_dir = vault / "10_Periodic" / "Weekly"
+    weekly_dir = get_weekly_dir()
     weekly_dir.mkdir(parents=True, exist_ok=True)
     weekly_path = weekly_dir / f"{year_week}.md"
     weekly_path.write_text(content, encoding="utf-8")

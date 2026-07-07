@@ -13,6 +13,10 @@ tags: [monthly, work-log]
 
 ## 月度概览
 
+## AI 总结
+
+<!-- 由 monthly_summary.py 自动填入 -->
+
 ## 重点工作
 
 ## 问题与风险

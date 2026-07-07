@@ -419,6 +419,8 @@ def test_materialize_daily_candidate_is_idempotent(tmp_path: Path):
 
     assert text.count("## 候选事项") == 1
     assert text.count("knowledge_candidate:cand_demo") == 1
+    assert "```markdown" in text
+    assert "拉取数据@南宗帅" in text
 
 
 def test_upsert_candidates_preserves_existing_review_status(tmp_path: Path):

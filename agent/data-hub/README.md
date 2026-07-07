@@ -22,7 +22,7 @@
 
 数据流分三层：
 
-**1. Push + Archive → SQLite** —— 当前对话由 `knowledge-lifecycle-manager record` 直接写 `knowledge_records`；历史/外部材料进入 SQLite 原始表和候选表，保留追溯链：
+**1. Push + Archive → SQLite** —— 当前对话由 `knowledge-record` 负责 live record contract，`knowledge-lifecycle-manager record` 作为统一管理入口委托调用它，直接写 `knowledge_records`；历史/外部材料进入 SQLite 原始表和候选表，保留追溯链：
 
 ```
 1. preflight retrieve  →  knowledge_retrieval.py
@@ -79,8 +79,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 | `scripts/claim_extraction.py` | source items + assistant chat responses → claim_packets + evidence_links |
 | `scripts/generate_candidates.py` | extracted_items + assistant response claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
 | `scripts/materialize_candidates.py` | 读审核动作 + 读 `knowledge_records` → 落地 ADR/Card/日报插入 |
-| `knowledge-lifecycle-manager/scripts/record_knowledge.py` | Push 记录实现：agent 写 knowledge_records（status=accepted，跳过 archive） |
+| `knowledge-record/scripts/record_knowledge.py` | Push 记录 owner：负责 live record contract 与 SQLite 写入（status=accepted，跳过 archive） |
 | `scripts/daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
+| `llm_filter.py` | data-hub 共用 LLM adapter：统一 backend 配置、fallback、结构化筛选和自由文本摘要调用 |
 | `scripts/hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
 | `scripts/knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
 | `knowledge_workflows.py` | workflow registry（实现层） |
@@ -94,6 +95,27 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 - `db_helper.py` — DB 连接与常用查询封装
 - `obsidian_helper.py` — Obsidian vault 读写（日报/周报）
 - `date_utils.py` — 工作日判断、周范围计算（chinese-calendar）
+
+## `llm_filter` 边界
+
+`llm_filter.py` 是 `data-hub` 内部复用的 LLM 能力层，不是通用 AI 平台 SDK。当前调用面只有两类：
+
+- `generate_candidates.py` → `score_one()` / `filter_candidates_batch()`：给候选打分、纠正类型、生成简短标题，要求返回严格 JSON schema。
+- `daily_summary.py` / `weekly_summary.py` → `call_llm_raw()`：走同一条 backend fallback 链，但接受自由文本，不做 `FilterResult` schema 校验。
+
+它负责的事：
+
+- 从 `private/agent/data_hub.runtime.jsonc` 读取有序 backend 列表
+- 统一 OpenAI-compatible API 与 CLI backend 的调用、超时和 telemetry
+- 在结构化筛选路径里把无效 JSON / 缺字段响应视为失败，并继续 fallback
+- 让摘要类脚本和筛选类脚本共用同一套 backend 顺序
+
+它不负责的事：
+
+- 不拥有 prompt 模板；prompt 仍由各业务脚本决定
+- 不决定候选阈值语义；阈值只作为运行配置读取
+- 不做 durable retry、状态落库或产物写回；这些分别属于 workflow runner、业务脚本和 SQLite/Obsidian 层
+- 不承诺仓库外的调用兼容性；如果其他项目要复用，应显式抽成独立模块而不是直接依赖当前文件
 
 ## Skill 对应关系
 
@@ -109,7 +131,8 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 - `knowledge-hygiene-audit`
 
 **Push 记录入口（project-scoped）：**
-- `knowledge-lifecycle-manager record` — 对话中直接写入 `knowledge_records` 表，跳过 archive
+- `knowledge-record` — live record owner，定义字段 contract、严格校验与 SQLite 写入
+- `knowledge-lifecycle-manager record` — 统一管理入口，委托调用 `knowledge-record`
 
 ## 当前状态
 
@@ -137,6 +160,7 @@ Chat-derived candidates 的边界：只从 agent/assistant 回复中提炼建议
 - 测试和生产脚本优先使用 `template/.venv/bin/python`，不要临时切到父仓库 `.venv`。
 - 统一运行配置为 `private/agent/data_hub.runtime.jsonc`，公开样例见 `template/agent/data-hub/data_hub.runtime.jsonc.example`。它集中管理 paths、source inputs、agent log dirs、LLM backends 和 workflow 默认值。
 - 配置优先级：显式 shell 环境变量 > `data_hub.runtime.jsonc` > 代码默认值。不要再新增 `.env` 或 LLM-only 配置文件。
+- `llm.backends[*].api_key` 可以直接写在 private runtime config，也可以写成 `$ENV_VAR` 占位符。两种方式选一种即可，不要在同一个 backend 对象里重复写 `api_key`，JSON 解析会以后者覆盖前者。
 - 新机器没有 Claude/Codex/AGY 历史日志目录时，`ingest_logs.py` 应返回 0 条记录并继续，而不是失败。
 - 没有真实 LLM CLI 或不想调用外部服务时，可以在隔离验收里用临时 `PATH` 注入 fake `agy`；真实运行时应配置 `agy` 或 `claude`。
 

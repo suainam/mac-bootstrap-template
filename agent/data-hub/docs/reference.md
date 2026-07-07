@@ -56,7 +56,7 @@
 - `paths`：repo、template、data-hub、SQLite、vault、runs、Git 搜索根
 - `sources.inputs`：会议纪要、思维导图、Wiki 等来源目录和文件 pattern
 - `agent_logs`：Claude/Codex/OpenCode/AGY 日志目录
-- `llm`：有序 LLM backend fallback 列表和过滤阈值
+- `llm`：`llm_filter.py` 使用的有序 LLM backend fallback 列表和过滤阈值
 - `workflow`：durable workflow 默认参数
 
 不要再新增 `.env` 或 LLM-only 配置文件。
@@ -74,6 +74,53 @@
 
 优先级：调用命令时显式传入的 shell 环境变量 > `data_hub.runtime.jsonc` > 代码默认值。隔离验收、临时 DB、临时 vault 或 CI 环境应使用显式 env，避免误读真实
 `~/work/knowledge` 或 private DB。
+
+### LLM backend 配置契约
+
+`llm_filter.py` 只消费 `llm.backends` 这一个 backend 列表。它支持两类 backend：
+
+- `openai_api`：必须提供 `base_url`、`model`，可选 `api_key`、`timeout`
+- `*_cli`：如 `opencode_cli`、`codex_cli`、`agy_cli`、`claude_cli`，只需要 `name`/`kind`，可选 `timeout`
+
+`api_key` 支持两种写法：
+
+```json
+{
+  "name": "freellmapi-qwen3",
+  "kind": "openai_api",
+  "base_url": "http://10.0.103.217:3001/v1",
+  "api_key": "real-secret-in-private-repo",
+  "model": "Qwen/Qwen3.6-35B-A3B"
+}
+```
+
+或：
+
+```json
+{
+  "name": "freellmapi-qwen3",
+  "kind": "openai_api",
+  "base_url": "http://10.0.103.217:3001/v1",
+  "api_key": "$DATA_HUB_LLM_API_KEY_FREELLMAPI_QWEN3",
+  "model": "Qwen/Qwen3.6-35B-A3B"
+}
+```
+
+约束：
+
+- private 仓库内可以直接存字面量密钥；loader 不要求必须走环境变量
+- 若写成 `$ENV_VAR` 占位符，运行时会先做环境变量展开；环境变量未设置时，原字符串会原样保留，最终多半表现为鉴权失败
+- 同一个 backend 对象里不要同时写两次 `api_key`；JSON 解析会保留最后一个值，前一个会被静默覆盖
+- `call_llm_raw()` 和结构化筛选共用同一 backend 顺序，因此改动 `llm.backends` 会同时影响 `daily_summary.py`、`weekly_summary.py` 和 `generate_candidates.py`
+
+### `llm_filter.py` 职责边界
+
+`llm_filter.py` 是 data-hub 内部共用能力，不是仓库级通用 SDK。它提供两条能力面：
+
+- 结构化筛选：`score_one()` / `filter_candidates_batch()`，要求 backend 返回完整 `FilterResult` JSON schema；无效 JSON、HTML 错误页、缺字段响应都会触发 fallback
+- 自由文本生成：`call_llm_raw()`，给 `daily_summary.py` / `weekly_summary.py` 复用同一条 backend 链，只要求拿到首个非空文本
+
+它不负责 prompt 设计、workflow retry、SQLite 持久化或 Obsidian 写回；这些职责分别留在调用脚本和 workflow 层。
 
 ## Obsidian 插件约定
 

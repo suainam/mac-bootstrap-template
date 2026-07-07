@@ -78,19 +78,36 @@ def test_global_skills_match_personal_dir():
         ), f"Missing SKILL.md for global skill: {skill}"
 
 
-def test_knowledge_record_is_merged_into_lifecycle_manager():
+def test_knowledge_record_restored_as_project_owned_skill():
     with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
         manifest = json.load(fh)
-    assert "knowledge-record" not in manifest["global_skills"]
     assert "knowledge-lifecycle-manager" in manifest["projects"]["mac-bootstrap"]["skills"]
+    assert "knowledge-record" in manifest["projects"]["mac-bootstrap"]["skills"]
+    assert "knowledge-record" not in manifest["global_skills"]
 
     with open(os.path.join(TEMPLATE, "agent", "skills-distribution.json")) as fh:
         distribution = json.load(fh)
-    assert "knowledge-record" not in distribution["skills"]
+    assert distribution["skills"]["knowledge-record"]["scope"] == "project"
 
     lifecycle_skill = os.path.join(
         TEMPLATE, "agent", "skills", "personal", "knowledge-lifecycle-manager", "SKILL.md"
     )
     lifecycle_text = open(lifecycle_skill).read()
-    assert "record knowledge" in lifecycle_text
-    assert "knowledge_records" in lifecycle_text
+    assert "knowledge-record" in lifecycle_text
+
+    record_skill_dir = os.path.join(
+        TEMPLATE, "agent", "skills", "personal", "knowledge-record"
+    )
+    assert os.path.exists(os.path.join(record_skill_dir, "SKILL.md"))
+    assert os.path.exists(os.path.join(record_skill_dir, "README.md"))
+    assert os.path.exists(os.path.join(record_skill_dir, "run.sh"))
+    assert os.path.exists(os.path.join(record_skill_dir, "scripts", "record_knowledge.py"))
+
+
+def test_data_hub_readme_mentions_knowledge_record_for_live_push():
+    readme_path = os.path.join(TEMPLATE, "agent", "data-hub", "README.md")
+    readme_text = open(readme_path, encoding="utf-8").read()
+
+    assert "knowledge-record" in readme_text
+    assert "knowledge-lifecycle-manager record" in readme_text
+    assert "live record contract" in readme_text

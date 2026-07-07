@@ -31,6 +31,14 @@ tags: [daily, work-log]
 
 <!-- 周报会自动汇总本节列表项 -->
 
+## 候选事项
+
+<!-- 由 materialize_candidates.py 自动填入 -->
+
+## AI 总结
+
+<!-- 由 daily_summary.py 自动填入 -->
+
 ## 明日计划
 
 - [ ]

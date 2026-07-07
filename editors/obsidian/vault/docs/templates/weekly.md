@@ -16,6 +16,10 @@ tags: [weekly, work-log]
 
 ## 本周判断
 
+## AI 总结
+
+<!-- 由 weekly_summary.py 自动填入 -->
+
 ## 自动汇总
 
 ```dataviewjs

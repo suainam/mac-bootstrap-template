@@ -42,9 +42,17 @@ def table_has_column(conn: sqlite3.Connection, table_name: str, column_name: str
 
 def materialize_daily_candidate(target_path: Path, candidate_id: str, title: str, content: str) -> None:
     marker = f"<!-- knowledge_candidate:{candidate_id} -->"
-    line = f"- [ ] {title} {marker}"
+    block = f"- [ ] {title} {marker}"
     if content.strip() and content.strip() != title.strip():
-        line = f"- [ ] {title}: {content.strip().replace(chr(10), ' ')} {marker}"
+        block = "\n".join(
+            [
+                f"- [ ] {title} {marker}",
+                "",
+                "  ```markdown",
+                "\n".join(f"  {line}" for line in content.strip().splitlines()),
+                "  ```",
+            ]
+        )
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if not target_path.exists():
@@ -61,7 +69,7 @@ def materialize_daily_candidate(target_path: Path, candidate_id: str, title: str
                     "",
                     "## 候选事项",
                     "",
-                    line,
+                    block,
                     "",
                 ]
             ),
@@ -74,13 +82,13 @@ def materialize_daily_candidate(target_path: Path, candidate_id: str, title: str
         return
 
     if "## 候选事项" in text:
-        text = re.sub(r"(## 候选事项\s*\n)", r"\1\n" + line + "\n", text, count=1)
+        text = re.sub(r"(## 候选事项\s*\n)", r"\1\n" + block + "\n", text, count=1)
     elif "\n## AI 总结" in text:
-        text = text.replace("\n## AI 总结", "\n## 候选事项\n\n" + line + "\n\n## AI 总结", 1)
+        text = text.replace("\n## AI 总结", "\n## 候选事项\n\n" + block + "\n\n## AI 总结", 1)
     elif "\n## 明日计划" in text:
-        text = text.replace("\n## 明日计划", "\n## 候选事项\n\n" + line + "\n\n## 明日计划", 1)
+        text = text.replace("\n## 明日计划", "\n## 候选事项\n\n" + block + "\n\n## 明日计划", 1)
     else:
-        text = text.rstrip() + "\n\n## 候选事项\n\n" + line + "\n"
+        text = text.rstrip() + "\n\n## 候选事项\n\n" + block + "\n"
 
     target_path.write_text(text, encoding="utf-8")
 

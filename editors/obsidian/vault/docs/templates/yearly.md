@@ -11,6 +11,10 @@ tags: [yearly, work-log]
 
 ## 年度概览
 
+## AI 总结
+
+<!-- 由 yearly_summary.py 自动填入 -->
+
 ## 重点工作
 
 ## 问题与风险

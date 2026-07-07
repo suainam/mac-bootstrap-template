@@ -45,3 +45,39 @@ def test_data_hub_executable_python_scripts_live_under_scripts_dir() -> None:
     for name in script_names:
         assert not (data_hub_dir / name).exists(), f"{name} should not be in data-hub root"
         assert (data_hub_dir / "scripts" / name).exists(), f"{name} should live in data-hub/scripts"
+
+
+def test_obsidian_launchd_installer_uses_current_schedule_and_paths() -> None:
+    script_path = Path(__file__).parent.parent / "launchd" / "install_obsidian_jobs.sh"
+    script_text = script_path.read_text(encoding="utf-8")
+
+    assert "REMINDER_LABEL" in script_text
+    assert "<integer>9</integer>" in script_text
+    assert "<integer>17</integer>" in script_text
+    assert "<integer>30</integer>" in script_text
+    assert "<integer>18</integer>" in script_text
+    assert "${DATA_HUB_DIR}/daily_morning.sh" in script_text
+    assert "${DATA_HUB_DIR}/run-daily-evening.sh" in script_text
+    assert "${SCRIPTS_DIR}/weekly_summary.py" in script_text
+    assert "${SCRIPTS_DIR}/daily_morning.sh" not in script_text
+    assert "${DATA_HUB_DIR}/weekly_summary.py" not in script_text
+
+
+def test_seed_periodic_templates_include_ai_summary_sections() -> None:
+    templates_dir = Path(__file__).parent.parent / "editors" / "obsidian" / "vault" / "docs" / "templates"
+    for name in ["daily.md", "weekly.md", "monthly.md", "quarterly.md", "yearly.md"]:
+        text = (templates_dir / name).read_text(encoding="utf-8")
+        assert "## AI 总结" in text
+
+    weekly = (templates_dir / "weekly.md").read_text(encoding="utf-8")
+    assert "## 本周判断" in weekly
+    assert "## 自动汇总" in weekly
+    assert "```dataviewjs" in weekly
+
+
+def test_runtime_uses_vault_templates_before_seed_templates() -> None:
+    helper_path = Path(__file__).parent.parent / "agent" / "data-hub" / "obsidian_helper.py"
+    helper_text = helper_path.read_text(encoding="utf-8")
+
+    assert 'vault_dir / "00_System" / "Templates"' in helper_text
+    assert "if vault_template.exists()" in helper_text

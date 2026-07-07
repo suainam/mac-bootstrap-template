@@ -6,10 +6,12 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 
 SCRIPTS_DIR = (
     Path(__file__).parent.parent
-    / "agent" / "skills" / "personal" / "knowledge-lifecycle-manager" / "scripts"
+    / "agent" / "skills" / "personal" / "knowledge-record" / "scripts"
 )
 sys.path.insert(0, str(SCRIPTS_DIR.resolve()))
 
@@ -32,15 +34,15 @@ def make_args(**kwargs) -> argparse.Namespace:
         "type": "adr",
         "title": "测试知识",
         "content": "这是一条测试知识记录。",
-        "background": None,
-        "tags": None,
+        "background": "这是这条架构决策的上下文。",
+        "tags": "知识记录,架构决策",
         "impact": None,
         "is_actionable": False,
-        "references": None,
+        "references": "docs/adr.md",
         "project": None,
         "expires_at": None,
-        "why_record": None,
-        "agent": None,
+        "why_record": "需要保留这次决策，供后续复用。",
+        "agent": "codex",
         "session_id": None,
         "message_id": None,
         "project_path": None,
@@ -65,19 +67,95 @@ class TestBuildRecord:
         assert len(record["id"]) == 19
 
     def test_tags_parsed(self):
-        args = make_args(tags="架构,Rust,性能优化")
+        args = make_args(tags="架构决策,性能优化")
         record = record_knowledge.build_record(args)
-        assert record["tags"] == "架构,Rust,性能优化"
-
-    def test_tags_empty(self):
-        args = make_args(tags=None)
-        record = record_knowledge.build_record(args)
-        assert record["tags"] is None
+        assert record["tags"] == "架构决策,性能优化"
 
     def test_tags_whitespace(self):
-        args = make_args(tags=" 架构 , 性能 ")
+        args = make_args(tags=" 架构决策 , 性能优化 ")
         record = record_knowledge.build_record(args)
-        assert record["tags"] == "架构,性能"
+        assert record["tags"] == "架构决策,性能优化"
+
+    def test_tags_deduplicated(self):
+        args = make_args(tags="架构决策,性能优化,架构决策")
+        record = record_knowledge.build_record(args)
+        assert record["tags"] == "架构决策,性能优化"
+
+    def test_rejects_empty_tags(self):
+        args = make_args(tags=None)
+        with pytest.raises(ValueError, match="tags are required"):
+            record_knowledge.build_record(args)
+
+    def test_rejects_non_chinese_tag(self):
+        args = make_args(tags="架构决策,Rust")
+        with pytest.raises(ValueError, match="tags must be non-empty Chinese labels"):
+            record_knowledge.build_record(args)
+
+    def test_rejects_invalid_agent_type(self):
+        args = make_args(agent="cursor")
+        with pytest.raises(ValueError, match="agent_type must be one of"):
+            record_knowledge.build_record(args)
+
+    def test_accepts_opencode_agent_type(self):
+        args = make_args(agent="opencode")
+        record = record_knowledge.build_record(args)
+        assert record["agent_type"] == "opencode"
+
+    def test_rejects_missing_agent_type(self, monkeypatch):
+        monkeypatch.delenv("OPENCODE_AGENT", raising=False)
+        monkeypatch.delenv("CODEX_AGENT", raising=False)
+        args = make_args(agent=None)
+        with pytest.raises(ValueError, match="agent_type is required"):
+            record_knowledge.build_record(args)
+
+    def test_rejects_non_chinese_dominant_title(self):
+        args = make_args(title="Install Coze Desktop")
+        with pytest.raises(ValueError, match="title must be Chinese-dominant"):
+            record_knowledge.build_record(args)
+
+    def test_rejects_non_chinese_dominant_content(self):
+        args = make_args(content="Install the application and save the dmg.")
+        with pytest.raises(ValueError, match="content must be Chinese-dominant"):
+            record_knowledge.build_record(args)
+
+    def test_adr_requires_background_references_and_why_record(self):
+        args = make_args(background=None)
+        with pytest.raises(ValueError, match="background is required"):
+            record_knowledge.build_record(args)
+
+        args = make_args(references=None)
+        with pytest.raises(ValueError, match="references are required for adr"):
+            record_knowledge.build_record(args)
+
+        args = make_args(why_record=None)
+        with pytest.raises(ValueError, match="why_record is required"):
+            record_knowledge.build_record(args)
+
+    def test_card_requires_why_record_only(self):
+        args = make_args(
+            type="card",
+            background=None,
+            references=None,
+            why_record="需要记录这个工具安装结论。",
+        )
+        record = record_knowledge.build_record(args)
+        assert record["background"] is None
+        assert record["references_json"] is None
+
+        args = make_args(type="card", why_record=None)
+        with pytest.raises(ValueError, match="why_record is required"):
+            record_knowledge.build_record(args)
+
+    def test_daily_requires_why_record_only(self):
+        args = make_args(
+            type="daily",
+            background=None,
+            references=None,
+            why_record="需要保留今天的关键工作记录。",
+        )
+        record = record_knowledge.build_record(args)
+        assert record["background"] is None
+        assert record["references_json"] is None
 
     def test_impact(self):
         args = make_args(impact="high")
@@ -124,8 +202,8 @@ class TestBuildRecord:
         assert r1["id"] == r2["id"]
 
     def test_record_id_changes_with_content(self):
-        args1 = make_args(content="content A")
-        args2 = make_args(content="content B")
+        args1 = make_args(content="内容甲")
+        args2 = make_args(content="内容乙")
         r1 = record_knowledge.build_record(args1)
         r2 = record_knowledge.build_record(args2)
         assert r1["id"] != r2["id"]
@@ -175,8 +253,25 @@ class TestInsertRecord:
 
     def test_multiple_types(self, tmp_path):
         conn = make_conn(tmp_path)
-        for t in ("adr", "card", "daily"):
-            record = record_knowledge.build_record(make_args(type=t, title=f"Test {t}"))
+        fixtures = [
+            make_args(type="adr", title="架构决策记录"),
+            make_args(
+                type="card",
+                title="知识卡片记录",
+                background=None,
+                references=None,
+                why_record="需要保留这条知识卡片，供后续查询。",
+            ),
+            make_args(
+                type="daily",
+                title="每日日志记录",
+                background=None,
+                references=None,
+                why_record="需要记录今天的关键进展。",
+            ),
+        ]
+        for args in fixtures:
+            record = record_knowledge.build_record(args)
             record_knowledge.insert_record(conn, record)
 
         rows = conn.execute(
@@ -195,7 +290,7 @@ class TestInsertRecord:
             tags="测试,字段",
             impact="medium",
             is_actionable=True,
-            references="file1.py,file2.md",
+            references="参考资料一,参考资料二",
             project="test-proj",
             expires_at="2026-12-31",
             why_record="这是一个端到端测试",
@@ -212,7 +307,7 @@ class TestInsertRecord:
         assert row["tags"] == "测试,字段"
         assert row["impact"] == "medium"
         assert row["is_actionable"] == 1
-        assert row["references_json"] == "file1.py,file2.md"
+        assert row["references_json"] == "参考资料一,参考资料二"
         assert row["project"] == "test-proj"
         assert row["expires_at"] == "2026-12-31"
         assert row["why_record"] == "这是一个端到端测试"

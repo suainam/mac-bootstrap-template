@@ -204,7 +204,10 @@ def test_weekly_summary_content_format(temp_vault, mock_daily_notes, temp_db, mo
 
     with patch("weekly_summary.read_daily", side_effect=mock_read_daily):
         with patch("weekly_summary.get_db_connection", return_value=temp_db):
-            with patch("weekly_summary.call_llm_raw", return_value="Weekly summary: Key events and achievements."):
+            with patch(
+                "weekly_summary.call_llm_raw",
+                return_value="- 汇总 Day 1 summary 与 Key achievements 相关进展。（依据：2026-07-06）",
+            ):
                 from weekly_summary import collect_week_summaries, generate_weekly_summary
 
                 start = date(2026, 7, 6)
@@ -213,8 +216,8 @@ def test_weekly_summary_content_format(temp_vault, mock_daily_notes, temp_db, mo
                 summaries = collect_week_summaries(start, end)
                 weekly_text = generate_weekly_summary(summaries)
 
-                assert "Weekly summary" in weekly_text
-                assert weekly_text != "调用 LLM 失败，未能生成周报。"
+                assert "依据：2026-07-06" in weekly_text
+                assert weekly_text.startswith("- ")
 
 
 def test_weekly_summary_logs_execution(temp_vault, mock_daily_notes, temp_db):
@@ -235,11 +238,30 @@ def test_weekly_summary_logs_execution(temp_vault, mock_daily_notes, temp_db):
             import sqlite3
             check_conn = sqlite3.connect(temp_db.execute("PRAGMA database_list").fetchone()[2])
             check_conn.row_factory = sqlite3.Row
+            written = {}
+            fake_week_summaries = {
+                "2026-07-06": "Day 1 summary: Important events and tasks completed today.\nKey achievements and learnings from 2026-07-06.",
+            }
 
             with patch.object(weekly_summary, "get_db_connection", return_value=temp_db):
-                with patch("weekly_summary.call_llm_raw", return_value="Test summary"):
-                    with patch.object(weekly_summary, "write_weekly"):
-                        weekly_summary.main()
+                with patch(
+                    "weekly_summary.call_llm_raw",
+                    return_value="- 汇总 Day 1 summary 与 Key achievements 相关进展。（依据：2026-07-06）",
+                ):
+                    with patch.object(weekly_summary, "collect_week_summaries", return_value=fake_week_summaries):
+                        with patch.object(
+                            weekly_summary,
+                            "write_weekly_section",
+                            side_effect=lambda year_week, target_date, section, content: written.update(
+                                {
+                                    "year_week": year_week,
+                                    "target_date": target_date,
+                                    "section": section,
+                                    "content": content,
+                                }
+                            ),
+                        ):
+                            weekly_summary.main()
 
             # Check execution log with separate connection
             logger = ExecutionLogger(check_conn, "2026-07-10")
@@ -249,7 +271,150 @@ def test_weekly_summary_logs_execution(temp_vault, mock_daily_notes, temp_db):
             weekly_logs = [log for log in logs if log["step_name"] == "weekly_summary"]
             assert len(weekly_logs) == 1
             assert weekly_logs[0]["status"] == "completed"
+            assert written == {
+                "year_week": "2026-W28",
+                "target_date": "2026-07-10",
+                "section": "AI 总结",
+                "content": "- 汇总 Day 1 summary 与 Key achievements 相关进展。（依据：2026-07-06）",
+            }
 
+            check_conn.close()
+
+
+def test_weekly_summary_uses_fallback_when_llm_fails(temp_vault, mock_daily_notes, temp_db):
+    """Test weekly summary still writes a deterministic report when LLM fails."""
+    import json
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+
+    with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
+        with patch("sys.argv", ["weekly_summary.py", "2026-07-10"]):
+            import weekly_summary
+
+            written = {}
+            check_conn = sqlite3.connect(temp_db.execute("PRAGMA database_list").fetchone()[2])
+            check_conn.row_factory = sqlite3.Row
+
+            with patch.object(weekly_summary, "get_db_connection", return_value=temp_db):
+                with patch("weekly_summary.call_llm_raw", return_value=""):
+                    with patch.object(
+                        weekly_summary,
+                        "write_weekly_section",
+                        side_effect=lambda year_week, target_date, section, content: written.update(
+                            {
+                                "year_week": year_week,
+                                "target_date": target_date,
+                                "section": section,
+                                "content": content,
+                            }
+                        ),
+                    ):
+                        weekly_summary.main()
+
+            logs = check_conn.execute(
+                "SELECT status, metadata_json FROM execution_log WHERE step_name='weekly_summary'"
+            ).fetchall()
+
+            assert written["year_week"] == "2026-W28"
+            assert written["target_date"] == "2026-07-10"
+            assert written["section"] == "AI 总结"
+            assert "本地 fallback 版周报" in written["content"]
+            assert logs[-1]["status"] == "completed"
+            assert json.loads(logs[-1]["metadata_json"])["fallback"] is True
+            check_conn.close()
+
+
+def test_validate_weekly_summary_rejects_unsupported_numeric_fact():
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+    from weekly_summary import validate_weekly_summary
+
+    week_summaries = {
+        "2026-07-07": "- 修复 llm_filter 配置\n- 验证内网 backend 可用",
+    }
+    ok, reason = validate_weekly_summary(
+        "- 完成架构升级并将响应延迟降低40%。（依据：2026-07-07）",
+        week_summaries,
+    )
+    assert ok is False
+    assert reason.startswith("unsupported_numeric")
+
+
+def test_generate_weekly_summary_retries_then_succeeds():
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+    from weekly_summary import generate_weekly_summary
+
+    week_summaries = {
+        "2026-07-07": "- 修复 llm_filter 配置\n- 验证内网 backend 可用",
+    }
+    responses = iter([
+        "- 完成架构升级并将响应延迟降低40%。（依据：2026-07-07）",
+        "- 修复 llm_filter 配置并验证内网 backend 可用。（依据：2026-07-07）",
+    ])
+
+    with patch("weekly_summary.call_llm_raw", side_effect=lambda prompt: next(responses)):
+        summary = generate_weekly_summary(week_summaries)
+
+    assert "修复 llm_filter 配置" in summary
+    assert "依据：2026-07-07" in summary
+
+
+def test_weekly_summary_falls_back_when_validation_fails_twice(temp_vault, mock_daily_notes, temp_db):
+    import json
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
+    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+
+    with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
+        with patch("sys.argv", ["weekly_summary.py", "2026-07-10"]):
+            import weekly_summary
+
+            written = {}
+            check_conn = sqlite3.connect(temp_db.execute("PRAGMA database_list").fetchone()[2])
+            check_conn.row_factory = sqlite3.Row
+            fake_week_summaries = {
+                "2026-07-06": "Day 1 summary: Important events and tasks completed today.\nKey achievements and learnings from 2026-07-06.",
+                "2026-07-07": "Day 2 summary: Important events and tasks completed today.\nKey achievements and learnings from 2026-07-07.",
+            }
+
+            with patch.object(weekly_summary, "get_db_connection", return_value=temp_db):
+                with patch(
+                    "weekly_summary.call_llm_raw",
+                    side_effect=[
+                        "- 完成架构升级并将响应延迟降低40%。（依据：2026-07-06）",
+                        "- 形成Q3里程碑并完成V2.0升级。（依据：2026-07-07）",
+                    ],
+                ):
+                    with patch.object(weekly_summary, "collect_week_summaries", return_value=fake_week_summaries):
+                        with patch.object(
+                            weekly_summary,
+                            "write_weekly_section",
+                            side_effect=lambda year_week, target_date, section, content: written.update(
+                                {
+                                    "year_week": year_week,
+                                    "target_date": target_date,
+                                    "section": section,
+                                    "content": content,
+                                }
+                            ),
+                        ):
+                            weekly_summary.main()
+
+            logs = check_conn.execute(
+                "SELECT status, metadata_json FROM execution_log WHERE step_name='weekly_summary'"
+            ).fetchall()
+
+            assert "本地 fallback 版周报" in written["content"]
+            assert logs[-1]["status"] == "completed"
+            assert json.loads(logs[-1]["metadata_json"])["fallback"] is True
             check_conn.close()
 
 
@@ -288,7 +453,3 @@ def test_weekly_summary_empty_week(temp_vault, temp_db):
 
         # No daily notes for this week
         assert len(summaries) == 0
-
-
-
-

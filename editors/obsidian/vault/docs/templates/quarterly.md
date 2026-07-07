@@ -12,6 +12,10 @@ tags: [quarterly, work-log]
 
 ## 季度概览
 
+## AI 总结
+
+<!-- 由 quarterly_summary.py 自动填入 -->
+
 ## 重点工作
 
 ## 问题与风险

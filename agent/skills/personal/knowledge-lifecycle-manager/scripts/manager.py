@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -12,14 +13,37 @@ REPO_ROOT = Path(__file__).resolve().parents[6]
 TEMPLATE_ROOT = REPO_ROOT / "template"
 DATA_HUB = TEMPLATE_ROOT / "agent" / "data-hub"
 PYTHON = TEMPLATE_ROOT / ".venv" / "bin" / "python"
+LOCAL_SCRIPTS_DIR = Path(__file__).resolve().parent
+KNOWLEDGE_RECORD_SCRIPT = (
+    TEMPLATE_ROOT
+    / "agent"
+    / "skills"
+    / "personal"
+    / "knowledge-record"
+    / "scripts"
+    / "record_knowledge.py"
+)
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(LOCAL_SCRIPTS_DIR))
 sys.path.insert(0, str(DATA_HUB))
 from data_hub_config import get_runtime_config
 from db_helper import get_db_connection
 import knowledge_workflows
 import manager_reporting
-import record_knowledge
+
+
+def load_record_knowledge_module():
+    spec = importlib.util.spec_from_file_location(
+        "knowledge_record_impl",
+        KNOWLEDGE_RECORD_SCRIPT,
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec is not None and spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+record_knowledge = load_record_knowledge_module()
 
 
 def default_target_date() -> str:
@@ -109,6 +133,26 @@ def backup_database(target_date: str) -> None:
 
 def record_knowledge_entry(args: argparse.Namespace, target_date: str) -> None:
     """Record a live agent knowledge item through the unified manager."""
+    if getattr(args, "suggest", False):
+        suggest_args = [
+            "suggest",
+            "--date",
+            target_date,
+        ]
+        optional_pairs = [
+            ("--agent", args.agent),
+            ("--project-path", args.project_path),
+            ("--db-path", args.db_path),
+            ("--thread-json", args.thread_json),
+            ("--thread-summary", args.thread_summary),
+        ]
+        for flag, value in optional_pairs:
+            if value:
+                suggest_args.extend([flag, value])
+        for action in args.action or []:
+            suggest_args.extend(["--action", action])
+        raise SystemExit(record_knowledge.main(suggest_args))
+
     record_args = [
         "--type",
         args.record_type,
@@ -192,6 +236,14 @@ Examples:
     parser.add_argument("--project-path")
     parser.add_argument("--db-path")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--suggest", action="store_true", help="Suggest and confirm a knowledge record")
+    parser.add_argument(
+        "--action",
+        action="append",
+        help="Confirmation action for record --suggest; repeat for edit/regenerate/accept flows",
+    )
+    parser.add_argument("--thread-json", help="Current agent thread JSON for record --suggest")
+    parser.add_argument("--thread-summary", help="Current agent thread summary for record --suggest")
     return parser
 
 
@@ -236,7 +288,7 @@ def main(argv: list[str] | None = None) -> None:
         show_candidates(target_date or default_target_date())
         return
     if action == "record":
-        if not args.record_type or not args.title or not args.content:
+        if not args.suggest and (not args.record_type or not args.title or not args.content):
             parser.error("record requires --type, --title, and --content")
         record_knowledge_entry(args, target_date or default_target_date())
         return
