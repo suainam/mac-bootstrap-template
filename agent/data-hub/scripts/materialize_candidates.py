@@ -260,14 +260,13 @@ def main() -> None:
             )
             materialized += 1
 
-        # Also materialize skill-generated records
-        if table_has_column(conn, "knowledge_records", "record_revision"):
+        # Also materialize accepted skill-recorded knowledge.
+        if table_has_column(conn, "knowledge_records", "id"):
             cursor = conn.execute(
                 """
                 SELECT * FROM knowledge_records
                 WHERE candidate_date = ?
                   AND status = 'accepted'
-                  AND record_revision IS NOT NULL
                 """,
                 (target_date,)
             )
