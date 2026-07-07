@@ -70,6 +70,12 @@ def test_x_api_block_disabled_by_default():
     assert render_codex_mcp_block.x_api_block(False, "npx") == ""
 
 
+def test_devspace_block_emits_remote_url_when_configured():
+    block = render_codex_mcp_block.devspace_block("https://devspace.example.com/mcp")
+    assert "[mcp_servers.devspace]" in block
+    assert 'url = "https://devspace.example.com/mcp"' in block
+
+
 def test_x_api_block_emits_env_when_enabled():
     block = render_codex_mcp_block.x_api_block(True, "/tmp/x-mcp-bridge.sh")
     assert 'command = "/tmp/x-mcp-bridge.sh"' in block

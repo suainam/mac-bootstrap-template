@@ -50,6 +50,15 @@ url = "https://docs.x.com/mcp"
 """.strip()
 
 
+def devspace_block(url: str | None) -> str:
+    if not url:
+        return ""
+    return f"""
+[mcp_servers.devspace]
+url = "{url}"
+""".strip()
+
+
 def x_api_block(
     enabled: bool,
     command: str,
@@ -69,6 +78,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context7-command", required=True)
     parser.add_argument("--context7-api-key")
+    parser.add_argument("--devspace-url")
     parser.add_argument("--enable-x-api", action="store_true")
     parser.add_argument("--x-api-command", default="x-mcp-bridge.sh")
     args = parser.parse_args()
@@ -154,6 +164,9 @@ approval_mode = "approve"
 """.strip(),
         x_docs_block(),
     ]
+    devspace = devspace_block(args.devspace_url)
+    if devspace:
+        sections.append(devspace)
 
     context7_block = [
         f'[mcp_servers.context7]',

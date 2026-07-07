@@ -8,7 +8,8 @@ PYTHON ?= .venv/bin/python
 	skill-route-show skill-route-list skill-route-default skill-scope-check skill-scope-refresh skill-refresh prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
-	install-workbuddy \
+	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
+	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
 	imgup-install imgup
 
 help:
@@ -61,6 +62,15 @@ help:
 	@echo "  skill-route-default    Set default distribution: APPS=claude,codex,..."
 	@echo "  security-scan          Security scan + fix"
 	@echo "  instinct-sync          Sync instinct files"
+	@echo "  devspace-check         Validate local DevSpace config + prerequisites"
+	@echo "  devspace-run           Start local DevSpace in foreground"
+	@echo "  devspace-doctor        Probe local DevSpace /mcp and classify failures"
+	@echo "  devspace-tunnel        Run configured Cloudflare Tunnel in foreground"
+	@echo "  devspace-install-agent Install and start DevSpace LaunchAgents"
+	@echo "  devspace-unload-agent  Stop and remove DevSpace LaunchAgents"
+	@echo "  devspace-status        Show DevSpace LaunchAgent status and local health"
+	@echo "  devspace-logs          Tail DevSpace LaunchAgent logs"
+	@echo "  devspace-restart       Restart DevSpace LaunchAgents"
 	@echo ""
 	@echo "── Tmux ──"
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
@@ -116,7 +126,7 @@ check:
 	bash -n scripts/lib/agent-mcp.sh
 	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
-	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/check-skill-scope.py scripts/skill_scope_manifest.py
+	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/check-skill-scope.py scripts/skill_scope_manifest.py scripts/devspace_local.py
 	$(PYTHON) scripts/check-skill-scope.py
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
@@ -150,6 +160,10 @@ check:
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/tmux-workspace.sh
 	bash -n scripts/switch-terminal-theme.sh
+	bash -n scripts/devspace-local.sh
+	bash -n scripts/devspace-supervisor.sh
+	bash -n scripts/devspace-tunnel-supervisor.sh
+	bash -n scripts/install-devspace-agents.sh
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
 	mkdir -p "$(UV_CACHE_DIR)"
@@ -161,6 +175,33 @@ check:
 
 doctor:
 	./scripts/doctor.sh
+
+devspace-check:
+	./scripts/devspace-local.sh check
+
+devspace-run:
+	./scripts/devspace-local.sh run
+
+devspace-doctor:
+	./scripts/devspace-local.sh doctor
+
+devspace-tunnel:
+	./scripts/devspace-local.sh tunnel-run
+
+devspace-install-agent:
+	./scripts/install-devspace-agents.sh install
+
+devspace-unload-agent:
+	./scripts/install-devspace-agents.sh unload
+
+devspace-status:
+	./scripts/install-devspace-agents.sh status
+
+devspace-logs:
+	./scripts/install-devspace-agents.sh logs
+
+devspace-restart:
+	./scripts/install-devspace-agents.sh restart
 
 proxy-on:
 	./scripts/configure-proxies.sh

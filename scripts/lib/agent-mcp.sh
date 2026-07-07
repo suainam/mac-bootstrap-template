@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 write_json_file() {
-  local path="$1" code="$2"
-  run mkdir -p "$(dirname "$path")"
+  local target_path="$1" code="$2"
+  run mkdir -p "$(dirname "$target_path")"
   if [ "${DRY_RUN:-0}" -eq 1 ]; then
-    echo "DRY-RUN: write JSON config $path"
+    echo "DRY-RUN: write JSON config $target_path"
   else
-    node - "$path" "$CONTEXT7_KEY" "$BOOTSTRAP" "$code" <<'NODE'
+    node - "$target_path" "$CONTEXT7_KEY" "$BOOTSTRAP" "$code" <<'NODE'
 const fs = require("fs");
 const { execSync } = require("child_process");
 const path = process.argv[2];
@@ -52,6 +52,13 @@ const getXDocsConfig = () => ({
   url: "https://docs.x.com/mcp",
 });
 
+const getDevSpaceConfig = () => {
+  const enabled = process.env.DEVSPACE_MCP_ENABLE === "1";
+  const url = process.env.DEVSPACE_MCP_URL || "";
+  if (!enabled || !url) return null;
+  return { url };
+};
+
 const getXApiConfig = () => {
   const enabled = process.env.X_MCP_ENABLE === "1";
   if (!enabled) {
@@ -64,8 +71,8 @@ const getXApiConfig = () => {
   };
 };
 
-const fn = new Function("fs", "path", "key", "getContext7Config", "getPromptLibraryConfig", "getXDocsConfig", "getXApiConfig", code);
-fn(fs, path, key, getContext7Config, getPromptLibraryConfig, getXDocsConfig, getXApiConfig);
+const fn = new Function("fs", "path", "key", "getContext7Config", "getPromptLibraryConfig", "getXDocsConfig", "getDevSpaceConfig", "getXApiConfig", code);
+fn(fs, path, key, getContext7Config, getPromptLibraryConfig, getXDocsConfig, getDevSpaceConfig, getXApiConfig);
 NODE
   fi
 }
@@ -95,6 +102,9 @@ cfg.mcpServers["codebase-memory-mcp"] = { command: "codebase-memory-mcp", args: 
 cfg.mcpServers["context7"] = getContext7Config(key);
 cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();
 cfg.mcpServers["x-docs"] = getXDocsConfig();
+const devspace = getDevSpaceConfig();
+if (devspace) cfg.mcpServers["devspace"] = devspace;
+else delete cfg.mcpServers["devspace"];
 const xapi = getXApiConfig();
 if (xapi) cfg.mcpServers["xapi"] = xapi;
 else delete cfg.mcpServers["xapi"];
@@ -126,6 +136,9 @@ configure_codex_mcp() {
     if [ "${X_MCP_ENABLE:-0}" = "1" ]; then
       render_args+=(--enable-x-api --x-api-command "$BOOTSTRAP/scripts/x-mcp-bridge.sh")
     fi
+    if [ "${DEVSPACE_MCP_ENABLE:-0}" = "1" ] && [ -n "${DEVSPACE_MCP_URL:-}" ]; then
+      render_args+=(--devspace-url "$DEVSPACE_MCP_URL")
+    fi
     "$python_bin" "$BOOTSTRAP/scripts/render-codex-mcp-block.py" \
       "${render_args[@]}" > "$tmp_block"
     "$python_bin" "$BOOTSTRAP/scripts/sync-codex-mcp-config.py" "$CODEX_TOML" "$tmp_block"
@@ -151,6 +164,9 @@ if (c7.env) cfg.mcp["context7"].env = c7.env;
 const prompt = getPromptLibraryConfig();
 cfg.mcp["agent-prompt-library"] = { enabled: true, type: "local", command: [prompt.command].concat(prompt.args) };
 cfg.mcp["x-docs"] = { enabled: true, type: "remote", url: getXDocsConfig().url };
+const devspace = getDevSpaceConfig();
+if (devspace) cfg.mcp["devspace"] = { enabled: true, type: "remote", url: devspace.url };
+else delete cfg.mcp["devspace"];
 const xapi = getXApiConfig();
 if (xapi) {
   cfg.mcp["xapi"] = { enabled: true, type: "local", command: [xapi.command].concat(xapi.args) };
@@ -173,6 +189,8 @@ const cfg = {
     "x-docs": getXDocsConfig()
   }
 };
+const devspace = getDevSpaceConfig();
+if (devspace) cfg.mcpServers["devspace"] = devspace;
 const xapi = getXApiConfig();
 if (xapi) cfg.mcpServers["xapi"] = xapi;
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
@@ -195,6 +213,9 @@ cfg.mcpServers["codebase-memory-mcp"] = { command: "codebase-memory-mcp", args: 
 cfg.mcpServers["context7"] = getContext7Config(key);
 cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();
 cfg.mcpServers["x-docs"] = getXDocsConfig();
+const devspace = getDevSpaceConfig();
+if (devspace) cfg.mcpServers["devspace"] = devspace;
+else delete cfg.mcpServers["devspace"];
 const xapi = getXApiConfig();
 if (xapi) cfg.mcpServers["xapi"] = xapi;
 else delete cfg.mcpServers["xapi"];
@@ -228,6 +249,8 @@ const cfg = {
     "x-docs": getXDocsConfig()
   }
 };
+const devspace = getDevSpaceConfig();
+if (devspace) cfg.mcpServers["devspace"] = devspace;
 const xapi = getXApiConfig();
 if (xapi) cfg.mcpServers["xapi"] = xapi;
 fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");

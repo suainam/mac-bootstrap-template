@@ -14,6 +14,7 @@ MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
 . "$BOOTSTRAP/scripts/lib/agent-configure.sh"
 
 load_x_mcp_private_env
+load_devspace_mcp_private_env
 
 usage() {
   cat <<'EOF'

@@ -64,6 +64,7 @@ cask "shottr"
 cask "cc-switch"
 
 # ========== 网络 & 安全 ==========
+brew "cloudflared"
 cask "clash-verge-rev"
 cask "uuremote"
 cask "xiaomi-cloud"
@@ -86,6 +87,7 @@ cask "font-sf-mono-nerd-font-ligaturized"
 npm "reasonix"
 npm "context-mode"
 npm "codebase-memory-mcp"
+npm "@waishnav/devspace"
 
 # ========== Python 分析库（通过 pip/uv 安装，不作为 brew 依赖） ==========
 # 见 python/requirements-common.txt

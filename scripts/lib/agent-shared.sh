@@ -117,6 +117,79 @@ $parsed
 EOF
 }
 
+load_devspace_mcp_private_env() {
+  local private_dir config_path
+  private_dir="$(resolve_private_dir 2>/dev/null || true)"
+  [ -n "$private_dir" ] || return 0
+  config_path="$private_dir/agent/devspace.runtime.jsonc"
+  [ -f "$config_path" ] || return 0
+
+  local parsed
+  parsed="$(python3 - "$config_path" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+
+def strip_jsonc(text: str) -> str:
+    out: list[str] = []
+    in_string = False
+    escaped = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < len(text) else ""
+        if in_string:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "/" and nxt == "/":
+            while i < len(text) and text[i] != "\n":
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+path = Path(sys.argv[1])
+data = json.loads(strip_jsonc(path.read_text(encoding="utf-8")))
+exposure = data.get("exposure") or {}
+base_url = (exposure.get("public_base_url") or "").rstrip("/")
+enabled = exposure.get("mcp_enabled", bool(base_url))
+
+if enabled and base_url:
+    print("DEVSPACE_MCP_ENABLE=1")
+    print(f"DEVSPACE_MCP_URL={base_url}/mcp")
+else:
+    print("DEVSPACE_MCP_ENABLE=0")
+PY
+)" || return 1
+
+  local line key value
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    export "$key=$value"
+  done <<EOF
+$parsed
+EOF
+}
+
 capture_with_timeout() {
   local seconds="$1"
   shift

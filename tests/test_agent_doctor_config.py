@@ -50,3 +50,23 @@ def test_run_doctor_checks_parses_manifest():
     assert 'formula_command_overrides' in content
     assert 'cask_overrides' in content
     assert 'standalone_clis' in content
+
+
+def test_agent_shared_loads_devspace_mcp_from_private_runtime():
+    content = open(os.path.join(TEMPLATE, "scripts", "lib", "agent-shared.sh")).read()
+    assert "load_devspace_mcp_private_env()" in content
+    assert 'DEVSPACE_MCP_URL={base_url}/mcp' in content
+    assert 'DEVSPACE_MCP_ENABLE=1' in content
+
+
+def test_makefile_exposes_devspace_targets_and_checks_script():
+    content = open(os.path.join(TEMPLATE, "Makefile")).read()
+    assert "devspace-check:" in content
+    assert "devspace-run:" in content
+    assert "devspace-doctor:" in content
+    assert "devspace-tunnel:" in content
+    assert "bash -n scripts/devspace-local.sh" in content
+    assert "./scripts/devspace-local.sh check" in content
+    assert "./scripts/devspace-local.sh run" in content
+    assert "./scripts/devspace-local.sh doctor" in content
+    assert "./scripts/devspace-local.sh tunnel-run" in content

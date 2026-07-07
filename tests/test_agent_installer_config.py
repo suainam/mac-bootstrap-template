@@ -22,6 +22,7 @@ def test_install_agent_tooling_links_prompt_helpers():
 def test_install_agent_tooling_loads_private_x_mcp_env():
     content = open(os.path.join(TEMPLATE, "scripts", "install-agent-tooling.sh")).read()
     assert "load_x_mcp_private_env" in content
+    assert "load_devspace_mcp_private_env" in content
 
 
 def test_x_mcp_bridge_loads_private_env():
@@ -29,3 +30,9 @@ def test_x_mcp_bridge_loads_private_env():
     assert "load_x_mcp_private_env" in content
     assert 'export REDIRECT_URI="$X_MCP_CALLBACK_URL"' in content
     assert 'exec npx -y @xdevplatform/xurl mcp https://api.x.com/mcp' in content
+
+
+def test_brewfile_includes_devspace_npm_package():
+    content = open(os.path.join(TEMPLATE, "Brewfile")).read()
+    assert 'npm "@waishnav/devspace"' in content
+    assert 'brew "cloudflared"' in content

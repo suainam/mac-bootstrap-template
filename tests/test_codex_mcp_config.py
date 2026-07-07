@@ -25,6 +25,9 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
             '[mcp_servers.x-docs]\n'
             'url = "https://old.example/mcp"\n'
             '\n'
+            '[mcp_servers.devspace]\n'
+            'url = "https://old-devspace.example/mcp"\n'
+            '\n'
             '[mcp_servers.codebase-memory-mcp]\n'
             'command = "old"\n'
         )
@@ -46,6 +49,7 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
         assert content.count("[mcp_servers.context-mode.tools.ctx_search]") == 1
         assert content.count("[mcp_servers.context7.env]") == 0
         assert content.count("[mcp_servers.x-docs]") == 0
+        assert content.count("[mcp_servers.devspace]") == 0
         assert content.count("# BEGIN MAC-BOOTSTRAP MANAGED MCPS") == 1
         assert 'model = "gpt-5"' in content
 
@@ -77,6 +81,18 @@ def test_render_codex_mcp_block_emits_proxy_variants():
     assert 'url = "https://docs.x.com/mcp"' in result.stdout
 
 
+def test_render_codex_mcp_block_includes_devspace_url():
+    script = os.path.join(TEMPLATE, "scripts", "render-codex-mcp-block.py")
+    result = subprocess.run(
+        [PYTHON, script, "--context7-command", "npx", "--devspace-url", "https://devspace.suainam.eu.org/mcp"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "[mcp_servers.devspace]" in result.stdout
+    assert 'url = "https://devspace.suainam.eu.org/mcp"' in result.stdout
+
+
 def test_agent_mcp_uses_project_python_for_codex_helpers():
     content = open(os.path.join(TEMPLATE, "scripts", "lib", "agent-mcp.sh")).read()
     assert 'local python_bin="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"' in content
@@ -92,4 +108,6 @@ def test_agent_mcp_configures_prompt_library_for_json_agents():
     assert 'command: [prompt.command].concat(prompt.args)' in content
     assert '"agent-prompt-library": getPromptLibraryConfig()' in content
     assert 'cfg.mcpServers["x-docs"] = getXDocsConfig();' in content
+    assert 'cfg.mcpServers["devspace"] = devspace;' in content
+    assert 'cfg.mcp["devspace"] = { enabled: true, type: "remote", url: devspace.url };' in content
     assert '/scripts/x-mcp-bridge.sh' in content

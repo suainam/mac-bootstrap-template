@@ -1,0 +1,27 @@
+{
+  // Copy to private/agent/devspace.runtime.jsonc for local-only validation.
+  // Phase 1 intentionally excludes Tailscale, launchd, and OAuth settings.
+  "paths": {
+    "allowed_roots": [
+      "$HOME/work/config/mac-bootstrap"
+    ]
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 7676
+  },
+  "exposure": {
+    // Set this after creating a Cloudflare Tunnel.
+    // Use the origin only, without /mcp.
+    "public_base_url": "",
+    // Private config only. Do not put a real token in the public template.
+    "cloudflare_tunnel_token": ""
+  },
+  "runtime": {
+    "node_preference": "auto",
+    "install_mode": "brew+npm",
+    "devspace_bin": "",
+    "npm_bin": "",
+    "log_dir": "$HOME/work/config/mac-bootstrap/private/agent/logs/devspace"
+  }
+}

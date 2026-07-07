@@ -139,6 +139,11 @@ split the same way: RTK and `codex-threadripper` are installed from Homebrew
 taps, and `context-mode` is installed as a global npm package. Antigravity CLI
 follows the official Google installer instead of Homebrew cask packaging.
 
+DevSpace is also wired in as the remote MCP sidecar for browser and CLI agents.
+Use [`docs/devspace-local.md`](docs/devspace-local.md) for the local server,
+Cloudflare Tunnel, LaunchAgent workflow, and web-UI troubleshooting links
+including the ChatGPT-side DevSpace app creation walkthrough.
+
 `~/work` is the umbrella workspace, not a single repo. Keep each real project as
 its own git repository under `~/work/projects`, with its own `.envrc`, `.env`,
 and runtime state.
