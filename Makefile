@@ -9,6 +9,7 @@ PYTHON ?= .venv/bin/python
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
+	devspace-home-push devspace-home-pull \
 	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
 	imgup-install imgup
 
@@ -66,6 +67,8 @@ help:
 	@echo "  devspace-run           Start local DevSpace in foreground"
 	@echo "  devspace-doctor        Probe local DevSpace /mcp and classify failures"
 	@echo "  devspace-tunnel        Run configured Cloudflare Tunnel in foreground"
+	@echo "  devspace-home-push     Mirror private DevSpace home files into ~/.devspace"
+	@echo "  devspace-home-pull     Pull ~/.devspace files into private/agent mirror"
 	@echo "  devspace-install-agent Install and start DevSpace LaunchAgents"
 	@echo "  devspace-unload-agent  Stop and remove DevSpace LaunchAgents"
 	@echo "  devspace-status        Show DevSpace LaunchAgent status and local health"
@@ -187,6 +190,12 @@ devspace-doctor:
 
 devspace-tunnel:
 	./scripts/devspace-local.sh tunnel-run
+
+devspace-home-push:
+	./scripts/devspace-local.sh home-push
+
+devspace-home-pull:
+	./scripts/devspace-local.sh home-pull
 
 devspace-install-agent:
 	./scripts/install-devspace-agents.sh install

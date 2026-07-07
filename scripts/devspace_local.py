@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from datetime import datetime
 from http.client import HTTPConnection
 import json
 import os
@@ -281,6 +282,98 @@ def ensure_valid_config(config: DevSpaceConfig) -> list[str]:
     return validate_config(config)
 
 
+def devspace_home_paths(home_dir: Path, repo_root: Path) -> dict[str, Path]:
+    private_dir = repo_root / "private" / "agent"
+    runtime_dir = home_dir / ".devspace"
+    return {
+        "private_config": private_dir / "devspace.home.config.json",
+        "private_auth": private_dir / "devspace.home.auth.json",
+        "runtime_config": runtime_dir / "config.json",
+        "runtime_auth": runtime_dir / "auth.json",
+        "backup_root": private_dir / "backups" / "devspace-home",
+    }
+
+
+def read_json_file(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write_json_file(path: Path, data: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def validate_devspace_home_config(data: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    port = data.get("port")
+    allowed_roots = data.get("allowedRoots")
+    if not data.get("host"):
+        errors.append("devspace.home.config host is required")
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        errors.append("devspace.home.config port must be an integer between 1 and 65535")
+    if not isinstance(allowed_roots, list) or not allowed_roots:
+        errors.append("devspace.home.config allowedRoots must be a non-empty array")
+    return errors
+
+
+def validate_devspace_home_auth(data: Mapping[str, Any]) -> list[str]:
+    owner_token = data.get("ownerToken")
+    if not isinstance(owner_token, str) or len(owner_token) < 16:
+        return ["devspace.home.auth ownerToken must be at least 16 characters"]
+    return []
+
+
+def backup_devspace_home_runtime(repo_root: Path, home_dir: Path) -> Path | None:
+    paths = devspace_home_paths(home_dir=home_dir, repo_root=repo_root)
+    existing = [paths["runtime_config"], paths["runtime_auth"]]
+    if not any(path.exists() for path in existing):
+        return None
+    backup_dir = paths["backup_root"] / datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    for source in existing:
+        if source.exists():
+            shutil.copy2(source, backup_dir / source.name)
+    return backup_dir
+
+
+def restore_devspace_home_runtime(backup_dir: Path, home_dir: Path) -> None:
+    runtime_dir = home_dir / ".devspace"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("config.json", "auth.json"):
+        source = backup_dir / name
+        if source.exists():
+            shutil.copy2(source, runtime_dir / name)
+
+
+def verify_home_push_health(
+    repo_root: Path,
+    config: DevSpaceConfig,
+    home_dir: Path | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    bins = resolve_binaries(config)
+    if bins.devspace:
+        rc, doctor_output = get_devspace_doctor_output(bins.devspace)
+        if rc != 0:
+            errors.append(f"devspace doctor failed: {doctor_output or rc}")
+    status, reason = probe_local_mcp(config.host, config.port)
+    if status is None:
+        errors.append(f"local /mcp probe failed: {reason}")
+    effective_home = home_dir or Path.home()
+    launch_agent = effective_home / "Library" / "LaunchAgents" / "io.local.mac-bootstrap.devspace.plist"
+    if launch_agent.exists():
+        status_rc = subprocess.run(
+            ["make", "devspace-status"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if status_rc.returncode != 0:
+            errors.append("make devspace-status failed after home-push")
+    return errors
+
+
 def print_errors(errors: list[str]) -> None:
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
@@ -424,6 +517,52 @@ def cmd_tunnel_run(args: argparse.Namespace) -> int:
     return subprocess.run(command, check=False).returncode
 
 
+def cmd_home_push(args: argparse.Namespace) -> int:
+    repo_root = args.repo_root.resolve()
+    home_dir = Path.home()
+    config = load_devspace_config(repo_root=repo_root, config_path=args.config)
+    paths = devspace_home_paths(home_dir=home_dir, repo_root=repo_root)
+    private_config = read_json_file(paths["private_config"])
+    private_auth = read_json_file(paths["private_auth"])
+    errors = validate_devspace_home_config(private_config) + validate_devspace_home_auth(private_auth)
+    if errors:
+        print_errors(errors)
+        return 1
+    backup_dir = backup_devspace_home_runtime(repo_root=repo_root, home_dir=home_dir)
+    write_json_file(paths["runtime_config"], private_config)
+    write_json_file(paths["runtime_auth"], private_auth)
+    health_errors = verify_home_push_health(repo_root=repo_root, config=config, home_dir=home_dir)
+    if health_errors:
+        if backup_dir is not None:
+            restore_devspace_home_runtime(backup_dir=backup_dir, home_dir=home_dir)
+        print_errors(["home-push failed; runtime restored from backup", *health_errors])
+        return 1
+    print(f"OK: mirrored private DevSpace home files into {home_dir / '.devspace'}")
+    if backup_dir is not None:
+        print(f"BACKUP: {backup_dir}")
+    return 0
+
+
+def cmd_home_pull(args: argparse.Namespace) -> int:
+    repo_root = args.repo_root.resolve()
+    home_dir = Path.home()
+    paths = devspace_home_paths(home_dir=home_dir, repo_root=repo_root)
+    missing = [str(path) for path in (paths["runtime_config"], paths["runtime_auth"]) if not path.exists()]
+    if missing:
+        print_errors([f"runtime DevSpace home file missing: {path}" for path in missing])
+        return 1
+    runtime_config = read_json_file(paths["runtime_config"])
+    runtime_auth = read_json_file(paths["runtime_auth"])
+    errors = validate_devspace_home_config(runtime_config) + validate_devspace_home_auth(runtime_auth)
+    if errors:
+        print_errors(errors)
+        return 1
+    write_json_file(paths["private_config"], runtime_config)
+    write_json_file(paths["private_auth"], runtime_auth)
+    print("OK: pulled ~/.devspace runtime files into private/agent mirror")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="devspace_local")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
@@ -436,6 +575,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("run").set_defaults(func=cmd_run)
     sub.add_parser("doctor").set_defaults(func=cmd_doctor)
     sub.add_parser("tunnel-run").set_defaults(func=cmd_tunnel_run)
+    sub.add_parser("home-push").set_defaults(func=cmd_home_push)
+    sub.add_parser("home-pull").set_defaults(func=cmd_home_pull)
     return parser
 
 

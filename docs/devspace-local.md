@@ -8,6 +8,8 @@ background services.
 
 - Example config: `template/agent/devspace.runtime.example.jsonc`
 - Real config: `private/agent/devspace.runtime.jsonc`
+- Private home mirror config: `private/agent/devspace.home.config.json`
+- Private home mirror auth: `private/agent/devspace.home.auth.json`
 - Entrypoint: `template/scripts/devspace-local.sh`
 - Logs: `private/agent/logs/devspace/`
 - Cloudflare Tunnel token: `exposure.cloudflare_tunnel_token` in the private
@@ -15,6 +17,29 @@ background services.
 
 `private/agent/devspace.runtime.jsonc` is the only real runtime config. The
 example file is documentation and shape reference only.
+
+## Home Mirror
+
+- `private/agent/devspace.home.config.json` and
+  `private/agent/devspace.home.auth.json` are the durable authoritative copies.
+- `~/.devspace/config.json` and `~/.devspace/auth.json` are runtime mirrors
+  used by upstream DevSpace tooling.
+
+Normal workflow:
+
+1. edit `private/agent/devspace.home.*.json`
+2. run `make devspace-home-push`
+3. verify health
+
+Exceptional workflow:
+
+1. make an intentional upstream change with DevSpace tooling
+2. run `make devspace-home-pull`
+3. review and commit the private mirror change
+
+`home-push` validates the private mirror, creates
+`private/agent/backups/devspace-home/<timestamp>/`, verifies health, and rolls
+back on failure.
 
 ## Command Flow
 
@@ -70,6 +95,18 @@ Run the configured Cloudflare Tunnel in the foreground:
 
 ```bash
 template/scripts/devspace-local.sh tunnel-run
+```
+
+Push the private home mirror into `~/.devspace/`:
+
+```bash
+make devspace-home-push
+```
+
+Pull the current `~/.devspace/` runtime files back into `private/agent/`:
+
+```bash
+make devspace-home-pull
 ```
 
 ## Background LaunchAgents

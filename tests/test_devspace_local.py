@@ -260,6 +260,107 @@ Config status: DEVSPACE_OAUTH_OWNER_TOKEN is required for DevSpace OAuth. Run: d
     assert "~/.devspace/auth.json is missing" in errors
 
 
+def test_validate_devspace_home_config_reports_missing_fields():
+    errors = devspace_local.validate_devspace_home_config({"host": "127.0.0.1"})
+
+    assert "devspace.home.config port must be an integer between 1 and 65535" in errors
+    assert "devspace.home.config allowedRoots must be a non-empty array" in errors
+
+
+def test_validate_devspace_home_auth_reports_short_owner_token():
+    errors = devspace_local.validate_devspace_home_auth({"ownerToken": "short"})
+
+    assert errors == ["devspace.home.auth ownerToken must be at least 16 characters"]
+
+
+def test_home_push_restores_backup_when_health_check_fails(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    runtime_dir = home / ".devspace"
+    private_dir = repo / "private" / "agent"
+    runtime_dir.mkdir(parents=True)
+    private_dir.mkdir(parents=True)
+    runtime = private_dir / "devspace.runtime.jsonc"
+    runtime.write_text(
+        json.dumps(
+            {
+                "paths": {"allowed_roots": [str(tmp_path)]},
+                "server": {"host": "127.0.0.1", "port": 7676},
+                "runtime": {"log_dir": str(tmp_path / "logs/devspace")},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (private_dir / "devspace.home.config.json").write_text(
+        json.dumps({"host": "127.0.0.1", "port": 7676, "allowedRoots": ["/tmp/root"]}),
+        encoding="utf-8",
+    )
+    (private_dir / "devspace.home.auth.json").write_text(
+        json.dumps({"ownerToken": "1234567890abcdef"}),
+        encoding="utf-8",
+    )
+    (runtime_dir / "config.json").write_text(
+        json.dumps({"host": "old", "port": 7675, "allowedRoots": ["/tmp/old"]}),
+        encoding="utf-8",
+    )
+    (runtime_dir / "auth.json").write_text(
+        json.dumps({"ownerToken": "old-old-old-old"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(
+        devspace_local,
+        "verify_home_push_health",
+        lambda repo_root, config, home_dir=None: ["doctor failed"],
+    )
+
+    rc = devspace_local.main(["--repo-root", str(repo), "--config", str(runtime), "home-push"])
+
+    assert rc == 1
+    assert json.loads((runtime_dir / "config.json").read_text(encoding="utf-8")) == {
+        "host": "old",
+        "port": 7675,
+        "allowedRoots": ["/tmp/old"],
+    }
+    assert json.loads((runtime_dir / "auth.json").read_text(encoding="utf-8")) == {
+        "ownerToken": "old-old-old-old"
+    }
+
+
+def test_home_pull_updates_private_mirror_only_when_runtime_files_exist(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    runtime_dir = home / ".devspace"
+    private_dir = repo / "private" / "agent"
+    runtime_dir.mkdir(parents=True)
+    private_dir.mkdir(parents=True)
+    runtime = private_dir / "devspace.runtime.jsonc"
+    runtime.write_text(
+        json.dumps(
+            {
+                "paths": {"allowed_roots": [str(tmp_path)]},
+                "server": {"host": "127.0.0.1", "port": 7676},
+                "runtime": {"log_dir": str(tmp_path / "logs/devspace")},
+            }
+        ),
+        encoding="utf-8",
+    )
+    runtime_config = {"host": "127.0.0.1", "port": 7676, "allowedRoots": ["/tmp/root"]}
+    runtime_auth = {"ownerToken": "1234567890abcdef"}
+    (runtime_dir / "config.json").write_text(json.dumps(runtime_config), encoding="utf-8")
+    (runtime_dir / "auth.json").write_text(json.dumps(runtime_auth), encoding="utf-8")
+
+    monkeypatch.setenv("HOME", str(home))
+
+    rc = devspace_local.main(["--repo-root", str(repo), "--config", str(runtime), "home-pull"])
+
+    assert rc == 0
+    assert json.loads((private_dir / "devspace.home.config.json").read_text(encoding="utf-8")) == runtime_config
+    assert json.loads((private_dir / "devspace.home.auth.json").read_text(encoding="utf-8")) == runtime_auth
+
+
 def test_devspace_example_config_targets_current_repo():
     example_path = ROOT / "agent" / "devspace.runtime.example.jsonc"
     example = example_path.read_text(encoding="utf-8")
