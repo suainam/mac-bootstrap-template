@@ -175,6 +175,15 @@ configure_antigravity_step
 print_step_header "Step 12 — Security scan (AgentShield)"
 configure_security_scan_step
 
+print_step_header "Step 12b — Repo Git Hooks"
+if git -C "$BOOTSTRAP/.." rev-parse --git-dir >/dev/null 2>&1; then
+  run chmod +x "$BOOTSTRAP/agent/quality-gates/hooks/pre-commit" "$BOOTSTRAP/agent/quality-gates/hooks/pre-push"
+  run git -C "$BOOTSTRAP/.." config core.hooksPath template/agent/quality-gates/hooks
+  echo "  core.hooksPath -> template/agent/quality-gates/hooks"
+else
+  echo "  SKIP: current checkout is not a git worktree"
+fi
+
 echo ""
 echo "=== Done ==="
 echo "Run 'make doctor' or 'scripts/agent-doctor.sh' to verify."

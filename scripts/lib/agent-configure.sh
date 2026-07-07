@@ -322,6 +322,26 @@ const contextModeSopHook = {
   }]
 };
 
+const qualityGatePreCommitHook = {
+  matcher: "git commit|pre-commit",
+  hooks: [{
+    type: "command",
+    command: "cd ~/work/config/mac-bootstrap && template/scripts/agent-quality-gate.sh pre-commit # QUALITY GATE PRE-COMMIT",
+    timeout: 120,
+    statusMessage: "Running quality gate pre-commit..."
+  }]
+};
+
+const qualityGatePrePushHook = {
+  matcher: "git push|pre-push",
+  hooks: [{
+    type: "command",
+    command: "cd ~/work/config/mac-bootstrap && template/scripts/agent-quality-gate.sh pre-push # QUALITY GATE PRE-PUSH",
+    timeout: 1800,
+    statusMessage: "Running quality gate pre-push..."
+  }]
+};
+
 function ensureSessionStartHook(entry, marker, addedMsg, existsMsg) {
   const ss = hooks.hooks.SessionStart || [];
   const exists = ss.some(e =>
@@ -332,6 +352,23 @@ function ensureSessionStartHook(entry, marker, addedMsg, existsMsg) {
   if (!exists) {
     ss.push(entry);
     hooks.hooks.SessionStart = ss;
+    console.log(addedMsg);
+    return true;
+  }
+  console.log(existsMsg);
+  return false;
+}
+
+function ensureUserPromptHook(entry, marker, addedMsg, existsMsg) {
+  const ups = hooks.hooks.UserPromptSubmit || [];
+  const exists = ups.some(e =>
+    e.matcher === entry.matcher &&
+    Array.isArray(e.hooks) &&
+    e.hooks.some(h => h.command && h.command.includes(marker))
+  );
+  if (!exists) {
+    ups.push(entry);
+    hooks.hooks.UserPromptSubmit = ups;
     console.log(addedMsg);
     return true;
   }
@@ -351,6 +388,18 @@ const changed = [
     "CONTEXT-MODE SOP:",
     "  Added context-mode SOP hook to Codex hooks.json",
     "  Context-mode SOP hook already in Codex hooks.json"
+  ),
+  ensureUserPromptHook(
+    qualityGatePreCommitHook,
+    "QUALITY GATE PRE-COMMIT",
+    "  Added quality gate pre-commit hook to Codex hooks.json",
+    "  Quality gate pre-commit hook already in Codex hooks.json"
+  ),
+  ensureUserPromptHook(
+    qualityGatePrePushHook,
+    "QUALITY GATE PRE-PUSH",
+    "  Added quality gate pre-push hook to Codex hooks.json",
+    "  Quality gate pre-push hook already in Codex hooks.json"
   ),
 ].some(Boolean);
 

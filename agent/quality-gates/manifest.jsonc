@@ -1,0 +1,75 @@
+{
+  "bypass": {
+    "env_var": "QUALITY_GATES_BYPASS",
+    "log_file": "$HOME/.codex/logs/quality-gates-bypass.log"
+  },
+  "classes": {
+    "docs-only": {
+      "globs": [
+        "docs/**",
+        "*.md",
+        "template/docs/**",
+        "template/agent/README.md",
+        "CLAUDE.md"
+      ]
+    },
+    "private-config": {
+      "globs": [
+        "private/**"
+      ]
+    },
+    "python": {
+      "globs": [
+        "template/**/*.py",
+        "template/tests/**/*.py",
+        "tests/**/*.py"
+      ]
+    },
+    "agent-hooking": {
+      "globs": [
+        "template/agent/**",
+        "template/scripts/lib/agent-configure.sh",
+        "template/scripts/agent-doctor.sh"
+      ]
+    }
+  },
+  "events": {
+    "pre-commit": {
+      "default_gates": [
+        "classify",
+        "docs-precheck"
+      ],
+      "class_gates": {
+        "python": [
+          "python-fast-static",
+          "python-focused-tests"
+        ],
+        "agent-hooking": [
+          "python-fast-static"
+        ]
+      }
+    },
+    "pre-push": {
+      "default_gates": [
+        "classify",
+        "neat-freak-apply",
+        "make-check",
+        "make-doctor",
+        "make-doctor-agent"
+      ],
+      "class_gates": {
+        "python": [
+          "python-heavy-static",
+          "python-heavy-tests"
+        ],
+        "agent-hooking": [
+          "python-heavy-static",
+          "python-heavy-tests"
+        ]
+      },
+      "post_success": [
+        "knowledge-record"
+      ]
+    }
+  }
+}

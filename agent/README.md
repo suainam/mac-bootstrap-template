@@ -52,6 +52,7 @@ bootstrap/agent/rules/python/         ← Canonical python rules
 single distribution entrypoint for:
 - OpenCode `AGENTS.md` (embeds 12-rules from canonical file)
 - Codex `hooks.json` (adds caveman hooks + context-mode)
+- Quality gate policy under `template/agent/quality-gates/manifest.jsonc`
 - Caveman default mode (`~/.config/caveman/config.json`)
 - Pi `settings.json` + `mcp.json` + AGENTS.md ref
 - Reasonix config.json + skills
@@ -66,6 +67,15 @@ single distribution entrypoint for:
 The script is intentionally split by responsibility:
 
 - `scripts/install-agent-tooling.sh` — thin step runner / orchestration only
+
+## Agent Quality Gates
+
+- Policy source: `template/agent/quality-gates/manifest.jsonc`
+- Runner source: `template/scripts/agent-quality-gate.sh`
+- Installed Codex hooks are thin adapters only.
+- `pre-commit` is fast and path-sensitive.
+- `pre-push` is authoritative and runs doc alignment, repo validation, and knowledge recording.
+- `QUALITY_GATES_BYPASS=1` is break-glass only and is reported by doctor output.
 - `scripts/lib/agent-shared.sh` — shell helpers (run/try_run, managed block writes)
 - `scripts/lib/agent-manifest.sh` — manifest/path resolution
 - `scripts/lib/agent-mcp.sh` — shared MCP/JSON config writers

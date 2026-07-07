@@ -10,6 +10,7 @@ PYTHON ?= .venv/bin/python
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
 	devspace-home-push devspace-home-pull \
+	quality-gate-pre-commit quality-gate-pre-push quality-gate-doctor \
 	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
 	imgup-install imgup
 
@@ -69,6 +70,9 @@ help:
 	@echo "  devspace-tunnel        Run configured Cloudflare Tunnel in foreground"
 	@echo "  devspace-home-push     Mirror private DevSpace home files into ~/.devspace"
 	@echo "  devspace-home-pull     Pull ~/.devspace files into private/agent mirror"
+	@echo "  quality-gate-pre-commit Run the fast quality gate plan"
+	@echo "  quality-gate-pre-push   Run the heavy quality gate plan"
+	@echo "  quality-gate-doctor     Print quality gate plan and health inputs"
 	@echo "  devspace-install-agent Install and start DevSpace LaunchAgents"
 	@echo "  devspace-unload-agent  Stop and remove DevSpace LaunchAgents"
 	@echo "  devspace-status        Show DevSpace LaunchAgent status and local health"
@@ -129,7 +133,7 @@ check:
 	bash -n scripts/lib/agent-mcp.sh
 	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
-	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/check-skill-scope.py scripts/skill_scope_manifest.py scripts/devspace_local.py
+	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/check-skill-scope.py scripts/skill_scope_manifest.py scripts/devspace_local.py scripts/agent_quality_gate.py
 	$(PYTHON) scripts/check-skill-scope.py
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
@@ -163,6 +167,9 @@ check:
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/tmux-workspace.sh
 	bash -n scripts/switch-terminal-theme.sh
+	bash -n scripts/agent-quality-gate.sh
+	bash -n scripts/neat-freak-gate.sh
+	bash -n scripts/knowledge-record-gate.sh
 	bash -n scripts/devspace-local.sh
 	bash -n scripts/devspace-supervisor.sh
 	bash -n scripts/devspace-tunnel-supervisor.sh
@@ -196,6 +203,15 @@ devspace-home-push:
 
 devspace-home-pull:
 	./scripts/devspace-local.sh home-pull
+
+quality-gate-pre-commit:
+	./scripts/agent-quality-gate.sh pre-commit
+
+quality-gate-pre-push:
+	./scripts/agent-quality-gate.sh pre-push
+
+quality-gate-doctor:
+	./scripts/agent-quality-gate.sh doctor
 
 devspace-install-agent:
 	./scripts/install-devspace-agents.sh install

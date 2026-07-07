@@ -395,10 +395,16 @@ This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
 - RTK global hook, Codex config, OpenCode plugin, Pi extension
 - Context Mode Claude plugin + OpenCode plugin
 - Caveman with **ultra** mode for Claude, Codex, OpenCode, and Pi
+- Agent quality gate policy + runner wiring
 - Codebase Memory MCP installer with auto_index config
 - 12 operating rules embedded in all agent system prompts
 - Finer-grained hook matchers (console.log guards, destructive op warnings)
 - MCP profile system (`ECC_DISABLED_MCPS` env var)
+
+Quality gate model:
+- `pre-commit` is the fast path for scoped checks
+- `pre-push` is the authoritative path for heavy validation and knowledge recording
+- installed Codex hooks are adapters; repo-owned scripts execute the actual gate logic
 
 Skill management rule:
 - Treat `template/agent/skills/personal/` as the only source tree for
