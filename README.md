@@ -1,4 +1,6 @@
-# mac-bootstrap
+# mac-bootstrap 模板
+
+> 中文导航：模板架构与公共边界见 `CONTEXT.md`；agent 修改规则见 `CLAUDE.md`；可复用专题说明见 `docs/README.md`。当前机器的真实配置、私有地址、订阅与实例运维说明属于私有父仓。
 
 New-machine bootstrap for this Mac setup.
 

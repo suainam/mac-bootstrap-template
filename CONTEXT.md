@@ -1,69 +1,75 @@
-# mac-bootstrap — Domain Context
+# mac-bootstrap 模板上下文
 
-## Purpose
+> 本文件解释公开模板的架构、公共边界和权威来源。当前机器的真实配置与运行层级属于私有父仓，不写入本仓。
 
-macOS development environment bootstrap. Installs CLI tools, desktop apps, agent tooling,
-and configurations via Homebrew + shell scripts. Designed to be rerunnable and idempotent.
-Terminal workflow now prefers tmux. The first verification path is
-`make tmux-workspace`, which enters the AI layout through the same shell startup
-path used by day-to-day work. Hammerspoon is the system-control tier. Keep its
-hotkeys global and Hyper-based; keep tmux pane keys local to the terminal so
-the two layers do not fight. Input methods stay under macOS/user control rather
-than Hammerspoon automation.
+## 定位
 
-## Bootstrap Phases
+这是一个可重复执行、尽量幂等的 macOS 开发环境 bootstrap 模板。它通过 Homebrew、Shell 脚本与数据清单安装 CLI、桌面应用、终端环境、agent 工具和常用配置。
 
-| Phase | Script | What happens |
-|-------|--------|-------------|
-| Brew | `Brewfile` + `brew-bundle.sh` | Homebrew formulae, casks, npm packages, fonts |
-| Shell | `install.sh` | Shell config (zsh), git, vim, neovim, tmux, VS Code |
-| Docker | `infra/docker/install.sh` | Colima VM, 9Router proxy, Docker Compose |
-| Agent | `install-agent-tooling.sh` | Skills, MCP, RTK, caveman, Pi config, CRG |
-| Pi | `install-pi-packages.sh` | Pi-native packages (from `pi-packages.txt`) |
-| Obsidian | `editors/obsidian/install.sh` | Vault-local templates and portable `.obsidian` config |
-| Ghostty | `terminals/ghostty/repair-fonts.sh` | Re-register existing Liga SFMono Nerd Font files |
+模板只拥有可公开、可复用的能力与默认值；私有父仓通过 overlay 提供机器专属配置。所有修改都应先判断：它是否能脱离当前机器仍然成立？能，则属于模板；不能，则属于父仓 `private/`。
 
-## Data Files Convention
+## Bootstrap 阶段
 
-Canonical package/config lists live in standalone data files, not inline in scripts.
-This is the pattern established by `pi-packages.txt` and `skills-promote.txt`.
+| 阶段 | 主要入口 | 负责内容 |
+|---|---|---|
+| Brew | `Brewfile`、`brew-bundle.sh` | formula、cask、npm 包与字体 |
+| Shell | `install.sh` | zsh、git、vim、neovim、tmux 与 VS Code |
+| Docker | `infra/docker/install.sh` | Colima、代理与 Docker Compose |
+| Agent | `install-agent-tooling.sh` | skills、MCP、RTK、caveman、Pi 与 CRG |
+| Pi | `install-pi-packages.sh` | Pi 原生包 |
+| Obsidian | `editors/obsidian/install.sh` | 可复用 vault 配置与模板 |
+| Ghostty | `terminals/ghostty/repair-fonts.sh` | 字体修复 |
 
-| Data file | Purpose |
-|-----------|---------|
-| `Brewfile` | Homebrew formula/cask/npm manifest |
-| `agent/pi-packages.txt` | Pi package references |
-| `agent/skills-promote.txt` | Upstream skill promotion whitelist |
-| `agent/skills-manifest.json` | First-party skill global/project scope |
-| `infra/python/requirements-common.txt` | Python data-analysis dependencies |
-| `editors/vscode/extensions.txt` | VS Code extension IDs |
-| `editors/obsidian/vault/` | Reusable Obsidian vault config and templates |
-| `scripts/doctor-manifest.json` | Data-driven doctor checks and cask overrides |
+## 终端与系统控制边界
 
-Manual app notes live in `docs/manual-apps.md`; keep app bundle override data in
-`scripts/doctor-manifest.json`.
+- tmux 是日常终端工作区与会话层；首个验证路径是 `make tmux-workspace`，因为它复用日常 shell startup 路径。
+- Hammerspoon 是系统级控制层：全局快捷键、窗口编排、剪贴板辅助与终端启动入口属于该层。快捷键应保持全局且以 Hyper 为主。
+- tmux pane 快捷键只在终端内部生效；不得与 Hammerspoon 的全局快捷键竞争。
+- 输入法保持由 macOS 与用户控制；不得引入 Hammerspoon 自动切换输入法的行为。
 
-## Agent Architecture
+## 公共权威来源
 
-6 managed agents: Claude Code, Codex CLI, OpenCode, Pi, Reasonix, Antigravity.
-Each has a path registry in `agent/agent-manifest.json`.
-Skills are wired from upstream repos (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian)
-via `sync-agent-upstreams.sh`.
+| 内容 | 权威来源 | 说明 |
+|---|---|---|
+| 软件与工具清单 | `Brewfile` | 不把包名硬编码到安装脚本 |
+| Pi 包清单 | `agent/pi-packages.txt` | 独立数据文件 |
+| skill 白名单与作用域 | `agent/skills-promote.txt`、`agent/skills-manifest.json` | 分发策略见 `agent/skills-distribution.json` |
+| Python 公共依赖 | `infra/python/requirements-common.txt` | 供数据分析环境复用 |
+| VS Code 扩展 | `editors/vscode/extensions.txt` | 仅维护扩展 ID |
+| doctor 检查 | `scripts/doctor-manifest.json` | 数据驱动检查与 cask 覆盖 |
+| 私有覆盖契约 | `docs/private-overlay.md` | 说明父仓 overlay 的边界与优先级 |
 
-The agent bootstrap path is now split by responsibility:
+数据清单应保持独立；不要把清单内容复制进脚本、README 或 agent 规则。
 
-- `scripts/install-agent-tooling.sh` remains the top-level orchestrator.
-- `scripts/lib/agent-shared.sh`, `scripts/lib/agent-manifest.sh`, and
-  `scripts/lib/skill-wiring.sh` hold reusable shell logic.
-- `scripts/render-codex-mcp-block.py` and
-  `scripts/sync-codex-mcp-config.py` own idempotent Codex MCP rendering.
-- `scripts/run-doctor-checks.py` and `scripts/doctor-manifest.json` make
-  doctor checks data-driven from `Brewfile` instead of hardcoded case lists,
-  and also verify managed symlinks still point at the current template paths.
+## Private Overlay 边界
 
-## Key Terms
+公开模板通过私有父仓中的 `private/` 接收机器差异。真实账号、订阅、token、内网地址、私网 IP、当前机器绝对路径和本机运行状态都不属于模板。
 
-- **Upstream**: remote skill repos cloned to `~/.agent/upstream/`
-- **Promote**: whitelist a skill from upstream into `~/.agent/skills/`
-- **ECC**: everything-claude-code — the primary upstream material library
-- **Obsidian skills**: Kepano Obsidian skills promoted from `kepano/obsidian-skills`
-- **Data file**: a standalone file holding a list of packages, skills, or mappings (not code)
+覆盖规则、刷新流程和发布前隐私检查以 `docs/private-overlay.md` 为准。修改模板时必须保持 overlay 可用，不得因重命名、硬编码路径或删去 fallback 破坏已有私有配置。
+
+## Agent 架构
+
+受管 agent 包括 Claude Code、Codex CLI、OpenCode、Pi、Reasonix 与 Antigravity；其路径与配置目标由 `agent/agent-manifest.json` 统一描述。skill 的来源、作用域与分发分别由 manifest、promote list 和 distribution 文件控制；最终的 agent 目录是派生产物，不是默认编辑入口。
+
+顶层 orchestrator 是 `scripts/install-agent-tooling.sh`。可复用 shell 逻辑位于 `scripts/lib/`；Codex MCP 渲染由专用脚本负责；doctor 检查由 `scripts/run-doctor-checks.py` 与 manifest 驱动。
+
+## 文档边界
+
+| 文件 | 职责 |
+|---|---|
+| `README.md` | 模板用途、首次安装、常用入口 |
+| `CONTEXT.md` | 本文件：架构、公共权威来源、边界与术语 |
+| `CLAUDE.md` / `AGENTS.md` | agent 修改模板时的稳定执行约束 |
+| `docs/` | 可跨机器复用的专题操作与 runbook |
+
+不要在多份文档复制完整机制。保留一个权威详述，其余文档只保留必要指针。
+
+## 防漂移
+
+使用 `neat-freak` skill 时，检查。显式调用格式由宿主决定：当前 Codex 使用 `$neat-freak`；支持 slash command 的宿主可使用其已注册入口。
+
+1. 模板中是否混入私有父仓事实或敏感信息。
+2. README、CONTEXT、规则文件和 `docs/README.md` 是否仍按职责分层。
+3. 清单、脚本与文档对同一机制的描述是否一致。
+4. 引用的路径、命令与专题文档是否存在。
+5. `AGENTS.md` 是否仍与 `CLAUDE.md` 同源；不能让两份规则各自演化。
