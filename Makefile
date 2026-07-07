@@ -8,7 +8,8 @@ PYTHON ?= .venv/bin/python
 	skill-route-show skill-route-list skill-route-default skill-scope-check skill-scope-refresh skill-refresh prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
-	install-workbuddy
+	install-workbuddy \
+	imgup-install imgup
 
 help:
 	@echo "Usage: make <target>"
@@ -86,6 +87,10 @@ help:
 	@echo "  pm-set                 Set global package manager"
 	@echo "  mcp-profiles           Setup MCP profiles"
 	@echo "  hook-matchers          Add hook matchers"
+	@echo ""
+	@echo "── ImgBed ──"
+	@echo "  imgup                  Upload images to CloudFlare-ImgBed (alias for imgup-install)"
+	@echo "  imgup-install          Install imgup CLI symlink + validate config"
 
 bootstrap install:
 	./install.sh --yes --with-vim --with-neovim --cleanup
@@ -140,6 +145,8 @@ check:
 	bash -n terminals/iterm2/switch-theme.sh
 	bash -n desktop/hammerspoon/install.sh
 	luac -p desktop/hammerspoon/init.lua
+	bash -n scripts/install-imgup.sh
+	bash -n scripts/imgup.sh
 	bash -n scripts/claude-daemon-tmux.sh
 	bash -n scripts/tmux-workspace.sh
 	bash -n scripts/switch-terminal-theme.sh
@@ -342,6 +349,11 @@ theme-list:
 # ── WorkBuddy ────────────────────────────────────────────────────────
 install-workbuddy:
 	./scripts/install-workbuddy.sh
+
+imgup-install:
+	./scripts/install-imgup.sh
+
+imgup: imgup-install
 
 # ── Cold Start (Proxy Bootstrap) ────────────────────────────────────
 cold-start:

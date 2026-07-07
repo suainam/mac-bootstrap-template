@@ -15,6 +15,7 @@ brew "tree-sitter-cli"
 
 # ========== Shell 增强 ==========
 brew "fzf"
+brew "pngpaste"
 brew "tmux"
 brew "lua"
 brew "direnv"

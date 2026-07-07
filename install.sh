@@ -186,6 +186,9 @@ ln -sf "$DIR/scripts/clear-proxies.sh" "$HOME/.local/bin/proxy-off.sh"
 chmod +x "$HOME/.local/bin/proxy-off.sh"
 echo "  ~/.local/bin/proxy-off.sh -> scripts/clear-proxies.sh"
 
+echo "=== Install imgup (ImgBed uploader) ==="
+"$DIR/scripts/install-imgup.sh"
+
 echo "=== Install Hammerspoon config ==="
 "$DIR/desktop/hammerspoon/install.sh"
 

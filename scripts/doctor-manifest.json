@@ -35,6 +35,7 @@
     "~/.local/bin/tmux-open-yazi.sh": "scripts/tmux-open-yazi.sh",
     "~/.local/bin/proxy-on.sh": "scripts/configure-proxies.sh",
     "~/.local/bin/proxy-off.sh": "scripts/clear-proxies.sh",
+    "~/.local/bin/imgup": "scripts/imgup.sh",
     "~/work/Makefile": "workspace/Makefile",
     "~/work/PROJECTS_GUIDE.md": "workspace/PROJECTS_GUIDE.md",
     "~/work/scripts": "workspace/scripts"
