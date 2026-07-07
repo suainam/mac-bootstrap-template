@@ -20,10 +20,10 @@ def test_makefiles_expose_quality_gate_targets():
 def test_agent_configure_wires_codex_quality_gate_hooks():
     content = read("scripts/lib/agent-configure.sh")
 
+    assert "Removed legacy quality gate prompt hooks from Codex hooks.json" in content
     assert "QUALITY GATE PRE-COMMIT" in content
     assert "QUALITY GATE PRE-PUSH" in content
-    assert "agent-quality-gate.sh pre-commit" in content
-    assert "agent-quality-gate.sh pre-push" in content
+    assert "removeUserPromptHooks" in content
 
 
 def test_agent_doctor_verifies_quality_gate_assets():
@@ -33,6 +33,7 @@ def test_agent_doctor_verifies_quality_gate_assets():
     assert "agent-quality-gate.sh" in content
     assert "knowledge-record-gate.sh" in content
     assert "neat-freak-gate.sh" in content
+    assert "no legacy Codex quality gate prompt hooks" in content
 
 
 def test_repo_managed_git_hooks_delegate_to_quality_gate_runner():

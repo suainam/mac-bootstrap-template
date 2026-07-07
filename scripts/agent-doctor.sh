@@ -219,8 +219,6 @@ check_contains "config.toml context-mode ctx_index approval" "$CODEX_TOML" 'mcp_
 check_contains "config.toml context-mode ctx_doctor approval" "$CODEX_TOML" 'mcp_servers.context-mode.tools.ctx_doctor'
 check_contains "hooks.json context-mode SOP reminder" "$CODEX_HOOKS" 'CONTEXT-MODE SOP:'
 check_contains "quality gate manifest" "$BOOTSTRAP/agent/quality-gates/manifest.jsonc" '"events"'
-check_contains "Codex quality gate pre-commit hook" "$CODEX_HOOKS" 'QUALITY GATE PRE-COMMIT'
-check_contains "Codex quality gate pre-push hook" "$CODEX_HOOKS" 'QUALITY GATE PRE-PUSH'
 check_contains "quality gate runner" "$BOOTSTRAP/scripts/agent-quality-gate.sh" 'agent_quality_gate.py'
 check_contains "neat-freak adapter" "$BOOTSTRAP/scripts/neat-freak-gate.sh" 'check|apply'
 check_contains "knowledge record adapter" "$BOOTSTRAP/scripts/knowledge-record-gate.sh" 'record-push'
@@ -228,6 +226,11 @@ if [ "$(git -C "$BOOTSTRAP/.." config --get core.hooksPath 2>/dev/null || true)"
   echo "  OK   core.hooksPath -> template/agent/quality-gates/hooks"
 else
   echo "  MISS core.hooksPath quality gate hooks"
+fi
+if grep -q 'QUALITY GATE PRE-' "$CODEX_HOOKS" 2>/dev/null; then
+  echo "  WARN legacy Codex quality gate prompt hooks still present"
+else
+  echo "  OK   no legacy Codex quality gate prompt hooks"
 fi
 
 echo ""

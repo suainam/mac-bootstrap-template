@@ -72,7 +72,8 @@ The script is intentionally split by responsibility:
 
 - Policy source: `template/agent/quality-gates/manifest.jsonc`
 - Runner source: `template/scripts/agent-quality-gate.sh`
-- Installed Codex hooks are thin adapters only.
+- Repo-managed git hooks are authoritative for real `commit` / `push` events.
+- Codex `hooks.json` does not own quality gate execution and should not guess git intent from prompts.
 - `pre-commit` is fast and path-sensitive.
 - `pre-push` is authoritative and runs doc alignment, repo validation, and knowledge recording.
 - `QUALITY_GATES_BYPASS=1` is break-glass only and is reported by doctor output.
