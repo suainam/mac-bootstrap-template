@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -144,17 +145,45 @@ def test_build_push_knowledge_payload_carries_commit_subjects_not_gate_tokens(mo
     assert "agent_quality_gate.py" in payload["content"]
     assert "执行门禁" not in payload["content"]
     assert payload["background"].strip() != ""
+    # Tags must be pure-Chinese labels; English class is mapped
+    assert payload["tags"] == "推送记录,代码"
 
 
-def test_knowledge_record_gate_accepts_chinese_dominant_push_summary_with_gate_tokens():
+def test_knowledge_record_gate_does_not_append_chinese_filler(tmp_path):
+    payload = json.dumps({
+        "title": "推送变更记录",
+        "content": "本次推送包含 1 个提交，变更分类：python。",
+        "background": "推送范围的实质性变更记录。",
+        "why_record": "沉淀本次推送的真实变更内容。",
+        "tags": "推送记录,代码",
+        "project_path": str(tmp_path),
+        "date": "2026-07-08",
+    }, ensure_ascii=False)
+    result = subprocess.run(
+        [str(ROOT / "scripts" / "knowledge-record-gate.sh"), "record-push", payload, "--dry-run"],
+        cwd=ROOT.parent,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "补充说明" not in result.stdout
+    assert "补充说明" not in result.stderr
+
+
+def test_knowledge_record_gate_accepts_substance_push_summary():
     payload = (
-        '{"title":"推送质量门禁记录",'
-        '"content":"本次推送通过质量门禁。变更分类：docs-only。执行门禁：classify、make-check、make-doctor。'
-        '影响路径：docs/superpowers/specs/2026-07-07-agent-quality-gates-design.md。",'
-        '"background":"自动记录一次推送级别的质量门禁结果，方便后续追溯自动化约束与影响范围。",'
-        '"why_record":"沉淀一次真实发生的推送质量门禁结果与影响范围。",'
-        '"tags":"质量门禁,自动记录",'
-        f'"project_path":"{ROOT.parent}","date":"2026-07-07"}}'
+        '{"title":"推送变更记录",'
+        '"content":"本次推送共包含 2 个提交，变更分类为：python。'
+        '本次推送围绕 python 相关改动展开，目的是把质量门禁自动记录的侧重点'
+        '从门禁流水调整为本次推送的真实变更内容，便于后续检索与复盘。'
+        '下方的提交说明与影响路径均来自 git 提交历史，原文保留以供精确检索。'
+        '各条提交说明如下：\\n  - 提交：feat: add quality gate\\n  - 提交：fix: correct diffstat\\n'
+        '本次推送影响的具体文件路径为：scripts/agent_quality_gate.py\\n",'
+        '"background":"这是推送范围 origin/main..HEAD 的实质性变更记录：变更分类为 python，共涉及 1 个文件。",'
+        '"why_record":"沉淀本次推送的真实变更内容与影响范围，便于复盘与检索。",'
+        '"tags":"推送记录,代码",'
+        f'"project_path":"{ROOT.parent}","date":"2026-07-08"}}'
     )
 
     result = subprocess.run(

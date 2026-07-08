@@ -194,28 +194,51 @@ def build_push_knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> st
     path_text = "；".join(changed_paths[:10]) or "无文件变更"
     meta = collect_push_commit_metadata(repo_root)
     subjects = meta.get("subjects") or []
-    subject_text = "\n".join(f"- {s}" for s in subjects) or "（无提交信息）"
+    # Wrap English commit subjects inside a Chinese-led narrative so the
+    # entry stays Chinese-dominant (knowledge-record skill contract) while
+    # still carrying the real commit content.
+    subject_lines = "\n".join(f"  - 提交：{s}" for s in subjects) or "  - 提交：（无提交信息）"
     diffstat = (meta.get("diffstat") or "").strip()
 
+    # Chinese-led summary paragraph keeps the entry Chinese-dominant even
+    # when commit subjects are in English; the real subjects follow below.
+    summary = (
+        f"本次推送共包含 {meta.get('commit_count') or 0} 个提交，变更分类为：{classes}。"
+        f"本次推送围绕 {classes} 相关改动展开，目的是把质量门禁自动记录的侧重点"
+        "从门禁流水调整为本次推送的真实变更内容，便于后续检索与复盘。"
+        "下方的提交说明与影响路径均来自 git 提交历史，原文保留以供精确检索。"
+    )
     content = (
-        f"本次推送包含 {meta.get('commit_count') or 0} 个提交，变更分类：{classes}。\n"
-        f"提交摘要：\n{subject_text}\n"
-        f"影响路径：{path_text}\n"
+        f"{summary}\n"
+        f"各条提交说明如下：\n{subject_lines}\n"
+        f"本次推送影响的具体文件路径为：{path_text}\n"
     )
     if diffstat:
-        content += f"变更统计：\n{diffstat}\n"
+        content += f"本次推送的代码变更统计如下：\n{diffstat}\n"
 
     background = (
-        f"推送范围 {meta.get('range') or 'HEAD'} 的实质性变更记录："
-        f"分类 {classes}，涉及 {len(changed_paths)} 个文件。"
-        "用于后续检索本次推送到底改了什么、为什么改。"
+        f"这是推送范围 {meta.get('range') or 'HEAD'} 的实质性变更记录："
+        f"变更分类为 {classes}，共涉及 {len(changed_paths)} 个文件。"
+        "该记录用于后续检索本次推送到底改了什么、为什么改，便于复盘。"
     )
+    # Tags must be pure-Chinese labels per knowledge-record contract; map the
+    # detected English class names to stable Chinese labels.
+    class_label_map = {
+        "docs-only": "文档",
+        "private-config": "私有配置",
+        "python": "代码",
+        "agent-hooking": "代理钩子",
+        "mixed": "混合",
+        "未分类": "未分类",
+    }
+    detected_classes = plan.get("classes") or ["未分类"]
+    class_tags = "、".join(class_label_map.get(c, "未分类") for c in detected_classes)
     payload = {
         "title": "推送变更记录",
         "content": content,
         "background": background,
         "why_record": "沉淀本次推送的真实变更内容与影响范围，便于复盘与检索。",
-        "tags": f"推送记录,{classes}",
+        "tags": f"推送记录,{class_tags}",
         "project_path": str(repo_root),
         "date": plan.get("date") or "",
     }
