@@ -130,6 +130,39 @@ def collect_changed_paths(event: str, repo_root: Path) -> list[str]:
     return []
 
 
+def collect_push_commit_metadata(repo_root: Path) -> dict[str, Any]:
+    """Derive push-range substance from git: subjects, diffstat, count, range.
+
+    Deterministic, model-free. Used to enrich the knowledge entry so it
+    records what changed, not just which gates ran.
+    """
+    upstream = _git_output(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        repo_root,
+    )
+    if upstream:
+        range_spec = f"{upstream[0]}..HEAD"
+    else:
+        range_spec = "HEAD"
+    subjects = _git_output(
+        ["git", "log", "--no-merges", "--pretty=format:%s", range_spec],
+        repo_root,
+    )
+    if upstream:
+        diffstat_lines = _git_output(["git", "diff", "--stat", range_spec], repo_root)
+    else:
+        diffstat_lines = _git_output(
+            ["git", "show", "--stat", "--format=", "HEAD"], repo_root
+        )
+    diffstat = "\n".join(diffstat_lines)
+    return {
+        "subjects": subjects,
+        "diffstat": diffstat,
+        "commit_count": len(subjects),
+        "range": range_spec,
+    }
+
+
 def _python_paths(paths: list[str]) -> list[str]:
     return [path for path in paths if path.endswith(".py")]
 

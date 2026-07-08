@@ -99,6 +99,23 @@ def test_select_repo_gate_scope_uses_parent_for_parent_operational_changes():
     assert scope == "parent"
 
 
+def test_collect_push_commit_metadata_returns_subjects_and_diffstat(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    (repo / "a.md").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "docs: add a.md"], cwd=repo, check=True)
+
+    meta = quality_gate.collect_push_commit_metadata(repo)
+
+    assert meta["commit_count"] >= 1
+    assert any("add a.md" in s for s in meta["subjects"])
+    assert "a.md" in meta["diffstat"]
+
+
 def test_knowledge_record_gate_accepts_chinese_dominant_push_summary_with_gate_tokens():
     payload = (
         '{"title":"推送质量门禁记录",'
