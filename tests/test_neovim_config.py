@@ -60,3 +60,11 @@ def test_neovim_yazi_nvim_plugin_integrated():
     assert 'nvim-lua/plenary.nvim' in content
     assert 'version = "*"' in content
     assert "<leader>y" in content
+
+
+def test_neovim_disables_spell_for_markdown():
+    options_file = os.path.expanduser("~/.config/nvim/lua/config/options.lua")
+    content = open(options_file).read()
+    assert 'NoSpellForDocs' in content
+    assert '"markdown"' in content
+    assert "vim.opt_local.spell = false" in content

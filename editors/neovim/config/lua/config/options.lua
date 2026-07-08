@@ -46,3 +46,14 @@ vim.opt.relativenumber = true
 vim.opt.wrap = false
 vim.opt.scrolloff = 5
 vim.opt.sidescrolloff = 15
+
+-- LazyVim enables spell for markdown by default; turn it off so Chinese,
+-- code identifiers and proper nouns are not flagged as misspellings.
+vim.api.nvim_create_augroup("NoSpellForDocs", { clear = true })
+vim.api.nvim_create_autocmd("FileType", {
+  group = "NoSpellForDocs",
+  pattern = { "markdown", "markdown.mdx", "text", "plaintex", "tex", "rst", "asciidoc" },
+  callback = function()
+    vim.opt_local.spell = false
+  end,
+})
