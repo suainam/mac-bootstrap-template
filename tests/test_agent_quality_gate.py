@@ -116,6 +116,36 @@ def test_collect_push_commit_metadata_returns_subjects_and_diffstat(tmp_path):
     assert "a.md" in meta["diffstat"]
 
 
+def test_build_push_knowledge_payload_carries_commit_subjects_not_gate_tokens(monkeypatch):
+    import json
+
+    class FakeRoot:
+        pass
+
+    monkeypatch.setattr(
+        quality_gate, "collect_push_commit_metadata",
+        lambda repo_root: {
+            "subjects": ["feat: add quality gate", "fix: correct diffstat"],
+            "diffstat": " scripts/agent_quality_gate.py | 12 ++++++++++++\n 1 file changed",
+            "commit_count": 2,
+            "range": "origin/main..HEAD",
+        },
+    )
+    plan = {
+        "classes": ["python"],
+        "paths": ["scripts/agent_quality_gate.py"],
+        "gates": ["classify", "make-check", "python-heavy-static"],
+        "date": "2026-07-08",
+    }
+    payload = json.loads(quality_gate.build_push_knowledge_payload(plan, FakeRoot()))
+
+    assert "feat: add quality gate" in payload["content"]
+    assert "fix: correct diffstat" in payload["content"]
+    assert "agent_quality_gate.py" in payload["content"]
+    assert "执行门禁" not in payload["content"]
+    assert payload["background"].strip() != ""
+
+
 def test_knowledge_record_gate_accepts_chinese_dominant_push_summary_with_gate_tokens():
     payload = (
         '{"title":"推送质量门禁记录",'

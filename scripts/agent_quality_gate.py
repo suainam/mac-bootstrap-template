@@ -182,17 +182,40 @@ def select_repo_gate_scope(paths: list[str]) -> str:
     return "template"
 
 
-def _knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> str:
+def build_push_knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> str:
+    """Build a knowledge entry that records WHAT changed, not which gates ran.
+
+    Deterministic and model-free: derived entirely from git push-range data
+    plus the detected change classes. Avoids gate-internal tokens so the
+    entry is a reusable artifact, not a quality-gate receipt.
+    """
     classes = "、".join(plan.get("classes") or ["未分类"])
     changed_paths = plan.get("paths") or []
     path_text = "；".join(changed_paths[:10]) or "无文件变更"
-    gates = "、".join(plan.get("gates") or [])
+    meta = collect_push_commit_metadata(repo_root)
+    subjects = meta.get("subjects") or []
+    subject_text = "\n".join(f"- {s}" for s in subjects) or "（无提交信息）"
+    diffstat = (meta.get("diffstat") or "").strip()
+
+    content = (
+        f"本次推送包含 {meta.get('commit_count') or 0} 个提交，变更分类：{classes}。\n"
+        f"提交摘要：\n{subject_text}\n"
+        f"影响路径：{path_text}\n"
+    )
+    if diffstat:
+        content += f"变更统计：\n{diffstat}\n"
+
+    background = (
+        f"推送范围 {meta.get('range') or 'HEAD'} 的实质性变更记录："
+        f"分类 {classes}，涉及 {len(changed_paths)} 个文件。"
+        "用于后续检索本次推送到底改了什么、为什么改。"
+    )
     payload = {
-        "title": "推送质量门禁记录",
-        "content": f"本次推送通过质量门禁。变更分类：{classes}。执行门禁：{gates}。影响路径：{path_text}。",
-        "background": "自动记录一次推送级别的质量门禁结果，方便后续追溯自动化约束与影响范围。",
-        "why_record": "沉淀一次真实发生的推送质量门禁结果与影响范围。",
-        "tags": "质量门禁,自动记录",
+        "title": "推送变更记录",
+        "content": content,
+        "background": background,
+        "why_record": "沉淀本次推送的真实变更内容与影响范围，便于复盘与检索。",
+        "tags": f"推送记录,{classes}",
         "project_path": str(repo_root),
         "date": plan.get("date") or "",
     }
@@ -252,7 +275,7 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
 
     for gate in plan.get("post_success") or []:
         if gate == "knowledge-record":
-            payload = _knowledge_payload(plan, repo_root)
+            payload = build_push_knowledge_payload(plan, repo_root)
             command = [str(template_root / "scripts" / "knowledge-record-gate.sh"), "record-push", payload]
             if dry_run:
                 command.append("--dry-run")
