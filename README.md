@@ -107,12 +107,17 @@ and tmux as the workspace/session layer. Hammerspoon is the global tier: reload,
 placement, clipboard helpers, and terminal launcher hotkeys live there.
 Hammerspoon does not manage input methods. `tm` is terminal-local only.
 
-For file work inside the terminal, `yazi` is the interactive browser and `eza`
-is the fast read-only lister. Keep both inside tmux sessions; that replaces a
-lot of Finder-style navigation.
-Inside tmux, `prefix + y` opens `yazi` in the current directory.
-In the shell, `y` opens `yazi` and changes your cwd to the last directory you
-landed on when you quit.
+For file work inside the terminal, `yazi`, `fzf`, and `neovim` work together
+under a ghostty → tmux host:
+
+- In neovim, `<leader>y` opens yazi at the current file; `<leader>Y` opens it
+  in the nvim working directory. Selected files open in buffers with LSP sync.
+- In the shell, `ff` uses fzf to pick a file (Tab for multi-select) and opens it
+  in nvim; `fd` uses fzf to pick a directory and opens yazi there. `y` opens
+  yazi and changes your cwd to the last directory you landed on when you quit.
+- Inside tmux, `prefix + y` opens yazi in the current directory; `prefix + Y`
+  opens yazi as a chooser and sends the selected file back to the focused nvim
+  pane (or opens it in nvim). `eza` is the fast read-only lister.
 
 For remote `code-server` deployment and repair notes, see
 [`infra/code-server/README.md`](infra/code-server/README.md). That runbook
