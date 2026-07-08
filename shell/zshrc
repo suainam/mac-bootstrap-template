@@ -111,6 +111,34 @@ yy() {
     fi
 }
 
+# Fzf: pick a file and open it in nvim (Tab for multi-select)
+ff() {
+    if ! (( $+commands[fzf] )); then
+        echo "fzf not found in PATH. Install it with: brew install fzf" >&2
+        return 127
+    fi
+    local files
+    files=("${(@f)$(fzf --multi --preview 'bat --color=always --line-range :500 {}' 2>/dev/null)}")
+    [[ ${#files[@]} -eq 0 ]] && return 0
+    nvim -- "${files[@]}"
+}
+
+# Fzf: pick a directory and open yazi there
+fd() {
+    if ! (( $+commands[fzf] )); then
+        echo "fzf not found in PATH. Install it with: brew install fzf" >&2
+        return 127
+    fi
+    local dir
+    dir="$(fzf --type dir --preview 'eza --tree --level=1 --icons {}' 2>/dev/null)"
+    [[ -z "$dir" ]] && return 0
+    if (( $+commands[yazi] )); then
+        yazi "$dir"
+    else
+        cd -- "$dir"
+    fi
+}
+
 # ---------- Aliases ----------
 alias ls='ls -G'
 alias ll='ls -AFhlt'

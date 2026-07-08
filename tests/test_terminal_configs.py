@@ -109,3 +109,18 @@ def test_tmux_config_resets_append_only_options_before_readding():
 def test_zshrc_defers_host_aliases_to_private_overrides():
     content = open(os.path.expanduser("~/.zshrc")).read()
     assert "Host-specific SSH TERM wrappers belong in ~/.zshrc.local" in content
+
+
+def test_zshrc_defines_fzf_file_and_dir_launchers():
+    content = open(os.path.expanduser("~/.zshrc")).read()
+    assert "ff()" in content
+    assert "fd()" in content
+    assert "fzf" in content
+    assert "nvim" in content
+
+
+def test_tmux_open_yazi_supports_pick_mode():
+    script = os.path.expanduser("~/.local/bin/tmux-open-yazi.sh")
+    content = open(script).read()
+    assert "--chooser-file" in content
+    assert "--pick" in content

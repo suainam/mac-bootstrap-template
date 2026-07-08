@@ -51,3 +51,12 @@ def test_neovim_ai_completion_plugin_uses_minuet_openai_compatible_virtualtext()
     assert 'auto_trigger_ft = { "*" }' in content
     assert 'require("config.private_ai")' in content
     assert 'end_point = base_url .. "/chat/completions"' in content
+
+
+def test_neovim_yazi_nvim_plugin_integrated():
+    plugin_file = os.path.expanduser("~/.config/nvim/lua/plugins/yazi.lua")
+    content = open(plugin_file).read()
+    assert "mikavilpas/yazi.nvim" in content
+    assert 'nvim-lua/plenary.nvim' in content
+    assert 'version = "*"' in content
+    assert "<leader>y" in content
