@@ -143,17 +143,21 @@ def collect_push_commit_metadata(repo_root: Path) -> dict[str, Any]:
     if upstream:
         range_spec = f"{upstream[0]}..HEAD"
     else:
-        range_spec = "HEAD"
+        # No upstream: limit to the most recent commit so the entry reflects
+        # "this push" rather than the entire local history. Fall back to HEAD
+        # when the repo has only a single commit (HEAD~1 is invalid).
+        count = _git_output(["git", "rev-list", "--count", "HEAD"], repo_root)
+        range_spec = "HEAD" if (count and count[0] == "1") else "HEAD~1..HEAD"
     subjects = _git_output(
         ["git", "log", "--no-merges", "--pretty=format:%s", range_spec],
         repo_root,
     )
-    if upstream:
-        diffstat_lines = _git_output(["git", "diff", "--stat", range_spec], repo_root)
-    else:
+    if range_spec == "HEAD":
         diffstat_lines = _git_output(
             ["git", "show", "--stat", "--format=", "HEAD"], repo_root
         )
+    else:
+        diffstat_lines = _git_output(["git", "diff", "--stat", range_spec], repo_root)
     diffstat = "\n".join(diffstat_lines)
     # Cap subjects so an unbounded fallback range (no upstream) does not
     # dump the entire history into the knowledge entry.
