@@ -130,6 +130,50 @@ def collect_changed_paths(event: str, repo_root: Path) -> list[str]:
     return []
 
 
+def collect_push_commit_metadata(repo_root: Path) -> dict[str, Any]:
+    """Derive push-range substance from git: subjects, diffstat, count, range.
+
+    Deterministic, model-free. Used to enrich the knowledge entry so it
+    records what changed, not just which gates ran.
+    """
+    upstream = _git_output(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        repo_root,
+    )
+    if upstream:
+        range_spec = f"{upstream[0]}..HEAD"
+    else:
+        # No upstream: limit to the most recent commit so the entry reflects
+        # "this push" rather than the entire local history. Fall back to HEAD
+        # when the repo has only a single commit (HEAD~1 is invalid).
+        count = _git_output(["git", "rev-list", "--count", "HEAD"], repo_root)
+        range_spec = "HEAD" if (count and count[0] == "1") else "HEAD~1..HEAD"
+    subjects = _git_output(
+        ["git", "log", "--no-merges", "--pretty=format:%s", range_spec],
+        repo_root,
+    )
+    if range_spec == "HEAD":
+        diffstat_lines = _git_output(
+            ["git", "show", "--stat", "--format=", "HEAD"], repo_root
+        )
+    else:
+        diffstat_lines = _git_output(["git", "diff", "--stat", range_spec], repo_root)
+    diffstat = "\n".join(diffstat_lines)
+    # Cap subjects so an unbounded fallback range (no upstream) does not
+    # dump the entire history into the knowledge entry.
+    max_subjects = 20
+    truncated = len(subjects) > max_subjects
+    shown_subjects = subjects[:max_subjects]
+    if truncated:
+        shown_subjects.append(f"（另有 {len(subjects) - max_subjects} 个提交未列出）")
+    return {
+        "subjects": shown_subjects,
+        "diffstat": diffstat,
+        "commit_count": len(subjects),
+        "range": range_spec,
+    }
+
+
 def _python_paths(paths: list[str]) -> list[str]:
     return [path for path in paths if path.endswith(".py")]
 
@@ -149,17 +193,63 @@ def select_repo_gate_scope(paths: list[str]) -> str:
     return "template"
 
 
-def _knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> str:
+def build_push_knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> str:
+    """Build a knowledge entry that records WHAT changed, not which gates ran.
+
+    Deterministic and model-free: derived entirely from git push-range data
+    plus the detected change classes. Avoids gate-internal tokens so the
+    entry is a reusable artifact, not a quality-gate receipt.
+    """
     classes = "、".join(plan.get("classes") or ["未分类"])
     changed_paths = plan.get("paths") or []
     path_text = "；".join(changed_paths[:10]) or "无文件变更"
-    gates = "、".join(plan.get("gates") or [])
+    meta = collect_push_commit_metadata(repo_root)
+    subjects = meta.get("subjects") or []
+    # Wrap English commit subjects inside a Chinese-led narrative so the
+    # entry stays Chinese-dominant (knowledge-record skill contract) while
+    # still carrying the real commit content.
+    subject_lines = "\n".join(f"  - 提交：{s}" for s in subjects) or "  - 提交：（无提交信息）"
+    diffstat = (meta.get("diffstat") or "").strip()
+
+    # Chinese-led summary paragraph keeps the entry Chinese-dominant even
+    # when commit subjects are in English; the real subjects follow below.
+    summary = (
+        f"本次推送共包含 {meta.get('commit_count') or 0} 个提交，变更分类为：{classes}。"
+        f"本次推送围绕 {classes} 相关改动展开，目的是把质量门禁自动记录的侧重点"
+        "从门禁流水调整为本次推送的真实变更内容，便于后续检索与复盘。"
+        "下方的提交说明与影响路径均来自 git 提交历史，原文保留以供精确检索。"
+    )
+    content = (
+        f"{summary}\n"
+        f"各条提交说明如下：\n{subject_lines}\n"
+        f"本次推送影响的具体文件路径为：{path_text}\n"
+    )
+    if diffstat:
+        content += f"本次推送的代码变更统计如下：\n{diffstat}\n"
+
+    background = (
+        f"这是推送范围 {meta.get('range') or 'HEAD'} 的实质性变更记录："
+        f"变更分类为 {classes}，共涉及 {len(changed_paths)} 个文件。"
+        "该记录用于后续检索本次推送到底改了什么、为什么改，便于复盘。"
+    )
+    # Tags must be pure-Chinese labels per knowledge-record contract; map the
+    # detected English class names to stable Chinese labels.
+    class_label_map = {
+        "docs-only": "文档",
+        "private-config": "私有配置",
+        "python": "代码",
+        "agent-hooking": "代理钩子",
+        "mixed": "混合",
+        "未分类": "未分类",
+    }
+    detected_classes = plan.get("classes") or ["未分类"]
+    class_tags = "、".join(class_label_map.get(c, "未分类") for c in detected_classes)
     payload = {
-        "title": "推送质量门禁记录",
-        "content": f"本次推送通过质量门禁。变更分类：{classes}。执行门禁：{gates}。影响路径：{path_text}。",
-        "background": "自动记录一次推送级别的质量门禁结果，方便后续追溯自动化约束与影响范围。",
-        "why_record": "沉淀一次真实发生的推送质量门禁结果与影响范围。",
-        "tags": "质量门禁,自动记录",
+        "title": "推送变更记录",
+        "content": content,
+        "background": background,
+        "why_record": "沉淀本次推送的真实变更内容与影响范围，便于复盘与检索。",
+        "tags": f"推送记录,{class_tags}",
         "project_path": str(repo_root),
         "date": plan.get("date") or "",
     }
@@ -219,7 +309,7 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
 
     for gate in plan.get("post_success") or []:
         if gate == "knowledge-record":
-            payload = _knowledge_payload(plan, repo_root)
+            payload = build_push_knowledge_payload(plan, repo_root)
             command = [str(template_root / "scripts" / "knowledge-record-gate.sh"), "record-push", payload]
             if dry_run:
                 command.append("--dry-run")
