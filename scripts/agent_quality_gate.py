@@ -155,8 +155,15 @@ def collect_push_commit_metadata(repo_root: Path) -> dict[str, Any]:
             ["git", "show", "--stat", "--format=", "HEAD"], repo_root
         )
     diffstat = "\n".join(diffstat_lines)
+    # Cap subjects so an unbounded fallback range (no upstream) does not
+    # dump the entire history into the knowledge entry.
+    max_subjects = 20
+    truncated = len(subjects) > max_subjects
+    shown_subjects = subjects[:max_subjects]
+    if truncated:
+        shown_subjects.append(f"（另有 {len(subjects) - max_subjects} 个提交未列出）")
     return {
-        "subjects": subjects,
+        "subjects": shown_subjects,
         "diffstat": diffstat,
         "commit_count": len(subjects),
         "range": range_spec,
