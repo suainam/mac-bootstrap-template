@@ -117,3 +117,10 @@ def test_zshrc_defines_fzf_file_and_dir_launchers():
     assert "fd()" in content
     assert "fzf" in content
     assert "nvim" in content
+
+
+def test_tmux_open_yazi_supports_pick_mode():
+    script = os.path.expanduser("~/.local/bin/tmux-open-yazi.sh")
+    content = open(script).read()
+    assert "--chooser-file" in content
+    assert "--pick" in content
