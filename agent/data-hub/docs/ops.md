@@ -182,6 +182,8 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 ~/work/knowledge/70_Summaries/{Daily,Weekly,Monthly,Quarterly,Yearly}/
 ```
 
+其中 `70_Summaries/Daily` 是 weekly 的上一层输入；weekly/monthly/quarterly/yearly 生成前会检查上一层完整性，并按部署日起截断补齐，避免回填部署前不存在的日期。
+
 summary 是 quarantine 半成品层，默认不进入 `llm_wiki` 索引，也不会自动晋升到 `40_Knowledge/`。需要晋升时，人工挑选条目后运行：
 
 ```bash

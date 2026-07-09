@@ -51,6 +51,8 @@ data-hub      -> state / workflow / promotion layer
 Obsidian      -> viewer / editor for Markdown artifacts
 ```
 
+`70_Summaries/Daily` 是自动总结的基座层：weekly 只以本周期内已生成的 daily summaries 为上一层输入；monthly 使用 weekly，quarterly 使用 monthly，yearly 使用 quarterly。缺失上一层时先补齐，再生成更高层 summary。
+
 ## Live Record Contract
 
 实时写入不直接落到 `data-hub` 内部脚本，而是走 `knowledge-record` skill 的 live record contract。

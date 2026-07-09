@@ -23,6 +23,7 @@
 ├── 40_Knowledge/
 ├── 60_Inbox/
 ├── 70_Summaries/
+│   ├── Daily/
 │   ├── Weekly/
 │   ├── Monthly/
 │   ├── Quarterly/
@@ -34,7 +35,7 @@
 
 - `10_Periodic/Weekly|Monthly|Quarterly|Yearly/` 旧 dataview 目录未来不再保留
 - `10_Periodic/Daily/` 保留给 `llm_wiki`
-- `70_Summaries/` 是自动总结半成品层
+- `70_Summaries/` 是自动总结半成品层，`70_Summaries/Daily` 是 weekly 的上一层输入
 
 ### Ownership
 
@@ -59,9 +60,11 @@
 
 `70_Summaries/` 是：
 
-- 周报 / 月报 / 季报 / 年报自动生成目录
+- 日报 / 周报 / 月报 / 季报 / 年报自动生成目录
 - 半成品层
 - 默认不被 `llm_wiki` 索引
+
+上一层链路固定为：`Daily -> Weekly -> Monthly -> Quarterly -> Yearly`。生成 weekly/monthly/quarterly/yearly 前必须检查上一层完整性，并按 `summary.deployment_start` 截断，避免补部署前不存在的日期。
 
 `70_Summaries/` 不是：
 

@@ -19,7 +19,7 @@
 ├── 10_Periodic/Daily
 ├── 40_Knowledge
 ├── 60_Inbox
-├── 70_Summaries/{Weekly,Monthly,Quarterly,Yearly}
+├── 70_Summaries/{Daily,Weekly,Monthly,Quarterly,Yearly}
 └── ...
 ```
 
@@ -98,13 +98,14 @@ daily-first retrieval
 + SQLite records
 + llm_wiki API context
   -> llm_filter
+  -> 70_Summaries/Daily
   -> 70_Summaries/{Weekly,Monthly,Quarterly,Yearly}
 ```
 
 ## 5. Anti-Loop Rules
 
 1. `70_Summaries/` 必须被 `llm_wiki exclude`
-2. 周期总结不能读取自己或同层 summary 作为主要输入
+2. 周期总结不能读取自己或同层 summary 作为主要输入；weekly 读取 daily，monthly 读取 weekly，quarterly 读取 monthly，yearly 读取 quarterly
 3. 同一事实若同时存在于 `daily` 和 SQLite，summary 层必须去重
 4. `llm_filter` 是处理层，不是 canonical state
 5. `70_Summaries -> 40_Knowledge -> optional llm_wiki` 必须经过人工 gate
@@ -115,7 +116,8 @@ daily-first retrieval
 
 - source bucket 默认指向 `raw/sources/*`
 - `knowledge_retrieval.py` 可合并 SQLite/Markdown 与 `llm_wiki` API context
-- `build_weekly_summary` / `build_monthly_summary` / `build_quarterly_summary` / `build_yearly_summary` 写入 `70_Summaries/`
+- `build_daily_summary` 写入 `70_Summaries/Daily/`
+- `build_weekly_summary` / `build_monthly_summary` / `build_quarterly_summary` / `build_yearly_summary` 写入 `70_Summaries/` 对应层级，并在生成前检查上一层完整性
 - `promote_summary_knowledge.py` 提供人工挑选晋升到 `40_Knowledge/` 的 gate
 - `data_hub.runtime.jsonc.example` 暴露 `llm_wiki` 与 summary runtime 配置
 

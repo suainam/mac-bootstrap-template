@@ -26,6 +26,21 @@ def test_docs_present_manager_as_unified_entry() -> None:
     assert "run --workflow build_daily_summary" in ops_text
 
 
+def test_docs_describe_summary_schedule_not_full_cycle() -> None:
+    data_hub_dir = Path(__file__).parent.parent / "agent" / "data-hub"
+    readme = (data_hub_dir / "README.md").read_text(encoding="utf-8")
+    ops = (data_hub_dir / "docs" / "ops.md").read_text(encoding="utf-8")
+    cron = (data_hub_dir / "docs" / "cron-setup.md").read_text(encoding="utf-8")
+
+    combined = "\n".join([readme, ops, cron])
+    assert "build_daily_summary" in combined
+    assert "70_Summaries/Daily" in combined
+    assert "18:30" in combined
+    assert "full_cycle" not in readme
+    assert "run --workflow full_cycle" not in ops
+    assert "run --workflow full_cycle" not in cron
+
+
 def test_data_hub_executable_python_scripts_live_under_scripts_dir() -> None:
     data_hub_dir = Path(__file__).parent.parent / "agent" / "data-hub"
     script_names = {
