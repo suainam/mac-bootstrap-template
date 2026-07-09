@@ -1,10 +1,10 @@
-# Agent Data Hub 真实本机验收报告
+# Agent Data Hub 真实本机验收报告（归档）
 
 验收日期：2026-07-05  
 入口文档：`template/agent/data-hub/README.md`  
 验收范围：真实本机 Data Hub 环境、真实 SQLite 账本、真实 Obsidian vault 的 Data Hub 相关路径、durable workflow 状态和 artifact logs。
 
-说明：本报告生成于 shared-root / `llm_wiki` 文档模型定稿之前，因此其中出现的 `50_Sources/*` fixture 和路径表述应理解为当时的历史验收样本，不再代表当前推荐目录模型。
+说明：本报告生成于 shared-root / `llm_wiki` 文档模型和 summary automation 重构定稿之前，因此其中出现的 `50_Sources/*` fixture、`full_cycle`、`daily_ingest_and_review`、`daily_promote_and_summary`、旧 weekly writer 等表述应理解为 2026-07-05 的历史验收样本，不再代表当前推荐目录模型或现行调度入口。现行入口以 [README.md](../README.md)、[CONTEXT.md](../CONTEXT.md)、[ops.md](ops.md) 为准。
 
 ## 1. 安全边界
 
@@ -48,16 +48,16 @@ GIT_SEARCH_ROOTS=$HOME/work/config,$HOME/work/projects
 
 注意：shell 中显式导出的环境变量优先；env 文件只补默认值。
 
-## 3. 真实 Workflow DAG
+## 3. 历史 Workflow DAG（2026-07-05）
 
-`README.md` 的统一入口是：
+当时 `README.md` 的统一入口是：
 
 ```bash
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow full_cycle --date YYYY-MM-DD
 ```
 
-`knowledge_workflows.py` 中的真实 DAG 如下。
+当时 `knowledge_workflows.py` 中的真实 DAG 如下。当前现行 workflow 已改为显式 `build_daily_summary` / `build_weekly_summary` / `build_monthly_summary` / `build_quarterly_summary` / `build_yearly_summary`。
 
 | Workflow | Step 顺序 | 规则判定 | 模型判断 |
 |----------|-----------|----------|----------|
@@ -122,7 +122,7 @@ Stage contract 使用 `StageSpec`，durable runner 接收 typed spec 或兼容 d
 template/.venv/bin/python template/agent/data-hub/knowledge_workflows.py full_cycle 2026-07-05 --dry-run
 ```
 
-输出摘要：8 个 `StageSpec`，包含 step name、command、produces、retry policy、success checks、`degraded_ok`。该输出用于确认真实 CLI 将执行的 DAG，不写 DB/vault。
+输出摘要：8 个 `StageSpec`，包含 step name、command、produces、retry policy、success checks、`degraded_ok`。该输出用于确认当时真实 CLI 将执行的 DAG，不写 DB/vault。
 
 同日还对 `daily_ingest_and_review`、`daily_promote_and_summary`、`weekly_hygiene_and_reuse`、`source_adapter_upgrade` 执行了 dry-run，并保存到 `/tmp/data-hub-dryrun-*.json`。
 
@@ -446,7 +446,7 @@ template/.venv/bin/python -m pytest \
   template/tests/test_data_hub_sources.py \
   template/tests/test_candidate_review.py \
   template/tests/test_materialization.py \
-  template/tests/test_phase4_weekly_summary.py \
+  template/tests/archive/test_phase4_weekly_summary.py \
   template/tests/test_daily_summary_runtime.py \
   template/tests/test_ingest_logs_runtime.py \
   template/tests/test_claim_extraction.py \

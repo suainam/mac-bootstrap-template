@@ -82,9 +82,21 @@ def test_obsidian_launchd_installer_uses_current_schedule_and_paths() -> None:
     assert "${DATA_HUB_DIR}/daily_morning.sh" in script_text
     assert "${DATA_HUB_DIR}/run-daily-evening.sh" in script_text
     assert "${SCRIPTS_DIR}/weekly_summary.py" not in script_text
+    assert "18:30 生成" in script_text
+    assert "18:00 生成" not in script_text
     assert "WEEKLY_LABEL" not in script_text
     assert "${SCRIPTS_DIR}/daily_morning.sh" not in script_text
     assert "${DATA_HUB_DIR}/weekly_summary.py" not in script_text
+
+
+def test_troubleshooting_uses_current_evening_schedule() -> None:
+    troubleshooting = (
+        Path(__file__).parent.parent / "agent" / "data-hub" / "docs" / "troubleshooting.md"
+    ).read_text(encoding="utf-8")
+
+    assert "晚间 summary schedule" in troubleshooting
+    assert "18:30 触发" in troubleshooting
+    assert "18:00 触发" not in troubleshooting
 
 
 def test_seed_periodic_templates_include_ai_summary_sections() -> None:

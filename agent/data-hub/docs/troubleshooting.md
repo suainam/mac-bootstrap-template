@@ -38,12 +38,12 @@
 2. `knowledge_candidates` 是否被孤儿清理误删
 3. 是否手工修改了 SQLite 或跳过了标准脚本
 
-## 7. 晚间全链路未自动运行
+## 7. 晚间 summary schedule 未自动运行
 
 检查顺序：
 1. `~/Library/Logs/agent-data-hub/evening.log` 是否有输出
 2. launchd job 是否正常加载：`launchctl list | grep daily-evening`
-3. plist 时间是否正确：18:00 触发
+3. plist 时间是否正确：18:30 触发
 4. 脚本路径是否正确：`template/agent/data-hub/run-daily-evening.sh`
 5. durable run 状态：`manager.py status --date YYYY-MM-DD`
 
@@ -109,7 +109,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 表现：
 - `generate_candidates.py` 明明配置了内网 backend，却直接掉到 `opencode` / `codex` / `agy`
 - telemetry 里出现 `401`、`Connection error`、`invalid_json_schema`
-- `daily_summary.py` / `weekly_summary.py` 变慢，因为前置 API backend 失败后才轮到 CLI
+- legacy `daily_summary.py` / archived `weekly_summary.py` 变慢，因为前置 API backend 失败后才轮到 CLI
 
 检查顺序：
 1. 确认 `private/agent/data_hub.runtime.jsonc` 的 `llm.backends` 顺序是否符合预期
@@ -126,7 +126,7 @@ template/.venv/bin/python -c 'import json, sys; sys.path.insert(0, "template/age
 6. 若 API 已返回文本但仍 fallback，检查返回内容是不是完整 JSON schema；结构化筛选路径会把缺字段或 HTML 错页视为失败
 
 补充说明：
-- `call_llm_raw()` 只要求首个非空文本，适用于 `daily_summary.py` / `weekly_summary.py`
+- `call_llm_raw()` 只要求首个非空文本，适用于 legacy `daily_summary.py` / archived `weekly_summary.py`
 - `score_one()` / `filter_candidates_batch()` 要求完整 `FilterResult` schema，适用于 `generate_candidates.py`
 - 因此“backend 能聊天”不等于“llm_filter 结构化筛选一定成功”；还要看输出是否符合 schema
 

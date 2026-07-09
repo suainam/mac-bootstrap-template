@@ -87,7 +87,7 @@ cat > "$REMINDER_PLIST" << PLIST_EOF
     <array>
         <string>/usr/bin/osascript</string>
         <string>-e</string>
-        <string>display notification "记得填写今天的工作记录 📝 AI 总结将在 18:00 生成" with title "日报助手" sound name "Glass"</string>
+        <string>display notification "记得填写今天的工作记录 📝 AI 总结将在 18:30 生成" with title "日报助手" sound name "Glass"</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
