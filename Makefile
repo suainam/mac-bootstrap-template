@@ -12,6 +12,7 @@ PYTHON ?= .venv/bin/python
 	devspace-home-push devspace-home-pull \
 	quality-gate-pre-commit quality-gate-pre-push quality-gate-doctor \
 	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
+	llm-wiki-install llm-wiki-build llm-wiki-mcp-build llm-wiki-doctor \
 	imgup-install imgup
 
 help:
@@ -78,6 +79,10 @@ help:
 	@echo "  devspace-status        Show DevSpace LaunchAgent status and local health"
 	@echo "  devspace-logs          Tail DevSpace LaunchAgent logs"
 	@echo "  devspace-restart       Restart DevSpace LaunchAgents"
+	@echo "  llm-wiki-install       Run official llm_wiki npm install in local checkout"
+	@echo "  llm-wiki-build         Run official llm_wiki desktop build"
+	@echo "  llm-wiki-mcp-build     Build llm_wiki bundled MCP server"
+	@echo "  llm-wiki-doctor        Check llm_wiki checkout and prerequisites"
 	@echo ""
 	@echo "── Tmux ──"
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
@@ -127,6 +132,7 @@ check:
 	bash -n scripts/install-antigravity-cli.sh
 	bash -n scripts/doctor.sh
 	bash -n scripts/install-agent-tooling.sh
+	bash -n scripts/install-llm-wiki.sh
 	bash -n scripts/install-npm-global-packages.sh
 	bash -n scripts/lib/proxy-common.sh
 	bash -n scripts/lib/agent-shared.sh
@@ -369,6 +375,18 @@ npm-packages:
 
 npm-packages-upgrade:
 	./scripts/install-npm-global-packages.sh --yes --upgrade
+
+llm-wiki-install:
+	./scripts/install-llm-wiki.sh install
+
+llm-wiki-build:
+	./scripts/install-llm-wiki.sh build
+
+llm-wiki-mcp-build:
+	./scripts/install-llm-wiki.sh mcp-build
+
+llm-wiki-doctor:
+	./scripts/install-llm-wiki.sh doctor
 
 pm-detect:
 	@./scripts/detect-package-manager.sh

@@ -440,6 +440,59 @@ elif [ -f "$npm_packages_file" ]; then
   echo "  MISS npm globals prerequisite (install Node/npm before make npm-packages)"
 fi
 
+find_data_hub_runtime_config() {
+  local candidate
+  for candidate in \
+    "$BOOTSTRAP/../private/agent/data_hub.runtime.jsonc" \
+    "$BOOTSTRAP/../../private/agent/data_hub.runtime.jsonc" \
+    "$BOOTSTRAP/../../../private/agent/data_hub.runtime.jsonc"
+  do
+    if [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+runtime_config_path="$(find_data_hub_runtime_config || true)"
+if [ -n "$runtime_config_path" ]; then
+  llm_wiki_enabled="$(python3 - "$runtime_config_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+lines = [line for line in text.splitlines() if not line.strip().startswith("//")]
+data = json.loads("\n".join(lines) or "{}")
+print(str(bool(data.get("llm_wiki", {}).get("enabled", False))).lower())
+PY
+)"
+  if [ "$llm_wiki_enabled" = "true" ]; then
+    llm_wiki_dir="${LLM_WIKI_DIR:-$HOME/work/llm_wiki}"
+    if [ -d "$llm_wiki_dir" ] && [ -f "$llm_wiki_dir/package.json" ]; then
+      echo "  OK   llm_wiki checkout ($llm_wiki_dir)"
+    else
+      echo "  MISS llm_wiki checkout (run: make llm-wiki-install)"
+    fi
+    if command -v node &>/dev/null && command -v npm &>/dev/null; then
+      echo "  OK   llm_wiki Node/npm prerequisite"
+    else
+      echo "  MISS llm_wiki Node/npm prerequisite (install Node.js 20+)"
+    fi
+    if command -v cargo &>/dev/null; then
+      echo "  OK   llm_wiki Rust prerequisite"
+    else
+      echo "  MISS llm_wiki Rust prerequisite (install Rust 1.70+)"
+    fi
+    if [ -f "$llm_wiki_dir/mcp-server/dist/index.js" ]; then
+      echo "  OK   llm_wiki MCP build artifact"
+    else
+      echo "  MISS llm_wiki MCP build artifact (run: make llm-wiki-mcp-build)"
+    fi
+  fi
+fi
+
 # Verify CBM indexed
 if codebase-memory-mcp cli list_projects '{}' 2>/dev/null | grep -q '"name"'; then
   echo "  OK   CBM graph (indexed projects found)"
