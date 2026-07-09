@@ -149,6 +149,34 @@ def test_build_push_knowledge_payload_carries_commit_subjects_not_gate_tokens(mo
     assert payload["tags"] == "推送记录,代码"
 
 
+def test_build_push_knowledge_payload_splits_multiple_class_tags(monkeypatch):
+    import json
+
+    class FakeRoot:
+        pass
+
+    monkeypatch.setattr(
+        quality_gate,
+        "collect_push_commit_metadata",
+        lambda repo_root: {
+            "subjects": ["docs: update runbook"],
+            "diffstat": " docs/runbook.md | 1 +\n private/config.jsonc | 1 +",
+            "commit_count": 1,
+            "range": "origin/main..HEAD",
+        },
+    )
+    plan = {
+        "classes": ["docs-only", "private-config", "mixed"],
+        "paths": ["docs/runbook.md", "private/config.jsonc"],
+        "gates": ["classify"],
+        "date": "2026-07-10",
+    }
+
+    payload = json.loads(quality_gate.build_push_knowledge_payload(plan, FakeRoot()))
+
+    assert payload["tags"] == "推送记录,文档,私有配置,混合"
+
+
 def test_knowledge_record_gate_does_not_append_chinese_filler(tmp_path):
     payload = json.dumps({
         "title": "推送变更记录",

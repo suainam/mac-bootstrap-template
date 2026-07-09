@@ -287,7 +287,7 @@ def build_push_knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> st
         "未分类": "未分类",
     }
     detected_classes = plan.get("classes") or ["未分类"]
-    class_tags = "、".join(class_label_map.get(c, "未分类") for c in detected_classes)
+    class_tags = ",".join(class_label_map.get(c, "未分类") for c in detected_classes)
     payload = {
         "title": "推送变更记录",
         "content": content,
