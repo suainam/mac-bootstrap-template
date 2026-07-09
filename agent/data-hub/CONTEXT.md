@@ -109,12 +109,20 @@ daily-first retrieval
 4. `llm_filter` 是处理层，不是 canonical state
 5. `70_Summaries -> 40_Knowledge -> optional llm_wiki` 必须经过人工 gate
 
-## 6. 当前实现差异
+## 6. 当前实现状态
 
-目标模型已经定稿，但当前代码仍有 legacy 痕迹：
+当前 template 已落地双系统主干：
 
-- source bucket 默认值仍可能指向 `50_Sources/*`
-- `knowledge_retrieval.py` 还没完整接入 `llm_wiki` context merge
-- `70_Summaries/` 的自动化还未完成
+- source bucket 默认指向 `raw/sources/*`
+- `knowledge_retrieval.py` 可合并 SQLite/Markdown 与 `llm_wiki` API context
+- `build_weekly_summary` / `build_monthly_summary` / `build_quarterly_summary` / `build_yearly_summary` 写入 `70_Summaries/`
+- `promote_summary_knowledge.py` 提供人工挑选晋升到 `40_Knowledge/` 的 gate
+- `data_hub.runtime.jsonc.example` 暴露 `llm_wiki` 与 summary runtime 配置
+
+仍需人工保证的外部事实：
+
+- `70_Summaries/` 已在真实 llm_wiki 项目 exclude 中配置
+- protected API 需要在 llm_wiki 设置里生成 token，并通过 `LLM_WIKI_TOKEN` 或 private runtime 提供
+- 旧 `10_Periodic/Weekly|Monthly|Quarterly|Yearly` dataview 文件不再作为 data-hub 产物依赖
 
 这份文档的职责是固定边界，避免后续实现继续跑偏。完整设计见 [../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md)。

@@ -15,7 +15,7 @@
 - [reference.md](./reference.md) — knowledge root、runtime config、source bucket、canonical/projection 约定
 - [troubleshooting.md](./troubleshooting.md) — 常见故障定位路径
 - [acceptance-report.md](./acceptance-report.md) — 2026-07-05 真实本机验收记录，含历史路径样本说明
-- [upgrade-plan.md](./upgrade-plan.md) — 历史设计草案，保留演进背景，不作为当前权威 runbook
+- [archive/upgrade-plan.md](./archive/upgrade-plan.md) — 历史设计草案，保留演进背景，不作为当前权威 runbook
 - [cron-setup.md](./cron-setup.md) — cron/定时任务参考
 - [../../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 当前双系统正式设计稿
 

@@ -594,7 +594,7 @@ legacy error marker: absent
 
 - `docs/acceptance-report.md`
 - `docs/cron-setup.md`
-- `docs/upgrade-plan.md`
+- `docs/archive/upgrade-plan.md`
 - `docs/archive/phase-5-6-summary.md`
 
 ## 12. Chat Candidates 接入验收

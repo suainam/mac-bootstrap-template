@@ -125,6 +125,8 @@ Daily + raw/sources
 
 - `paths`
 - `sources.inputs`
+- `llm_wiki`
+- `summary`
 - `agent_logs`
 - `llm.backends`
 - `workflow`
@@ -133,9 +135,32 @@ Daily + raw/sources
 
 ### Source Bucket 说明
 
-当前代码仍可能保留 `50_Sources/*` 默认值，这是 legacy 兼容配置，不是 v2 目标结构。
+当前 template 默认 source bucket 是 `raw/sources/*`：
 
-shared-root 环境下，应通过 private runtime config 把 source input 指到实际 `raw/sources/...` 子路径。
+```text
+raw/sources/Meetings
+raw/sources/Mindmaps
+raw/sources/Wiki-Clips
+```
+
+`50_Sources/*` 是旧验收样本和历史文档里的路径，不是 shared-root v2 目标结构。
+
+shared-root 环境下，真实路径仍以 private runtime config 为准；如需迁移目录，只改 `sources.inputs`，不要在代码里重新引入 `50_Sources` 默认值。
+
+### `llm_wiki` API 说明
+
+data-hub 当前使用的 API 契约：
+
+| 用途 | Endpoint |
+|---|---|
+| 健康检查 | `GET /api/v1/health` |
+| 项目列表 | `GET /api/v1/projects` |
+| 语义检索 | `POST /api/v1/projects/{id}/search` |
+| 文件内容 | `GET /api/v1/projects/{id}/files/content` |
+| 图谱 | `GET /api/v1/projects/{id}/graph` |
+| review 队列 | `GET /api/v1/projects/{id}/reviews?status=unresolved` |
+
+protected API 需要 token。优先使用 `LLM_WIKI_TOKEN`，其次读取 private runtime 的 `llm_wiki.token`。
 
 ## 产物契约
 

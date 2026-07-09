@@ -21,7 +21,7 @@
 - [docs/troubleshooting.md](./docs/troubleshooting.md) — 常见故障排查
 - [docs/README.md](./docs/README.md) — `docs/` 目录边界与索引
 - [docs/acceptance-report.md](./docs/acceptance-report.md) — 已有真实验收记录
-- [docs/upgrade-plan.md](./docs/upgrade-plan.md) — 历史升级设计稿
+- [docs/archive/upgrade-plan.md](./docs/archive/upgrade-plan.md) — 历史升级设计稿
 - [../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 双系统正式设计稿
 
 ## 人类视角的主流程
@@ -104,16 +104,43 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 - `archive_to_sqlite`
 - `render_obsidian`
 - `full_cycle`
+- `build_weekly_summary`
+- `build_monthly_summary`
+- `build_quarterly_summary`
+- `build_yearly_summary`
 
 step 定义见 [knowledge_workflows.py](./knowledge_workflows.py)。
 
-## 当前实现 vs 下一阶段
+周期总结入口：
 
-当前这份 `template/agent/data-hub/` 文档按共享 knowledge root 解释系统边界，但代码层还在分阶段演进：
+```bash
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow build_weekly_summary --date 2026-07-09
+```
 
-- 共享 knowledge root、`llm_wiki` ownership、Obsidian 降级：已作为文档边界定稿
-- source bucket 的真实路径：仍由 runtime config 控制
-- `llm_wiki` API client / context packet / retrieval merge：属于下一阶段实现
+人工晋升入口：
+
+```bash
+template/.venv/bin/python template/agent/data-hub/scripts/promote_summary_knowledge.py \
+  ~/work/knowledge/70_Summaries/Weekly/2026-W28.md \
+  --selections-json selections.json
+```
+
+## 当前实现边界
+
+已落地：
+
+- 共享 knowledge root、`llm_wiki` ownership、Obsidian 降级
+- source bucket 默认 `raw/sources/*`
+- `llm_wiki` API client / context packet / retrieval merge
+- `70_Summaries` 周/月/季/年自动生成与 lineage
+- summary 到 `40_Knowledge` 的人工晋升 gate
+
+不做：
+
+- 不让 `data-hub` 写 `wiki/`
+- 不让 summary 自动回流 `llm_wiki`
+- 不把旧 `10_Periodic/Weekly|Monthly|Quarterly|Yearly` dataview 目录当作新产物
 
 阅读顺序：
 
