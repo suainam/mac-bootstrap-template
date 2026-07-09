@@ -66,7 +66,7 @@ class LlmWikiConfig:
     project_root: Path
     project_id: str
     token_env: str
-    token: str
+    auth_value: str
     exclude_dirs: list[str]
 
 
@@ -180,7 +180,7 @@ def build_llm_wiki(config: dict[str, Any], vault_dir: Path) -> LlmWikiConfig:
         project_root=expand_path(raw.get("project_root", vault_dir)),
         project_id=str(raw.get("project_id", "")),
         token_env=str(raw.get("token_env", "LLM_WIKI_TOKEN")),
-        token=str(raw.get("token", "")),
+        auth_value=str(raw.get("token", "")),
         exclude_dirs=list(raw.get("exclude_dirs", ["70_Summaries"])),
     )
 

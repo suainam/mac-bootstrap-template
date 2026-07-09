@@ -213,7 +213,7 @@ def make_llm_wiki_client() -> LlmWikiClient | None:
     config = get_runtime_config().llm_wiki
     if not config.enabled or not config.project_id:
         return None
-    return LlmWikiClient(config.api_base, config.project_id, config.token_env, config.token)
+    return LlmWikiClient(config.api_base, config.project_id, config.token_env, config.auth_value)
 
 
 def build_retrieval_packet(
