@@ -6,7 +6,7 @@
 
 | 任务 | 命令 |
 |------|------|
-| 晚间全链路（自动） | `bash template/agent/data-hub/run-daily-evening.sh` |
+| 晚间 summary schedule（自动） | `bash template/agent/data-hub/run-daily-evening.sh` |
 | 手动补跑指定日期 | 见下方第 1 节 |
 | 查看执行状态 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py status --date 2026-07-04` |
 | 健康检查 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py health` |
@@ -23,19 +23,14 @@
 cd ~/work/config/mac-bootstrap
 
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-02
-
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow archive_to_sqlite --date 2026-07-02
-
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow render_obsidian --date 2026-07-02
+  run --workflow build_daily_summary --date 2026-07-02
 ```
 
 说明：
 
 - 日期格式 `YYYY-MM-DD`
-- 这里列的是 daily lifecycle workflow；周期总结 workflow 见第 8 节
+- `run` 必须显式指定 `--workflow`，避免误触发废弃的历史链路
+- 这里列的是 summary lifecycle workflow；周期总结 workflow 见第 8 节
 - 系统心智模型请优先看 [CONTEXT.md](../CONTEXT.md)，不要把 workflow 名称当成唯一架构描述
 
 失败恢复：
@@ -45,10 +40,10 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
   status --date 2026-07-02
 
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-02 --retry-failed <run_id>
+  run --workflow build_daily_summary --date 2026-07-02 --retry-failed <run_id>
 
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-02 --resume <run_id> --from-step knowledge-materialization
+  run --workflow build_daily_summary --date 2026-07-02 --resume <run_id> --from-step build-daily-summary
 ```
 
 ## 2. 手动重刷日志入库
@@ -148,12 +143,12 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 落地规则：`daily` -> 日报，`adr` -> `40_Knowledge/ADR/`，`card` -> `40_Knowledge/Cards/`
 
-## 7. 一键跑完整链路
+## 7. 手动生成 daily summary
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-04
+  run --workflow build_daily_summary --date 2026-07-04
 ```
 
 运行结果会写入 `workflow_runs` / `workflow_steps`，每步日志在 `private/agent/data/runs/<run_id>/`。
@@ -164,6 +159,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
+
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow build_daily_summary --date 2026-07-09
 
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_weekly_summary --date 2026-07-09
@@ -181,7 +179,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 输出位置：
 
 ```text
-~/work/knowledge/70_Summaries/{Weekly,Monthly,Quarterly,Yearly}/
+~/work/knowledge/70_Summaries/{Daily,Weekly,Monthly,Quarterly,Yearly}/
 ```
 
 summary 是 quarantine 半成品层，默认不进入 `llm_wiki` 索引，也不会自动晋升到 `40_Knowledge/`。需要晋升时，人工挑选条目后运行：
@@ -214,9 +212,8 @@ Workflow dry-run：
 
 ```bash
 cd $HOME/work/config/mac-bootstrap/template
-.venv/bin/python agent/data-hub/knowledge_workflows.py archive_to_sqlite 2026-07-04 --dry-run
-.venv/bin/python agent/data-hub/knowledge_workflows.py render_obsidian 2026-07-04 --dry-run
-.venv/bin/python agent/data-hub/knowledge_workflows.py full_cycle 2026-07-04 --dry-run
+.venv/bin/python agent/data-hub/knowledge_workflows.py build_daily_summary 2026-07-04 --dry-run
+.venv/bin/python agent/data-hub/knowledge_workflows.py build_weekly_summary 2026-07-10 --dry-run
 ```
 
 ## 10. 晨间脚本验证

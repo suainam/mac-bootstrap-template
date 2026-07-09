@@ -26,18 +26,18 @@ export ENABLE_NOTIFICATIONS=true
 
 Add this to `private/agent/data_hub.runtime.jsonc`.
 
-## Full Pipeline Automation
+## Summary Automation
 
-You can also automate the full archive/render pipeline:
+You can also automate the summary schedule:
 
-### Evening Full Cycle (18:00)
+### Evening Summary Schedule (18:30)
 
 ```bash
-/cron create "0 0 18 * * 1-5" "cd $HOME/work/config/mac-bootstrap && template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py run --workflow full_cycle --date $(date +%F)"
+/cron create "0 30 18 * * 1-5" "cd $HOME/work/config/mac-bootstrap && bash template/agent/data-hub/run-daily-evening.sh"
 ```
 
-**Schedule**: Every weekday at 18:00
-**Purpose**: Run archive_to_sqlite then render_obsidian through the durable manager.
+**Schedule**: Every weekday at 18:30
+**Purpose**: Run build_daily_summary and any period summary triggered for the date through the lifecycle manager.
 
 ## Viewing Cron Jobs
 
@@ -59,7 +59,7 @@ All scripts can be run manually:
 # Health check
 python template/agent/data-hub/scripts/health_check.py
 
-# Full pipeline for a specific date
+# Daily summary for a specific date
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-04
+  run --workflow build_daily_summary --date 2026-07-04
 ```

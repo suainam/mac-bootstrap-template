@@ -96,14 +96,12 @@ Obsidian      -> viewer / editor for Markdown artifacts
 ```bash
 cd ~/work/config/mac-bootstrap
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-09
+  run --workflow build_daily_summary --date 2026-07-09
 ```
 
 当前 template 内已落地的 workflow 名称：
 
-- `archive_to_sqlite`
-- `render_obsidian`
-- `full_cycle`
+- `build_daily_summary`
 - `build_weekly_summary`
 - `build_monthly_summary`
 - `build_quarterly_summary`
@@ -114,6 +112,9 @@ step 定义见 [knowledge_workflows.py](./knowledge_workflows.py)。
 周期总结入口：
 
 ```bash
+template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  run --workflow build_daily_summary --date 2026-07-09
+
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_weekly_summary --date 2026-07-09
 ```

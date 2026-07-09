@@ -7,8 +7,8 @@ def test_run_daily_evening_delegates_to_manager() -> None:
     script_path = Path(__file__).parent.parent / "agent" / "data-hub" / "run-daily-evening.sh"
     script_text = script_path.read_text(encoding="utf-8")
 
-    assert "manager.py" in script_text
-    assert "--workflow full_cycle" in script_text
+    assert "run_summary_schedule.py" in script_text
+    assert "--workflow full_cycle" not in script_text
     assert "ingest_logs.py" not in script_text
     assert "materialize_candidates.py" not in script_text
 
@@ -23,7 +23,7 @@ def test_docs_present_manager_as_unified_entry() -> None:
     assert "knowledge-lifecycle-manager" in readme_text
     assert "统一入口" in readme_text
     assert "manager.py" in ops_text
-    assert "run --workflow full_cycle" in ops_text
+    assert "run --workflow build_daily_summary" in ops_text
 
 
 def test_data_hub_executable_python_scripts_live_under_scripts_dir() -> None:
@@ -56,9 +56,11 @@ def test_obsidian_launchd_installer_uses_current_schedule_and_paths() -> None:
     assert "<integer>17</integer>" in script_text
     assert "<integer>30</integer>" in script_text
     assert "<integer>18</integer>" in script_text
+    assert "<integer>30</integer>" in script_text
     assert "${DATA_HUB_DIR}/daily_morning.sh" in script_text
     assert "${DATA_HUB_DIR}/run-daily-evening.sh" in script_text
-    assert "${SCRIPTS_DIR}/weekly_summary.py" in script_text
+    assert "${SCRIPTS_DIR}/weekly_summary.py" not in script_text
+    assert "WEEKLY_LABEL" not in script_text
     assert "${SCRIPTS_DIR}/daily_morning.sh" not in script_text
     assert "${DATA_HUB_DIR}/weekly_summary.py" not in script_text
 

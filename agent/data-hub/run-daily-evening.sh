@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# run-daily-evening.sh — 晚间全链路 manager adapter
-# 触发时机: 工作日 18:00（由 launchd 调用）
+# run-daily-evening.sh — 18:30 summary automation adapter
 
 set -euo pipefail
 
@@ -9,9 +8,9 @@ TARGET_DATE="${2:-$(date +%F)}"
 
 cd "$ROOT"
 
-PYTHON="template/.venv/bin/python"
-MANAGER="template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py"
+PYTHON="${ROOT}/template/.venv/bin/python"
+SCHEDULE="${ROOT}/template/agent/data-hub/scripts/run_summary_schedule.py"
 
-echo "[evening] Starting workflow=full_cycle for $TARGET_DATE"
-"$PYTHON" "$MANAGER" run --workflow full_cycle --date "$TARGET_DATE"
-echo "[evening] Full pipeline complete for $TARGET_DATE"
+echo "[evening] Starting summary schedule for $TARGET_DATE"
+"$PYTHON" "$SCHEDULE" --date "$TARGET_DATE"
+echo "[evening] Summary schedule complete for $TARGET_DATE"

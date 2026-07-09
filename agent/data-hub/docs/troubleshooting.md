@@ -51,7 +51,7 @@
 
 ```bash
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date YYYY-MM-DD --retry-failed <run_id>
+  run --workflow build_daily_summary --date YYYY-MM-DD --retry-failed <run_id>
 ```
 
 ## 8. 自动审核结果不符合预期
