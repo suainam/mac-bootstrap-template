@@ -255,6 +255,11 @@ def build_retrieval_packet(
             "adrs": matched_adrs,
             "cards": matched_cards,
         },
+        "project": project,
+        "date_range": {"from": date_from, "to": date_to},
+        "matched_daily": matched_daily,
+        "matched_adrs": matched_adrs,
+        "matched_cards": matched_cards,
         "open_loops": open_loops,
         "llm_wiki_context": llm_wiki_context,
         "reuse_recommendations": build_reuse_recommendations(

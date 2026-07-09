@@ -6,7 +6,7 @@ Unified command center for the data-hub knowledge pipeline.
 
 Single entry point for all knowledge pipeline operations:
 - Delegate live agent knowledge recording to `knowledge-record`
-- Run archive/render workflows (`archive_to_sqlite`, `render_obsidian`, `full_cycle`)
+- Run archive/render/period-summary workflows (`archive_to_sqlite`, `render_obsidian`, `full_cycle`, `build_*_summary`)
 - Check execution status and health
 - Inspect candidate queues
 - Rerun specific dates or stages
@@ -26,6 +26,10 @@ Single entry point for all knowledge pipeline operations:
 ./run.sh run --workflow archive_to_sqlite --date 2026-07-01
 ./run.sh run --workflow render_obsidian --date 2026-07-01
 ./run.sh run --workflow full_cycle --date 2026-07-01
+./run.sh run --workflow build_weekly_summary --date 2026-07-10
+./run.sh run --workflow build_monthly_summary --date 2026-07-31
+./run.sh run --workflow build_quarterly_summary --date 2026-09-30
+./run.sh run --workflow build_yearly_summary --date 2026-12-31
 
 # Delegate record requests to the dedicated writer skill
 ./run.sh record --type adr --title "..." --content "..." --date 2026-07-01

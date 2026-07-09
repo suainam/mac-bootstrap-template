@@ -249,7 +249,21 @@ def test_supported_workflows_match_three_layer_model():
         "archive_to_sqlite",
         "render_obsidian",
         "full_cycle",
+        "build_weekly_summary",
+        "build_monthly_summary",
+        "build_quarterly_summary",
+        "build_yearly_summary",
     ]
+
+
+def test_period_summary_workflow_uses_internal_builder():
+    steps = knowledge_workflows.build_workflow_steps("build_weekly_summary", "2026-07-09")
+
+    assert len(steps) == 1
+    assert steps[0].name == "build-weekly-summary"
+    assert "build_period_summary.py" in steps[0].command[1]
+    assert steps[0].command[-4:] == ["--level", "weekly", "--anchor-date", "2026-07-09"]
+    assert steps[0].produces == ["70_Summaries/Weekly/"]
 
 
 def test_durable_workflow_records_failure_and_logs(tmp_path: Path, monkeypatch):

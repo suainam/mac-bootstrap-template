@@ -31,6 +31,10 @@ def supported_workflows() -> list[str]:
         "archive_to_sqlite",
         "render_obsidian",
         "full_cycle",
+        "build_weekly_summary",
+        "build_monthly_summary",
+        "build_quarterly_summary",
+        "build_yearly_summary",
     ]
 
 
@@ -83,6 +87,22 @@ def build_workflow_steps(workflow_name: str, target_date: str) -> list[StageSpec
         return [
             *build_workflow_steps("archive_to_sqlite", target_date),
             *build_workflow_steps("render_obsidian", target_date),
+        ]
+    if workflow_name in {"build_weekly_summary", "build_monthly_summary", "build_quarterly_summary", "build_yearly_summary"}:
+        level = workflow_name.removeprefix("build_").removesuffix("_summary")
+        return [
+            StageSpec(
+                name=f"build-{level}-summary",
+                command=[
+                    python,
+                    str(SCRIPTS_DIR / "build_period_summary.py"),
+                    "--level",
+                    level,
+                    "--anchor-date",
+                    target_date,
+                ],
+                produces=[f"70_Summaries/{level.capitalize()}/"],
+            )
         ]
     raise ValueError(f"unknown workflow: {workflow_name}")
 
