@@ -16,7 +16,7 @@ from period_summary import build_period_summary
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a period summary into 70_Summaries.")
-    parser.add_argument("--level", choices=["weekly", "monthly", "quarterly", "yearly"], required=True)
+    parser.add_argument("--level", choices=["daily", "weekly", "monthly", "quarterly", "yearly"], required=True)
     parser.add_argument("--anchor-date", required=True)
     return parser.parse_args()
 
