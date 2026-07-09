@@ -8,6 +8,7 @@ from typing import Any
 
 from data_hub_config import get_runtime_config, get_summary_output_dir
 from db_helper import get_db_connection
+from summary_inputs import previous_layer_sources
 from summary_store import complete_summary_run, record_summary_sources, start_summary_run
 
 
@@ -112,6 +113,8 @@ def render_summary_note(level: str, period_id: str, body: str, derived_from: dic
             *[f"    - {item}" for item in derived_from.get("sqlite_records", [])],
             "  llm_wiki_context:",
             *[f"    - {item}" for item in derived_from.get("llm_wiki_context", [])],
+            "  previous_summaries:",
+            *[f"    - {item}" for item in derived_from.get("previous_summaries", [])],
             "promotion_status: not_reviewed",
             "---",
             "",
@@ -133,10 +136,14 @@ def build_period_summary(level: str, anchor_date: str) -> Path:
         include_llm_wiki=True,
     )
     sources = extract_summary_sources(packet)
+    config = get_runtime_config()
+    if level != "daily":
+        sources.extend(previous_layer_sources(level, period_start, period_end, config.summary.deployment_start))
     derived_from = {
         "daily": [row["source_ref"] for row in sources if row["source_kind"] == "daily"],
         "sqlite_records": [row["source_ref"] for row in sources if row["source_kind"] == "sqlite_candidate"],
         "llm_wiki_context": [row["source_ref"] for row in sources if row["source_kind"] == "llm_wiki"],
+        "previous_summaries": [row["source_ref"] for row in sources if row["source_kind"].endswith("_summary")],
     }
     note = render_summary_note(level, period_id, render_summary_body(packet), derived_from)
     output_dir = get_summary_output_dir(level)
@@ -144,7 +151,6 @@ def build_period_summary(level: str, anchor_date: str) -> Path:
     output_path = output_dir / f"{period_id}.md"
     output_path.write_text(note, encoding="utf-8")
 
-    config = get_runtime_config()
     conn = get_db_connection()
     try:
         run_id = start_summary_run(

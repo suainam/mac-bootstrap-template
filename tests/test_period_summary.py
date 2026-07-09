@@ -47,6 +47,9 @@ def test_build_period_summary_writes_70_summaries_and_lineage(monkeypatch, tmp_p
     daily = vault_dir / "10_Periodic" / "Daily" / "2026-07-09.md"
     daily.parent.mkdir(parents=True)
     daily.write_text("# 2026-07-09\n\nBuilt data-hub dual-system summary.\n", encoding="utf-8")
+    daily_summary = vault_dir / "70_Summaries" / "Daily" / "2026-07-10.md"
+    daily_summary.parent.mkdir(parents=True)
+    daily_summary.write_text("# Daily Summary 2026-07-10\n", encoding="utf-8")
 
     monkeypatch.setattr(
         period_summary,
@@ -77,7 +80,7 @@ def test_build_period_summary_writes_70_summaries_and_lineage(monkeypatch, tmp_p
     finally:
         conn.close()
     assert row["output_path"] == "70_Summaries/Weekly/2026-W28.md"
-    assert source_count == 3
+    assert source_count == 4
     assert db_path.exists()
 
 
@@ -113,3 +116,40 @@ def test_build_daily_summary_writes_70_summaries_daily(monkeypatch, tmp_path: Pa
     assert "## 当前待办" in text
     assert "## 知识沉淀" in text
     assert db_path.exists()
+
+
+def test_weekly_summary_records_previous_daily_layer(monkeypatch, tmp_path: Path):
+    _db_path, vault_dir = configure_runtime(monkeypatch, tmp_path)
+    daily_summary = vault_dir / "70_Summaries" / "Daily" / "2026-07-10.md"
+    daily_summary.parent.mkdir(parents=True)
+    daily_summary.write_text("# Daily Summary 2026-07-10\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        period_summary,
+        "build_retrieval_packet",
+        lambda **kwargs: {
+            "local_markdown": {"daily": [], "adrs": [], "cards": []},
+            "open_loops": [],
+            "llm_wiki_context": {"results": [], "warnings": []},
+            "reuse_recommendations": [],
+        },
+    )
+
+    output_path = period_summary.build_period_summary("weekly", "2026-07-10")
+
+    assert "70_Summaries/Daily/2026-07-10.md" in output_path.read_text(encoding="utf-8")
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT source_kind, source_ref
+            FROM summary_run_sources
+            WHERE source_kind = 'daily_summary'
+            """
+        ).fetchone()
+    finally:
+        conn.close()
+    assert dict(row) == {
+        "source_kind": "daily_summary",
+        "source_ref": "70_Summaries/Daily/2026-07-10.md",
+    }
