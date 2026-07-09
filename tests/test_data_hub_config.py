@@ -117,11 +117,47 @@ def test_runtime_config_exposes_dual_system_defaults(monkeypatch, tmp_path):
     assert config.llm_wiki.enabled is False
     assert config.llm_wiki.project_root == Path(tmp_path / "knowledge")
     assert config.summary.root_relative == "70_Summaries"
+    assert config.summary.level_dirs["daily"] == "Daily"
     assert config.summary.level_dirs["weekly"] == "Weekly"
+    assert config.summary.deployment_start == "2026-07-10"
     assert config.sources[0].relative_root == "raw/sources/Meetings"
+    assert data_hub_config.get_summary_output_dir("daily") == Path(
+        tmp_path / "knowledge" / "70_Summaries" / "Daily"
+    )
     assert data_hub_config.get_summary_output_dir("weekly") == Path(
         tmp_path / "knowledge" / "70_Summaries" / "Weekly"
     )
+
+
+def test_summary_config_can_override_daily_and_deployment_start(monkeypatch, tmp_path):
+    runtime = configure_files(
+        monkeypatch,
+        tmp_path,
+        runtime_text="""{
+          "summary": {
+            "root_relative": "80_Generated_Summaries",
+            "daily_dir": "D",
+            "weekly_dir": "W",
+            "monthly_dir": "M",
+            "quarterly_dir": "Q",
+            "yearly_dir": "Y",
+            "deployment_start": "2026-08-01"
+          }
+        }""",
+    )
+    monkeypatch.setattr(data_hub_config, "RUNTIME_CONFIG", runtime)
+
+    config = data_hub_config.get_runtime_config()
+
+    assert config.summary.root_relative == "80_Generated_Summaries"
+    assert config.summary.level_dirs == {
+        "daily": "D",
+        "weekly": "W",
+        "monthly": "M",
+        "quarterly": "Q",
+        "yearly": "Y",
+    }
+    assert config.summary.deployment_start == "2026-08-01"
 
 
 def test_load_prompt_template_returns_template_when_file_exists(monkeypatch, tmp_path):

@@ -74,6 +74,7 @@ class LlmWikiConfig:
 class SummaryConfig:
     root_relative: str
     level_dirs: dict[str, str]
+    deployment_start: str
 
 
 @dataclass(frozen=True)
@@ -190,11 +191,13 @@ def build_summary(config: dict[str, Any]) -> SummaryConfig:
     return SummaryConfig(
         root_relative=str(raw.get("root_relative", "70_Summaries")),
         level_dirs={
+            "daily": str(raw.get("daily_dir", "Daily")),
             "weekly": str(raw.get("weekly_dir", "Weekly")),
             "monthly": str(raw.get("monthly_dir", "Monthly")),
             "quarterly": str(raw.get("quarterly_dir", "Quarterly")),
             "yearly": str(raw.get("yearly_dir", "Yearly")),
         },
+        deployment_start=str(raw.get("deployment_start", "2026-07-10")),
     )
 
 
