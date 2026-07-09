@@ -130,14 +130,15 @@ template/.venv/bin/python -c 'import json, sys; sys.path.insert(0, "template/age
 - `score_one()` / `filter_candidates_batch()` 要求完整 `FilterResult` schema，适用于 `generate_candidates.py`
 - 因此“backend 能聊天”不等于“llm_filter 结构化筛选一定成功”；还要看输出是否符合 schema
 
-检查插件配置是否仍指向旧目录（`daily/`、`weekly/` 等）。当前标准路径：
+## 15. Obsidian 插件仍指向旧路径
+
+检查插件配置是否仍指向旧目录（`daily/`、`weekly/` 等）。
+
+v2 目标模型里，`10_Periodic/Weekly|Monthly|Quarterly|Yearly/` 属于待删除 legacy 目录；新的自动周报/月报/季报/年报不再写这些目录，而应进入 `70_Summaries/`。
+
+当前标准路径：
 
 | 旧路径 | 新路径 |
 |--------|--------|
 | `daily/` | `10_Periodic/Daily` |
-| `weekly/` | `10_Periodic/Weekly` |
-| `monthly/` | `10_Periodic/Monthly` |
-| `quarterly/` | `10_Periodic/Quarterly` |
-| `yearly/` | `10_Periodic/Yearly` |
 | `templates/` | `00_System/Templates` |
-| `wiki/` | `40_Knowledge/Wiki` |

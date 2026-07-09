@@ -1,3 +1,4 @@
+> 历史设计草案。保留演进背景，不作为当前 shared-root / `llm_wiki` 文档模型的权威来源。当前系统边界以 [../CONTEXT.md](../CONTEXT.md) 和 [reference.md](./reference.md) 为准。
 
 你的主流程是对的，缺的不是更多笔记，而是一个**“从对话事件到可复用知识”的晋升层**。
 

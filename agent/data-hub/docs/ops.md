@@ -1,6 +1,6 @@
 # Data Hub 日常运维
 
-> 参考：[README.md](../README.md) 架构概览，[reference.md](reference.md) 目录约定与环境变量，[troubleshooting.md](troubleshooting.md) 故障排查。
+> 参考：[README.md](../README.md) 总览，[CONTEXT.md](../CONTEXT.md) 系统边界，[reference.md](reference.md) runtime config 与 source bucket，[troubleshooting.md](troubleshooting.md) 故障排查。
 
 ## 快速入口
 
@@ -21,31 +21,31 @@
 ```bash
 cd ~/work/config/mac-bootstrap
 
-# 补跑全链路
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow full_cycle --date 2026-07-02
 
-# 或跑命名 workflow
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow archive_to_sqlite --date 2026-07-02
+
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow render_obsidian --date 2026-07-02
 ```
 
-说明：参数直接传日期，格式 `YYYY-MM-DD`。
+说明：
+
+- 日期格式 `YYYY-MM-DD`
+- 这里列的是当前实现中的 workflow 名称
+- 系统心智模型请优先看 [CONTEXT.md](../CONTEXT.md)，不要把 workflow 名称当成唯一架构描述
 
 失败恢复：
 
 ```bash
-# 查看 run_id 和失败 step
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   status --date 2026-07-02
 
-# 从第一个 failed step 继续
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow full_cycle --date 2026-07-02 --retry-failed <run_id>
 
-# 从指定 step 继续
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow full_cycle --date 2026-07-02 --resume <run_id> --from-step knowledge-materialization
 ```
@@ -83,7 +83,23 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
   "SELECT item_type, title, substr(content, 1, 100) FROM extracted_items ORDER BY rowid DESC LIMIT 20;"
 ```
 
-支持的外部文件：`Meetings/*.md`、`Mindmaps/*.xmind`、`Wiki-Clips/*.md`、`Wiki-Clips/*.pdf`、`Wiki-Clips/*.html`
+支持的外部文件类型取决于 `sources.inputs` 配置。当前 template 默认适配：
+
+- meeting markdown
+- mindmap xmind
+- wiki markdown
+- wiki pdf
+- wiki html
+
+### `llm_wiki` 使用原则
+
+如果 knowledge root 已接入 `llm_wiki`：
+
+- 把它当作 source/wiki intelligence layer，不当作 data-hub workflow owner
+- 先在 `llm_wiki` 里找 source、summary、graph、review 线索，再决定是否导入 candidate
+- 导入必须走 data-hub 的 candidate / review / materialization 路径
+- 不要让 `llm_wiki` 直接改 `60_Inbox/Candidates/*.md`、ADR/Card/Daily 或 SQLite accepted state
+- 不要把 `wiki/` 当作 data-hub render 输出目录
 
 ## 5. 生成候选知识清单
 
@@ -99,9 +115,9 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
   "SELECT candidate_type, status, COUNT(*) FROM knowledge_candidates GROUP BY candidate_type, status ORDER BY candidate_type, status;"
 ```
 
-输出：`~/work/knowledge/60_Inbox/Candidates/YYYY-MM-DD.md`。审核方式：把 `- review_action: pending` 改成 `accept` / `reject` / `merge` / `defer`。
+输出：`~/work/knowledge/60_Inbox/Candidates/YYYY-MM-DD.md`
 
-## 6. 应用轻量审核并落地
+## 6. 应用审核并落地
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
@@ -118,7 +134,7 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
    ORDER BY candidate_type, status, rowid;"
 ```
 
-落地规则：`daily` → 日报 `## 候选事项`，`adr` → `40_Knowledge/ADR/`，`card` → `40_Knowledge/Cards/`
+落地规则：`daily` -> 日报，`adr` -> `40_Knowledge/ADR/`，`card` -> `40_Knowledge/Cards/`
 
 ## 7. 一键跑完整链路
 
@@ -128,10 +144,9 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
   run --workflow full_cycle --date 2026-07-04
 ```
 
-运行结果会写入 `workflow_runs` / `workflow_steps`，每步日志在
-`private/agent/data/runs/<run_id>/`。
+运行结果会写入 `workflow_runs` / `workflow_steps`，每步日志在 `private/agent/data/runs/<run_id>/`。
 
-## 8. 回归测试与 2.0 seam 验收
+## 8. 回归测试
 
 ```bash
 cd $HOME/work/config/mac-bootstrap/template
@@ -149,10 +164,6 @@ UV_CACHE_DIR=.uv-cache uv run pytest \
   -q
 ```
 
-生命周期覆盖：archive_to_sqlite（retrieve → source ingest → claim extract → candidate review）和 render_obsidian（materialize → daily/weekly synthesis）。
-
-关键回归点：HTML wiki adapter 抽取、日期归因策略、重跑不冲掉审核状态、materialization 幂等性、Daily/ADR/Card 投影不重复追加。
-
 Workflow dry-run：
 
 ```bash
@@ -169,98 +180,8 @@ cd $HOME/work/config/mac-bootstrap/template/agent/data-hub
 bash daily_morning.sh
 ```
 
-验证点：是否生成今日日报、是否迁移上一工作日 `明日计划`、Obsidian 模板是否正确展开。
-
 ## 10. 新机隔离验收
 
 目的：完整跑通 Data Hub lifecycle，但不读取真实 vault、真实 agent 日志、真实 private DB 或外部 LLM 服务。
 
-准备临时目录和 fixture：
-
-```bash
-ACCEPT=/tmp/data-hub-acceptance
-mkdir -p \
-  "$ACCEPT/home" \
-  "$ACCEPT/vault/50_Sources/Meetings" \
-  "$ACCEPT/vault/50_Sources/Wiki-Clips" \
-  "$ACCEPT/vault/10_Periodic/Daily" \
-  "$ACCEPT/vault/40_Knowledge/Cards" \
-  "$ACCEPT/vault/40_Knowledge/ADR" \
-  "$ACCEPT/runs" \
-  "$ACCEPT/git-roots" \
-  "$ACCEPT/bin"
-
-cat > "$ACCEPT/vault/50_Sources/Meetings/2026-07-04_data-hub-acceptance.md" <<'EOF'
-会议纪要
-
-决定使用隔离 vault 和 SQLite 验收 Data Hub 流程。
-
-待办
-· 跟进 Data Hub 新机器验收@codex
-EOF
-
-cat > "$ACCEPT/vault/50_Sources/Wiki-Clips/2026-07-04_data-hub-runbook.md" <<'EOF'
-# Data Hub Runbook
-
-- 决定所有验收数据必须放在临时目录，避免污染真实 vault。
-- TODO: 记录 uv、Python、SQLite 和 make check 的前置依赖。
-EOF
-
-cat > "$ACCEPT/bin/agy" <<'EOF'
-#!/bin/sh
-printf '%s\n' '- Data Hub 隔离验收流程已跑通，临时 vault/SQLite/日志产物均可追溯。 #复盘-做得好'
-EOF
-chmod +x "$ACCEPT/bin/agy"
-```
-
-设置隔离环境：
-
-```bash
-export REPO="$HOME/work/config/mac-bootstrap"
-export HOME="$ACCEPT/home"
-export OBSIDIAN_VAULT_DIR="$ACCEPT/vault"
-export OBSIDIAN_DAILY_DIR="10_Periodic/Daily"
-export AGENT_DB_PATH="$ACCEPT/agent_history.db"
-export AGENT_RUNS_DIR="$ACCEPT/runs"
-export GIT_SEARCH_ROOTS="$ACCEPT/git-roots"
-export PATH="$ACCEPT/bin:$PATH"
-```
-
-执行验收：
-
-```bash
-cd "$REPO"
-
-template/.venv/bin/python template/agent/data-hub/knowledge_workflows.py full_cycle 2026-07-04 --dry-run
-
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-04 --run-id acceptance_clean
-
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  status --date 2026-07-04
-
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  candidates 2026-07-04
-
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py health
-```
-
-验收点：
-
-```bash
-sqlite3 "$AGENT_DB_PATH" \
-  "SELECT candidate_type, status, COUNT(*) FROM knowledge_candidates GROUP BY candidate_type, status ORDER BY candidate_type, status;"
-
-sqlite3 "$AGENT_DB_PATH" \
-  "SELECT step_index, step_name, status, exit_code FROM workflow_steps ORDER BY step_index;"
-
-find "$OBSIDIAN_VAULT_DIR" -maxdepth 5 -type f | sort
-find "$AGENT_RUNS_DIR" -type f | sort
-```
-
-若某一步失败：
-
-```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-04 --retry-failed <run_id>
-```
+如果当前环境已切 shared-root，可把 fixture source bucket 放在临时 vault 的 `raw/sources/...`，并通过 runtime config 或显式环境变量指向它；不要依赖 legacy `50_Sources/*` 默认值。

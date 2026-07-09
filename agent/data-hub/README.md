@@ -1,254 +1,114 @@
-# Agent Data Hub 运维手册
+# Agent Data Hub
 
-把 Agent 对话、Git 活动和外部材料（会议纪要/Wiki/XMind）汇总成可追溯的日报与知识沉淀流水线。
+把个人知识自动化拆成两个并列系统：
 
-**文档导航**：
-- [docs/ops.md](docs/ops.md) — 日常运维命令
-- [docs/reference.md](docs/reference.md) — 目录约定、环境变量、Obsidian 插件、幂等性约定
-- [docs/troubleshooting.md](docs/troubleshooting.md) — 故障排查
-- [docs/acceptance-report.md](docs/acceptance-report.md) — 真实本机验收报告
-- [docs/upgrade-plan.md](docs/upgrade-plan.md) — 目标设计稿
-- [docs/cron-setup.md](docs/cron-setup.md) — cron/定时任务参考
+- `llm_wiki`：理解 `daily` 与外部资料，提供 search / graph / review / API context
+- `data-hub`：管理主动沉淀、SQLite 状态账本、周期总结编排、知识晋升
 
-根目录保留 Python workflow 模块、shell 入口、schema、配置样例和 README；一线运维、阶段总结、验收报告、升级设计等支持材料统一放在 `docs/`，LLM 提示词统一放在 `prompts/`。
+这里的 `data-hub` 直接负责两件事：
 
-## 当前架构
+- 管状态：SQLite、review status、materialization ledger、workflow run state
+- 管总结与投影：把已确认知识渲染到工作知识目录，并把周期总结写入隔离层
 
-边界约定：
+它不拥有外部资料智能层，也不拥有 `daily` 原文。那一层现在由同一个 knowledge root 里的 `llm_wiki` 负责。
 
-- `SQLite` 是事件账本，保存原始日志和结构化结果
-- `Obsidian Vault` 是展示层和人工编辑层
-- `data-hub` 脚本负责采集、汇总、写回，不直接充当知识库
+## 先看什么
 
-数据流分三层：
+- [CONTEXT.md](./CONTEXT.md) — 系统模型、目录 ownership、canonical state、数据流
+- [AGENTS.md](./AGENTS.md) — agent 修改边界、验证要求、文档路由
+- [docs/ops.md](./docs/ops.md) — 日常运行、补跑、恢复、验收
+- [docs/reference.md](./docs/reference.md) — 目录约定、runtime config、source bucket 配置
+- [docs/troubleshooting.md](./docs/troubleshooting.md) — 常见故障排查
+- [docs/README.md](./docs/README.md) — `docs/` 目录边界与索引
+- [docs/acceptance-report.md](./docs/acceptance-report.md) — 已有真实验收记录
+- [docs/upgrade-plan.md](./docs/upgrade-plan.md) — 历史升级设计稿
+- [../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 双系统正式设计稿
 
-**1. Push + Archive → SQLite** —— 当前对话由 `knowledge-record` 负责 live record contract，`knowledge-lifecycle-manager record` 作为统一管理入口委托调用它，直接写 `knowledge_records`；历史/外部材料进入 SQLite 原始表和候选表，保留追溯链：
+## 人类视角的主流程
 
+```text
+daily + raw/sources
+  -> llm_wiki
+  -> search / graph / review / API context
+
+agent chat / manual record / git events
+  -> data-hub SQLite
+
+daily-first retrieval
++ SQLite records
++ llm_wiki context
+  -> llm_filter
+  -> 70_Summaries
+  -> optional human promotion
 ```
-1. preflight retrieve  →  knowledge_retrieval.py
-2. source ingest       →  ingest_logs.py + ingest_sources.py
-3. claim extract       →  claim_extraction.py
-4. candidate review    →  generate_candidates.py
+
+并行关系：
+
+```text
+llm_wiki      -> retrievable knowledge layer
+data-hub      -> state / workflow / promotion layer
+70_Summaries  -> quarantine summary layer
+Obsidian      -> viewer / editor for Markdown artifacts
 ```
 
-**2. Render → Obsidian Markdown** —— 从 SQLite accepted 记录和人工审核结果生成/更新 Markdown 投影，由 `materialize_candidates.py` 和 `daily_summary.py` 负责。
+## Knowledge Root 边界
 
-**3. Obsidian 呈现** —— Obsidian 只负责阅读、双链、人工编辑和插件呈现；不作为账本源头。
+`/Users/suai/work/knowledge` 是共享 knowledge root。
 
-Push 记录不走 classification / llm_filter / auto_review，写入即 accepted。详见 [`docs/data-hub-record-knowledge.md`](../../docs/data-hub-record-knowledge.md)。
+`llm_wiki` 拥有：
 
-## Workflow 入口
+- `.llm-wiki/`
+- `raw/`
+- `wiki/`
+- `purpose.md`
+- `schema.md`
 
-对外统一入口是 `knowledge-lifecycle-manager`：
+`data-hub` 拥有：
+
+- `00_System/`
+- `60_Inbox/`
+- `70_Summaries/`
+- `20_Projects/`
+- `30_Areas/`
+- `40_Knowledge/`
+- `90_Archive/`
+
+原则：
+
+- `llm_wiki` 可以搜索和展示 data-hub 产物，但不能 ingest、重写、维护 data-hub-owned 目录
+- `data-hub` 可以读取 `llm_wiki` 提供的上下文，但不能直接写 `wiki/`
+- `10_Periodic/Daily/` 给 `llm_wiki`，不是 `data-hub` 的 canonical state
+- `70_Summaries/` 默认不被 `llm_wiki` 索引，不自动回流知识库
+- `50_Sources` 不再是推荐的真实目录名；在新布局里它只是语义名，实际 source 域应落在 `raw/sources`
+
+## 当前实现入口
+
+统一入口：
 
 ```bash
-cd $HOME/work/config/mac-bootstrap
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py run --workflow full_cycle --date $(date +%F)
-```
-
-底层由 `knowledge_workflows.py` 维护标准 workflow registry：
-
-| Workflow | Skills |
-|----------|--------|
-| `archive_to_sqlite` | reuse-retrieval → source-ingestion → claim-extraction → candidate-review |
-| `render_obsidian` | materialization → daily-weekly-synthesis |
-| `full_cycle` | archive_to_sqlite → render_obsidian |
-
-Dry-run 验证：
-
-```bash
-cd $HOME/work/config/mac-bootstrap/template
-.venv/bin/python agent/data-hub/knowledge_workflows.py archive_to_sqlite $(date +%F) --dry-run
-```
-
-工业化运行默认使用 durable runner：每次运行生成 `run_id`，写入
-`workflow_runs` / `workflow_steps`，并把每步 stdout/stderr 落盘到
-`private/agent/data/runs/<run_id>/`。失败后可按 run_id 恢复：
-
-```bash
+cd ~/work/config/mac-bootstrap
 template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-04 --retry-failed <run_id>
+  run --workflow full_cycle --date 2026-07-09
 ```
 
-## 组件职责速查
+当前 template 内已落地的 workflow 名称：
 
-| 脚本 | 职责 |
-|------|------|
-| `scripts/ingest_logs.py` | 采集 Claude/Codex/Gemini 日志 → SQLite sessions/messages |
-| `scripts/ingest_sources.py` | 外部材料（meeting/wiki/xmind）→ source_documents/chunks/items |
-| `scripts/claim_extraction.py` | source items + assistant chat responses → claim_packets + evidence_links |
-| `scripts/generate_candidates.py` | extracted_items + assistant response claims → knowledge_candidates + 60_Inbox/Candidates/YYYY-MM-DD.md |
-| `scripts/materialize_candidates.py` | 读审核动作 + 读 `knowledge_records` → 落地 ADR/Card/日报插入 |
-| `knowledge-record/scripts/record_knowledge.py` | Push 记录 owner：负责 live record contract 与 SQLite 写入（status=accepted，跳过 archive） |
-| `scripts/daily_summary.py` | 日期粒度 → LLM 摘要写回 Obsidian 日报 |
-| `llm_filter.py` | data-hub 共用 LLM adapter：统一 backend 配置、fallback、结构化筛选和自由文本摘要调用 |
-| `scripts/hygiene_audit.py` | 审计孤儿候选/过期条目/重复落地（只读，不修复） |
-| `scripts/knowledge_retrieval.py` | 任务前预检索 → retrieval_packet |
-| `knowledge_workflows.py` | workflow registry（实现层） |
-| `workflow_runner.py` | durable workflow 状态、日志、重试、恢复 |
-| `knowledge-lifecycle-manager` | 统一入口（运行 / 状态 / 健康检查） |
-| `daily_morning.sh` | 晨间自动建日报 + 迁移昨日计划 |
-| `run-daily-evening.sh` | 晚间全链路 manager adapter |
+- `archive_to_sqlite`
+- `render_obsidian`
+- `full_cycle`
 
-**公用模块**：
-- `execution_logger.py` — 执行日志记录类，写 execution_log 表
-- `db_helper.py` — DB 连接与常用查询封装
-- `obsidian_helper.py` — Obsidian vault 读写（日报/周报）
-- `date_utils.py` — 工作日判断、周范围计算（chinese-calendar）
+step 定义见 [knowledge_workflows.py](/Users/suai/work/config/mac-bootstrap/template/agent/data-hub/knowledge_workflows.py)。
 
-## `llm_filter` 边界
+## 当前实现 vs 下一阶段
 
-`llm_filter.py` 是 `data-hub` 内部复用的 LLM 能力层，不是通用 AI 平台 SDK。当前调用面只有两类：
+当前这份 `template/agent/data-hub/` 文档按共享 knowledge root 解释系统边界，但代码层还在分阶段演进：
 
-- `generate_candidates.py` → `score_one()` / `filter_candidates_batch()`：给候选打分、纠正类型、生成简短标题，要求返回严格 JSON schema。
-- `daily_summary.py` / `weekly_summary.py` → `call_llm_raw()`：走同一条 backend fallback 链，但接受自由文本，不做 `FilterResult` schema 校验。
+- 共享 knowledge root、`llm_wiki` ownership、Obsidian 降级：已作为文档边界定稿
+- source bucket 的真实路径：仍由 runtime config 控制
+- `llm_wiki` API client / context packet / retrieval merge：属于下一阶段实现
 
-它负责的事：
+阅读顺序：
 
-- 从 `private/agent/data_hub.runtime.jsonc` 读取有序 backend 列表
-- 统一 OpenAI-compatible API 与 CLI backend 的调用、超时和 telemetry
-- 在结构化筛选路径里把无效 JSON / 缺字段响应视为失败，并继续 fallback
-- 让摘要类脚本和筛选类脚本共用同一套 backend 顺序
-
-它不负责的事：
-
-- 不拥有 prompt 模板；prompt 仍由各业务脚本决定
-- 不决定候选阈值语义；阈值只作为运行配置读取
-- 不做 durable retry、状态落库或产物写回；这些分别属于 workflow runner、业务脚本和 SQLite/Obsidian 层
-- 不承诺仓库外的调用兼容性；如果其他项目要复用，应显式抽成独立模块而不是直接依赖当前文件
-
-## Skill 对应关系
-
-8 个 knowledge-* skills 位于 `template/agent/skills/personal/`。其中 7 个 project-scoped（仅 mac-bootstrap 项目内可用），1 个 global-scoped（全项目可用）：
-
-**Archive/Render 路径（project-scoped）：**
-- `knowledge-source-ingestion`
-- `knowledge-reuse-retrieval`
-- `knowledge-claim-extraction`
-- `knowledge-candidate-review`
-- `knowledge-materialization`
-- `knowledge-daily-weekly-synthesis`
-- `knowledge-hygiene-audit`
-
-**Push 记录入口（project-scoped）：**
-- `knowledge-record` — live record owner，定义字段 contract、严格校验与 SQLite 写入
-- `knowledge-lifecycle-manager record` — 统一管理入口，委托调用 `knowledge-record`
-
-## 当前状态
-
-已跑通全链路：assistant chat responses / meetings / xmind / wiki pdf → SQLite → candidates → daily summary → Obsidian
-
-Chat-derived candidates 的边界：只从 agent/assistant 回复中提炼建议、方案、决策、风险和后续动作；用户提问只写入候选 metadata 的 `background_prompt`，用于审核上下文，不单独生成候选。旧版 `chat_message/chat-claim-v1` 用户提问投影会在重建候选时清理；新版来源为 `chat_response/chat-answer-v2`，并且始终跳过自动审核。
-
-待增强：HTML table/callout 细结构、claims/evidence 证据链模型、OCR fallback、source family 扩展。
-
-## 新机前置依赖
-
-最小可用环境：
-
-| 依赖 | 用途 | 验收命令 |
-|------|------|----------|
-| Python 3.13+ | 运行 data-hub 脚本和 pytest | `python3 --version` |
-| template venv | 仓库维护的稳定 Python runtime | `template/.venv/bin/python --version` |
-| uv | 创建/维护 venv，备用运行 pytest | `uv --version` |
-| sqlite3 CLI | 人工检查账本和验收 SQL | `sqlite3 --version` |
-| make | 运行仓库门禁 | `make check` |
-| agy 或 claude CLI | `daily_summary.py` 的 LLM 摘要来源 | `agy --help` 或 `claude --help` |
-
-注意事项：
-
-- 测试和生产脚本优先使用 `template/.venv/bin/python`，不要临时切到父仓库 `.venv`。
-- 统一运行配置为 `private/agent/data_hub.runtime.jsonc`，公开样例见 `template/agent/data-hub/data_hub.runtime.jsonc.example`。它集中管理 paths、source inputs、agent log dirs、LLM backends 和 workflow 默认值。
-- 配置优先级：显式 shell 环境变量 > `data_hub.runtime.jsonc` > 代码默认值。不要再新增 `.env` 或 LLM-only 配置文件。
-- `llm.backends[*].api_key` 可以直接写在 private runtime config，也可以写成 `$ENV_VAR` 占位符。两种方式选一种即可，不要在同一个 backend 对象里重复写 `api_key`，JSON 解析会以后者覆盖前者。
-- 新机器没有 Claude/Codex/AGY 历史日志目录时，`ingest_logs.py` 应返回 0 条记录并继续，而不是失败。
-- 没有真实 LLM CLI 或不想调用外部服务时，可以在隔离验收里用临时 `PATH` 注入 fake `agy`；真实运行时应配置 `agy` 或 `claude`。
-
-## 隔离实机验收
-
-目标：在不读取真实 `~/work/knowledge`、真实 agent 日志或 private secrets 的前提下，证明 full lifecycle 可在新机器上跑通。
-
-1. 创建临时 HOME、vault、DB、runs、git roots 和 fake `agy`。
-2. 在临时 vault 写入最小 source fixture：
-   - `50_Sources/Meetings/YYYY-MM-DD_*.md`
-   - `50_Sources/Wiki-Clips/YYYY-MM-DD_*.md`
-3. 设置隔离环境。注意先保存 `REPO`，再覆盖 `HOME`：
-
-```bash
-export ACCEPT=/tmp/data-hub-acceptance
-export REPO=$HOME/work/config/mac-bootstrap
-export HOME=$ACCEPT/home
-export OBSIDIAN_VAULT_DIR=$ACCEPT/vault
-export OBSIDIAN_DAILY_DIR=10_Periodic/Daily
-export AGENT_DB_PATH=$ACCEPT/agent_history.db
-export AGENT_RUNS_DIR=$ACCEPT/runs
-export GIT_SEARCH_ROOTS=$ACCEPT/git-roots
-export PATH=$ACCEPT/bin:$PATH
-cd "$REPO"
-```
-
-4. 执行 dry-run 和 durable full cycle：
-
-```bash
-template/.venv/bin/python template/agent/data-hub/knowledge_workflows.py full_cycle 2026-07-04 --dry-run
-
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow full_cycle --date 2026-07-04 --run-id acceptance_clean
-```
-
-5. 验收证据：
-
-```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py status --date 2026-07-04
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py candidates 2026-07-04
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py health
-sqlite3 "$AGENT_DB_PATH" \
-  "SELECT COUNT(*) FROM source_documents; SELECT COUNT(*) FROM knowledge_candidates; SELECT COUNT(*) FROM artifact_manifest;"
-find "$OBSIDIAN_VAULT_DIR" -maxdepth 5 -type f | sort
-```
-
-2026-07-05 本机验收记录：
-
-- 依赖：`python3 3.13.13`，`template/.venv/bin/python 3.13.13`，`uv 0.11.26`，`sqlite3 3.51.0`。
-- 基线测试：Data Hub 相关 pytest `115 passed`。
-- 恢复路径：第一次 `acceptance_full` 暴露出空日志目录 bug；修复后 `--retry-failed acceptance_full` 从失败 step 继续，8 步最终 completed。
-- 干净路径：`acceptance_clean` 在全新临时目录中 8/8 completed，`manager.py health` 返回 `All clear`。
-- 干净路径产物计数：`source_documents=2`，`document_chunks=7`，`extracted_items=7`，`knowledge_candidates=6`，`artifact_manifest=16`。
-- 候选结果：`daily accepted=3`，`card accepted=1`，`adr pending=2`。
-- vault 产物：`10_Periodic/Daily/2026-07-04.md`、`60_Inbox/Candidates/2026-07-04.md`、`40_Knowledge/Cards/*.md`。
-- 备份命令：`manager.py backup --date 2026-07-04` 生成 SQLite 备份并记录 sha256。
-
-## 测试
-
-**虚拟环境**：pytest 必须使用 `template/` 下的 venv，**不是** repo 根目录的 `.venv`。
-
-```bash
-# 正确：进 template/ 再用 .venv
-cd $HOME/work/config/mac-bootstrap/template
-.venv/bin/python -m pytest tests/ -q
-
-# 或从仓库根调用（指定完整路径）
-cd $HOME/work/config/mac-bootstrap
-template/.venv/bin/python -m pytest template/tests/ -q
-```
-
-> `uv` 等价写法（template/ 目录内）：
-> ```bash
-> cd $HOME/work/config/mac-bootstrap/template
-> UV_CACHE_DIR=.uv-cache uv run pytest tests/ -q
-> ```
-
-**当前覆盖**（覆盖率 ≥ 80%）：
-
-| 测试文件 | 覆盖环节 |
-|---------|---------|
-| `test_data_hub.py` | SQLite schema / 连接 |
-| `test_data_hub_sources.py` | source adapters / ingest |
-| `test_ingest_logs_runtime.py` | ingest_logs runtime |
-| `test_candidate_review.py` | generate_candidates |
-| `test_materialization.py` | materialize_candidates |
-| `test_daily_summary_runtime.py` | daily_summary |
-| `test_phase4_weekly_summary.py` | weekly_summary |
-| `test_claim_extraction.py` | claim_extraction（环节 3） |
-| `test_auto_review.py` | auto_review 阈值边界（环节 4） |
-| `test_hygiene_audit.py` | hygiene_audit 全检测项（环节 7） |
+1. 先按 [CONTEXT.md](./CONTEXT.md) 理解系统模型
+2. 再按 [docs/ops.md](./docs/ops.md) 跑当前实现
+3. 最后在实现演进时对照 [docs/reference.md](./docs/reference.md) 校对 runtime config 与 source bucket

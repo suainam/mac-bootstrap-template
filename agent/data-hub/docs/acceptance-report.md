@@ -4,6 +4,8 @@
 入口文档：`template/agent/data-hub/README.md`  
 验收范围：真实本机 Data Hub 环境、真实 SQLite 账本、真实 Obsidian vault 的 Data Hub 相关路径、durable workflow 状态和 artifact logs。
 
+说明：本报告生成于 shared-root / `llm_wiki` 文档模型定稿之前，因此其中出现的 `50_Sources/*` fixture 和路径表述应理解为当时的历史验收样本，不再代表当前推荐目录模型。
+
 ## 1. 安全边界
 
 本次验收使用真实本机环境，但报告只记录脱敏摘要、计数、路径形态和结构样例：
