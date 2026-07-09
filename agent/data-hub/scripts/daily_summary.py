@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""
-Agent Data Hub - Daily Summary Script
-从 SQLite 读取今天的 Agent 日志和 Git log，生成 AI 总结，并更新 Obsidian 日报。
-此脚本将替代原本的 product_strategy/scripts/daily_evening.py。
+"""Legacy daily-note writeback helper.
+
+Current AI summaries are generated into 70_Summaries/Daily by period_summary.py.
+This module remains for compatibility tests and manual migration helpers only.
 """
 
 import os

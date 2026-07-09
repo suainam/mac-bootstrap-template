@@ -39,12 +39,19 @@ def test_data_hub_executable_python_scripts_live_under_scripts_dir() -> None:
         "ingest_sources.py",
         "knowledge_retrieval.py",
         "materialize_candidates.py",
-        "weekly_summary.py",
     }
 
     for name in script_names:
         assert not (data_hub_dir / name).exists(), f"{name} should not be in data-hub root"
         assert (data_hub_dir / "scripts" / name).exists(), f"{name} should live in data-hub/scripts"
+
+
+def test_legacy_summary_scripts_are_not_active_schedule_targets() -> None:
+    data_hub_dir = Path(__file__).parent.parent / "agent" / "data-hub"
+
+    assert not (data_hub_dir / "scripts" / "weekly_summary.py").exists()
+    assert (data_hub_dir / "scripts" / "archive" / "weekly_summary.py").exists()
+    assert "weekly_summary.py" not in (data_hub_dir / "run-daily-evening.sh").read_text(encoding="utf-8")
 
 
 def test_obsidian_launchd_installer_uses_current_schedule_and_paths() -> None:

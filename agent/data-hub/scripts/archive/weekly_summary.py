@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""
-Agent Data Hub - Weekly Summary Script
-聚合本周所有日报的 AI 总结，生成周报。
+"""Archived legacy weekly writer.
+
+Current summary automation writes to 70_Summaries via period_summary.py.
+This file is preserved only for prompt and validation reference.
 """
 
 import sys

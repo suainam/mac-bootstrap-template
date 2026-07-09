@@ -185,3 +185,10 @@ def test_execution_log_records_created(mock_env):
     assert row["status"] == "completed"
     assert row["records_affected"] == 42
     assert "refactored" in row["metadata_json"]
+
+
+def test_legacy_weekly_summary_script_is_archived():
+    scripts_dir = Path(__file__).parent.parent / "agent" / "data-hub" / "scripts"
+
+    assert not (scripts_dir / "weekly_summary.py").exists()
+    assert (scripts_dir / "archive" / "weekly_summary.py").exists()

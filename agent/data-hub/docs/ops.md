@@ -199,7 +199,7 @@ UV_CACHE_DIR=.uv-cache uv run pytest \
   tests/test_data_hub_sources.py \
   tests/test_candidate_review.py \
   tests/test_materialization.py \
-  tests/test_phase4_weekly_summary.py \
+  tests/archive/test_phase4_weekly_summary.py \
   tests/test_daily_summary_runtime.py \
   tests/test_ingest_logs_runtime.py \
   tests/test_claim_extraction.py \
