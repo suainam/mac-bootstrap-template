@@ -9,6 +9,7 @@ from pathlib import Path
 
 from source_adapters.common import Chunk, Item
 from source_dates import extract_date_prefix
+from schema_migrations import ensure_summary_runs_allows_daily
 
 
 PARSER_VERSION = "source-ingest-v2"
@@ -27,6 +28,7 @@ def get_db_connection(db_path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     schema_path = Path(__file__).parent / "schema.sql"
     conn.executescript(schema_path.read_text())
+    ensure_summary_runs_allows_daily(conn)
     return conn
 
 

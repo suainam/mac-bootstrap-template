@@ -168,7 +168,7 @@ protected API 需要 token。优先使用 `LLM_WIKI_TOKEN`，其次读取 privat
 
 ```yaml
 type: summary
-summary_level: weekly | monthly | quarterly | yearly
+summary_level: daily | weekly | monthly | quarterly | yearly
 status: draft | reviewed | promoted_partially | archived
 generated_by: data-hub
 indexing: excluded

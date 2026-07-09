@@ -79,3 +79,37 @@ def test_build_period_summary_writes_70_summaries_and_lineage(monkeypatch, tmp_p
     assert row["output_path"] == "70_Summaries/Weekly/2026-W28.md"
     assert source_count == 3
     assert db_path.exists()
+
+
+def test_build_daily_summary_writes_70_summaries_daily(monkeypatch, tmp_path: Path):
+    db_path, vault_dir = configure_runtime(monkeypatch, tmp_path)
+    daily = vault_dir / "10_Periodic" / "Daily" / "2026-07-10.md"
+    daily.parent.mkdir(parents=True)
+    daily.write_text("# 2026-07-10\n\n- 完成 summary automation 设计。\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        period_summary,
+        "build_retrieval_packet",
+        lambda **kwargs: {
+            "local_markdown": {
+                "daily": [{"path": "10_Periodic/Daily/2026-07-10.md", "title": "Daily note", "score": 1.0}],
+                "adrs": [],
+                "cards": [],
+            },
+            "open_loops": [],
+            "llm_wiki_context": {"results": [], "warnings": []},
+            "reuse_recommendations": ["Summarize daily work into quarantine output."],
+        },
+    )
+
+    output_path = period_summary.build_period_summary("daily", "2026-07-10")
+
+    assert output_path == vault_dir / "70_Summaries" / "Daily" / "2026-07-10.md"
+    text = output_path.read_text(encoding="utf-8")
+    assert "summary_level: daily" in text
+    assert "# Daily Summary 2026-07-10" in text
+    assert "## 重点事项" in text
+    assert "## 已完结" in text
+    assert "## 当前待办" in text
+    assert "## 知识沉淀" in text
+    assert db_path.exists()

@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 from data_hub_config import get_db_path
+from schema_migrations import ensure_summary_runs_allows_daily
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -16,6 +17,7 @@ def get_db_connection() -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     schema_path = Path(__file__).parent / "schema.sql"
     conn.executescript(schema_path.read_text())
+    ensure_summary_runs_allows_daily(conn)
     return conn
 
 

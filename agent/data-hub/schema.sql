@@ -243,7 +243,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_log_created ON backup_log(created_at DESC)
 
 CREATE TABLE IF NOT EXISTS summary_runs (
     id TEXT PRIMARY KEY,
-    summary_level TEXT NOT NULL CHECK(summary_level IN ('weekly', 'monthly', 'quarterly', 'yearly')),
+    summary_level TEXT NOT NULL CHECK(summary_level IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
     period_id TEXT NOT NULL,
     period_start TEXT NOT NULL,
     period_end TEXT NOT NULL,

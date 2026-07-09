@@ -20,6 +20,7 @@ from knowledge_retrieval import build_retrieval_packet
 
 
 LEVEL_TITLES = {
+    "daily": "Daily",
     "weekly": "Weekly",
     "monthly": "Monthly",
     "quarterly": "Quarterly",
@@ -29,6 +30,8 @@ LEVEL_TITLES = {
 
 def resolve_period(level: str, anchor_date: str) -> tuple[str, str, str]:
     dt = datetime.strptime(anchor_date, "%Y-%m-%d").date()
+    if level == "daily":
+        return dt.isoformat(), dt.isoformat(), dt.isoformat()
     if level == "weekly":
         start = dt - timedelta(days=dt.weekday())
         end = start + timedelta(days=6)
@@ -71,7 +74,7 @@ def extract_summary_sources(packet: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def render_summary_body(packet: dict[str, Any]) -> str:
-    lines = ["## Signals", ""]
+    lines = ["## 重点事项", ""]
     for source_kind, rows in packet.get("local_markdown", {}).items():
         for row in rows[:5]:
             lines.append(f"- {source_kind}: {row.get('title') or row.get('path')} ({row.get('path')})")
@@ -82,9 +85,13 @@ def render_summary_body(packet: dict[str, Any]) -> str:
     if len(lines) == 2:
         lines.append("- No matching source signals found.")
 
-    lines.extend(["", "## Reuse Recommendations", ""])
+    lines.extend(["", "## 已完结", "", "- 待 llm_filter 根据证据归纳。"])
+    lines.extend(["", "## 当前待办", "", "- 待 llm_filter 根据 open loops 与上下文归纳。"])
+    lines.extend(["", "## 知识沉淀", ""])
     for item in packet.get("reuse_recommendations", []):
         lines.append(f"- {item}")
+    if not packet.get("reuse_recommendations"):
+        lines.append("- 暂无自动沉淀建议。")
     return "\n".join(lines).strip() + "\n"
 
 
