@@ -28,9 +28,7 @@ def get_runtime_python() -> str:
 
 def supported_workflows() -> list[str]:
     return [
-        "archive_to_sqlite",
-        "render_obsidian",
-        "full_cycle",
+        "build_daily_summary",
         "build_weekly_summary",
         "build_monthly_summary",
         "build_quarterly_summary",
@@ -40,55 +38,7 @@ def supported_workflows() -> list[str]:
 
 def build_workflow_steps(workflow_name: str, target_date: str) -> list[StageSpec]:
     python = get_runtime_python()
-    if workflow_name == "archive_to_sqlite":
-        return [
-            StageSpec(
-                name="knowledge-reuse-retrieval",
-                command=[
-                    python,
-                    str(SCRIPTS_DIR / "knowledge_retrieval.py"),
-                    "--task-goal",
-                    workflow_name,
-                    "--keyword",
-                    target_date,
-                ],
-                produces=["retrieval_packet.json"],
-            ),
-            StageSpec(
-                name="knowledge-source-ingestion:logs",
-                command=[python, str(SCRIPTS_DIR / "ingest_logs.py")],
-                produces=["sessions", "messages"],
-            ),
-            StageSpec(
-                name="knowledge-source-ingestion:sources",
-                command=[python, str(SCRIPTS_DIR / "ingest_sources.py")],
-                produces=["source_documents", "document_chunks", "extracted_items"],
-            ),
-            StageSpec(
-                name="knowledge-claim-extraction",
-                command=[python, str(SCRIPTS_DIR / "claim_extraction.py"), target_date],
-                produces=["claim_packets.json"],
-            ),
-            StageSpec(
-                name="knowledge-candidate-review",
-                command=[python, str(SCRIPTS_DIR / "generate_candidates.py"), target_date],
-                produces=[f"60_Inbox/Candidates/{target_date}.md"],
-                success_checks=[
-                    SuccessCheck("file_exists", f"60_Inbox/Candidates/{target_date}.md"),
-                ],
-            ),
-        ]
-    if workflow_name == "render_obsidian":
-        return [
-            materialization_stage(python, target_date),
-            daily_summary_stage(python, target_date),
-        ]
-    if workflow_name == "full_cycle":
-        return [
-            *build_workflow_steps("archive_to_sqlite", target_date),
-            *build_workflow_steps("render_obsidian", target_date),
-        ]
-    if workflow_name in {"build_weekly_summary", "build_monthly_summary", "build_quarterly_summary", "build_yearly_summary"}:
+    if workflow_name in set(supported_workflows()):
         level = workflow_name.removeprefix("build_").removesuffix("_summary")
         return [
             StageSpec(

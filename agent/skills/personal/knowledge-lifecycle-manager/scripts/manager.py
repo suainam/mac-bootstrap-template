@@ -203,7 +203,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   %(prog)s
-  %(prog)s run --workflow full_cycle --date 2026-07-01
+  %(prog)s run --workflow build_daily_summary --date 2026-07-01
+  %(prog)s run --workflow build_weekly_summary --date 2026-07-10
   %(prog)s status --date 2026-07-01
   %(prog)s candidates 2026-07-01
   %(prog)s health
@@ -216,8 +217,8 @@ Examples:
     )
     parser.add_argument("command", nargs="?", choices=["run", "status", "candidates", "health", "backup", "record"])
     parser.add_argument("value", nargs="?")
-    parser.add_argument("--run", action="store_true", help="Run a workflow (default)")
-    parser.add_argument("--workflow", choices=knowledge_workflows.supported_workflows(), default="full_cycle")
+    parser.add_argument("--run", action="store_true", help="Run a workflow")
+    parser.add_argument("--workflow", choices=knowledge_workflows.supported_workflows())
     parser.add_argument("--date", type=str, help="Target date (YYYY-MM-DD)")
     parser.add_argument("--run-id", help="Explicit durable run id")
     parser.add_argument("--resume", help="Resume an existing durable run id")
@@ -276,7 +277,7 @@ def resolve_action(args: argparse.Namespace) -> tuple[str, str | None, str | Non
         return ("record", None, target_date)
     if args.command == "run" or getattr(args, "run", False):
         return ("run", args.workflow, target_date)
-    return ("run", args.workflow, target_date)
+    return ("status", None, target_date)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -302,10 +303,13 @@ def main(argv: list[str] | None = None) -> None:
         record_knowledge_entry(args, target_date or default_target_date())
         return
 
+    if action == "run" and not workflow_name:
+        parser.error("run requires --workflow; use build_daily_summary or another build_*_summary workflow")
+
     advanced = args.run_id or args.resume or args.retry_failed or args.from_step or args.max_attempts != 1
     if advanced:
         run_workflow(
-            workflow_name or "full_cycle",
+            workflow_name,
             target_date or default_target_date(),
             run_id=args.run_id,
             resume_run_id=args.resume,
@@ -315,7 +319,7 @@ def main(argv: list[str] | None = None) -> None:
         )
         return
 
-    run_workflow(workflow_name or "full_cycle", target_date or default_target_date())
+    run_workflow(workflow_name, target_date or default_target_date())
 
 
 if __name__ == "__main__":

@@ -184,30 +184,8 @@ def test_build_claim_packet_and_hygiene_report(tmp_path: Path, monkeypatch):
 
 
 def test_daily_workflows_define_and_run_expected_steps():
-    ingest_steps = knowledge_workflows.build_workflow_steps("archive_to_sqlite", "2026-07-04")
-    promote_steps = knowledge_workflows.build_workflow_steps("render_obsidian", "2026-07-04")
-    full_cycle_steps = knowledge_workflows.build_workflow_steps("full_cycle", "2026-07-04")
-
-    assert [step["name"] for step in ingest_steps] == [
-        "knowledge-reuse-retrieval",
-        "knowledge-source-ingestion:logs",
-        "knowledge-source-ingestion:sources",
-        "knowledge-claim-extraction",
-        "knowledge-candidate-review",
-    ]
-    assert [step["name"] for step in promote_steps] == [
-        "knowledge-materialization",
-        "knowledge-daily-weekly-synthesis",
-    ]
-    assert [step["name"] for step in full_cycle_steps] == [
-        "knowledge-reuse-retrieval",
-        "knowledge-source-ingestion:logs",
-        "knowledge-source-ingestion:sources",
-        "knowledge-claim-extraction",
-        "knowledge-candidate-review",
-        "knowledge-materialization",
-        "knowledge-daily-weekly-synthesis",
-    ]
+    steps = knowledge_workflows.build_workflow_steps("build_daily_summary", "2026-07-04")
+    assert [step.name for step in steps] == ["build-daily-summary"]
 
     seen = []
 
@@ -216,39 +194,25 @@ def test_daily_workflows_define_and_run_expected_steps():
         seen.append(command)
 
     result = knowledge_workflows.run_workflow(
-        "render_obsidian",
+        "build_daily_summary",
         "2026-07-04",
         runner=fake_runner,
     )
 
-    assert len(seen) == 2
-    assert [item["name"] for item in result] == ["knowledge-materialization", "knowledge-daily-weekly-synthesis"]
+    assert len(seen) == 1
+    assert [item["name"] for item in result] == ["build-daily-summary"]
 
 
 def test_daily_workflow_dry_run_returns_json_ready_contracts():
-    result = knowledge_workflows.run_workflow("render_obsidian", "2026-07-04", dry_run=True)
+    result = knowledge_workflows.run_workflow("build_daily_summary", "2026-07-04", dry_run=True)
 
-    assert result[0]["name"] == "knowledge-materialization"
-    assert result[0]["success_checks"] == [
-        {"kind": "file_exists", "target": "10_Periodic/Daily/2026-07-04.md", "expected": True},
-        {"kind": "output_not_contains", "target": "combined", "expected": ["duplicate marker failure"]},
-    ]
-    assert result[1]["degraded_ok"] is True
-    assert result[1]["success_checks"] == [
-        {"kind": "file_exists", "target": "10_Periodic/Daily/2026-07-04.md", "expected": True},
-        {
-            "kind": "output_not_contains",
-            "target": "combined",
-            "expected": ["LLM generation failed", "生成总结失败", "调用 LLM 失败"],
-        },
-    ]
+    assert result[0]["name"] == "build-daily-summary"
+    assert result[0]["produces"] == ["70_Summaries/Daily/"]
 
 
-def test_supported_workflows_match_three_layer_model():
+def test_supported_workflows_use_summary_pipeline_not_full_cycle():
     assert knowledge_workflows.supported_workflows() == [
-        "archive_to_sqlite",
-        "render_obsidian",
-        "full_cycle",
+        "build_daily_summary",
         "build_weekly_summary",
         "build_monthly_summary",
         "build_quarterly_summary",
@@ -266,6 +230,16 @@ def test_period_summary_workflow_uses_internal_builder():
     assert steps[0].produces == ["70_Summaries/Weekly/"]
 
 
+def test_daily_summary_workflow_uses_period_builder():
+    steps = knowledge_workflows.build_workflow_steps("build_daily_summary", "2026-07-10")
+
+    assert len(steps) == 1
+    assert steps[0].name == "build-daily-summary"
+    assert "build_period_summary.py" in steps[0].command[1]
+    assert steps[0].command[-4:] == ["--level", "daily", "--anchor-date", "2026-07-10"]
+    assert steps[0].produces == ["70_Summaries/Daily/"]
+
+
 def test_durable_workflow_records_failure_and_logs(tmp_path: Path, monkeypatch):
     db_path = tmp_path / "agent_history.db"
     monkeypatch.setenv("AGENT_DB_PATH", str(db_path))
@@ -279,7 +253,7 @@ def test_durable_workflow_records_failure_and_logs(tmp_path: Path, monkeypatch):
         return subprocess.CompletedProcess(command, 7, stdout="partial output", stderr="boom")
 
     results = knowledge_workflows.run_durable_workflow(
-        "archive_to_sqlite",
+        "build_daily_summary",
         "2026-07-04",
         run_id="run_test_failure",
         command_runner=fake_command_runner,
@@ -322,7 +296,7 @@ def test_durable_runner_executes_stage_spec(tmp_path: Path, monkeypatch):
         return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
 
     results = knowledge_workflows.run_durable_workflow(
-        "render_obsidian",
+        "build_daily_summary",
         "2026-07-04",
         run_id="run_stage_spec",
         command_runner=fake_command_runner,
@@ -545,14 +519,12 @@ def test_durable_workflow_retry_failed_resumes_from_failed_step(tmp_path: Path, 
             return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
         return subprocess.CompletedProcess(command, 2, stdout="", stderr="failed second")
 
-    first = knowledge_workflows.run_durable_workflow(
-        "render_obsidian",
-        "2026-07-04",
-        run_id="run_retry",
-        command_runner=first_runner,
-        runs_dir=tmp_path / "runs",
-        max_attempts=1,
-    )
+    stages = [
+        StageSpec(name="first", command=["python", "first.py"]),
+        StageSpec(name="second", command=["python", "second.py"]),
+    ]
+    with knowledge_workflows.WorkflowRunner(command_runner=first_runner, runs_dir=tmp_path / "runs") as runner:
+        first = runner.run("custom", "2026-07-04", stages, run_id="run_retry", max_attempts=1)
     assert [item["status"] for item in first] == ["completed", "failed"]
 
     retry_calls = []
@@ -561,14 +533,8 @@ def test_durable_workflow_retry_failed_resumes_from_failed_step(tmp_path: Path, 
         retry_calls.append(command)
         return subprocess.CompletedProcess(command, 0, stdout="recovered", stderr="")
 
-    second = knowledge_workflows.run_durable_workflow(
-        "render_obsidian",
-        "2026-07-04",
-        retry_failed_run_id="run_retry",
-        command_runner=retry_runner,
-        runs_dir=tmp_path / "runs",
-        max_attempts=1,
-    )
+    with knowledge_workflows.WorkflowRunner(command_runner=retry_runner, runs_dir=tmp_path / "runs") as runner:
+        second = runner.run("custom", "2026-07-04", stages, retry_failed_run_id="run_retry", max_attempts=1)
 
     assert [item["status"] for item in second] == ["skipped", "completed"]
     assert len(retry_calls) == 1

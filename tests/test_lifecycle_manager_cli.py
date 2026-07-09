@@ -6,7 +6,7 @@ from argparse import Namespace
 from lifecycle_manager_test_support import load_manager_module
 
 
-def test_resolve_action_defaults_to_full_cycle_run() -> None:
+def test_resolve_action_defaults_to_status() -> None:
     manager = load_manager_module("manager_cli_default")
 
     action, workflow_name, target_date = manager.resolve_action(
@@ -14,7 +14,7 @@ def test_resolve_action_defaults_to_full_cycle_run() -> None:
             command=None,
             value=None,
             run=False,
-            workflow="full_cycle",
+            workflow=None,
             date=None,
             status=False,
             candidates=None,
@@ -23,9 +23,21 @@ def test_resolve_action_defaults_to_full_cycle_run() -> None:
         )
     )
 
-    assert action == "run"
-    assert workflow_name == "full_cycle"
+    assert action == "status"
+    assert workflow_name is None
     assert target_date
+
+
+def test_resolve_action_requires_explicit_workflow_for_run() -> None:
+    manager = load_manager_module("manager_cli_run_explicit")
+    parser = manager.build_parser()
+    args = parser.parse_args(["run", "--date", "2026-07-10"])
+
+    action, workflow_name, target_date = manager.resolve_action(args)
+
+    assert action == "run"
+    assert workflow_name is None
+    assert target_date == "2026-07-10"
 
 
 def test_resolve_action_supports_record_command() -> None:
@@ -36,7 +48,7 @@ def test_resolve_action_supports_record_command() -> None:
             command="record",
             value=None,
             run=False,
-            workflow="full_cycle",
+            workflow=None,
             date="2026-07-01",
             status=False,
             candidates=None,
@@ -56,7 +68,7 @@ def test_resolve_action_supports_command_style_candidates() -> None:
             command="candidates",
             value="2026-07-02",
             run=False,
-            workflow="full_cycle",
+            workflow=None,
             date=None,
             status=False,
             candidates=None,
@@ -80,10 +92,10 @@ def test_main_delegates_run_command(monkeypatch) -> None:
 
     monkeypatch.setattr(manager, "run_workflow", fake_run_workflow)
 
-    manager.main(["run", "--workflow", "render_obsidian", "--date", "2026-07-03"])
+    manager.main(["run", "--workflow", "build_daily_summary", "--date", "2026-07-03"])
 
     assert captured == {
-        "workflow_name": "render_obsidian",
+        "workflow_name": "build_daily_summary",
         "target_date": "2026-07-03",
     }
 

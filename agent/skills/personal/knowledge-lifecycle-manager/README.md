@@ -6,7 +6,7 @@ Unified command center for the data-hub knowledge pipeline.
 
 Single entry point for all knowledge pipeline operations:
 - Delegate live agent knowledge recording to `knowledge-record`
-- Run archive/render/period-summary workflows (`archive_to_sqlite`, `render_obsidian`, `full_cycle`, `build_*_summary`)
+- Run explicit summary workflows (`build_daily_summary`, `build_*_summary`)
 - Check execution status and health
 - Inspect candidate queues
 - Rerun specific dates or stages
@@ -16,16 +16,14 @@ Single entry point for all knowledge pipeline operations:
 ### Unified Entry
 
 ```bash
-# Run today's full pipeline
+# Show today's lifecycle status
 ./run.sh
 
 # Rerun specific date
-./run.sh run --workflow full_cycle --date 2026-07-01
+./run.sh run --workflow build_daily_summary --date 2026-07-01
 
 # Named workflows
-./run.sh run --workflow archive_to_sqlite --date 2026-07-01
-./run.sh run --workflow render_obsidian --date 2026-07-01
-./run.sh run --workflow full_cycle --date 2026-07-01
+./run.sh run --workflow build_daily_summary --date 2026-07-01
 ./run.sh run --workflow build_weekly_summary --date 2026-07-10
 ./run.sh run --workflow build_monthly_summary --date 2026-07-31
 ./run.sh run --workflow build_quarterly_summary --date 2026-09-30

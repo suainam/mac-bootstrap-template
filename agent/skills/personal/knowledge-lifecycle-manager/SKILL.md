@@ -1,7 +1,7 @@
 ---
 name: knowledge-lifecycle-manager
 description: |
-  Unified command center for data-hub knowledge pipeline: delegate knowledge recording to the knowledge-record skill, run archive_to_sqlite, render_obsidian, full_cycle, and build_*_summary workflows, check execution status, inspect candidate queues, back up SQLite, and run health checks. Use when the user wants to trigger the full pipeline, generate weekly/monthly/quarterly/yearly summaries, rerun a specific date, check today's progress, view candidate queue state, audit recent execution health, or route a record request into the dedicated writer. Project-scoped to mac-bootstrap data-hub.
+  Unified command center for data-hub knowledge pipeline: delegate knowledge recording to the knowledge-record skill, run build_daily_summary and build_*_summary workflows into 70_Summaries, check execution status, inspect candidate queues, back up SQLite, and run health checks. Use when the user wants to generate daily/weekly/monthly/quarterly/yearly summaries, rerun a specific date, check progress, view candidate queue state, audit recent execution health, or route a record request into the dedicated writer. Project-scoped to mac-bootstrap data-hub.
 scope: project
 triggers:
   - "run knowledge pipeline"
