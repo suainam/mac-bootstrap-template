@@ -241,11 +241,15 @@ def build_retrieval_packet(
         if client is None:
             llm_wiki_context["warnings"].append("llm_wiki disabled")
         else:
-            llm_wiki_context = build_llm_wiki_context(
-                client,
-                query=" ".join(keyword_tokens),
-                include_daily=True,
-            )
+            try:
+                llm_wiki_context = build_llm_wiki_context(
+                    client,
+                    query=" ".join(keyword_tokens),
+                    include_daily=True,
+                )
+            except Exception as exc:  # noqa: BLE001 - retrieval must degrade when local API auth/network is unavailable.
+                llm_wiki_context["source"] = "llm_wiki"
+                llm_wiki_context["warnings"].append(f"llm_wiki unavailable: {type(exc).__name__}: {exc}")
 
     return {
         "task_goal": task_goal,
