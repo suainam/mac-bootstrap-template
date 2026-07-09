@@ -1,0 +1,10 @@
+# Global npm packages — installed via `npm install -g` during bootstrap.
+# Keep this list small: machine-level agent/CLI tools only.
+# Node itself is managed by Homebrew; this file manages npm globals on top.
+# Format: one bare npm package name per line (no version pins or aliases).
+
+@upstash/context7-mcp
+@waishnav/devspace
+codebase-memory-mcp
+context-mode
+reasonix

@@ -127,6 +127,7 @@ check:
 	bash -n scripts/install-antigravity-cli.sh
 	bash -n scripts/doctor.sh
 	bash -n scripts/install-agent-tooling.sh
+	bash -n scripts/install-npm-global-packages.sh
 	bash -n scripts/lib/proxy-common.sh
 	bash -n scripts/lib/agent-shared.sh
 	bash -n scripts/lib/agent-manifest.sh
@@ -362,6 +363,12 @@ publish-public:
 
 pi-packages:
 	./scripts/install-pi-packages.sh --yes
+
+npm-packages:
+	./scripts/install-npm-global-packages.sh --yes
+
+npm-packages-upgrade:
+	./scripts/install-npm-global-packages.sh --yes --upgrade
 
 pm-detect:
 	@./scripts/detect-package-manager.sh

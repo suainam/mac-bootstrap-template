@@ -51,9 +51,17 @@ data-hub      -> state / workflow / promotion layer
 Obsidian      -> viewer / editor for Markdown artifacts
 ```
 
+## Live Record Contract
+
+实时写入不直接落到 `data-hub` 内部脚本，而是走 `knowledge-record` skill 的 live record contract。
+
+- `knowledge-lifecycle-manager record` 是统一入口，用来把当前 agent 会话中的确认知识写入 SQLite
+- `knowledge-record` 负责 suggest / confirm / persist 的 live push contract
+- `data-hub` 后续 workflow 只消费这些已确认记录，不绕过该 contract 直接写库
+
 ## Knowledge Root 边界
 
-`/Users/suai/work/knowledge` 是共享 knowledge root。
+`<knowledge-root>` 是共享 knowledge root。
 
 `llm_wiki` 拥有：
 
@@ -97,7 +105,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 - `render_obsidian`
 - `full_cycle`
 
-step 定义见 [knowledge_workflows.py](/Users/suai/work/config/mac-bootstrap/template/agent/data-hub/knowledge_workflows.py)。
+step 定义见 [knowledge_workflows.py](./knowledge_workflows.py)。
 
 ## 当前实现 vs 下一阶段
 

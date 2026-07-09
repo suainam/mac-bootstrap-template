@@ -146,6 +146,12 @@ split the same way: RTK and `codex-threadripper` are installed from Homebrew
 taps, and `context-mode` is installed as a global npm package. Antigravity CLI
 follows the official Google installer instead of Homebrew cask packaging.
 
+Machine-level npm globals are tracked in `template/agent/npm-global-packages.txt`.
+Use `make npm-packages` to install missing entries, `make npm-packages-upgrade`
+to refresh them in place, and `make doctor-agent` to verify the current machine
+against that manifest. The manifest intentionally stores bare package names, and
+`make doctor-agent` reports a missing prerequisite if `node`/`npm` is absent.
+
 DevSpace is also wired in as the remote MCP sidecar for browser and CLI agents.
 Use [`docs/devspace-local.md`](docs/devspace-local.md) for the local server,
 Cloudflare Tunnel, LaunchAgent workflow, and web-UI troubleshooting links
@@ -335,6 +341,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 
 ```bash
 make bootstrap       # Brewfile + shell/vim/neovim/tmux
+make npm-packages    # Install tracked global npm CLIs (context-mode, CBM, reasonix, ...)
 make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian)
 make agent-tools     # Wire RTK, caveman, CBM, context-mode, X docs, skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
@@ -363,6 +370,11 @@ silently leaving old dotfile paths in place.
 `make doctor` also checks Chrome Gemini/Glic state when the local Chrome profile
 is eligible, so a missing Gemini launcher or incomplete first-run setup surfaces
 with the rest of the machine health report.
+
+OpenWiki rollout has been withdrawn. Do not treat generated repo wiki pages as
+the authority for repo rules or runbooks; keep `README.md`, `CONTEXT.md`,
+`CLAUDE.md`, and `docs/` as the maintained sources of truth. Rationale is
+captured in `docs/openwiki-boundary-decision.md`.
 
 Regression notes:
 - Do not parallelize `make -C template check` and parent `make check`; the

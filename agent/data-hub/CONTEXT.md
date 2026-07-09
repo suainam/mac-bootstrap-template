@@ -10,7 +10,7 @@
 ## 1. Shared Knowledge Root
 
 ```text
-/Users/suai/work/knowledge
+<knowledge-root>
 ├── .llm-wiki
 ├── raw/sources
 ├── wiki

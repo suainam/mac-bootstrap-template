@@ -422,6 +422,24 @@ if command -v npx &>/dev/null; then
     echo "  MISS context7 MCP (not configured in any agent)"
   fi
 fi
+npm_packages_file="$BOOTSTRAP/agent/npm-global-packages.txt"
+if [ -f "$npm_packages_file" ] && command -v npm &>/dev/null && command -v node &>/dev/null; then
+  installed_json=$(npm -g ls --depth=0 --json 2>/dev/null || true)
+  if [ -z "$installed_json" ]; then
+    installed_json='{}'
+  fi
+  while IFS= read -r package; do
+    [ -n "$package" ] || continue
+    if printf '%s' "$installed_json" | node -e 'const fs=require("fs"); const pkg=process.argv[1]; const data=JSON.parse(fs.readFileSync(0,"utf8")||"{}"); process.exit((data.dependencies||{})[pkg] ? 0 : 1);' "$package"; then
+      echo "  OK   npm global $package"
+    else
+      echo "  MISS npm global $package (run: make npm-packages)"
+    fi
+  done < <(grep -vE '^\s*(#|$)' "$npm_packages_file")
+elif [ -f "$npm_packages_file" ]; then
+  echo "  MISS npm globals prerequisite (install Node/npm before make npm-packages)"
+fi
+
 # Verify CBM indexed
 if codebase-memory-mcp cli list_projects '{}' 2>/dev/null | grep -q '"name"'; then
   echo "  OK   CBM graph (indexed projects found)"
