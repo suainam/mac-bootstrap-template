@@ -25,6 +25,7 @@
     "project_root": "$HOME/work/knowledge",
     "project_id": "",
     "token_env": "LLM_WIKI_TOKEN",
+    "token": "",
     "exclude_dirs": ["70_Summaries"]
   },
   "summary": {

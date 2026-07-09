@@ -20,6 +20,8 @@ if str(DATA_HUB_DIR) not in sys.path:
     sys.path.insert(0, str(DATA_HUB_DIR))
 
 from data_hub_config import get_runtime_config
+from llm_wiki_client import LlmWikiClient
+from llm_wiki_context import build_llm_wiki_context
 
 
 def load_env() -> None:
@@ -207,28 +209,54 @@ def build_reuse_recommendations(
     return recommendations
 
 
+def make_llm_wiki_client() -> LlmWikiClient | None:
+    config = get_runtime_config().llm_wiki
+    if not config.enabled or not config.project_id:
+        return None
+    return LlmWikiClient(config.api_base, config.project_id, config.token_env, config.token)
+
+
 def build_retrieval_packet(
     task_goal: str,
     keywords: list[str],
     project: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    include_llm_wiki: bool = False,
 ) -> dict:
     keyword_tokens = dedupe_keywords([task_goal, *keywords, project or ""])
     matched_daily = scan_markdown_bucket("10_Periodic/Daily", keyword_tokens, date_from, date_to, project, limit=5)
     matched_adrs = scan_markdown_bucket("40_Knowledge/ADR", keyword_tokens, date_from, date_to, project, limit=5)
     matched_cards = scan_markdown_bucket("40_Knowledge/Cards", keyword_tokens, date_from, date_to, project, limit=5)
     open_loops = fetch_open_loops(keyword_tokens, project, date_from, date_to, limit=8)
+    llm_wiki_context = {
+        "source": "disabled",
+        "results": [],
+        "graph_neighbors": [],
+        "reviews": [],
+        "warnings": [],
+    }
+    if include_llm_wiki:
+        client = make_llm_wiki_client()
+        if client is None:
+            llm_wiki_context["warnings"].append("llm_wiki disabled")
+        else:
+            llm_wiki_context = build_llm_wiki_context(
+                client,
+                query=" ".join(keyword_tokens),
+                include_daily=True,
+            )
 
     return {
         "task_goal": task_goal,
         "keywords": keyword_tokens,
-        "project": project,
-        "date_range": {"from": date_from, "to": date_to},
-        "matched_daily": matched_daily,
-        "matched_adrs": matched_adrs,
-        "matched_cards": matched_cards,
+        "local_markdown": {
+            "daily": matched_daily,
+            "adrs": matched_adrs,
+            "cards": matched_cards,
+        },
         "open_loops": open_loops,
+        "llm_wiki_context": llm_wiki_context,
         "reuse_recommendations": build_reuse_recommendations(
             matched_daily,
             matched_adrs,
@@ -245,6 +273,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project")
     parser.add_argument("--date-from")
     parser.add_argument("--date-to")
+    parser.add_argument("--include-llm-wiki", action="store_true")
     parser.add_argument("--output")
     return parser.parse_args()
 
@@ -257,6 +286,7 @@ def main() -> None:
         project=args.project,
         date_from=args.date_from,
         date_to=args.date_to,
+        include_llm_wiki=args.include_llm_wiki,
     )
     rendered = json.dumps(packet, ensure_ascii=False, indent=2)
     if args.output:
