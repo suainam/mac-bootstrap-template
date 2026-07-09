@@ -86,6 +86,15 @@ def render_summary_body(packet: dict[str, Any]) -> str:
     if len(lines) == 2:
         lines.append("- No matching source signals found.")
 
+    previous_summaries = packet.get("previous_summaries", [])
+    if previous_summaries:
+        lines.extend(["", "## 上一层 Summary 输入", ""])
+        for row in previous_summaries:
+            lines.append(f"### {row.get('source_ref')}")
+            content = str(row.get("content", "")).strip()
+            lines.append(content if content else "- Empty previous summary.")
+            lines.append("")
+
     lines.extend(["", "## 已完结", "", "- 待 llm_filter 根据证据归纳。"])
     lines.extend(["", "## 当前待办", "", "- 待 llm_filter 根据 open loops 与上下文归纳。"])
     lines.extend(["", "## 知识沉淀", ""])
@@ -138,7 +147,17 @@ def build_period_summary(level: str, anchor_date: str) -> Path:
     sources = extract_summary_sources(packet)
     config = get_runtime_config()
     if level != "daily":
-        sources.extend(previous_layer_sources(level, period_start, period_end, config.summary.deployment_start))
+        previous_sources = previous_layer_sources(level, period_start, period_end, config.summary.deployment_start)
+        sources.extend(previous_sources)
+        packet = dict(packet)
+        packet["previous_summaries"] = [
+            {
+                "source_ref": row["source_ref"],
+                "period_id": row.get("metadata", {}).get("period_id"),
+                "content": row.get("metadata", {}).get("content", ""),
+            }
+            for row in previous_sources
+        ]
     derived_from = {
         "daily": [row["source_ref"] for row in sources if row["source_kind"] == "daily"],
         "sqlite_records": [row["source_ref"] for row in sources if row["source_kind"] == "sqlite_candidate"],

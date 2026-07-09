@@ -33,10 +33,10 @@ You can also automate the summary schedule:
 ### Evening Summary Schedule (18:30)
 
 ```bash
-/cron create "0 30 18 * * 1-5" "cd $HOME/work/config/mac-bootstrap && bash template/agent/data-hub/run-daily-evening.sh"
+/cron create "0 30 18 * * *" "cd $HOME/work/config/mac-bootstrap && bash template/agent/data-hub/run-daily-evening.sh"
 ```
 
-**Schedule**: Every weekday at 18:30
+**Schedule**: Every day at 18:30
 **Purpose**: Run build_daily_summary and any period summary triggered for the date through the lifecycle manager.
 
 ## Viewing Cron Jobs

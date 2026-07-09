@@ -153,3 +153,27 @@ def test_weekly_summary_records_previous_daily_layer(monkeypatch, tmp_path: Path
         "source_kind": "daily_summary",
         "source_ref": "70_Summaries/Daily/2026-07-10.md",
     }
+
+
+def test_weekly_summary_uses_previous_daily_summary_content(monkeypatch, tmp_path: Path):
+    _db_path, vault_dir = configure_runtime(monkeypatch, tmp_path)
+    daily_summary = vault_dir / "70_Summaries" / "Daily" / "2026-07-10.md"
+    daily_summary.parent.mkdir(parents=True)
+    daily_summary.write_text("# Daily Summary 2026-07-10\n\n- Shipped bounded summary flow.\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        period_summary,
+        "build_retrieval_packet",
+        lambda **kwargs: {
+            "local_markdown": {"daily": [], "adrs": [], "cards": []},
+            "open_loops": [],
+            "llm_wiki_context": {"results": [], "warnings": []},
+            "reuse_recommendations": [],
+        },
+    )
+
+    output_path = period_summary.build_period_summary("weekly", "2026-07-10")
+    text = output_path.read_text(encoding="utf-8")
+
+    assert "## 上一层 Summary 输入" in text
+    assert "Shipped bounded summary flow." in text

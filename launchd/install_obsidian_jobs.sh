@@ -16,6 +16,7 @@ LOG_DIR="$HOME/Library/Logs/agent-data-hub"
 MORNING_LABEL="com.${USER}.daily-morning"
 REMINDER_LABEL="com.${USER}.daily-reminder"
 EVENING_LABEL="com.${USER}.daily-evening"
+LEGACY_WEEKLY_LABEL="com.${USER}.weekly-summary"
 
 MORNING_PLIST="$LAUNCH_AGENTS_DIR/${MORNING_LABEL}.plist"
 REMINDER_PLIST="$LAUNCH_AGENTS_DIR/${REMINDER_LABEL}.plist"
@@ -25,7 +26,7 @@ mkdir -p "$LOG_DIR"
 
 # ── 卸载模式 ─────────────────────────────────────────────
 if [[ "${1:-}" == "--uninstall" ]]; then
-  for label in "$MORNING_LABEL" "$REMINDER_LABEL" "$EVENING_LABEL"; do
+  for label in "$MORNING_LABEL" "$REMINDER_LABEL" "$EVENING_LABEL" "$LEGACY_WEEKLY_LABEL"; do
     launchctl unload "$LAUNCH_AGENTS_DIR/${label}.plist" 2>/dev/null && echo "已卸载 $label" || true
     rm -f "$LAUNCH_AGENTS_DIR/${label}.plist"
   done
@@ -35,6 +36,8 @@ fi
 
 chmod +x "$DATA_HUB_DIR/daily_morning.sh"
 chmod +x "$DATA_HUB_DIR/run-daily-evening.sh"
+launchctl unload "$LAUNCH_AGENTS_DIR/${LEGACY_WEEKLY_LABEL}.plist" 2>/dev/null || true
+rm -f "$LAUNCH_AGENTS_DIR/${LEGACY_WEEKLY_LABEL}.plist"
 
 # ── 1. 晨间任务: 09:00 创建日报 ──────────────────────────
 cat > "$MORNING_PLIST" << EOF

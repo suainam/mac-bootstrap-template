@@ -73,6 +73,23 @@ def test_expected_previous_layer_sources_are_bounded_to_period(monkeypatch, tmp_
         {
             "source_kind": "daily_summary",
             "source_ref": "70_Summaries/Daily/2026-07-10.md",
-            "metadata": {"period_id": "2026-07-10"},
+            "metadata": {"period_id": "2026-07-10", "content": "# Daily Summary 2026-07-10\n"},
         }
+    ]
+
+
+def test_monthly_previous_periods_skip_open_week():
+    periods = summary_inputs.required_previous_periods(
+        "monthly",
+        "2026-08-01",
+        "2026-08-31",
+        "2026-08-01",
+    )
+
+    assert periods == [
+        ("weekly", "2026-08-01", "2026-W31"),
+        ("weekly", "2026-08-03", "2026-W32"),
+        ("weekly", "2026-08-10", "2026-W33"),
+        ("weekly", "2026-08-17", "2026-W34"),
+        ("weekly", "2026-08-24", "2026-W35"),
     ]

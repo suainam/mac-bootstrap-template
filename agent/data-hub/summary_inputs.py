@@ -68,13 +68,35 @@ def required_previous_periods(
     lower = previous_level(level)
     seen: set[str] = set()
     required: list[tuple[str, str, str]] = []
+    upper_end = parse_date(period_end)
     for anchor in required_summary_dates(level, period_start, period_end, deployment_start):
         period_id = resolve_summary_period_id(lower, anchor)
         if period_id in seen:
             continue
+        if lower != "daily" and resolve_summary_period_end(lower, anchor) > upper_end:
+            continue
         seen.add(period_id)
         required.append((lower, anchor, period_id))
     return required
+
+
+def resolve_summary_period_end(level: str, anchor_date: str) -> date:
+    dt = parse_date(anchor_date)
+    if level == "daily":
+        return dt
+    if level == "weekly":
+        start = dt - timedelta(days=dt.weekday())
+        return start + timedelta(days=6)
+    if level == "monthly":
+        start = dt.replace(day=1)
+        return (start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    if level == "quarterly":
+        quarter = (dt.month - 1) // 3 + 1
+        next_quarter = date(dt.year + 1, 1, 1) if quarter == 4 else date(dt.year, 3 * quarter + 1, 1)
+        return next_quarter - timedelta(days=1)
+    if level == "yearly":
+        return date(dt.year, 12, 31)
+    raise ValueError(f"unsupported summary level: {level}")
 
 
 def expected_summary_path(level: str, period_id: str) -> Path:
@@ -110,7 +132,7 @@ def previous_layer_sources(
             {
                 "source_kind": f"{lower}_summary",
                 "source_ref": str(path.relative_to(config.paths.vault_dir)),
-                "metadata": {"period_id": period_id},
+                "metadata": {"period_id": period_id, "content": path.read_text(encoding="utf-8")},
             }
         )
     return sources
