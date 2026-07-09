@@ -240,3 +240,31 @@ CREATE TABLE IF NOT EXISTS backup_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_backup_log_created ON backup_log(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS summary_runs (
+    id TEXT PRIMARY KEY,
+    summary_level TEXT NOT NULL CHECK(summary_level IN ('weekly', 'monthly', 'quarterly', 'yearly')),
+    period_id TEXT NOT NULL,
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    source_mode TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),
+    output_path TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_summary_runs_level_period ON summary_runs(summary_level, period_id);
+CREATE INDEX IF NOT EXISTS idx_summary_runs_status ON summary_runs(status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS summary_run_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    source_kind TEXT NOT NULL,
+    source_ref TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(run_id) REFERENCES summary_runs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_summary_run_sources_run ON summary_run_sources(run_id);
