@@ -27,7 +27,7 @@ from source_adapters import iter_source_files, parse_source
 
 def test_ingest_sources_and_generate_candidates_main(temp_db_and_vault, monkeypatch) -> None:
     _db_path, vault_dir = temp_db_and_vault
-    meeting_path = vault_dir / "50_Sources" / "Meetings" / "2026-07-10_weekly-sync.md"
+    meeting_path = vault_dir / "raw" / "sources" / "Meetings" / "2026-07-10_weekly-sync.md"
     meeting_path.write_text("决策\n采用轻量审核\n待办\n- 跟进门店实验\n", encoding="utf-8")
 
     monkeypatch.setattr(ingest_sources, "OBSIDIAN_VAULT_DIR", vault_dir)
@@ -66,7 +66,7 @@ def test_db_helpers_source_adapters_and_auto_review_fallback(temp_db_and_vault) 
     db_path, vault_dir = temp_db_and_vault
     seed_message_and_source_data(db_path, vault_dir)
 
-    wiki_path = vault_dir / "50_Sources" / "Wiki-Clips" / "2026-07-11_retro.md"
+    wiki_path = vault_dir / "raw" / "sources" / "Wiki-Clips" / "2026-07-11_retro.md"
     wiki_path.write_text("# 复盘\n- 风险项\n普通事实\n", encoding="utf-8")
     files = list(iter_source_files(vault_dir))
     assert ("wiki_page", wiki_path) in files

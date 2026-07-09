@@ -24,7 +24,7 @@ def seed_knowledge_db(db_path: Path, vault_dir: Path) -> None:
     conn = source_ingest_store.get_db_connection(db_path)
     now = datetime.now().isoformat(timespec="seconds")
     try:
-        source_path = vault_dir / "50_Sources" / "Meetings" / "2026-07-04_growth-review.md"
+        source_path = vault_dir / "raw" / "sources" / "Meetings" / "2026-07-04_growth-review.md"
         source_path.parent.mkdir(parents=True, exist_ok=True)
         source_path.write_text("决定采用 filename_first。\n待办\n· 跟进门店实验@南宗帅\n", encoding="utf-8")
         doc_id = source_ingest_store.upsert_document(

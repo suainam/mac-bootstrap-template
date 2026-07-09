@@ -12,12 +12,27 @@
   },
   "sources": {
     "inputs": [
-      {"source_type": "meeting_note", "relative_root": "50_Sources/Meetings", "pattern": "*.md"},
-      {"source_type": "mind_map", "relative_root": "50_Sources/Mindmaps", "pattern": "*.xmind"},
-      {"source_type": "wiki_page", "relative_root": "50_Sources/Wiki-Clips", "pattern": "*.md"},
-      {"source_type": "wiki_pdf", "relative_root": "50_Sources/Wiki-Clips", "pattern": "*.pdf"},
-      {"source_type": "wiki_html", "relative_root": "50_Sources/Wiki-Clips", "pattern": "*.html"}
+      {"source_type": "meeting_note", "relative_root": "raw/sources/Meetings", "pattern": "*.md"},
+      {"source_type": "mind_map", "relative_root": "raw/sources/Mindmaps", "pattern": "*.xmind"},
+      {"source_type": "wiki_page", "relative_root": "raw/sources/Wiki-Clips", "pattern": "*.md"},
+      {"source_type": "wiki_pdf", "relative_root": "raw/sources/Wiki-Clips", "pattern": "*.pdf"},
+      {"source_type": "wiki_html", "relative_root": "raw/sources/Wiki-Clips", "pattern": "*.html"}
     ]
+  },
+  "llm_wiki": {
+    "enabled": false,
+    "api_base": "http://127.0.0.1:19828",
+    "project_root": "$HOME/work/knowledge",
+    "project_id": "",
+    "token_env": "LLM_WIKI_TOKEN",
+    "exclude_dirs": ["70_Summaries"]
+  },
+  "summary": {
+    "root_relative": "70_Summaries",
+    "weekly_dir": "Weekly",
+    "monthly_dir": "Monthly",
+    "quarterly_dir": "Quarterly",
+    "yearly_dir": "Yearly"
   },
   "agent_logs": {
     "claude_projects_dir": "$HOME/.claude/projects",

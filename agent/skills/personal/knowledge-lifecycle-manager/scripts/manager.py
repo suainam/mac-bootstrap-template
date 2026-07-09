@@ -9,8 +9,17 @@ from datetime import datetime
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[6]
-TEMPLATE_ROOT = REPO_ROOT / "template"
+def resolve_template_root(script_path: Path) -> Path:
+    for candidate in script_path.parents:
+        if (candidate / "agent" / "data-hub").is_dir():
+            return candidate
+        nested_template = candidate / "template"
+        if (nested_template / "agent" / "data-hub").is_dir():
+            return nested_template
+    raise RuntimeError(f"Unable to resolve template root from {script_path}")
+
+
+TEMPLATE_ROOT = resolve_template_root(Path(__file__).resolve())
 DATA_HUB = TEMPLATE_ROOT / "agent" / "data-hub"
 PYTHON = TEMPLATE_ROOT / ".venv" / "bin" / "python"
 LOCAL_SCRIPTS_DIR = Path(__file__).resolve().parent

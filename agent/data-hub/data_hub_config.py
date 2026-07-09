@@ -9,8 +9,24 @@ from typing import Any
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
-TEMPLATE_ROOT = CURRENT_DIR.parents[1]
-REPO_ROOT = TEMPLATE_ROOT.parent
+
+
+def resolve_template_root(current_dir: Path) -> Path:
+    for candidate in current_dir.parents:
+        if (candidate / "agent" / "data-hub").is_dir():
+            return candidate
+    raise RuntimeError(f"Unable to resolve template root from {current_dir}")
+
+
+def resolve_repo_root(template_root: Path) -> Path:
+    for candidate in (template_root.parent, *template_root.parents):
+        if (candidate / "private" / "agent").is_dir():
+            return candidate
+    return template_root.parent
+
+
+TEMPLATE_ROOT = resolve_template_root(CURRENT_DIR)
+REPO_ROOT = resolve_repo_root(TEMPLATE_ROOT)
 
 RUNTIME_CONFIG = REPO_ROOT / "private" / "agent" / "data_hub.runtime.jsonc"
 
@@ -44,12 +60,30 @@ class SourceInput:
 
 
 @dataclass(frozen=True)
+class LlmWikiConfig:
+    enabled: bool
+    api_base: str
+    project_root: Path
+    project_id: str
+    token_env: str
+    exclude_dirs: list[str]
+
+
+@dataclass(frozen=True)
+class SummaryConfig:
+    root_relative: str
+    level_dirs: dict[str, str]
+
+
+@dataclass(frozen=True)
 class DataHubConfig:
     paths: DataHubPaths
     agent_logs: AgentLogPaths
     sources: list[SourceInput]
     llm: dict[str, Any]
     workflow: dict[str, Any]
+    llm_wiki: LlmWikiConfig
+    summary: SummaryConfig
 
 
 def strip_jsonc_comments(text: str) -> str:
@@ -102,11 +136,11 @@ def runtime_text(config: dict[str, Any], key: str, env_key: str, default: str) -
 
 def default_sources() -> list[SourceInput]:
     return [
-        SourceInput("meeting_note", "50_Sources/Meetings", "*.md"),
-        SourceInput("mind_map", "50_Sources/Mindmaps", "*.xmind"),
-        SourceInput("wiki_page", "50_Sources/Wiki-Clips", "*.md"),
-        SourceInput("wiki_pdf", "50_Sources/Wiki-Clips", "*.pdf"),
-        SourceInput("wiki_html", "50_Sources/Wiki-Clips", "*.html"),
+        SourceInput("meeting_note", "raw/sources/Meetings", "*.md"),
+        SourceInput("mind_map", "raw/sources/Mindmaps", "*.xmind"),
+        SourceInput("wiki_page", "raw/sources/Wiki-Clips", "*.md"),
+        SourceInput("wiki_pdf", "raw/sources/Wiki-Clips", "*.pdf"),
+        SourceInput("wiki_html", "raw/sources/Wiki-Clips", "*.html"),
     ]
 
 
@@ -134,6 +168,31 @@ def build_agent_logs(config: dict[str, Any]) -> AgentLogPaths:
         codex_sessions_dir=expand_path(logs.get("codex_sessions_dir", codex_default)),
         opencode_sessions_dir=expand_path(logs.get("opencode_sessions_dir", opencode_default)),
         agy_brain_dir=expand_path(logs.get("agy_brain_dir", home / ".gemini" / "antigravity-cli" / "brain")),
+    )
+
+
+def build_llm_wiki(config: dict[str, Any], vault_dir: Path) -> LlmWikiConfig:
+    raw = config.get("llm_wiki", {})
+    return LlmWikiConfig(
+        enabled=bool(raw.get("enabled", False)),
+        api_base=str(raw.get("api_base", "http://127.0.0.1:19828")),
+        project_root=expand_path(raw.get("project_root", vault_dir)),
+        project_id=str(raw.get("project_id", "")),
+        token_env=str(raw.get("token_env", "LLM_WIKI_TOKEN")),
+        exclude_dirs=list(raw.get("exclude_dirs", ["70_Summaries"])),
+    )
+
+
+def build_summary(config: dict[str, Any]) -> SummaryConfig:
+    raw = config.get("summary", {})
+    return SummaryConfig(
+        root_relative=str(raw.get("root_relative", "70_Summaries")),
+        level_dirs={
+            "weekly": str(raw.get("weekly_dir", "Weekly")),
+            "monthly": str(raw.get("monthly_dir", "Monthly")),
+            "quarterly": str(raw.get("quarterly_dir", "Quarterly")),
+            "yearly": str(raw.get("yearly_dir", "Yearly")),
+        },
     )
 
 
@@ -170,12 +229,16 @@ def get_runtime_config() -> DataHubConfig:
         ],
         llm_config_path=llm_config_path,
     )
+    llm_wiki = build_llm_wiki(raw_config, paths.vault_dir)
+    summary = build_summary(raw_config)
     return DataHubConfig(
         paths=paths,
         agent_logs=build_agent_logs(raw_config),
         sources=build_sources(raw_config),
         llm=dict(raw_config.get("llm", raw_config if "backends" in raw_config else {})),
         workflow=dict(raw_config.get("workflow", {})),
+        llm_wiki=llm_wiki,
+        summary=summary,
     )
 
 
@@ -189,6 +252,11 @@ def get_vault_dir() -> Path:
 
 def get_runs_dir() -> Path:
     return get_runtime_config().paths.runs_dir
+
+
+def get_summary_output_dir(level: str) -> Path:
+    config = get_runtime_config()
+    return config.paths.vault_dir / config.summary.root_relative / config.summary.level_dirs[level]
 
 
 def load_prompt_template(name: str) -> Template | None:

@@ -26,11 +26,11 @@ def hash_binary_file(path: Path) -> str:
 
 
 SOURCE_DIR_NAMES = {
-    "meeting_note": ("50_Sources/Meetings", "*.md"),
-    "mind_map": ("50_Sources/Mindmaps", "*.xmind"),
-    "wiki_page": ("50_Sources/Wiki-Clips", "*.md"),
-    "wiki_pdf": ("50_Sources/Wiki-Clips", "*.pdf"),
-    "wiki_html": ("50_Sources/Wiki-Clips", "*.html"),
+    "meeting_note": ("raw/sources/Meetings", "*.md"),
+    "mind_map": ("raw/sources/Mindmaps", "*.xmind"),
+    "wiki_page": ("raw/sources/Wiki-Clips", "*.md"),
+    "wiki_pdf": ("raw/sources/Wiki-Clips", "*.pdf"),
+    "wiki_html": ("raw/sources/Wiki-Clips", "*.html"),
 }
 
 

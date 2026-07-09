@@ -98,6 +98,32 @@ def test_default_paths_apply_when_runtime_and_shell_env_missing(monkeypatch, tmp
     assert cfg.paths.vault_dir == Path.home() / "work" / "knowledge"
 
 
+def test_resolve_repo_root_prefers_nearest_parent_with_private_agent(tmp_path):
+    repo_root = tmp_path / "mac-bootstrap"
+    template_root = repo_root / ".worktrees" / "template-data-hub"
+    (repo_root / "private" / "agent").mkdir(parents=True)
+    (template_root / "agent" / "data-hub").mkdir(parents=True)
+
+    assert data_hub_config.resolve_repo_root(template_root) == repo_root
+
+
+def test_runtime_config_exposes_dual_system_defaults(monkeypatch, tmp_path):
+    configure_files(monkeypatch, tmp_path)
+    monkeypatch.setenv("OBSIDIAN_VAULT_DIR", str(tmp_path / "knowledge"))
+    monkeypatch.delenv("AGENT_DB_PATH", raising=False)
+
+    config = data_hub_config.get_runtime_config()
+
+    assert config.llm_wiki.enabled is False
+    assert config.llm_wiki.project_root == Path(tmp_path / "knowledge")
+    assert config.summary.root_relative == "70_Summaries"
+    assert config.summary.level_dirs["weekly"] == "Weekly"
+    assert config.sources[0].relative_root == "raw/sources/Meetings"
+    assert data_hub_config.get_summary_output_dir("weekly") == Path(
+        tmp_path / "knowledge" / "70_Summaries" / "Weekly"
+    )
+
+
 def test_load_prompt_template_returns_template_when_file_exists(monkeypatch, tmp_path):
     runtime = configure_files(monkeypatch, tmp_path)
     template_dir = tmp_path / "template" / "agent" / "data-hub" / "prompts"
