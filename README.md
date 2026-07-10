@@ -426,15 +426,11 @@ Quality gate model:
 - installed Codex hooks are adapters; repo-owned scripts execute the actual gate logic
 
 Skill management rule:
-- Treat `template/agent/skills/personal/` as the only source tree for
-  first-party skills
-- Treat `template/agent/skills-manifest.json` as the first-party global/project
-  scope map: `global_skills` for shared skills, `projects.<name>.skills` for
-  project-local skills, and `source_root` as the implicit source base
-- Treat `template/agent/skills-promote.txt` as the upstream whitelist plus the
-  first-party publish list
-- Treat `template/agent/skills-distribution.json` as the canonical agent/app
-  routing map
+- Treat `template/agent-skills/registry/sources.jsonc` as source lineage,
+  scope, gate, and project-routing authority
+- Treat `template/agent-skills/registry/targets.jsonc` as agent/app target authority
+- Treat `template/agent-skills/local/` as tracked local Skill sources
+- Treat `template/agent-skills/external/quarantine/` as ignored fetched input
 - Treat project `.agents/skills/` dirs as generated symlink views, not source
 - Treat `~/.agent/skills/` as generated shared state
 - Treat `~/.claude/skills`, `~/.codex/skills`, and other app skill dirs as
@@ -443,10 +439,10 @@ Skill management rule:
 Distribution helpers:
 
 ```bash
-make skill-scope-refresh
-make skill-route SKILL=aihot APPS=codex,opencode
-make skill-route-list
-make skill-refresh
+make skill-plan
+make skill-check
+python3 scripts/skill_supply_chain.py distribute --dry-run
+make skill-snapshot LABEL=pre-change
 ```
 
 Prompt library helpers:

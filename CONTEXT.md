@@ -33,7 +33,8 @@
 |---|---|---|
 | 软件与工具清单 | `Brewfile` | 不把包名硬编码到安装脚本 |
 | Pi 包清单 | `agent/pi-packages.txt` | 独立数据文件 |
-| Agent Skill 来源与分发 | `agent/skills-sources.jsonc`、`agent/skill-targets.jsonc` | 来源血统、scope、gate、target 目录和格式；运行态目录是派生产物 |
+| Agent Runtime | `agent/` | agent 路径、规则、提示词、扩展与质量门禁 |
+| Agent Skill 来源与分发 | `agent-skills/registry/sources.jsonc`、`agent-skills/registry/targets.jsonc` | 来源血统、scope、gate、target 目录和格式；运行态目录是派生产物 |
 | Python 公共依赖 | `infra/python/requirements-common.txt` | 供数据分析环境复用 |
 | VS Code 扩展 | `editors/vscode/extensions.txt` | 仅维护扩展 ID |
 | doctor 检查 | `scripts/doctor-manifest.json` | 数据驱动检查与 cask 覆盖 |
@@ -49,7 +50,7 @@
 
 ## Agent 架构
 
-受管 agent 包括 Claude Code、Codex CLI、OpenCode、Pi、Reasonix 与 Antigravity；其路径与配置目标由 `agent/agent-manifest.json` 描述。Agent Skill 由 `agent/skills-sources.jsonc` 管来源血统、scope、gate 与分发意图，由 `agent/skill-targets.jsonc` 管各 agent 的 skill 目录、格式和软链/复制策略；最终的 agent 目录是派生产物，不是默认编辑入口。
+受管 agent 包括 Claude Code、Codex CLI、OpenCode、Pi、Reasonix 与 Antigravity；其路径与配置目标由 `agent/agent-manifest.json` 描述。`agent/` 只拥有 runtime 配置。Agent Skill 由 `agent-skills/registry/sources.jsonc` 管来源血统、scope、gate 与分发意图，由 `agent-skills/registry/targets.jsonc` 管各 agent 的 skill 目录、格式和软链/复制策略；最终的 agent skill 目录是派生产物，不是默认编辑入口。
 
 顶层 orchestrator 是 `scripts/install-agent-tooling.sh`。可复用 shell 逻辑位于 `scripts/lib/`；skill 分发由 `scripts/skill_supply_chain.py` 负责；Codex MCP 渲染由专用脚本负责；doctor 检查由 `scripts/run-doctor-checks.py`、`scripts/agent-doctor.sh` 与 manifest/registry 驱动。
 

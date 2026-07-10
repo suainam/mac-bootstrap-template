@@ -46,14 +46,14 @@ Render 状态不写回知识主字段，统一进入 `materializations`：
 ## File Layout
 
 ```text
-template/agent/skills/personal/knowledge-record/
+template/agent-skills/local/mac-bootstrap/knowledge-record/
 ├── SKILL.md
 ├── README.md
 ├── run.sh
 └── scripts/
     └── record_knowledge.py
 
-template/agent/skills/personal/knowledge-lifecycle-manager/
+template/agent-skills/local/global/knowledge-lifecycle-manager/
 ├── SKILL.md
 ├── README.md
 ├── run.sh
@@ -67,7 +67,7 @@ template/agent/skills/personal/knowledge-lifecycle-manager/
 
 ```bash
 template/.venv/bin/python \
-  template/agent/skills/personal/knowledge-record/scripts/record_knowledge.py \
+  template/agent-skills/local/mac-bootstrap/knowledge-record/scripts/record_knowledge.py \
   --type adr \
   --title "知识记录测试" \
   --content "这是手动创建的测试记录。" \
@@ -83,7 +83,7 @@ template/.venv/bin/python \
 
 ```bash
 template/.venv/bin/python \
-  template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+  template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   record \
   --type adr \
   --title "知识记录测试" \

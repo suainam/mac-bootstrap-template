@@ -6,6 +6,6 @@ set -euo pipefail
 
 REPO_ROOT="${HOME}/work/config/mac-bootstrap"
 PYTHON="${REPO_ROOT}/template/.venv/bin/python"
-WRITER="${REPO_ROOT}/template/agent/skills/personal/knowledge-record/scripts/record_knowledge.py"
+WRITER="${REPO_ROOT}/template/agent-skills/local/mac-bootstrap/knowledge-record/scripts/record_knowledge.py"
 
 exec "$PYTHON" "$WRITER" "$@"

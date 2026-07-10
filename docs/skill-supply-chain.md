@@ -6,12 +6,12 @@ This runbook describes the registry-driven Agent Skill distribution system.
 
 Human-edited authority lives in two JSONC files:
 
-- `agent/skills-sources.jsonc` owns skill source lineage, scope, project routing, distribution state, audit policy, and gate policy.
-- `agent/skill-targets.jsonc` owns agent target directories, output format, and symlink/copy strategy.
+- `agent-skills/registry/sources.jsonc` owns skill source lineage, scope, project routing, distribution state, audit policy, and gate policy.
+- `agent-skills/registry/targets.jsonc` owns agent target directories, output format, and symlink/copy strategy.
 
 Generated/runtime outputs are not authoritative:
 
-- `agent/skills/quarantine/`
+- `agent-skills/external/quarantine/`
 - `.agent-state/skills-lock.json`
 - `.agent-state/skill-sync-runs/`
 - `.agent-state/skill-snapshots/`
@@ -38,7 +38,7 @@ make skill-audit SOURCE=vercel-skills SKILL=find-skills
 make skill-diff SOURCE=vercel-skills SKILL=find-skills
 ```
 
-The fetch command uses `npx skills add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent/skills/quarantine/<source>/<skill>/`.
+The fetch command uses `npx skills add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent-skills/external/quarantine/<source>/<skill>/`.
 
 ## Distribution
 
@@ -130,7 +130,7 @@ Do not collapse Data Hub stages into a single one-off document unless the replac
 
 Add or route a skill:
 
-1. Edit `agent/skills-sources.jsonc`.
+1. Edit `agent-skills/registry/sources.jsonc`.
 2. Run `make skill-check`.
 3. Run `make skill-plan`.
 4. For external skills, fetch/audit/diff before enabling distribution.
@@ -138,7 +138,7 @@ Add or route a skill:
 
 Change an agent target path:
 
-1. Edit `agent/skill-targets.jsonc`.
+1. Edit `agent-skills/registry/targets.jsonc`.
 2. Ensure it still matches production expectations or explicitly document the migration.
 3. Run `make skill-check` and `make skill-distribute --dry-run` equivalent through `python3 scripts/skill_supply_chain.py distribute --dry-run`.
 
@@ -146,6 +146,6 @@ Change an agent target path:
 
 - Do not run non-dry-run distribution from a DevSpace worktree; merge to the real checkout first.
 - Do not fetch external skills directly into user-level agent directories.
-- Do not hardcode target directories in shell scripts or Python; use `agent/skill-targets.jsonc`.
+- Do not hardcode target directories in shell scripts or Python; use `agent-skills/registry/targets.jsonc`.
 - Do not delete staged/disabled/merged source records just to reduce visible count; those records are the audit trail.
-- Do not treat `agent/skills/personal/` location as proof of internal authorship; use source lineage in the registry.
+- Do not treat a `local/` directory location as proof of internal authorship; use source lineage in the registry.

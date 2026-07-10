@@ -9,11 +9,12 @@ from pathlib import Path
 import pytest
 
 
+TEMPLATE_ROOT = Path(__file__).parent.parent
 SCRIPTS_DIR = (
-    Path(__file__).parent.parent
-    / "agent"
-    / "skills"
-    / "personal"
+    TEMPLATE_ROOT
+    / "agent-skills"
+    / "local"
+    / "mac-bootstrap"
     / "knowledge-record"
     / "scripts"
 )
@@ -51,7 +52,9 @@ def make_evidence() -> object:
         worktree_summary="修改了 knowledge-record 的建议流程代码。",
         test_summary="测试通过：30 passed。",
         command_summary="执行过 pytest 和 sqlite 回查命令。",
-        references=["template/agent/skills/personal/knowledge-record/scripts/suggest_record.py"],
+        references=[
+            "template/agent-skills/local/mac-bootstrap/knowledge-record/scripts/suggest_record.py"
+        ],
     )
 
 
@@ -164,7 +167,7 @@ def test_optional_llm_draft_overrides_template_and_still_validates() -> None:
                 '"background":"当前工作围绕记录生成、确认和保存边界展开。",'
                 '"tags":"知识管理,记录生成,严格校验",'
                 '"why_record":"需要沉淀这次建议生成流程，避免后续管理入口丢失信息。",'
-                '"references":"template/agent/skills/personal/knowledge-record/scripts/suggestion_engine.py"}'
+                '"references":"template/agent-skills/local/mac-bootstrap/knowledge-record/scripts/suggestion_engine.py"}'
             ),
         )
 
@@ -204,7 +207,7 @@ def test_optional_llm_invalid_output_falls_back_to_template() -> None:
 def test_confirmation_accept_saves_through_writer(tmp_path: Path) -> None:
     db_path = tmp_path / "records.db"
     conn = sqlite3.connect(db_path)
-    conn.executescript((SCRIPTS_DIR.parents[3] / "data-hub" / "schema.sql").read_text())
+    conn.executescript((TEMPLATE_ROOT / "agent" / "data-hub" / "schema.sql").read_text())
     conn.close()
     draft = suggestion_engine.suggest_record(
         make_thread("本次沉淀了可复用规则和方法，后续可照此处理记录生成。"),
@@ -321,7 +324,7 @@ def test_record_knowledge_dispatches_suggest(monkeypatch) -> None:
 def test_suggest_main_accepts_thread_summary_and_prints_saved_record(tmp_path: Path, capsys) -> None:
     db_path = tmp_path / "records.db"
     conn = sqlite3.connect(db_path)
-    conn.executescript((SCRIPTS_DIR.parents[3] / "data-hub" / "schema.sql").read_text())
+    conn.executescript((TEMPLATE_ROOT / "agent" / "data-hub" / "schema.sql").read_text())
     conn.close()
 
     exit_code = suggest_record.main(

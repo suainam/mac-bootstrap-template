@@ -5,7 +5,6 @@
     "rules_common_dir": "agent/rules/common",
     "rules_python_dir": "agent/rules/python",
     "prompts_dir": "agent/prompts",
-    "personal_skills_dir": "agent/skills/personal",
     "personal_extensions_dir": "agent/extensions/personal"
   },
   "shared": {

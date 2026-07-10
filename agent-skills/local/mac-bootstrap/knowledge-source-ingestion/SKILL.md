@@ -28,7 +28,7 @@ Repo touchpoints:
 - `template/agent/data-hub/source_adapters/`
 - `template/agent/data-hub/source_ingest_store.py`
 - `template/agent/data-hub/schema.sql`
-- `template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py run --workflow build_daily_summary`
+- `template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py run --workflow build_daily_summary`
 
 ## Workflow
 

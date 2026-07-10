@@ -1,9 +1,9 @@
 version: 1
 
 # Prompt library metadata remains here.
-# Agent Skill source lineage and distribution now live in:
-# - agent/skills-sources.jsonc
-# - agent/skill-targets.jsonc
+# Skill source lineage and distribution authority:
+# ../agent-skills/registry/sources.jsonc
+# ../agent-skills/registry/targets.jsonc
 # Do not use this YAML file as the Skill supply-chain authority.
 
 home: "~/.agent"
@@ -20,74 +20,6 @@ prompt_libraries:
     path: "upstream/wonderful-prompts"
     mode: "markdown-sections"
     license: "MIT"
-
-upstreams:
-  everything-claude-code:
-    repo: "https://github.com/affaan-m/everything-claude-code.git"
-    path: "upstream/everything-claude-code"
-    mode: "material-library"
-    sync: "fast-forward"
-    promote:
-      skills:
-        - "python-patterns"
-        - "python-testing"
-        - "pytorch-patterns"
-        - "mle-workflow"
-        - "postgres-patterns"
-        - "clickhouse-io"
-        - "docker-patterns"
-        - "database-migrations"
-        - "data-throughput-accelerator"
-        - "data-scraper-agent"
-        - "tdd-workflow"
-        - "verification-loop"
-        - "search-first"
-        - "documentation-lookup"
-      hooks: []
-      mcp: []
-  mattpocock-skills:
-    repo: "https://github.com/mattpocock/skills.git"
-    path: "upstream/mattpocock-skills"
-    mode: "skill-library"
-    sync: "fast-forward"
-    promote:
-      skills:
-        - "skills/engineering/setup-matt-pocock-skills"
-        - "skills/engineering/diagnose"
-        - "skills/engineering/tdd"
-        - "skills/engineering/grill-with-docs"
-        - "skills/engineering/zoom-out"
-        - "skills/engineering/improve-codebase-architecture"
-        - "skills/productivity/handoff"
-        - "skills/productivity/write-a-skill"
-  khazix-skills:
-    repo: "https://github.com/KKKKhazix/khazix-skills.git"
-    path: "upstream/khazix-skills"
-    mode: "skill-library"
-    sync: "fast-forward"
-    promote:
-      skills:
-        - "aihot"
-        - "neat-freak"
-  obsidian-skills:
-    repo: "https://github.com/kepano/obsidian-skills.git"
-    path: "upstream/obsidian-skills"
-    mode: "skill-library"
-    sync: "fast-forward"
-    promote:
-      skills:
-        - "obsidian-markdown"
-        - "obsidian-bases"
-        - "json-canvas"
-        - "obsidian-cli"
-        - "defuddle"
-
-personal_skills:
-  - "python-data-analysis"
-  - "sql-analysis"
-  - "marimo-analysis"
-  - "docker-data-project"
-  - "daily-claude-battle-boost"
 
 agents:
   claude:

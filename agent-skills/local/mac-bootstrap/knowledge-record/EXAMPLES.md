@@ -71,9 +71,9 @@ python scripts/record_knowledge.py \
 ## Script Path
 
 The examples assume the working directory is the project root containing
-`template/agent/skills/personal/knowledge-record/scripts/record-knowledge.py`.
+`template/agent-skills/local/mac-bootstrap/knowledge-record/scripts/record-knowledge.py`.
 
 From any agent directory (Codex, OpenCode, Claude):
 ```bash
-python ~/work/config/mac-bootstrap/template/agent/skills/personal/knowledge-record/scripts/record_knowledge.py ...
+python ~/work/config/mac-bootstrap/template/agent-skills/local/mac-bootstrap/knowledge-record/scripts/record_knowledge.py ...
 ```

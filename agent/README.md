@@ -1,5 +1,9 @@
 # Agent Tooling — Architecture & Usage Guide
 
+Skill source lineage, local sources, quarantine, and distribution operations live
+under [`../agent-skills/`](../agent-skills/README.md). This directory owns agent
+runtime configuration only.
+
 ## One-Command Setup
 
 ```bash
@@ -109,8 +113,8 @@ Agent skills are managed by the registry-driven supply chain. The old split betw
 
 Authoritative files:
 
-- `agent/skills-sources.jsonc` — source lineage, scope, project routing, distribution state, audit policy, and gate policy.
-- `agent/skill-targets.jsonc` — agent skill target directories, output format, and symlink/copy strategy.
+- `agent-skills/registry/sources.jsonc` — source lineage, scope, project routing, distribution state, audit policy, and gate policy.
+- `agent-skills/registry/targets.jsonc` — agent skill target directories, output format, and symlink/copy strategy.
 - `scripts/skill_supply_chain.py` — parser, validator, quarantine fetcher, gate evaluator, distributor, and snapshot generator.
 
 Common commands:
@@ -128,10 +132,10 @@ make skill-refresh
 
 Rules:
 
-- External skills must first enter `agent/skills/quarantine/<source>/<skill>/`.
+- External skills must first enter `agent-skills/external/quarantine/<source>/<skill>/`.
 - Only `distribution_state: enabled` is installed.
 - `staged`, `disabled`, and `merged` records remain in the registry as audit trail and source lineage.
-- Do not infer authorship from `agent/skills/personal/`; use the registry source record.
+- Do not infer authorship from directory placement; use the registry source record.
 - Project skills are installed into project `.agents/skills/` directories.
 - Global skills are installed into configured agent targets.
 
@@ -247,14 +251,14 @@ Or add a first-party skill to the bootstrap repo and publish it through the
 skill supply-chain registry:
 
 ```bash
-template/agent/skills/personal/my-skill/SKILL.md
-agent/skills-sources.jsonc              # choose source lineage, scope, projects, agents, and gate state
-agent/skill-targets.jsonc               # target paths and format strategy
+template/agent-skills/local/<project>/my-skill/SKILL.md
+agent-skills/registry/sources.jsonc     # choose source lineage, scope, projects, agents, and gate state
+agent-skills/registry/targets.jsonc     # target paths and format strategy
 make skill-check
 make skill-refresh
 ```
 
-External skills are declared in `agent/skills-sources.jsonc`, fetched into
+External skills are declared in `agent-skills/registry/sources.jsonc`, fetched into
 repo-local quarantine, audited, then distributed only when enabled.
 
 ### For Pi
@@ -369,7 +373,7 @@ Or permanently in `~/.zshrc` (already configured by `make agent-tools`).
 | 4 | **MCP Profiles** | `export ECC_DISABLED_MCPS="server1,server2"` |
 | 5 | **PM Detection** | `make pm-detect` — 6-level priority chain |
 | 6 | **Hook Matchers** | PreToolUse guards for console.log/destructive ops |
-| 7 | **Eval Loop** | Skill at `~/.agent/skills/personal/eval-loop/SKILL.md` |
+| 7 | **Eval Loop** | Retained under `agent-skills/local/deprecated/eval-loop/SKILL.md` |
 
 ---
 

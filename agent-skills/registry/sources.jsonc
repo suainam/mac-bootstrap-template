@@ -1,13 +1,13 @@
 {
   "$schema": "./schemas/skills-sources.schema.json",
-  "version": 1,
+  "version": 2,
 
   "paths": {
-    "internal_root": "agent/skills/personal",
-    "standalone_internal_root": "agent/skills",
-    "quarantine_root": "agent/skills/quarantine",
+    "local_root": "agent-skills/local",
+    "quarantine_root": "agent-skills/external/quarantine",
     "lockfile": ".agent-state/skills-lock.json",
-    "run_log_root": ".agent-state/skill-sync-runs"
+    "run_log_root": ".agent-state/skill-sync-runs",
+    "snapshot_root": ".agent-state/skill-snapshots"
   },
 
   "defaults": {
@@ -220,7 +220,7 @@
       "skills": {
         "caveman": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "local_shadow_path": "agent/skills/personal/caveman",
+          "local_shadow_path": "agent-skills/local/shadows/mattpocock/caveman",
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill caveman"
         },
         "diagnosing-bugs": {
@@ -330,12 +330,12 @@
         "baoyu-diagram": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "local_shadow_path": "agent/skills/personal/baoyu-diagram"
+          "local_shadow_path": "agent-skills/local/shadows/baoyu/baoyu-diagram"
         },
         "baoyu-infographic": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "local_shadow_path": "agent/skills/personal/baoyu-infographic"
+          "local_shadow_path": "agent-skills/local/shadows/baoyu/baoyu-infographic"
         }
       }
     },
@@ -348,7 +348,7 @@
         "guizang-ppt-skill": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "local_shadow_path": "agent/skills/personal/guizang-ppt-skill"
+          "local_shadow_path": "agent-skills/local/shadows/guizang/guizang-ppt-skill"
         }
       }
     },
@@ -415,7 +415,7 @@
       "skills": {
         "langgpt-prompt-writer": {
           "agents": ["claude", "codex", "opencode", "cross-agent"],
-          "local_shadow_path": "agent/skills/personal/langgpt-prompt-writer",
+          "local_shadow_path": "agent-skills/local/shadows/langgpt/langgpt-prompt-writer",
           "reason": "User-confirmed keep-global/routed; LangGPT README recommends Claude Code Skill via marketplace/manual install"
         }
       }
@@ -428,7 +428,7 @@
       "skills": {
         "qiaomu-goal-meta-skill": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "local_shadow_path": "agent/skills/personal/qiaomu-goal-meta-skill",
+          "local_shadow_path": "agent-skills/local/shadows/qiaomu/qiaomu-goal-meta-skill",
           "reason": "User-confirmed global distribution; upstream README installs with: npx skills add joeseesun/qiaomu-goal-meta-skill"
         }
       }
@@ -710,15 +710,27 @@
       }
     },
 
-    "local-personal": {
+    "local-global": {
       "type": "internal",
-      "path": "agent/skills/personal",
+      "path": "agent-skills/local/global",
       "skills": {
         "cavecrew": {
           "scope": "global",
           "distribution_state": "staged",
           "agents": ["claude", "codex", "opencode", "cross-agent"]
         },
+        "knowledge-lifecycle-manager": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "沉淀与复用入口，应该全局可用"
+        }
+      }
+    },
+
+    "local-deprecated": {
+      "type": "internal",
+      "path": "agent-skills/local/deprecated",
+      "skills": {
         "caveman-commit": {
           "scope": "global",
           "distribution_state": "disabled",
@@ -759,12 +771,14 @@
           "distribution_state": "disabled",
           "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "User-confirmed drop"
-        },
-        "knowledge-lifecycle-manager": {
-          "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "reason": "沉淀与复用入口，应该全局可用"
-        },
+        }
+      }
+    },
+
+    "local-franchise-store": {
+      "type": "internal",
+      "path": "agent-skills/local/franchise-store",
+      "skills": {
         "franchise-store-sankey-analysis": {
           "scope": "project",
           "projects": ["franchise_store"]
@@ -772,12 +786,43 @@
         "sankey-flow-analysis": {
           "scope": "project",
           "projects": ["franchise_store"]
-        },
+        }
+      }
+    },
+
+    "local-product-strategy": {
+      "type": "internal",
+      "path": "agent-skills/local/product-strategy",
+      "skills": {
         "web-video-presentation-delivery": {
           "scope": "project",
           "projects": ["product_strategy"]
         },
+        "python-data-analysis": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "product_strategy data-analysis project skill"
+        },
+        "decrypt-materialize": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "absorbs the old decrypt-read use case; decrypt-read runtime link is currently broken and should not remain a separate managed skill"
+        },
+        "sql-analysis": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        }
+      }
+    },
 
+    "local-mac-bootstrap": {
+      "type": "internal",
+      "path": "agent-skills/local/mac-bootstrap",
+      "skills": {
+        "daily-tagger": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
         "knowledge-candidate-review": {
           "scope": "project",
           "projects": ["mac-bootstrap"],
@@ -823,13 +868,14 @@
         "network-path-triage": {
           "scope": "project",
           "projects": ["mac-bootstrap"]
-        },
-        "python-data-analysis": {
-          "scope": "project",
-          "projects": ["product_strategy"],
-          "reason": "product_strategy data-analysis project skill"
-        },
+        }
+      }
+    },
 
+    "local-playground": {
+      "type": "internal",
+      "path": "agent-skills/local/playground",
+      "skills": {
         "daily-claude-battle-boost": {
           "scope": "project",
           "projects": ["playground"]
@@ -845,18 +891,14 @@
         "ottos-retail-ab-test": {
           "scope": "project",
           "projects": ["playground"]
-        },
+        }
+      }
+    },
 
-        "decrypt-materialize": {
-          "scope": "project",
-          "projects": ["product_strategy"],
-          "reason": "absorbs the old decrypt-read use case; decrypt-read runtime link is currently broken and should not remain a separate managed skill"
-        },
-        "sql-analysis": {
-          "scope": "project",
-          "projects": ["product_strategy"]
-        },
-
+    "local-www": {
+      "type": "internal",
+      "path": "agent-skills/local/www",
+      "skills": {
         "marimo-analysis": {
           "scope": "project",
           "projects": ["www"]
@@ -868,17 +910,6 @@
         "marimo-etl-test": {
           "scope": "project",
           "projects": ["www"]
-        }
-      }
-    },
-
-    "local-standalone": {
-      "type": "internal",
-      "path": "agent/skills",
-      "skills": {
-        "daily-tagger": {
-          "scope": "project",
-          "projects": ["mac-bootstrap"]
         }
       }
     }

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["version", "paths", "defaults", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "version": {"const": 2},
+    "paths": {
+      "type": "object",
+      "required": [
+        "local_root",
+        "quarantine_root",
+        "lockfile",
+        "run_log_root",
+        "snapshot_root"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "local_root": {"type": "string", "minLength": 1},
+        "quarantine_root": {"type": "string", "minLength": 1},
+        "lockfile": {"type": "string", "minLength": 1},
+        "run_log_root": {"type": "string", "minLength": 1},
+        "snapshot_root": {"type": "string", "minLength": 1}
+      }
+    },
+    "defaults": {"type": "object"},
+    "reference_sources": {"type": "object"},
+    "projects": {"type": "object"},
+    "sources": {"type": "object"}
+  }
+}

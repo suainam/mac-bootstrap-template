@@ -115,10 +115,9 @@ append_opencode_upstream_skills() {
 
 ## Upstream Skills
 
-These skills are available as markdown files in `~/.agent/skills/upstream/`:
-- ECC skills: ~/.agent/skills/upstream/ecc/*/
-- Matt Pocock skills: ~/.agent/skills/upstream/mattpocock/*/
-- Personal skills: ~/.agent/skills/personal/*/
+Managed skills are installed into the configured agent targets and project
+`.agents/skills/` directories. Source authority lives under
+`template/agent-skills/registry/`.
 
 Use the `Read` tool to load a skill file when needed, or ask the user which
 skill to activate.

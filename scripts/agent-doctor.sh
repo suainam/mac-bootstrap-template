@@ -361,12 +361,12 @@ check_max_lines "REASONIX.md length" "$WORK_REASONIX" 60
 
 echo ""
 echo "--- Skill Supply Chain ---"
-if [ -f "$BOOTSTRAP/agent/skills-sources.jsonc" ]; then
+if [ -f "$BOOTSTRAP/agent-skills/registry/sources.jsonc" ]; then
   echo "  OK   skills-sources.jsonc"
 else
   echo "  MISS skills-sources.jsonc"
 fi
-if [ -f "$BOOTSTRAP/agent/skill-targets.jsonc" ]; then
+if [ -f "$BOOTSTRAP/agent-skills/registry/targets.jsonc" ]; then
   echo "  OK   skill-targets.jsonc"
 else
   echo "  MISS skill-targets.jsonc"
