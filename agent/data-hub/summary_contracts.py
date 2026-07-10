@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -139,6 +140,15 @@ def _reject_placeholders(value: Mapping[str, Any]) -> None:
                 raise SummaryContractError(f"placeholder content at items.{index}.{field}")
 
 
+def summary_prose_character_count(value: Mapping[str, Any]) -> int:
+    """Count the whitespace-free prose fields that the renderer exposes as narrative."""
+
+    prose = [str(value.get("headline", ""))]
+    for item in value.get("items", []):
+        prose.extend(str(item.get(field, "")) for field in ("title", "conclusion", "value", "trend", "period_change"))
+    return len(re.sub(r"\s+", "", "".join(prose)))
+
+
 def validate_summary_document(
     value: dict[str, Any],
     bundle: ContractBundle,
@@ -194,7 +204,19 @@ def validate_summary_document(
             for item in value["items"] if item["item_type"] != "insight"
             for group_id in item["evidence_group_ids"]
         }
-        if len(work_groups) < int(bundle.policy["daily_min_work_evidence_groups"]):
+        eligible_work_groups = work_groups
+        if evidence_groups is not None:
+            eligible_kinds = {"daily_note", "git_commit", "knowledge_record", "accepted_candidate"}
+            eligible_work_groups = {
+                group_id
+                for group_id in work_groups
+                if set(evidence_groups[group_id].source_kinds) & eligible_kinds
+                and any(
+                    str(evidence_groups[group_id].payload.get(field, "")).strip()
+                    for field in ("content", "snippet", "body", "text", "subject")
+                )
+            }
+        if len(eligible_work_groups) < int(bundle.policy["daily_min_work_evidence_groups"]):
             raise SummaryContractError("daily requires evidence-backed work progress")
         if evidence_groups is not None:
             for item in value["items"]:
@@ -216,7 +238,7 @@ def validate_summary_document(
                 raise SummaryContractError(f"unknown lower supporting items: {sorted(unknown_support)}")
 
     if enforce_length and value["level"] in {"daily", "weekly"}:
-        visible = len("".join(str(item.get(field, "")) for item in value["items"] for field in ("title", "conclusion", "value", "trend", "period_change")) + str(value["headline"]))
+        visible = summary_prose_character_count(value)
         bounds = bundle.policy[f"{value['level']}_chars"]
         if not int(bounds["min"]) <= visible <= int(bounds["max"]):
             raise SummaryContractError(f"{value['level']} visible characters must be {bounds['min']}..{bounds['max']}, got {visible}")

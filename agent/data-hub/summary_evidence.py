@@ -44,6 +44,10 @@ def _citation_path(citation: Mapping[str, Any]) -> str:
     return str(citation.get("path") or citation.get("source_ref") or citation.get("file") or "")
 
 
+def _has_body(payload: Mapping[str, Any]) -> bool:
+    return any(str(payload.get(field, "")).strip() for field in ("content", "snippet", "body", "text", "subject"))
+
+
 def _deep_research(client: Any, message: str) -> tuple[dict[str, Any], list[str]]:
     if client is None:
         return {}, ["llm_wiki deep research unavailable"]
@@ -67,13 +71,36 @@ def collect_summary_evidence(
     local_markdown = retrieval_packet.get("local_markdown", {})
     for bucket, source_kind in (("daily", "daily_note"), ("adrs", "adr"), ("cards", "card")):
         for hit in local_markdown.get(bucket, []):
+            if not _has_body(hit):
+                continue
             ref = str(hit.get("path", ""))
             group = _group("local_markdown", source_kind, ref, hit)
             if group:
                 groups.append(group)
+    for commit in retrieval_packet.get("git_commits", []):
+        if not _has_body(commit):
+            continue
+        ref = str(commit.get("source_ref") or f"commit:{commit.get('hash', '')}")
+        group = _group("git_commit", "git_commit", ref, commit)
+        if group:
+            groups.append(group)
+    for record in retrieval_packet.get("knowledge_records", []):
+        if str(record.get("status", "")) != "accepted" or not _has_body(record):
+            continue
+        ref = str(record.get("source_ref") or f"record:{record.get('id', '')}")
+        group = _group("confirmed_record", "knowledge_record", ref, record)
+        if group:
+            groups.append(group)
+    for candidate in retrieval_packet.get("accepted_candidates", []):
+        if str(candidate.get("status", "")) != "accepted" or not _has_body(candidate):
+            continue
+        ref = str(candidate.get("source_ref") or f"candidate:{candidate.get('id', '')}")
+        group = _group("accepted_candidate", "accepted_candidate", ref, candidate)
+        if group:
+            groups.append(group)
     for loop in retrieval_packet.get("open_loops", []):
         ref = str(loop.get("candidate_id", ""))
-        group = _group("open_loop", "knowledge_candidate", ref, loop)
+        group = _group("open_loop", "pending_candidate", ref, loop)
         if group:
             groups.append(group)
 

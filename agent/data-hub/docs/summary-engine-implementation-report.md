@@ -175,17 +175,42 @@ exit: 0
 - 没有合格 insight 时固定写“今日无新增高价值洞察。”；renderer 不读来源、不访问数据库、不调用 LLM。
 - 验证：`.venv/bin/python -m pytest tests/test_summary_renderer.py tests/test_summary_publish_recovery.py -q` → `6 passed in 0.27s`。
 
-## Task 8（进行中）— 定时自动化
+## Task 8（完成）— 定时自动化
 
 - 已把 launchd evening 从 18:30 校正至 18:00，并把 17:30 从裸 `osascript` 改为 `daily_reminder.sh`，让提醒也受 `chinese_calendar` 工作日门禁控制。
 - `daily_morning.sh` 同样使用 `summary_calendar.should_run_scheduled_event()`，因此普通周末、法定节假日跳过，调休工作日执行；晚间调度仍每天触发。
-- `planned_workflows()` 对边界触发做低到高 dependency closure，确保年末等边界按 Daily → Weekly → Monthly → Quarterly → Yearly 执行。
+- `planned_workflows()` 查询 SQLite current lower revision，只在边界覆盖不足时补入 lower workflow；非工作日边界不制造 Daily，执行顺序固定为 Daily → Weekly → Monthly → Quarterly → Yearly。
 
-## Task 6/7（进行中）— Revision Orchestration 与旧路径清理
+## Task 6/7（完成）— Revision Orchestration 与旧路径清理
 
 - `summary_inputs.py` 已改为只查询 SQLite 的 published lower revisions，禁止读取下层 Markdown 正文；`period_summary.py` 改为 coverage-aware revision orchestrator，并使用 staged → file_published → published 状态机。
 - `scripts/daily_summary.py`、旧 lifecycle stage 及其 runtime skill caller 已移除；workflow 统一经 `build_<level>_summary`，并识别 `SUMMARY_STATUS=degraded`。
 - 定向回归：period/input/CLI `5 passed`；workflow degraded/lifecycle `27 passed`；隔离 Daily build 走完 evidence → JSON contract → SQLite revision → atomic artifact publish，`3 passed`。
+
+## Post-review Hardening
+
+- EvidencePacket 现行来源包含有正文的原始 Daily、Git commit、accepted knowledge record、accepted candidate 与 llm_wiki citations；pending open loop 只能作为风险上下文，不能满足 Daily work evidence 门槛。
+- `resolve_lower_revisions()` 会逐个校验 `lower period ∩ higher period ∩ deployment range` 的 published coverage；缺失时失败，不读取下层 Markdown 正文。
+- Daily 使用“今日结论 / 工作进展 / 风险与下一步 / 知识洞察 / 来源”；Weekly 固定输出本周结论、成果、决策、趋势、风险、下周重点、知识演进、能力维度与 Daily wikilink 索引。
+- 篇幅校验与 renderer 的 headline/title/conclusion/value/trend/period_change 正文域同源；Daily 800–1200、Weekly 1200–1800 在 publish 前强制检查。
+- 五层隔离 E2E 已覆盖 Daily → Weekly → Monthly → Quarterly → Yearly，以及相同 input digest 重跑时 revision count、revision ID 与 Markdown hash 均不变化。
+
+验证：
+
+```text
+$ .venv/bin/python -m pytest \
+    tests/test_summary_contracts.py tests/test_summary_store.py \
+    tests/test_summary_publish_recovery.py tests/test_llm_wiki_client.py \
+    tests/test_summary_evidence.py tests/test_summary_synthesis.py \
+    tests/test_summary_renderer.py tests/test_summary_inputs.py \
+    tests/test_period_summary.py tests/test_build_period_summary_cli.py \
+    tests/test_summary_calendar.py tests/test_summary_schedule.py \
+    tests/test_daily_workflows.py tests/test_lifecycle_manager_adapters.py \
+    tests/test_summary_engine_e2e.py -q
+........................................................................ [ 85%]
+............                                                             [100%]
+84 passed in 1.62s
+```
 
 ## 最终验收预留
 

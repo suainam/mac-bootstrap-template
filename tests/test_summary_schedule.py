@@ -19,7 +19,7 @@ def test_planned_workflows_for_normal_workday(monkeypatch):
         lambda level, date: level == "daily",
     )
 
-    assert run_summary_schedule.planned_workflows("2026-07-09") == ["build_daily_summary"]
+    assert run_summary_schedule.planned_workflows("2026-07-09", conn=None, deployment_start="2026-01-01") == ["build_daily_summary"]
 
 
 def test_planned_workflows_for_weekly_trigger(monkeypatch):
@@ -29,7 +29,7 @@ def test_planned_workflows_for_weekly_trigger(monkeypatch):
         lambda level, date: level in {"daily", "weekly"},
     )
 
-    assert run_summary_schedule.planned_workflows("2026-07-10") == ["build_daily_summary", "build_weekly_summary"]
+    assert run_summary_schedule.planned_workflows("2026-07-10", conn=None, deployment_start="2026-01-01") == ["build_daily_summary", "build_weekly_summary"]
 
 
 def test_period_boundary_expands_lower_dependency_closure(monkeypatch):
@@ -39,7 +39,7 @@ def test_period_boundary_expands_lower_dependency_closure(monkeypatch):
         lambda level, date: level in {"daily", "yearly"},
     )
 
-    assert run_summary_schedule.planned_workflows("2026-12-31") == [
+    assert run_summary_schedule.planned_workflows("2026-12-31", conn=None, deployment_start="2026-01-01") == [
         "build_daily_summary",
         "build_weekly_summary",
         "build_monthly_summary",
@@ -55,7 +55,22 @@ def test_non_workday_boundary_does_not_invent_daily(monkeypatch):
         lambda level, date: level == "monthly",
     )
 
-    assert run_summary_schedule.planned_workflows("2026-10-31") == ["build_weekly_summary", "build_monthly_summary"]
+    assert run_summary_schedule.planned_workflows("2026-10-31", conn=None, deployment_start="2026-01-01") == ["build_weekly_summary", "build_monthly_summary"]
+
+
+def test_boundary_skips_lower_workflow_when_current_period_is_covered(monkeypatch):
+    monkeypatch.setattr(
+        run_summary_schedule.summary_calendar,
+        "is_summary_trigger_day",
+        lambda level, date: level == "monthly",
+    )
+    monkeypatch.setattr(run_summary_schedule, "_current_lower_period_covered", lambda *args, **kwargs: True)
+
+    assert run_summary_schedule.planned_workflows(
+        "2026-07-31",
+        conn=object(),
+        deployment_start="2026-01-01",
+    ) == ["build_monthly_summary"]
 
 
 def test_run_workflow_delegates_to_lifecycle_manager(monkeypatch):

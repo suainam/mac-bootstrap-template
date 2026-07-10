@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import sqlite3
+import subprocess
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -13,7 +15,7 @@ from db_helper import get_db_connection
 from llm_filter import call_llm_raw
 from summary_contracts import EvidenceGroup, build_input_digest, load_contract_bundle
 from summary_evidence import collect_summary_evidence
-from summary_inputs import resolve_lower_revisions
+from summary_inputs import previous_level, resolve_lower_revisions
 from summary_renderer import render_summary_markdown
 from summary_store import (
     ensure_logical_summary,
@@ -95,6 +97,78 @@ def _write_atomically(path: Path, text: str) -> None:
     os.replace(temporary, path)
 
 
+def _sqlite_evidence(conn: sqlite3.Connection, start: str, end: str) -> dict[str, list[dict[str, Any]]]:
+    records = [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT id, status, record_type, title, content, candidate_date, project
+            FROM knowledge_records
+            WHERE status = 'accepted' AND candidate_date BETWEEN ? AND ?
+            ORDER BY candidate_date, id
+            """,
+            (start, end),
+        ).fetchall()
+    ]
+    candidates = [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT id, status, candidate_type, title, content, candidate_date
+            FROM knowledge_candidates
+            WHERE status = 'accepted' AND candidate_date BETWEEN ? AND ?
+            ORDER BY candidate_date, id
+            """,
+            (start, end),
+        ).fetchall()
+    ]
+    return {"knowledge_records": records, "accepted_candidates": candidates}
+
+
+def _git_repositories(roots: list[Path]) -> list[Path]:
+    repositories: set[Path] = set()
+    for root in roots:
+        if (root / ".git").exists():
+            repositories.add(root)
+        if root.is_dir():
+            repositories.update(path.parent for path in root.glob("*/.git"))
+    return sorted(repositories)
+
+
+def _git_evidence(roots: list[Path], start: str, end: str) -> list[dict[str, Any]]:
+    until = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
+    commits: list[dict[str, Any]] = []
+    for repository in _git_repositories(roots):
+        result = subprocess.run(
+            [
+                "git", "-C", str(repository), "log",
+                f"--since={start}T00:00:00", f"--until={until.strftime('%Y-%m-%d')}T00:00:00",
+                "--pretty=format:%H%x1f%aI%x1f%s",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if result.returncode != 0:
+            continue
+        for line in result.stdout.splitlines():
+            parts = line.split("\x1f", 2)
+            if len(parts) != 3:
+                continue
+            commit_hash, authored_at, subject = parts
+            commits.append(
+                {
+                    "hash": commit_hash,
+                    "authored_at": authored_at,
+                    "subject": subject,
+                    "repository": repository.name,
+                    "source_ref": f"commit:{repository.name}:{commit_hash}",
+                }
+            )
+    return sorted(commits, key=lambda item: (item["authored_at"], item["source_ref"]))
+
+
 def build_period_summary(
     level: str,
     anchor_date: str,
@@ -105,23 +179,38 @@ def build_period_summary(
 ) -> SummaryBuildResult:
     coverage = resolve_period_coverage(level, anchor_date)
     config = get_runtime_config()
-    packet = retrieval_packet or build_retrieval_packet(
-        task_goal=f"{level} summary {coverage.period_id}", keywords=[coverage.period_id],
-        date_from=coverage.period_start, date_to=coverage.coverage_end, include_llm_wiki=True,
-    )
-    evidence = collect_summary_evidence(
-        level=level, period=coverage.period_id, query=f"{level} summary {coverage.period_id}",
-        retrieval_packet=packet, llm_wiki_client=llm_wiki_client if llm_wiki_client is not None else make_llm_wiki_client(),
-    )
     conn = get_db_connection()
     try:
+        packet = retrieval_packet or build_retrieval_packet(
+            task_goal=f"{level} summary {coverage.period_id}", keywords=[coverage.period_id],
+            date_from=coverage.period_start, date_to=coverage.coverage_end, include_llm_wiki=True,
+        )
+        if retrieval_packet is None:
+            packet = dict(packet)
+            packet.update(_sqlite_evidence(conn, coverage.period_start, coverage.coverage_end))
+            packet["git_commits"] = _git_evidence(
+                config.paths.git_search_roots,
+                coverage.period_start,
+                coverage.coverage_end,
+            )
+        evidence = collect_summary_evidence(
+            level=level, period=coverage.period_id, query=f"{level} summary {coverage.period_id}",
+            retrieval_packet=packet, llm_wiki_client=llm_wiki_client if llm_wiki_client is not None else make_llm_wiki_client(),
+        )
         lower = [] if level == "daily" else resolve_lower_revisions(
             conn=conn, level=level, period_start=coverage.period_start, period_end=coverage.period_end,
             coverage_end=coverage.coverage_end, deployment_start=config.summary.deployment_start,
         )
         evidence["lower_item_ids"] = []
         for item in lower:
-            ref = item.artifact_path or f"70_Summaries/{item.period_id}.md"
+            artifact_path = Path(item.artifact_path) if item.artifact_path else None
+            try:
+                ref = str(artifact_path.relative_to(config.paths.vault_dir)) if artifact_path else ""
+            except ValueError:
+                ref = ""
+            if not ref:
+                lower_level = previous_level(level)
+                ref = f"{config.summary.root_relative}/{config.summary.level_dirs[lower_level]}/{item.period_id}.md"
             evidence["evidence_groups"].append({
                 "evidence_group_id": f"evg_lower_{item.revision_id.removeprefix('rev_')}",
                 "evidence_kind": "lower_revision", "source_refs": [ref], "source_kinds": ["lower_revision"],

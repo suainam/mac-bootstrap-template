@@ -66,7 +66,7 @@ def test_invalid_json_retries_once_with_validation_error():
     result = synthesize_summary(
         level="daily",
         period_id="2026-07-10",
-        evidence={"evidence_groups": [{"evidence_group_id": "evg_abc", "evidence_kind": "local", "source_refs": ["10_Periodic/Daily/2026-07-10.md"], "source_kinds": ["daily_note"], "payload": {}}]},
+        evidence={"evidence_groups": [{"evidence_group_id": "evg_abc", "evidence_kind": "local", "source_refs": ["10_Periodic/Daily/2026-07-10.md"], "source_kinds": ["daily_note"], "payload": {"snippet": "Verified work evidence."}}]},
         bundle=load_contract_bundle(),
         backend=backend,
     )
