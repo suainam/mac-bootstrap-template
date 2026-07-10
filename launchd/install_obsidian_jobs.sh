@@ -3,8 +3,8 @@
 #
 # 此脚本将配置并启动以下定时任务：
 #   09:00  → daily_morning.sh (创建日报 + 迁移昨日计划)
-#   17:30  → reminder notification
-#   18:30  → run-daily-evening.sh (summary schedule into 70_Summaries)
+#   17:30  → daily_reminder.sh (China-workday gate)
+#   18:00  → run-daily-evening.sh (summary schedule into 70_Summaries)
 
 set -euo pipefail
 
@@ -35,6 +35,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
 fi
 
 chmod +x "$DATA_HUB_DIR/daily_morning.sh"
+chmod +x "$DATA_HUB_DIR/daily_reminder.sh"
 chmod +x "$DATA_HUB_DIR/run-daily-evening.sh"
 launchctl unload "$LAUNCH_AGENTS_DIR/${LEGACY_WEEKLY_LABEL}.plist" 2>/dev/null || true
 rm -f "$LAUNCH_AGENTS_DIR/${LEGACY_WEEKLY_LABEL}.plist"
@@ -88,9 +89,8 @@ cat > "$REMINDER_PLIST" << PLIST_EOF
     <string>${REMINDER_LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/osascript</string>
-        <string>-e</string>
-        <string>display notification "记得填写今天的工作记录 📝 AI 总结将在 18:30 生成" with title "日报助手" sound name "Glass"</string>
+        <string>/bin/bash</string>
+        <string>${DATA_HUB_DIR}/daily_reminder.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -109,7 +109,7 @@ cat > "$REMINDER_PLIST" << PLIST_EOF
 </plist>
 PLIST_EOF
 
-# ── 3. 晚间任务: 18:30 summary schedule ─────────────────
+# ── 3. 晚间任务: 18:00 summary schedule ─────────────────
 cat > "$EVENING_PLIST" << PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -128,7 +128,7 @@ cat > "$EVENING_PLIST" << PLIST_EOF
         <key>Hour</key>
         <integer>18</integer>
         <key>Minute</key>
-        <integer>30</integer>
+        <integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
     <string>${LOG_DIR}/evening.log</string>
@@ -158,7 +158,7 @@ echo ""
 echo "🎉 Agent Data Hub 定时任务安装完成！"
 echo "   09:00  创建今日日报 + 迁移昨日计划"
 echo "   17:30  提醒填写工作记录"
-echo "   18:30  自动生成 70_Summaries daily/period summaries"
+echo "   18:00  自动生成 70_Summaries daily/period summaries"
 echo ""
 echo "日志目录: $LOG_DIR"
 echo "配置目录: $MAC_BOOTSTRAP_DIR/private/agent/.obsidian_daily.env"

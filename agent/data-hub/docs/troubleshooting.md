@@ -43,7 +43,7 @@
 检查顺序：
 1. `~/Library/Logs/agent-data-hub/evening.log` 是否有输出
 2. launchd job 是否正常加载：`launchctl list | grep daily-evening`
-3. plist 时间是否正确：18:30 触发
+3. plist 时间是否正确：18:00 触发
 4. 脚本路径是否正确：`template/agent/data-hub/run-daily-evening.sh`
 5. durable run 状态：`manager.py status --date YYYY-MM-DD`
 

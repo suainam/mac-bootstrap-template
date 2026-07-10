@@ -175,6 +175,12 @@ exit: 0
 - 没有合格 insight 时固定写“今日无新增高价值洞察。”；renderer 不读来源、不访问数据库、不调用 LLM。
 - 验证：`.venv/bin/python -m pytest tests/test_summary_renderer.py tests/test_summary_publish_recovery.py -q` → `6 passed in 0.27s`。
 
+## Task 8（进行中）— 定时自动化
+
+- 已把 launchd evening 从 18:30 校正至 18:00，并把 17:30 从裸 `osascript` 改为 `daily_reminder.sh`，让提醒也受 `chinese_calendar` 工作日门禁控制。
+- `daily_morning.sh` 同样使用 `summary_calendar.should_run_scheduled_event()`，因此普通周末、法定节假日跳过，调休工作日执行；晚间调度仍每天触发。
+- `planned_workflows()` 对边界触发做低到高 dependency closure，确保年末等边界按 Daily → Weekly → Monthly → Quarterly → Yearly 执行。
+
 ## 最终验收预留
 
 - isolated DB/vault 的 Daily、Weekly、Monthly、Quarterly、Yearly 产物。

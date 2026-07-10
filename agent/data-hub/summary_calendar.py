@@ -61,3 +61,13 @@ def is_summary_trigger_day(level: str, anchor_date: str) -> bool:
 
 def should_run_evening_summary(anchor_date: str) -> bool:
     return is_summary_trigger_day("daily", anchor_date)
+
+
+def should_run_scheduled_event(event: str, anchor_date: str) -> bool:
+    """Gate morning/reminder on China workdays; evening dispatch is calendar-driven."""
+
+    if event in {"morning", "reminder"}:
+        return is_workday(anchor_date)
+    if event == "evening":
+        return True
+    raise ValueError(f"unsupported scheduled event: {event}")

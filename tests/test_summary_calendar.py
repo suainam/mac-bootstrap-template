@@ -23,3 +23,11 @@ def test_monthly_quarterly_yearly_trigger_boundaries():
     assert summary_calendar.is_summary_trigger_day("quarterly", "2026-09-30") is True
     assert summary_calendar.is_summary_trigger_day("yearly", "2026-12-31") is True
     assert summary_calendar.is_summary_trigger_day("yearly", "2026-12-30") is False
+
+
+def test_morning_and_reminder_use_china_workday_gate(monkeypatch):
+    monkeypatch.setattr(summary_calendar, "is_workday", lambda _: False)
+
+    assert summary_calendar.should_run_scheduled_event("morning", "2026-10-01") is False
+    assert summary_calendar.should_run_scheduled_event("reminder", "2026-10-01") is False
+    assert summary_calendar.should_run_scheduled_event("evening", "2026-10-01") is True

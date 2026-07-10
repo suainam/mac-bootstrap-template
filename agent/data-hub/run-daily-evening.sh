@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-daily-evening.sh — 18:30 summary automation adapter
+# run-daily-evening.sh — 18:00 summary automation adapter
 
 set -euo pipefail
 

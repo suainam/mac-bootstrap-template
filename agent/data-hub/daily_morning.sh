@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # daily_morning.sh — 晨间自动创建今日日报
-# 触发时机: 每天 08:30（由 launchd 调用）
+# 触发时机: 每天 09:00（由 launchd 调用，仅中国工作日）
 # 功能:
 #   1. 以模板创建 docs/daily/YYYY-MM-DD.md
 #   2. 把昨日「明日计划」迁移到今日「今日重点」
@@ -23,12 +23,15 @@ DAILY_DIR="$VAULT_DIR/$DAILY_SUBDIR"
 # ── 日期计算 ──────────────────────────────────────────────
 TODAY=$(date +%Y-%m-%d)
 
-# 跳过周末
-WEEKDAY_NUM=$(date +%u)   # 1=Mon … 7=Sun
-if [[ "$WEEKDAY_NUM" -ge 6 ]]; then
-  echo "[daily_morning] $TODAY 是周末，跳过创建"
+# 由 chinese_calendar 覆盖周末、法定节假日和调休工作日。
+ROOT="${MAC_BOOTSTRAP_DIR:-$HOME/work/config/mac-bootstrap}"
+PYTHON="${ROOT}/template/.venv/bin/python"
+if ! "$PYTHON" -c "import sys; sys.path.insert(0, '${ROOT}/template/agent/data-hub'); import summary_calendar; raise SystemExit(0 if summary_calendar.should_run_scheduled_event('morning', '${TODAY}') else 1)"; then
+  echo "[daily_morning] skip: non-workday $TODAY"
   exit 0
 fi
+
+WEEKDAY_NUM=$(date +%u)   # 1=Mon … 7=Sun
 
 WEEKDAY_ZH=("" "星期一" "星期二" "星期三" "星期四" "星期五" "星期六" "星期日")
 WEEKDAY="${WEEKDAY_ZH[$WEEKDAY_NUM]}"
