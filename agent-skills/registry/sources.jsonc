@@ -659,6 +659,8 @@
           }
         },
         "brainstorming": {
+          "distribution_state": "disabled",
+          "reason": "User-disabled globally; retain quarantined source without runtime distribution",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true,
