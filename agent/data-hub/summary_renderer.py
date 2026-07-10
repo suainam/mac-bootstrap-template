@@ -32,16 +32,23 @@ def render_summary_markdown(document: SummaryDocument, *, revision_id: str, inpu
         data["headline"],
         "",
     ]
-    sections = [
-        ("工作进展", [item for item in data["items"] if item["item_type"] != "insight"]),
-        ("知识洞察", [item for item in data["items"] if item["item_type"] == "insight"]),
-    ]
+    if data["level"] == "daily":
+        sections = [
+            ("工作进展", [item for item in data["items"] if item["item_type"] != "insight"]),
+            ("知识洞察", [item for item in data["items"] if item["item_type"] == "insight"]),
+        ]
+    else:
+        sections = [
+            ("跨期成果与关键决定", [item for item in data["items"] if item["item_type"] in {"outcome", "decision"}]),
+            ("未解风险与后续重点", [item for item in data["items"] if item["item_type"] in {"risk", "action"}]),
+            ("知识演进", [item for item in data["items"] if item["item_type"] == "insight"]),
+        ]
     lines = frontmatter
     for heading, items in sections:
         lines.extend([f"## {heading}", ""])
         if items:
             lines.extend(_item_line(item) for item in items)
-        elif heading == "知识洞察":
+        elif heading in {"知识洞察", "知识演进"}:
             lines.append("今日无新增高价值洞察。")
         else:
             lines.append("无可验证的新增工作进展。")
