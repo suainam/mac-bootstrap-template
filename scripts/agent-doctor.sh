@@ -460,38 +460,111 @@ find_data_hub_runtime_config() {
 
 runtime_config_path="$(find_data_hub_runtime_config || true)"
 if [ -n "$runtime_config_path" ]; then
-  llm_wiki_enabled="$(python3 - "$runtime_config_path" <<'PY'
+  llm_wiki_info="$(python3 - "$runtime_config_path" <<'PY'
 import json
+import os
+import shlex
 import sys
 from pathlib import Path
 
 text = Path(sys.argv[1]).read_text(encoding="utf-8")
 lines = [line for line in text.splitlines() if not line.strip().startswith("//")]
 data = json.loads("\n".join(lines) or "{}")
-print(str(bool(data.get("llm_wiki", {}).get("enabled", False))).lower())
+config = data.get("llm_wiki", {}) or {}
+
+def as_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+enabled = as_bool(config.get("enabled", False))
+api_base = str(config.get("api_base", "http://127.0.0.1:19828")).rstrip("/")
+project_root = str(config.get("project_root", ""))
+token_env = str(config.get("token_env", "LLM_WIKI_TOKEN"))
+token = str(config.get("token", "")) or os.environ.get(token_env, "")
+mcp = config.get("mcp", {}) or {}
+local = config.get("local", {}) or {}
+def emit(name, value):
+    print(f"{name}={shlex.quote(str(value))}")
+
+emit("enabled", str(enabled).lower())
+emit("api_base", api_base)
+emit("project_root", project_root)
+emit("token_env", token_env)
+emit("token_configured", str(bool(token)).lower())
+emit("mcp_enabled", str(as_bool(mcp.get("enabled", False))).lower())
+emit("local_build_required", str(as_bool(local.get("build_required", False))).lower())
 PY
 )"
-  if [ "$llm_wiki_enabled" = "true" ]; then
-    llm_wiki_dir="${LLM_WIKI_DIR:-$HOME/work/llm_wiki}"
-    if [ -d "$llm_wiki_dir" ] && [ -f "$llm_wiki_dir/package.json" ]; then
-      echo "  OK   llm_wiki checkout ($llm_wiki_dir)"
+  eval "$llm_wiki_info"
+  if [ "${enabled:-false}" = "true" ]; then
+    echo "  OK   llm_wiki enabled via API ($api_base)"
+
+    if command -v curl &>/dev/null; then
+      auth_header=()
+      if [ "${token_configured:-false}" = "true" ]; then
+        token_value="${!token_env:-}"
+        if [ -n "$token_value" ]; then
+          auth_header=(-H "Authorization: Bearer $token_value")
+        fi
+      fi
+      api_status="$(curl -fsS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 4 "${auth_header[@]}" "$api_base/api/v1/projects" 2>/dev/null || true)"
+      case "$api_status" in
+        200|204)
+          echo "  OK   llm_wiki API reachable"
+          ;;
+        401|403)
+          echo "  WARN llm_wiki API reachable but protected ($api_status); configure $token_env for authenticated data-hub access if needed"
+          ;;
+        "")
+          echo "  WARN llm_wiki API not reachable at $api_base; start LLM Wiki.app if data-hub needs live API context"
+          ;;
+        *)
+          echo "  WARN llm_wiki API returned HTTP $api_status at $api_base"
+          ;;
+      esac
     else
-      echo "  MISS llm_wiki checkout (run: make llm-wiki-install)"
+      echo "  WARN curl missing; cannot probe llm_wiki API"
     fi
-    if command -v node &>/dev/null && command -v npm &>/dev/null; then
-      echo "  OK   llm_wiki Node/npm prerequisite"
-    else
-      echo "  MISS llm_wiki Node/npm prerequisite (install Node.js 20+)"
+
+    if [ -d "/Applications/LLM Wiki.app" ]; then
+      echo "  OK   LLM Wiki.app installed"
+      if [ -f "/Applications/LLM Wiki.app/Contents/Resources/mcp-server/dist/src/index.js" ]; then
+        echo "  INFO LLM Wiki.app bundled MCP server present (optional)"
+      fi
     fi
-    if command -v cargo &>/dev/null; then
-      echo "  OK   llm_wiki Rust prerequisite"
+
+    if [ "${mcp_enabled:-false}" = "true" ]; then
+      if [ -f "/Applications/LLM Wiki.app/Contents/Resources/mcp-server/dist/src/index.js" ]; then
+        echo "  OK   llm_wiki MCP server from app bundle"
+      elif [ -f "${LLM_WIKI_DIR:-$HOME/work/llm_wiki}/mcp-server/dist/index.js" ]; then
+        echo "  OK   llm_wiki MCP build artifact"
+      else
+        echo "  MISS llm_wiki MCP enabled but no MCP server artifact found"
+      fi
     else
-      echo "  MISS llm_wiki Rust prerequisite (install Rust 1.70+)"
+      echo "  INFO llm_wiki MCP not required; data-hub uses API mode"
     fi
-    if [ -f "$llm_wiki_dir/mcp-server/dist/index.js" ]; then
-      echo "  OK   llm_wiki MCP build artifact"
-    else
-      echo "  MISS llm_wiki MCP build artifact (run: make llm-wiki-mcp-build)"
+
+    if [ "${local_build_required:-false}" = "true" ]; then
+      llm_wiki_dir="${LLM_WIKI_DIR:-$HOME/work/llm_wiki}"
+      if [ -d "$llm_wiki_dir" ] && [ -f "$llm_wiki_dir/package.json" ]; then
+        echo "  OK   llm_wiki source checkout ($llm_wiki_dir)"
+      else
+        echo "  MISS llm_wiki source checkout required (run: make llm-wiki-install)"
+      fi
+      if command -v node &>/dev/null && command -v npm &>/dev/null; then
+        echo "  OK   llm_wiki Node/npm prerequisite"
+      else
+        echo "  MISS llm_wiki Node/npm prerequisite (install Node.js 20+)"
+      fi
+      if command -v cargo &>/dev/null; then
+        echo "  OK   llm_wiki Rust prerequisite"
+      else
+        echo "  MISS llm_wiki Rust prerequisite (install Rust 1.70+)"
+      fi
     fi
   fi
 fi
