@@ -1121,6 +1121,10 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     registry = load_registry(args.registry)
     targets = load_targets(args.targets)
     actions = build_reconcile_actions(registry, targets, ROOT)
+    if args.surface:
+        actions = [action for action in actions if action.surface == args.surface]
+    if args.skill:
+        actions = [action for action in actions if action.skill_name == args.skill]
     should_apply = bool(args.apply)
     if should_apply:
         _assert_safe_apply_root(
@@ -1216,6 +1220,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--after")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply", action="store_true", help="apply destructive reconcile actions")
+    parser.add_argument(
+        "--surface",
+        choices=["global", "project"],
+        help="filter reconcile actions to one distribution surface",
+    )
     return parser
 
 

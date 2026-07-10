@@ -381,6 +381,14 @@ def test_reasonix_distribution_uses_flat_md():
     assert reasonix.target_path.name == "knowledge-lifecycle-manager.md"
 
 
+def _filter_reconcile_actions(actions, *, surface=None, skill=None):
+    if surface:
+        actions = [action for action in actions if action.surface == surface]
+    if skill:
+        actions = [action for action in actions if action.skill_name == skill]
+    return actions
+
+
 def test_reconcile_actions_include_stale_entries_but_not_enabled_targets(tmp_path: Path):
     registry = load_registry(ROOT / "agent/skills-sources.jsonc")
     targets = load_targets(ROOT / "agent/skill-targets.jsonc")
@@ -406,6 +414,10 @@ def test_reconcile_actions_include_stale_entries_but_not_enabled_targets(tmp_pat
     names = {(action.target_name, action.skill_name, action.action) for action in actions}
     assert ("codex", "stale-skill", "remove-symlink") in names
     assert not any(action.skill_name == "knowledge-lifecycle-manager" for action in actions)
+
+    filtered = _filter_reconcile_actions(actions, surface="global", skill="stale-skill")
+    assert [action.skill_name for action in filtered] == ["stale-skill"]
+    assert filtered[0].surface == "global"
 
 
 def test_reconcile_skips_real_directories(tmp_path: Path):
