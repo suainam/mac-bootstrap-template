@@ -108,4 +108,4 @@ def test_agent_mcp_configures_prompt_library_for_json_agents():
     assert 'write_mcp_config reasonix "$REASONIX_CONFIG"' in content
     assert 'write_mcp_config antigravity "$ANTIGRAVITY_MCP_JSON"' in content
     assert 'getPromptLibraryConfig' not in content
-    assert 'code-review-graph' not in content
+    assert "delete cfg.mcpServers" not in content

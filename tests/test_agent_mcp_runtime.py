@@ -95,6 +95,26 @@ def test_context7_proxy_and_key_are_normalized_once():
     assert server.env["ALL_PROXY"] == "socks5://127.0.0.1:7897"
 
 
+def test_runtime_inputs_from_env_supports_lowercase_proxy_and_optional_servers():
+    parsed = runtime.RuntimeInputs.from_env(
+        bootstrap=Path("/repo"),
+        context7_command="context7-mcp",
+        environ={
+            "HOME": "/home/bob",
+            "http_proxy": "http://proxy",
+            "DEVSPACE_MCP_ENABLE": "1",
+            "DEVSPACE_MCP_URL": "https://devspace.example/mcp",
+            "X_MCP_ENABLE": "1",
+            "X_MCP_COMMAND": "/custom/xapi",
+        },
+    )
+    assert parsed.home == Path("/home/bob")
+    assert parsed.https_proxy == "http://proxy"
+    assert parsed.all_proxy == "http://proxy"
+    assert parsed.devspace_enabled is True
+    assert parsed.xapi_command == "/custom/xapi"
+
+
 def test_json_host_adapter_preserves_unmanaged_state():
     current = {
         "theme": "dark",
@@ -251,3 +271,116 @@ def test_every_json_host_round_trips_through_semantic_audit(host):
     config = runtime.render_json_config(host, {"unmanaged": True}, desired)
     assert config["unmanaged"] is True
     assert runtime.audit_config(host, config, desired) == []
+
+
+def test_atomic_json_writer_replaces_target(tmp_path):
+    target = tmp_path / "nested" / "config.json"
+    runtime._write_json_atomically(target, {"value": "ok"})
+    assert json.loads(target.read_text()) == {"value": "ok"}
+    assert not list(target.parent.glob("*.tmp"))
+
+
+def test_main_render_codex_and_missing_audit(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent_mcp_runtime.py",
+            "render-codex",
+            "--bootstrap",
+            "/repo",
+            "--context7-command",
+            "npx",
+        ],
+    )
+    assert runtime.main() == 0
+    assert "# BEGIN MAC-BOOTSTRAP MANAGED MCPS" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent_mcp_runtime.py",
+            "audit",
+            "--host",
+            "codex",
+            "--path",
+            str(tmp_path / "missing.toml"),
+            "--bootstrap",
+            "/repo",
+            "--context7-command",
+            "npx",
+        ],
+    )
+    assert runtime.main() == 1
+    assert "missing_config host=codex" in capsys.readouterr().out
+
+
+def test_main_audits_valid_and_duplicate_hook_codex(monkeypatch, capsys, tmp_path):
+    desired = runtime.desired_servers(inputs())
+    config = tmp_path / "config.toml"
+    hooks = tmp_path / "hooks.json"
+    hooks.write_text("{}\n")
+    config.write_text(runtime.render_codex_toml(desired))
+    argv = [
+        "agent_mcp_runtime.py",
+        "audit",
+        "--host",
+        "codex",
+        "--path",
+        str(config),
+        "--hooks-path",
+        str(hooks),
+        "--bootstrap",
+        "/repo",
+        "--context7-command",
+        "npx",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setenv("HOME", "/home/alice")
+    for name in (
+        "HTTP_PROXY",
+        "http_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+        "CONTEXT7_KEY",
+        "DEVSPACE_MCP_ENABLE",
+        "DEVSPACE_MCP_URL",
+        "X_MCP_ENABLE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    assert runtime.main() == 0
+    assert capsys.readouterr().out == ""
+
+    config.write_text(
+        config.read_text()
+        + '\n[[hooks.SessionStart]]\nmatcher = "startup"\n'
+        + '[[hooks.SessionStart.hooks]]\ntype = "command"\ncommand = "echo ready"\n'
+    )
+    assert runtime.main() == 1
+    assert "duplicate_hook_representation host=codex" in capsys.readouterr().out
+
+
+def test_main_render_json_rejects_non_object_root(monkeypatch, tmp_path):
+    target = tmp_path / "config.json"
+    target.write_text("[]\n")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "agent_mcp_runtime.py",
+            "render-json",
+            "--host",
+            "claude",
+            "--path",
+            str(target),
+            "--bootstrap",
+            "/repo",
+            "--context7-command",
+            "npx",
+        ],
+    )
+    with pytest.raises(ValueError, match="root must be an object"):
+        runtime.main()
