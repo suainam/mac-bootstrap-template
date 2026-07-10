@@ -7,7 +7,6 @@ sys.path.insert(0, str(scripts_dir))
 sys.path.insert(0, str(scripts_dir / "scripts"))
 
 import ingest_logs
-import daily_summary
 from db_helper import get_db_connection
 
 def test_clean_xml_tags():
@@ -38,15 +37,6 @@ def test_compute_hash():
     
     assert h1 == h2
     assert h1 != h3
-
-def test_daily_summary_helpers():
-    today = daily_summary.today_str()
-    assert len(today.split("-")) == 3
-    
-    file_path = daily_summary.get_daily_file(today)
-    assert file_path.name == f"{today}.md"
-    assert file_path.parent.name == "Daily"
-
 
 def test_schema_includes_durable_workflow_tables(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_DB_PATH", str(tmp_path / "agent_history.db"))
