@@ -4,7 +4,7 @@
 入口文档：`template/data-hub/README.md`
 验收范围：真实本机 Data Hub 环境、真实 SQLite 账本、真实 Obsidian vault 的 Data Hub 相关路径、durable workflow 状态和 artifact logs。
 
-说明：本报告生成于 shared-root / `llm_wiki` 文档模型和 summary automation 重构定稿之前，因此其中出现的 `50_Sources/*` fixture、`full_cycle`、`daily_ingest_and_review`、`daily_promote_and_summary`、旧 weekly writer 等表述应理解为 2026-07-05 的历史验收样本，不再代表当前推荐目录模型或现行调度入口。现行入口以 [README.md](../README.md)、[CONTEXT.md](../CONTEXT.md)、[ops.md](ops.md) 为准。
+说明：本报告生成于 shared-root / `llm_wiki` 文档模型和 summary automation 重构定稿之前，因此其中出现的 `50_Sources/*` fixture、`full_cycle`、`daily_ingest_and_review`、`daily_promote_and_summary`、旧 weekly writer 等表述应理解为 2026-07-05 的历史验收样本，不再代表当前推荐目录模型或现行调度入口。现行入口以 [README.md](../../README.md)、[CONTEXT.md](../../CONTEXT.md)、[ops.md](../ops.md) 为准。
 
 目录迁移说明：为保证归档命令仍可复跑，文中的 executable path 已更新为当前 `template/data-hub/` 与 `template/agent-skills/` 路径；验收日期、输出、计数和当时 workflow 语义保持原样。
 
@@ -594,8 +594,8 @@ legacy error marker: absent
 
 支持材料移动到 `docs/`：
 
-- `docs/acceptance-report.md`
-- `docs/cron-setup.md`
+- `docs/archive/acceptance-report-2026-07-05.md`
+- `docs/archive/cron-setup-legacy.md`
 - `docs/archive/upgrade-plan.md`
 - `docs/archive/phase-5-6-summary.md`
 

@@ -127,4 +127,4 @@ Daily / SQLite records / landed sources
 - protected API 需要在 llm_wiki 设置里生成 token，并通过 `LLM_WIKI_TOKEN` 或 private runtime 提供
 - 旧 `10_Periodic/Weekly|Monthly|Quarterly|Yearly` dataview 文件不再作为 data-hub 产物依赖
 
-这份文档的职责是固定边界，避免后续实现继续跑偏。完整设计见 [../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md)。
+这份文档是 public template 内的现行系统边界真身，避免实现和文档继续跑偏。

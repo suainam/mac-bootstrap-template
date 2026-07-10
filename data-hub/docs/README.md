@@ -9,22 +9,25 @@
 - 根目录 [AGENTS.md](../AGENTS.md)：agent 执行约束
 - `docs/`：运维、参考、排障、验收、历史设计
 
-## 文档索引
+## 现行文档
 
 - [ops.md](./ops.md) — 日常运行、补跑、恢复、回归、隔离验收
 - [reference.md](./reference.md) — knowledge root、runtime config、source bucket、canonical/projection 约定
 - [troubleshooting.md](./troubleshooting.md) — 常见故障定位路径
-- [acceptance-report.md](./acceptance-report.md) — 2026-07-05 真实本机验收记录，含历史路径样本说明
-- [2026-07-10-summary-engine-design.md](./2026-07-10-summary-engine-design.md) — 结构化 Summary Engine、条目级维度、Prompt 契约与幂等设计
-- [2026-07-10-summary-engine-implementation-plan.md](./2026-07-10-summary-engine-implementation-plan.md) — TDD 实施步骤、调度保留、验收与审查计划
+- [cron-setup.md](./cron-setup.md) — 现行 launchd 09:00 / 17:30 / 18:00 调度与可选 Cron fallback
 - [summary-engine-implementation-report.md](./summary-engine-implementation-report.md) — 分阶段提交、复审修复、五层 E2E 与最终门禁证据
-- [archive/upgrade-plan.md](./archive/upgrade-plan.md) — 历史设计草案，保留演进背景，不作为当前权威 runbook
-- [cron-setup.md](./cron-setup.md) — cron/定时任务参考
-- [../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 当前双系统正式设计稿
+
+## 历史与实施证据
+
+- [2026-07-10-summary-engine-design.md](./2026-07-10-summary-engine-design.md) — 已实施的 Summary Engine 设计基线，不作为运行手册
+- [2026-07-10-summary-engine-implementation-plan.md](./2026-07-10-summary-engine-implementation-plan.md) — 已执行的 TDD 计划，不作为待办清单
+- [archive/acceptance-report-2026-07-05.md](./archive/acceptance-report-2026-07-05.md) — 旧 workflow 的真实验收快照
+- [archive/cron-setup-legacy.md](./archive/cron-setup-legacy.md) — 已被 launchd 09:00 / 17:30 / 18:00 链替代的旧 Codex Cron 方案
+- [archive/upgrade-plan.md](./archive/upgrade-plan.md) — 历史设计草案
 
 ## 维护规则
 
 - 稳定系统事实先更新 `CONTEXT.md`
 - 人类入口变化先更新 `README.md`
 - `docs/` 里的专题文档只写各自主题，不复制系统总模型
-- 历史文档若保留旧路径或旧流程，必须显式标注“历史上下文”
+- 历史文档若保留旧路径或旧流程，必须放入 `archive/` 或在文件开头显式标注“历史上下文”

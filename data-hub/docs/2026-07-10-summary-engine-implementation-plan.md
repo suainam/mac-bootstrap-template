@@ -1,5 +1,7 @@
 # Structured Summary Engine Implementation Plan
 
+> Status: completed. This is historical execution evidence, not an active task list or runbook. Use [ops.md](./ops.md) for current commands and [summary-engine-implementation-report.md](./summary-engine-implementation-report.md) for final acceptance.
+
 > Directory migration note: executable and source paths use the current top-level `data-hub/` and `agent-skills/` layout; task intent and historical execution evidence remain unchanged.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

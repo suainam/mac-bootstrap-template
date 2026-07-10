@@ -13,7 +13,7 @@
   - Optional macOS notifications via osascript (when `ENABLE_NOTIFICATIONS=true`)
 
 ### Cron Configuration
-- **Documentation**: `../cron-setup.md`
+- **Documentation**: `cron-setup-legacy.md`（历史方案）
 - **Schedule**: Every day at 18:10
 - **Command**: `python /path/to/health_check.py`
 - **Setup**: Use `/cron create` in Codex
@@ -151,7 +151,7 @@ Results show completed logs for all refactored scripts.
    echo 'export ENABLE_NOTIFICATIONS=true' >> ~/.zshrc
    ```
 
-3. Optional: Automate full pipeline (see `../cron-setup.md`)
+3. Historical option: automate the old pipeline (see `cron-setup-legacy.md`)
 
 ## Benefits Achieved
 

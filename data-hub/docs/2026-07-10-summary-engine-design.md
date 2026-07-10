@@ -1,9 +1,11 @@
 # Data Hub Structured Summary Engine Design
 
 日期：2026-07-10  
-状态：已批准，待实施  
+状态：已实施；历史设计基线，不作为现行运行手册
 契约版本：`summary-v1`  
 维度版本：`dimensions-v1`
+
+现行操作与故障处理以 [ops.md](./ops.md)、[reference.md](./reference.md) 和 [troubleshooting.md](./troubleshooting.md) 为准。本文保留实施前问题、删除项和设计取舍，因此会出现已退役符号。
 
 ## 1. 背景与问题
 

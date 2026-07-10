@@ -1,65 +1,37 @@
-# Cron Setup for Agent Data Hub
+# Data Hub Schedule
 
-This document explains how to configure automated pipeline execution using Codex CronCreate.
+现行 macOS 自动化由 `template/launchd/install_obsidian_jobs.sh` 安装：
 
-## Health Check
+| 时间 | 任务 | 日历规则 |
+|---|---|---|
+| 09:00 | `daily_morning.sh` 创建日报并迁移计划 | `chinese_calendar` 工作日，含调休 |
+| 17:30 | `daily_reminder.sh` 提醒补充工作记录 | `chinese_calendar` 工作日，含调休 |
+| 18:00 | `run-daily-evening.sh` 调度 Summary Engine | 每个自然日 |
 
-The health check script monitors pipeline execution and reports failures from the last 3 days.
-
-### Codex CronCreate Configuration
-
-```bash
-# In Codex, run:
-/cron create "0 10 18 * * *" "python $HOME/work/config/mac-bootstrap/template/data-hub/scripts/health_check.py"
-```
-
-**Schedule**: Every day at 18:10 (6:10 PM)
-**Command**: `python $HOME/work/config/mac-bootstrap/template/data-hub/scripts/health_check.py`
-
-### Optional macOS Notifications
-
-To enable notifications when failures are detected:
+安装或刷新：
 
 ```bash
-export ENABLE_NOTIFICATIONS=true
+cd ~/work/config/mac-bootstrap
+bash template/launchd/install_obsidian_jobs.sh
 ```
 
-Add this to `private/agent/data_hub.runtime.jsonc`.
+晚间任务通过 lifecycle manager 运行 `build_daily_summary`，并按周期边界依次补齐 Weekly、Monthly、Quarterly、Yearly；产物进入 `70_Summaries/Daily` 及对应上层目录。
 
-## Summary Automation
+## 可选 Codex Cron Fallback
 
-You can also automate the summary schedule:
-
-### Evening Summary Schedule (18:00)
+只有不使用 launchd 时，才为 18:00 晚间调度创建以下 fallback；不要与 launchd 重复安装：
 
 ```bash
 /cron create "0 0 18 * * *" "cd $HOME/work/config/mac-bootstrap && bash template/data-hub/run-daily-evening.sh"
 ```
 
 **Schedule**: Every day at 18:00
-**Purpose**: Run build_daily_summary and any period summary triggered for the date through the lifecycle manager.
 
-## Viewing Cron Jobs
+查看或删除：
 
 ```bash
 /cron list
-```
-
-## Removing Cron Jobs
-
-```bash
 /cron delete <job-id>
 ```
 
-## Manual Execution
-
-All scripts can be run manually:
-
-```bash
-# Health check
-python template/data-hub/scripts/health_check.py
-
-# Daily summary for a specific date
-template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow build_daily_summary --date 2026-07-04
-```
+旧 Codex Cron 健康检查方案见 [archive/cron-setup-legacy.md](./archive/cron-setup-legacy.md)，仅作历史参考。日常运行和补跑以 [ops.md](./ops.md) 为准。

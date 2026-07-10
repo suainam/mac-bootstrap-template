@@ -20,9 +20,9 @@
 - [docs/reference.md](./docs/reference.md) — 目录约定、runtime config、source bucket 配置
 - [docs/troubleshooting.md](./docs/troubleshooting.md) — 常见故障排查
 - [docs/README.md](./docs/README.md) — `docs/` 目录边界与索引
-- [docs/acceptance-report.md](./docs/acceptance-report.md) — 已有真实验收记录
+- [docs/summary-engine-implementation-report.md](./docs/summary-engine-implementation-report.md) — 当前 Summary Engine 实施与门禁记录
+- [docs/archive/acceptance-report-2026-07-05.md](./docs/archive/acceptance-report-2026-07-05.md) — 旧 workflow 的历史验收快照，不作为现行操作入口
 - [docs/archive/upgrade-plan.md](./docs/archive/upgrade-plan.md) — 历史升级设计稿
-- [../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 双系统正式设计稿
 
 ## 人类视角的主流程
 
