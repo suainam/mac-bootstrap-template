@@ -6,7 +6,7 @@
 ## 基线
 
 - 实施起点：`3c8bc03593e6114e7771e64e8217da2a7c977e49`（`docs(data-hub): plan structured summary engine`）。
-- 当前设计链提交：`4d48d6a`、`4a0f740`、`257e041`、`3c8bc03`。
+- 当前设计与实施提交：`4d48d6a`、`4a0f740`、`257e041`、`3c8bc03`、`b48dd25`。
 - 接手时测试基线：`560 passed, 9 skipped`，另有 `26` 个由 worktree layout 引起的失败；该结果来自实施计划交接，本 Task 未重跑全量基线。
 - 已知基线门禁：worktree layout 会造成现有路径断言失败；privacy audit 留待最终真实验收统一复核，不在 Task 1 扩展范围。
 - 实施期间 `.venv` 是指向主 template 环境的本地 symlink，仅用于执行测试，不进入版本控制。
@@ -53,6 +53,69 @@ exit: 0
 - Task 1 只定义 contract 边界；EvidencePacket 的确定性分组、实际 source-kind 充足性和 renderer 篇幅计数由后续任务接入 policy。
 - `jsonschema` 已写入 lock；其他 worktree/环境需按 lock 同步依赖后才能导入 `summary_contracts`。
 - 下一检查点是 Task 2 的 logical summary、immutable revision 与 recovery store；本提交不提前实现其表或持久化逻辑。
+
+## Task 2 — Logical Summaries, Immutable Revisions, and Recovery Store
+
+状态：完成；本报告与 `feat(data-hub): add revisioned summary store` 同批提交。
+
+### 产物
+
+- `schema.sql`：新增 logical summaries、immutable revisions、items、dimensions、evidence groups/sources、item evidence 与跨层 support 表；包含 FK、CHECK 与 unique 约束。
+- `schema_migrations.py`：一次性把 legacy `summary_runs` / `summary_run_sources` 转为 legacy revision/evidence，随后在同一 migration transaction 删除旧表。
+- `summary_store.py`：提供 deterministic IDs、idempotent staging、revision document load、published lookup、full-file SHA-256、`staged -> file_published -> published` 状态机和 recovery API。
+- `db_helper.py`：连接初始化改用 revision schema migration，并允许测试显式传入临时 DB 路径。
+- `test_summary_publish_recovery.py`：覆盖 replace 后 DB 未更新、file_published 未 finalize、未知 marker 和文件篡改。
+- `test_data_hub.py`：仅补充 `agent/data-hub/scripts` 测试 import path，使计划中的 worktree focused command 可执行；未改变生产行为。
+
+### TDD 证据
+
+RED：
+
+```text
+$ .venv/bin/python -m pytest tests/test_summary_store.py tests/test_summary_publish_recovery.py -q
+ImportError: cannot import name 'ensure_summary_revision_schema'
+ImportError: cannot import name 'SummaryStoreError'
+2 errors in 0.18s
+exit: 2
+```
+
+失败原因符合预期：revision migration 和 store/recovery API 在测试创建时尚不存在。
+
+首次计划命令发现测试基础设施问题：
+
+```text
+$ .venv/bin/python -m pytest tests/test_summary_store.py tests/test_summary_publish_recovery.py tests/test_data_hub.py -q
+ModuleNotFoundError: No module named 'ingest_logs'
+1 error in 0.23s
+exit: 2
+```
+
+根因是 `test_data_hub.py` 只加入 data-hub 根目录，但被测 legacy helper 位于 `scripts/`；按 Task 2 review 要求，仅修正测试 `sys.path` 后重跑 exact command。
+
+GREEN：
+
+```text
+$ .venv/bin/python -m pytest tests/test_summary_store.py tests/test_summary_publish_recovery.py tests/test_data_hub.py -q
+..................                                                       [100%]
+18 passed in 1.00s
+exit: 0
+```
+
+### 迁移与恢复证据
+
+- 同一 `level + period` 两次 ensure 只产生一个 logical summary。
+- 同一 `summary_id + input_digest` 两次 stage 只产生一个 revision，第二次不同 payload 不覆盖已存 document。
+- legacy completed run 转为 `contract_version=legacy`、`publish_status=published` revision；source row 转为 evidence group/source；旧两表删除。
+- migration 重跑后 revision 数仍为 1，证明一次迁移幂等。
+- `current_revision_id` 在 staged 阶段保持空，仅 full-file hash 校验通过并 finalize 后切换。
+- replace 后 DB 仍 staged 时，可从 artifact marker + full-file SHA-256 恢复；file_published 文件被篡改时拒绝 finalize。
+
+### 风险与下一检查点
+
+- Task 2 只提供 Task 5 所需 recovery API，不实现 renderer 或 atomic replace。
+- legacy artifact 没有可追溯的历史 full-file hash，因此迁移 revision 的 `artifact_hash` 保持空；新 revision 强制使用完整文件 SHA-256。
+- `source_ingest_store` 暂通过旧函数名桥接到新 migration，避免本 Task 扩展调用方修改；删除旧 runtime 路径与命名由计划中的统一调用链迁移任务完成。
+- `tests/test_period_summary.py` 仍编码旧 `summary_runs` 表行为，需随 period orchestrator 重写任务迁移，不能作为新 store 契约继续保留。
 
 ## 最终验收预留
 

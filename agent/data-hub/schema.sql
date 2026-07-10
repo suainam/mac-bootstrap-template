@@ -241,30 +241,104 @@ CREATE TABLE IF NOT EXISTS backup_log (
 
 CREATE INDEX IF NOT EXISTS idx_backup_log_created ON backup_log(created_at DESC);
 
-CREATE TABLE IF NOT EXISTS summary_runs (
-    id TEXT PRIMARY KEY,
-    summary_level TEXT NOT NULL CHECK(summary_level IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
+CREATE TABLE IF NOT EXISTS summaries (
+    summary_id TEXT PRIMARY KEY,
+    summary_level TEXT NOT NULL
+        CHECK(summary_level IN ('daily', 'weekly', 'monthly', 'quarterly', 'yearly')),
     period_id TEXT NOT NULL,
-    period_start TEXT NOT NULL,
-    period_end TEXT NOT NULL,
-    source_mode TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),
-    output_path TEXT,
+    current_revision_id TEXT REFERENCES summary_revisions(revision_id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(summary_level, period_id)
+);
+
+CREATE TABLE IF NOT EXISTS summary_revisions (
+    revision_id TEXT PRIMARY KEY,
+    summary_id TEXT NOT NULL REFERENCES summaries(summary_id) ON DELETE CASCADE,
+    input_digest TEXT NOT NULL,
+    coverage_start TEXT NOT NULL,
+    coverage_end TEXT NOT NULL,
+    closure_status TEXT NOT NULL CHECK(closure_status IN ('provisional', 'closed')),
+    contract_version TEXT NOT NULL,
+    taxonomy_version TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    publish_status TEXT NOT NULL
+        CHECK(publish_status IN ('staged', 'file_published', 'published', 'failed')),
+    quality_status TEXT NOT NULL CHECK(quality_status IN ('complete', 'degraded')),
+    document_json TEXT NOT NULL,
+    artifact_path TEXT NOT NULL DEFAULT '',
+    artifact_hash TEXT,
     metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    published_at TEXT,
+    UNIQUE(summary_id, input_digest)
 );
 
-CREATE INDEX IF NOT EXISTS idx_summary_runs_level_period ON summary_runs(summary_level, period_id);
-CREATE INDEX IF NOT EXISTS idx_summary_runs_status ON summary_runs(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_summary_revisions_summary
+    ON summary_revisions(summary_id, publish_status, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS summary_run_sources (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS summary_items (
+    item_id TEXT PRIMARY KEY,
+    revision_id TEXT NOT NULL REFERENCES summary_revisions(revision_id) ON DELETE CASCADE,
+    section_key TEXT NOT NULL,
+    ordinal INTEGER NOT NULL CHECK(ordinal > 0),
+    item_type TEXT NOT NULL
+        CHECK(item_type IN ('outcome', 'decision', 'risk', 'action', 'insight')),
+    title TEXT NOT NULL,
+    conclusion TEXT NOT NULL,
+    value TEXT NOT NULL,
+    trend TEXT,
+    period_change TEXT,
+    lower_summary_refs_json TEXT NOT NULL DEFAULT '[]',
+    confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+    UNIQUE(revision_id, section_key, ordinal)
+);
+
+CREATE INDEX IF NOT EXISTS idx_summary_items_revision
+    ON summary_items(revision_id, section_key, ordinal);
+
+CREATE TABLE IF NOT EXISTS summary_item_dimensions (
+    item_id TEXT NOT NULL REFERENCES summary_items(item_id) ON DELETE CASCADE,
+    dimension TEXT NOT NULL
+        CHECK(dimension IN ('计划组织', '创新', '沟通协作', '专业知识', '学习成长')),
+    position INTEGER NOT NULL CHECK(position IN (1, 2)),
+    taxonomy_version TEXT NOT NULL,
+    PRIMARY KEY(item_id, dimension),
+    UNIQUE(item_id, position)
+);
+
+CREATE TABLE IF NOT EXISTS summary_evidence_groups (
+    revision_id TEXT NOT NULL REFERENCES summary_revisions(revision_id) ON DELETE CASCADE,
+    evidence_group_id TEXT NOT NULL,
+    evidence_kind TEXT NOT NULL,
+    normalized_payload_json TEXT NOT NULL,
+    PRIMARY KEY(revision_id, evidence_group_id)
+);
+
+CREATE TABLE IF NOT EXISTS summary_evidence_sources (
+    revision_id TEXT NOT NULL,
+    evidence_group_id TEXT NOT NULL,
     source_kind TEXT NOT NULL,
     source_ref TEXT NOT NULL,
+    source_claim_id TEXT NOT NULL DEFAULT '',
     metadata_json TEXT NOT NULL DEFAULT '{}',
-    FOREIGN KEY(run_id) REFERENCES summary_runs(id) ON DELETE CASCADE
+    PRIMARY KEY(revision_id, evidence_group_id, source_ref, source_claim_id),
+    FOREIGN KEY(revision_id, evidence_group_id)
+        REFERENCES summary_evidence_groups(revision_id, evidence_group_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_summary_run_sources_run ON summary_run_sources(run_id);
+CREATE TABLE IF NOT EXISTS summary_item_evidence (
+    item_id TEXT NOT NULL REFERENCES summary_items(item_id) ON DELETE CASCADE,
+    revision_id TEXT NOT NULL,
+    evidence_group_id TEXT NOT NULL,
+    PRIMARY KEY(item_id, evidence_group_id),
+    FOREIGN KEY(revision_id, evidence_group_id)
+        REFERENCES summary_evidence_groups(revision_id, evidence_group_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS summary_item_support (
+    item_id TEXT NOT NULL REFERENCES summary_items(item_id) ON DELETE CASCADE,
+    supporting_item_id TEXT NOT NULL REFERENCES summary_items(item_id),
+    PRIMARY KEY(item_id, supporting_item_id),
+    CHECK(item_id <> supporting_item_id)
+);

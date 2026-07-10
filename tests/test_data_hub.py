@@ -4,6 +4,7 @@ from pathlib import Path
 # 添加脚本目录到 sys.path
 scripts_dir = Path(__file__).parent.parent / "agent" / "data-hub"
 sys.path.insert(0, str(scripts_dir))
+sys.path.insert(0, str(scripts_dir / "scripts"))
 
 import ingest_logs
 import daily_summary
