@@ -542,7 +542,7 @@ PY
       elif [ -f "${LLM_WIKI_DIR:-$HOME/work/llm_wiki}/mcp-server/dist/index.js" ]; then
         echo "  OK   llm_wiki MCP build artifact"
       else
-        echo "  MISS llm_wiki MCP enabled but no MCP server artifact found"
+        echo "  MISS llm_wiki MCP enabled but no MCP server artifact found (run: make llm-wiki-mcp-build)"
       fi
     else
       echo "  INFO llm_wiki MCP not required; data-hub uses API mode"
