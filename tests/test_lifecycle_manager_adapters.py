@@ -35,7 +35,9 @@ def test_docs_describe_summary_schedule_not_full_cycle() -> None:
     data_hub_dir = DATA_HUB
     readme = (data_hub_dir / "README.md").read_text(encoding="utf-8")
     ops = (data_hub_dir / "docs" / "ops.md").read_text(encoding="utf-8")
-    cron = (data_hub_dir / "docs" / "cron-setup.md").read_text(encoding="utf-8")
+    cron = (data_hub_dir / "docs" / "archive" / "cron-setup-legacy.md").read_text(
+        encoding="utf-8"
+    )
 
     combined = "\n".join([readme, ops, cron])
     assert "build_daily_summary" in combined
@@ -109,8 +111,8 @@ def test_troubleshooting_uses_current_evening_schedule() -> None:
     assert "18:30" not in troubleshooting
 
 
-def test_cron_docs_run_summary_schedule_daily() -> None:
-    cron = (DATA_HUB / "docs" / "cron-setup.md").read_text(
+def test_archived_cron_docs_run_summary_schedule_daily() -> None:
+    cron = (DATA_HUB / "docs" / "archive" / "cron-setup-legacy.md").read_text(
         encoding="utf-8"
     )
 
