@@ -7,9 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from helpers import AGENT_SKILLS
+
 
 TEMPLATE_ROOT = Path(__file__).parent.parent
-MANAGER_PATH = TEMPLATE_ROOT / "agent" / "skills" / "personal" / "knowledge-lifecycle-manager" / "scripts" / "manager.py"
+MANAGER_PATH = AGENT_SKILLS / "local" / "global" / "knowledge-lifecycle-manager" / "scripts" / "manager.py"
 
 
 def load_manager_module(module_name: str = "manager_under_test"):

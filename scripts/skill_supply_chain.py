@@ -18,8 +18,8 @@ from typing import Literal
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_REGISTRY = ROOT / "agent" / "skills-sources.jsonc"
-DEFAULT_TARGETS = ROOT / "agent" / "skill-targets.jsonc"
+DEFAULT_REGISTRY = ROOT / "agent-skills" / "registry" / "sources.jsonc"
+DEFAULT_TARGETS = ROOT / "agent-skills" / "registry" / "targets.jsonc"
 VALID_AGENTS = {
     "claude",
     "codex",
@@ -229,13 +229,16 @@ def _gate_policy(raw: dict | None) -> GatePolicy:
 
 def _path_map(raw: dict) -> dict[str, Path]:
     defaults = {
-        "internal_root": "agent/skills/personal",
-        "standalone_internal_root": "agent/skills",
-        "quarantine_root": "agent/skills/quarantine",
+        "local_root": "agent-skills/local",
+        "quarantine_root": "agent-skills/external/quarantine",
         "lockfile": ".agent-state/skills-lock.json",
         "run_log_root": ".agent-state/skill-sync-runs",
+        "snapshot_root": ".agent-state/skill-snapshots",
     }
     merged = {**defaults, **raw}
+    unknown = sorted(set(merged) - set(defaults))
+    if unknown:
+        raise RegistryError(f"unsupported registry path keys: {', '.join(unknown)}")
     return {key: Path(value) for key, value in merged.items()}
 
 
@@ -254,8 +257,8 @@ def _validate_name(kind: str, name: str) -> None:
 
 def load_registry(path: Path = DEFAULT_REGISTRY) -> Registry:
     raw = load_jsonc(path)
-    if raw.get("version") != 1:
-        raise RegistryError("skills-sources.jsonc version must be 1")
+    if raw.get("version") != 2:
+        raise RegistryError("sources.jsonc version must be 2")
 
     paths = _path_map(raw.get("paths", {}))
     defaults = raw.get("defaults", {})
@@ -312,7 +315,7 @@ def load_registry(path: Path = DEFAULT_REGISTRY) -> Registry:
                 source_path = None
                 quarantine_path = paths["quarantine_root"] / source_id / skill_name
             else:
-                base = Path(str(merged.get("path", source_raw.get("path", paths["internal_root"]))))
+                base = Path(str(merged.get("path", source_raw.get("path", paths["local_root"]))))
                 source_path = base / skill_name
                 quarantine_path = None
 
@@ -421,21 +424,15 @@ def _managed_local_skill_source_paths(registry: Registry, root: Path) -> set[Pat
 
 def find_unmanaged_skill_dirs(registry: Registry, root: Path = ROOT) -> list[Path]:
     managed = _managed_local_skill_source_paths(registry, root)
-    candidates: list[Path] = []
-    personal_root = root / registry.paths["internal_root"]
-    if personal_root.is_dir():
-        for child in personal_root.iterdir():
-            if (child / "SKILL.md").is_file():
-                candidates.append(child)
-    standalone_root = root / registry.paths["standalone_internal_root"]
-    if standalone_root.is_dir():
-        for child in standalone_root.iterdir():
-            if child.name in {"personal", "quarantine"}:
-                continue
-            if (child / "SKILL.md").is_file():
-                candidates.append(child)
-    unmanaged = [path for path in candidates if path.resolve() not in managed]
-    return sorted(unmanaged)
+    local_root = root / registry.paths["local_root"]
+    if not local_root.is_dir():
+        return []
+    candidates = {
+        skill_md.parent.resolve()
+        for skill_md in local_root.rglob("SKILL.md")
+        if skill_md.is_file()
+    }
+    return sorted(path for path in candidates if path not in managed)
 
 
 def validate_registry_sources(registry: Registry, root: Path = ROOT) -> list[str]:
@@ -497,11 +494,23 @@ def _find_fetched_skill_dir(work_dir: Path, skill_name: str) -> Path:
     raise RegistryError(f"skills.sh did not produce {skill_name}/SKILL.md under {work_dir}")
 
 
-def fetch_external_skill(skill: SkillRef, root: Path = ROOT, dry_run: bool = False) -> CommandResult:
+def fetch_external_skill(
+    skill: SkillRef,
+    registry: Registry,
+    root: Path = ROOT,
+    dry_run: bool = False,
+) -> CommandResult:
     if skill.quarantine_path is None:
         raise RegistryError(f"external skill missing quarantine path: {skill.source_id}/{skill.name}")
     command = build_skills_sh_fetch_command(skill)
-    tmp_work = root / "agent" / "skills" / "quarantine" / ".tmp" / skill.source_id / skill.name / "work"
+    tmp_work = (
+        root
+        / registry.paths["quarantine_root"]
+        / ".tmp"
+        / skill.source_id
+        / skill.name
+        / "work"
+    )
     destination = root / skill.quarantine_path
     if dry_run:
         print(
@@ -622,8 +631,8 @@ def evaluate_gate(
     )
 
 
-def write_run_log(event: dict, root: Path = ROOT) -> Path:
-    log_root = root / ".agent-state" / "skill-sync-runs"
+def write_run_log(event: dict, registry: Registry, root: Path = ROOT) -> Path:
+    log_root = root / registry.paths["run_log_root"]
     log_root.mkdir(parents=True, exist_ok=True)
     now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H%M%SZ")
     path = log_root / f"{now}.jsonl"
@@ -1016,10 +1025,16 @@ def build_distribution_snapshot(
     return snapshot
 
 
-def write_distribution_snapshot(snapshot: dict, root: Path = ROOT, *, label: str) -> Path:
-    now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H%M%SZ")
+def snapshot_output_path(registry: Registry, root: Path, label: str, now: str) -> Path:
     safe_label = re.sub(r"[^A-Za-z0-9_.-]+", "-", label).strip("-") or "snapshot"
-    path = root / ".agent-state" / "skill-snapshots" / f"{now}-{safe_label}.json"
+    return root / registry.paths["snapshot_root"] / f"{now}-{safe_label}.json"
+
+
+def write_distribution_snapshot(
+    registry: Registry, snapshot: dict, root: Path = ROOT, *, label: str
+) -> Path:
+    now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H%M%SZ")
+    path = snapshot_output_path(registry, root, label, now)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
@@ -1085,7 +1100,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if not args.source or not args.skill:
         raise RegistryError("fetch requires --source and --skill")
     skill = select_skill(registry, args.source, args.skill)
-    result = fetch_external_skill(skill, ROOT, dry_run=args.dry_run)
+    result = fetch_external_skill(skill, registry, ROOT, dry_run=args.dry_run)
     if result.returncode != 0:
         if result.stdout:
             print(result.stdout)
@@ -1097,8 +1112,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
-def _selected_external_skill(args: argparse.Namespace) -> SkillRef:
-    registry = load_registry(args.registry)
+def _selected_external_skill(
+    args: argparse.Namespace,
+    registry: Registry | None = None,
+) -> SkillRef:
+    registry = registry or load_registry(args.registry)
     if not args.source or not args.skill:
         raise RegistryError(f"{args.command} requires --source and --skill")
     skill = select_skill(registry, args.source, args.skill)
@@ -1158,7 +1176,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
             f"project_entries={counts['project_total_entries']}"
         )
         return 0
-    path = write_distribution_snapshot(snapshot, ROOT, label=args.label)
+    path = write_distribution_snapshot(registry, snapshot, ROOT, label=args.label)
     counts = snapshot["counts"]
     print(
         f"wrote skill snapshot {path} "
@@ -1180,7 +1198,8 @@ def cmd_snapshot_diff(args: argparse.Namespace) -> int:
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
-    skill = _selected_external_skill(args)
+    registry = load_registry(args.registry)
+    skill = _selected_external_skill(args, registry)
     if args.dry_run:
         print(f"DRY-RUN audit external skill {skill.source_id}/{skill.name}")
         return 0
@@ -1194,7 +1213,9 @@ def cmd_audit(args: argparse.Namespace) -> int:
             "result": "pending",
             "reasons": list(decision.reasons) if decision else ["missing quarantine path"],
             "content_hash": inspection.content_hash if inspection else None,
-        }
+        },
+        registry,
+        ROOT,
     )
     print(f"audit recorded for {skill.source_id}/{skill.name}")
     return 0

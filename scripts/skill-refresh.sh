@@ -9,8 +9,8 @@ Usage: scripts/skill-refresh.sh [--dry-run]
 
 Compatibility wrapper for the registry-driven skill distributor.
 The authoritative configuration is now:
-  - agent/skills-sources.jsonc
-  - agent/skill-targets.jsonc
+  - agent-skills/registry/sources.jsonc
+  - agent-skills/registry/targets.jsonc
 EOF
 }
 

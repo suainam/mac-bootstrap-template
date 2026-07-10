@@ -1,0 +1,917 @@
+{
+  "$schema": "./schemas/skills-sources.schema.json",
+  "version": 2,
+
+  "paths": {
+    "local_root": "agent-skills/local",
+    "quarantine_root": "agent-skills/external/quarantine",
+    "lockfile": ".agent-state/skills-lock.json",
+    "run_log_root": ".agent-state/skill-sync-runs",
+    "snapshot_root": ".agent-state/skill-snapshots"
+  },
+
+  "defaults": {
+    "external": {
+      "scope": "global",
+      "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+      "distribution_state": "enabled",
+      "audit": {
+        "required": true,
+        "allow_unaudited": false,
+        "max_risk": "LOW",
+        "allow_scripts": false
+      },
+      "gate": {
+        "manual_approval": true,
+        "approved": false
+      }
+    },
+    "internal": {
+      "scope": "project",
+      "distribution_state": "enabled",
+      "audit": {
+        "required": false,
+        "local_validate": true
+      },
+      "gate": {
+        "manual_approval": false,
+        "approved": true
+      }
+    }
+  },
+
+  "reference_sources": {
+    "agentskills-standard": {
+      "type": "external",
+      "ref": "agentskills/agentskills",
+      "purpose": "format and validator reference only; not distributed"
+    }
+  },
+
+  "projects": {
+    "franchise_store": {
+      "skills_dir": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.agents/skills"
+    },
+    "mac-bootstrap": {
+      "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills"
+    },
+    "playground": {
+      "skills_dir": "${HOME}/work/projects/playground/.agents/skills"
+    },
+    "product_strategy": {
+      "skills_dir": "${HOME}/work/projects/product_strategy/.agents/skills"
+    },
+    "www": {
+      "skills_dir": "${HOME}/work/projects/www/.agents/skills"
+    }
+  },
+
+  "sources": {
+    "vercel-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/vercel-labs/skills",
+      "skills": {
+        "find-skills": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:781bd6d3f9b19f8c9af6b53d8d0e4876d0183841b565db34ca7092ffa412d111",
+            "reason": "User-confirmed global routed; approved current quarantined version after clean redistribution"
+          }
+        }
+      }
+    },
+
+    "vercel-agent-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "vercel-labs/agent-skills",
+      "skills": {
+        "web-design-guidelines": {
+          "distribution_state": "staged",
+          "agents": ["codex", "opencode"],
+          "gate": {
+            "manual_approval": true,
+            "approved": false,
+            "reason": "example external skill; approve only after quarantine audit"
+          }
+        }
+      }
+    },
+
+    "anthropic-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "anthropics/skills",
+      "skills": {
+        "pdf": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex"],
+          "gate": {
+            "manual_approval": true,
+            "approved": false,
+            "reason": "example external document skill; approve only after quarantine audit"
+          }
+        }
+      }
+    },
+
+    "everything-claude-code": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/affaan-m/everything-claude-code.git",
+      "skills": {
+        "python-testing": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:076c407824b1271b9068c59e793626e768e98073266c4ed587f752227ef15d6a",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "docker-patterns": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed stage; useful for infra/data projects but not a default global install"
+        },
+        "data-throughput-accelerator": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed stage; keep source available for ETL/backfill work"
+        },
+        "search-first": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:747f8d650d4edc84d92e23f1ee993f8e6856150bdc69ae92504c389b3966fb2f",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "documentation-lookup": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:54de2620bc7a901ffbcbfaa8e767b6854b38cbc00fc47c5d2c630be47a2c7ac8",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "postgres-patterns": {
+          "distribution_state": "staged"
+        },
+        "database-migrations": {
+          "distribution_state": "staged"
+        },
+        "data-scraper-agent": {
+          "distribution_state": "staged"
+        },
+        "python-patterns": {
+          "distribution_state": "merged",
+          "reason": "merged conceptually with python-data-analysis / coding Python support"
+        },
+        "tdd-workflow": {
+          "distribution_state": "merged",
+          "reason": "TDD cluster will keep one canonical skill"
+        },
+        "verification-loop": {
+          "distribution_state": "merged",
+          "reason": "merged with eval-loop / verification workflow"
+        },
+        "pytorch-patterns": {
+          "distribution_state": "disabled"
+        },
+        "mle-workflow": {
+          "distribution_state": "disabled"
+        },
+        "clickhouse-io": {
+          "distribution_state": "disabled"
+        }
+      }
+    },
+
+    "mattpocock-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/mattpocock/skills",
+      "skills": {
+        "caveman": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "local_shadow_path": "agent-skills/local/shadows/mattpocock/caveman",
+          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill caveman"
+        },
+        "diagnosing-bugs": {
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed delete; diagnose is the global debugging entry"
+        },
+        "improve-codebase-architecture": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:2823acbf7eb6674817713d21f449418c03dc4dbe33661760cff64255d40f8532",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "grill-with-docs": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:8683d99a2d347d358662c4d4744affd38212913b85a69158118b1f6735e5da7e",
+            "reason": "User-confirmed keep-global; approved current quarantined version after clean redistribution"
+          },
+          "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
+        },
+        "handoff": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:cdbcb9150df241254a5178eeebfa7c20c9a09613b19aea56eb4d4ca79893666e",
+            "reason": "User-confirmed global workflow skill; approved current quarantined version after clean redistribution"
+          },
+          "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
+        },
+        "writing-great-skills": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:396fd1098e3f311f0f4373bab9c503b365f0ffcfe3c5bfbc74840a7e0b046c21",
+            "reason": "User-confirmed keep-global; approved current quarantined version after clean redistribution"
+          },
+          "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
+        },
+        "diagnose": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:c8bafba01efc7a2c67e4f83e7f657a4fa55c5578b1d75c50764ff0f11db4ff6c",
+            "reason": "User-confirmed global debugging entry; restored from pre-clean Reasonix backup because current skills.sh CLI no longer exposes diagnose"
+          },
+          "reason": "User-confirmed global debugging entry; skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill diagnose"
+        },
+        "write-a-skill": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill write-a-skill; stage by default because it is a skill-authoring helper"
+        },
+        "zoom-out": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill zoom-out; stage by default until routing/noise is confirmed"
+        },
+        "setup-matt-pocock-skills": {
+          "distribution_state": "disabled"
+        },
+        "tdd": {
+          "distribution_state": "merged",
+          "reason": "TDD cluster will keep one canonical skill"
+        }
+      }
+    },
+
+    "baoyu-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/JimLiu/baoyu-skills",
+      "skills": {
+        "baoyu-diagram": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "local_shadow_path": "agent-skills/local/shadows/baoyu/baoyu-diagram"
+        },
+        "baoyu-infographic": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "local_shadow_path": "agent-skills/local/shadows/baoyu/baoyu-infographic"
+        }
+      }
+    },
+
+    "guizang-ppt-skill": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/op7418/guizang-ppt-skill",
+      "skills": {
+        "guizang-ppt-skill": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "local_shadow_path": "agent-skills/local/shadows/guizang/guizang-ppt-skill"
+        }
+      }
+    },
+
+    "codebase-memory-mcp": {
+      "type": "external",
+      "fetcher": "manual",
+      "ref": "https://github.com/DeusData/codebase-memory-mcp",
+      "skills": {
+        "codebase-memory": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:e3bdcd27e7d34721c9407ef38c91620c0c2164207ba6bcb1b930231ca0be9aad",
+            "reason": "User-confirmed global; restored from pre-clean Claude runtime backup because upstream is MCP/runtime material"
+          },
+          "reason": "User-confirmed global; current skills.sh list found no SKILL.md, so distribution still requires a manual/quarantine source before fresh installs"
+        }
+      }
+    },
+
+    "microsoft-playwright": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/microsoft/playwright",
+      "skills": {
+        "playwright": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:2b1315e0e6c865783aaf7fb8d5455920a4bdc4e46511ed2ad78584e3d553cbf0",
+            "reason": "User-confirmed global; restored current runtime skill from pre-clean Codex backup and bound hash"
+          },
+          "reason": "User-confirmed global; existing runtime skill is named playwright, while current skills.sh source exposes playwright-dev/playwright-devops/playwright-test-results/playwright-triage"
+        },
+        "playwright-dev": {
+          "distribution_state": "staged",
+          "agents": ["codex", "opencode", "cross-agent"]
+        },
+        "playwright-triage": {
+          "distribution_state": "staged",
+          "agents": ["codex", "opencode", "cross-agent"]
+        }
+      }
+    },
+
+    "langgpt": {
+      "type": "external",
+      "fetcher": "manual",
+      "ref": "https://github.com/langgptai/LangGPT/blob/main/README_zh.md#%E6%96%B9%E6%B3%95%E4%BA%94claude-code-skill%E6%8E%A8%E8%8D%90",
+      "skills": {
+        "langgpt-prompt-writer": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "local_shadow_path": "agent-skills/local/shadows/langgpt/langgpt-prompt-writer",
+          "reason": "User-confirmed keep-global/routed; LangGPT README recommends Claude Code Skill via marketplace/manual install"
+        }
+      }
+    },
+
+    "qiaomu-goal-meta-skill": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "joeseesun/qiaomu-goal-meta-skill",
+      "skills": {
+        "qiaomu-goal-meta-skill": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "local_shadow_path": "agent-skills/local/shadows/qiaomu/qiaomu-goal-meta-skill",
+          "reason": "User-confirmed global distribution; upstream README installs with: npx skills add joeseesun/qiaomu-goal-meta-skill"
+        }
+      }
+    },
+
+    "khazix-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/KKKKhazix/khazix-skills.git",
+      "skills": {
+        "aihot": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:4e6b4a71244e3ae08537a7f1bad93bf772b82d231cf92814253d8e36cfff97c4",
+            "reason": "User-confirmed project skill; approved current quarantined version for mac-bootstrap"
+          }
+        },
+        "neat-freak": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:8de86eddde5d5329108fdc0315ffa6167ddb2d5a0e77f091078578de472db99c",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        }
+      }
+    },
+
+    "garden-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/ConardLi/garden-skills.git",
+      "skills": {
+        "beautiful-article": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:cfebd63654dbc0cd7d5519d545fa87d84f437607f58a0aa81d6e17ae550a1e70",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
+        },
+        "gpt-image-2": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:6ce7d432f83a1f4a160204f90f5782a8b02eae2d78f964448fe35f0de5da2d8a",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
+        },
+        "kb-retriever": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:ad03a02bce64ac15c27c4b282ad607f900137b598ac7f385092834d95bff9b71",
+            "reason": "User-confirmed project skill; approved current quarantined version for mac-bootstrap"
+          }
+        },
+        "web-design-engineer": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:44432ee5458b019cddf6cb72b7875ae980ffe82a8a1edbc1088d77dcfa1a952a",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
+        },
+        "web-video-presentation": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:5aed4dedca64ad6d9d78a5d1a208aca866b51852c01a19916cf834a703d6298d",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
+        }
+      }
+    },
+
+    "humanizer-zh": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/op7418/Humanizer-zh.git",
+      "skills": {
+        "humanizer-zh": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:6ec65e7426594de020c5f568b4fb03810acae473acb680fa75debeaf5efa1170",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        }
+      }
+    },
+
+    "obsidian-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/kepano/obsidian-skills.git",
+      "skills": {
+        "defuddle": {
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
+        },
+        "obsidian-cli": {
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
+        },
+        "obsidian-markdown": {
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
+        },
+        "obsidian-bases": {
+          "distribution_state": "disabled",
+          "reason": "User-confirmed drop"
+        },
+        "json-canvas": {
+          "distribution_state": "disabled",
+          "reason": "User-confirmed drop"
+        }
+      }
+    },
+
+    "superpowers": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/obra/superpowers.git",
+      "skills": {
+        "using-git-worktrees": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:e6306e69246610dc203c8639584542e16bfbb0b09d0adddac533ca009fa93180",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "writing-plans": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:9d6565e8748399c61246be6f2a5af2113caa39feb8d0d6eca199f5b29310bbaf",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "executing-plans": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:c2df3ab9dfbb243f9f82940450dcd7ea3ee0c94f63ef510afd6037d1ac54815c",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "brainstorming": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:a1202a6a5e8d86659745e69030c06bfb033f265d8a276f29b24b8a57c4809399",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
+        },
+        "finishing-a-development-branch": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:0c140b3e01a984ea1a3d2b79b83406b137847597eaa9a740f6a71a94bccafda4",
+            "reason": "User-confirmed global distribution; approved current quarantined version after clean redistribution"
+          },
+          "reason": "User-confirmed global distribution"
+        },
+        "requesting-code-review": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:65cad7b7959ddd26423d94d72a8e8ce669d49be5d3ce9309dd151a999ecf54e1",
+            "reason": "User-confirmed global distribution; approved current quarantined version after clean redistribution"
+          },
+          "reason": "User-confirmed global distribution"
+        },
+        "test-driven-development": {
+          "distribution_state": "merged",
+          "reason": "TDD cluster will keep one canonical skill later; currently not distributed from the new registry"
+        }
+      }
+    },
+
+    "local-global": {
+      "type": "internal",
+      "path": "agent-skills/local/global",
+      "skills": {
+        "cavecrew": {
+          "scope": "global",
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "knowledge-lifecycle-manager": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "沉淀与复用入口，应该全局可用"
+        }
+      }
+    },
+
+    "local-deprecated": {
+      "type": "internal",
+      "path": "agent-skills/local/deprecated",
+      "skills": {
+        "caveman-commit": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "retired after caveman source moved to mattpocock/skills"
+        },
+        "caveman-compress": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed delete"
+        },
+        "caveman-help": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "retired after caveman source moved to mattpocock/skills"
+        },
+        "caveman-review": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "retired after caveman source moved to mattpocock/skills"
+        },
+        "caveman-stats": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed delete"
+        },
+        "docker-data-project": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "eval-loop": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
+        }
+      }
+    },
+
+    "local-franchise-store": {
+      "type": "internal",
+      "path": "agent-skills/local/franchise-store",
+      "skills": {
+        "franchise-store-sankey-analysis": {
+          "scope": "project",
+          "projects": ["franchise_store"]
+        },
+        "sankey-flow-analysis": {
+          "scope": "project",
+          "projects": ["franchise_store"]
+        }
+      }
+    },
+
+    "local-product-strategy": {
+      "type": "internal",
+      "path": "agent-skills/local/product-strategy",
+      "skills": {
+        "web-video-presentation-delivery": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        },
+        "python-data-analysis": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "product_strategy data-analysis project skill"
+        },
+        "decrypt-materialize": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "absorbs the old decrypt-read use case; decrypt-read runtime link is currently broken and should not remain a separate managed skill"
+        },
+        "sql-analysis": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        }
+      }
+    },
+
+    "local-mac-bootstrap": {
+      "type": "internal",
+      "path": "agent-skills/local/mac-bootstrap",
+      "skills": {
+        "daily-tagger": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "knowledge-candidate-review": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-claim-extraction": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-daily-weekly-synthesis": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-hygiene-audit": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-materialization": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-record": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "knowledge-reuse-retrieval": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "knowledge-source-ingestion": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "mac-bootstrap-maintenance": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "network-path-triage": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        }
+      }
+    },
+
+    "local-playground": {
+      "type": "internal",
+      "path": "agent-skills/local/playground",
+      "skills": {
+        "daily-claude-battle-boost": {
+          "scope": "project",
+          "projects": ["playground"]
+        },
+        "ottos-effect-analysis": {
+          "scope": "project",
+          "projects": ["playground"]
+        },
+        "ottos-north-star-metric": {
+          "scope": "project",
+          "projects": ["playground"]
+        },
+        "ottos-retail-ab-test": {
+          "scope": "project",
+          "projects": ["playground"]
+        }
+      }
+    },
+
+    "local-www": {
+      "type": "internal",
+      "path": "agent-skills/local/www",
+      "skills": {
+        "marimo-analysis": {
+          "scope": "project",
+          "projects": ["www"]
+        },
+        "marimo-dashboard-create": {
+          "scope": "project",
+          "projects": ["www"]
+        },
+        "marimo-etl-test": {
+          "scope": "project",
+          "projects": ["www"]
+        }
+      }
+    }
+  }
+}

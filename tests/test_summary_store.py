@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 
-DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "agent" / "data-hub"
+DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "data-hub"
 sys.path.insert(0, str(DATA_HUB_DIR))
 
 from schema_migrations import ensure_summary_revision_schema  # noqa: E402

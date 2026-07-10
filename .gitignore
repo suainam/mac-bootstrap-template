@@ -23,7 +23,7 @@ __pycache__/
 skills-lock.json
 
 # Generated skill supply-chain artifacts
-agent/skills/quarantine/
+agent-skills/external/quarantine/
 .agent-state/skills-lock.json
 .agent-state/skill-sync-runs/
 .agent-state/skill-snapshots/

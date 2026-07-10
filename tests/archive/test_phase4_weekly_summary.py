@@ -94,8 +94,8 @@ Some notes for {date_str}
 def test_get_week_range_monday():
     """Test get_week_range returns Monday-Sunday for any day in week."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from date_utils import get_week_range
 
     # Test with Monday (2026-07-06)
@@ -110,8 +110,8 @@ def test_get_week_range_monday():
 def test_get_week_range_friday():
     """Test get_week_range with Friday returns same week range."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from date_utils import get_week_range
 
     # Test with Friday (2026-07-10)
@@ -126,8 +126,8 @@ def test_get_week_range_friday():
 def test_is_day_before_weekend_or_holiday_friday():
     """Test trigger on Friday."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from date_utils import is_day_before_weekend_or_holiday
 
     # Friday should trigger
@@ -138,8 +138,8 @@ def test_is_day_before_weekend_or_holiday_friday():
 def test_is_day_before_weekend_or_holiday_monday():
     """Test no trigger on Monday."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from date_utils import is_day_before_weekend_or_holiday
 
     # Monday should not trigger
@@ -150,8 +150,8 @@ def test_is_day_before_weekend_or_holiday_monday():
 def test_get_year_week_format():
     """Test year-week format (ISO 8601)."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from date_utils import get_year_week
 
     # 2026-07-06 is Monday of week 28
@@ -167,8 +167,8 @@ def test_collect_week_summaries(temp_vault, mock_daily_notes, monkeypatch):
     """Test collecting daily summaries for a week."""
     import sys
 
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
     # Mock read_daily to return content from temp_vault
     def mock_read_daily(date_str: str) -> str:
@@ -195,8 +195,8 @@ def test_weekly_summary_content_format(temp_vault, mock_daily_notes, temp_db, mo
     """Test weekly summary generates proper format."""
     import sys
 
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
     # Mock read_daily
     def mock_read_daily(date_str: str) -> str:
@@ -226,8 +226,8 @@ def test_weekly_summary_content_format(temp_vault, mock_daily_notes, temp_db, mo
 def test_weekly_summary_logs_execution(temp_vault, mock_daily_notes, temp_db):
     """Test weekly summary logs to execution_log."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from execution_logger import ExecutionLogger
 
     with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
@@ -289,8 +289,8 @@ def test_weekly_summary_uses_fallback_when_llm_fails(temp_vault, mock_daily_note
     import json
     import sys
 
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
     with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
         with patch("sys.argv", ["weekly_summary.py", "2026-07-10"]):
@@ -332,8 +332,8 @@ def test_weekly_summary_uses_fallback_when_llm_fails(temp_vault, mock_daily_note
 def test_validate_weekly_summary_rejects_unsupported_numeric_fact():
     import sys
 
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from weekly_summary import validate_weekly_summary
 
     week_summaries = {
@@ -350,8 +350,8 @@ def test_validate_weekly_summary_rejects_unsupported_numeric_fact():
 def test_generate_weekly_summary_retries_then_succeeds():
     import sys
 
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from weekly_summary import generate_weekly_summary
 
     week_summaries = {
@@ -373,8 +373,8 @@ def test_weekly_summary_falls_back_when_validation_fails_twice(temp_vault, mock_
     import json
     import sys
 
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
     with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
         with patch("sys.argv", ["weekly_summary.py", "2026-07-10"]):
@@ -424,8 +424,8 @@ def test_weekly_summary_falls_back_when_validation_fails_twice(temp_vault, mock_
 def test_weekly_summary_skips_non_friday(temp_vault, mock_daily_notes, temp_db, capsys):
     """Test weekly summary skips execution on non-Friday when not explicit."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
     with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
         with patch("weekly_summary.get_db_connection", return_value=temp_db):
@@ -443,8 +443,8 @@ def test_weekly_summary_skips_non_friday(temp_vault, mock_daily_notes, temp_db, 
 def test_weekly_summary_empty_week(temp_vault, temp_db):
     """Test weekly summary handles empty week (no daily notes)."""
     import sys
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub"))
-    sys.path.insert(0, str(TEMPLATE_ROOT / "agent/data-hub" / "scripts" / "archive"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
+    sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
     with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
         from weekly_summary import collect_week_summaries

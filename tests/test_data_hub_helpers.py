@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from helpers import DATA_HUB
+
 
 @pytest.fixture
 def temp_db():
@@ -53,8 +55,8 @@ def temp_db():
 def test_execution_logger_lifecycle(temp_db):
     """Test ExecutionLogger start/complete/fail workflow."""
     import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+    sys.path.insert(0, str(DATA_HUB))
+    sys.path.insert(0, str(DATA_HUB / "scripts"))
     from execution_logger import ExecutionLogger
 
     logger = ExecutionLogger(temp_db, "2026-07-04")
@@ -81,8 +83,8 @@ def test_execution_logger_lifecycle(temp_db):
 def test_execution_logger_fail(temp_db):
     """Test ExecutionLogger failure handling."""
     import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+    sys.path.insert(0, str(DATA_HUB))
+    sys.path.insert(0, str(DATA_HUB / "scripts"))
     from execution_logger import ExecutionLogger
 
     logger = ExecutionLogger(temp_db, "2026-07-04")
@@ -98,8 +100,8 @@ def test_execution_logger_fail(temp_db):
 def test_date_utils_workday():
     """Test workday detection."""
     import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+    sys.path.insert(0, str(DATA_HUB))
+    sys.path.insert(0, str(DATA_HUB / "scripts"))
     from date_utils import is_workday, get_week_range, get_year_week
 
     # Test with known dates (2026-07-06 is Monday)
@@ -122,8 +124,8 @@ def test_date_utils_workday():
 def test_auto_review_thresholds(temp_db):
     """Test auto_review accepts candidates above threshold."""
     import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
-    sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+    sys.path.insert(0, str(DATA_HUB))
+    sys.path.insert(0, str(DATA_HUB / "scripts"))
     from auto_review import auto_review_candidates
     from execution_logger import ExecutionLogger
 
@@ -156,4 +158,3 @@ def test_auto_review_thresholds(temp_db):
 
     row2 = temp_db.execute("SELECT status FROM knowledge_candidates WHERE id = 'cand_2'").fetchone()
     assert row2["status"] == "pending"
-

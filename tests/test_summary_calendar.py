@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "agent" / "data-hub"
+DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "data-hub"
 sys.path.insert(0, str(DATA_HUB_DIR))
 
 import summary_calendar

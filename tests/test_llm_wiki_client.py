@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 CURRENT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(CURRENT_DIR.parent / "agent" / "data-hub"))
+sys.path.insert(0, str(CURRENT_DIR.parent / "data-hub"))
 
 from llm_wiki_context import build_llm_wiki_context
 from llm_wiki_client import LlmWikiClient

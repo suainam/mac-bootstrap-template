@@ -4,12 +4,21 @@ import sys
 from pathlib import Path
 
 
-DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "agent" / "data-hub"
+DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "data-hub"
 SCRIPTS_DIR = DATA_HUB_DIR / "scripts"
 sys.path.insert(0, str(DATA_HUB_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import run_summary_schedule
+
+
+def test_schedule_resolves_top_level_manager() -> None:
+    template_root = Path(__file__).resolve().parent.parent
+    assert run_summary_schedule.TEMPLATE_ROOT == template_root
+    assert run_summary_schedule.MANAGER == (
+        template_root
+        / "agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py"
+    )
 
 
 def test_planned_workflows_for_normal_workday(monkeypatch):

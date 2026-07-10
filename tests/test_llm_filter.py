@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 CURRENT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(CURRENT_DIR.parent / "agent" / "data-hub"))
+sys.path.insert(0, str(CURRENT_DIR.parent / "data-hub"))
 
 import data_hub_config
 from llm_filter import (

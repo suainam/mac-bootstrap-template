@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from helpers import AGENT_SKILLS, DATA_HUB
+
+
+MANAGER = AGENT_SKILLS / "local/global/knowledge-lifecycle-manager"
+
 
 def test_run_daily_evening_delegates_to_manager() -> None:
-    script_path = Path(__file__).parent.parent / "agent" / "data-hub" / "run-daily-evening.sh"
+    script_path = DATA_HUB / "run-daily-evening.sh"
     script_text = script_path.read_text(encoding="utf-8")
 
     assert "run_summary_schedule.py" in script_text
@@ -14,8 +19,8 @@ def test_run_daily_evening_delegates_to_manager() -> None:
 
 
 def test_docs_present_manager_as_unified_entry() -> None:
-    readme_path = Path(__file__).parent.parent / "agent" / "data-hub" / "README.md"
-    ops_path = Path(__file__).parent.parent / "agent" / "data-hub" / "docs" / "ops.md"
+    readme_path = DATA_HUB / "README.md"
+    ops_path = DATA_HUB / "docs" / "ops.md"
 
     readme_text = readme_path.read_text(encoding="utf-8")
     ops_text = ops_path.read_text(encoding="utf-8")
@@ -27,7 +32,7 @@ def test_docs_present_manager_as_unified_entry() -> None:
 
 
 def test_docs_describe_summary_schedule_not_full_cycle() -> None:
-    data_hub_dir = Path(__file__).parent.parent / "agent" / "data-hub"
+    data_hub_dir = DATA_HUB
     readme = (data_hub_dir / "README.md").read_text(encoding="utf-8")
     ops = (data_hub_dir / "docs" / "ops.md").read_text(encoding="utf-8")
     cron = (data_hub_dir / "docs" / "cron-setup.md").read_text(encoding="utf-8")
@@ -42,7 +47,7 @@ def test_docs_describe_summary_schedule_not_full_cycle() -> None:
 
 
 def test_data_hub_executable_python_scripts_live_under_scripts_dir() -> None:
-    data_hub_dir = Path(__file__).parent.parent / "agent" / "data-hub"
+    data_hub_dir = DATA_HUB
     script_names = {
         "auto_review.py",
         "claim_extraction.py",
@@ -61,7 +66,7 @@ def test_data_hub_executable_python_scripts_live_under_scripts_dir() -> None:
 
 
 def test_legacy_summary_scripts_are_not_active_schedule_targets() -> None:
-    data_hub_dir = Path(__file__).parent.parent / "agent" / "data-hub"
+    data_hub_dir = DATA_HUB
 
     assert not (data_hub_dir / "scripts" / "weekly_summary.py").exists()
     assert (data_hub_dir / "scripts" / "archive" / "weekly_summary.py").exists()
@@ -72,6 +77,8 @@ def test_obsidian_launchd_installer_uses_current_schedule_and_paths() -> None:
     script_path = Path(__file__).parent.parent / "launchd" / "install_obsidian_jobs.sh"
     script_text = script_path.read_text(encoding="utf-8")
 
+    assert 'DATA_HUB_DIR="$MAC_BOOTSTRAP_DIR/template/data-hub"' in script_text
+    assert "template/agent/data-hub" not in script_text
     assert "REMINDER_LABEL" in script_text
     assert "LEGACY_WEEKLY_LABEL" in script_text
     assert "<integer>9</integer>" in script_text
@@ -94,7 +101,7 @@ def test_obsidian_launchd_installer_uses_current_schedule_and_paths() -> None:
 
 def test_troubleshooting_uses_current_evening_schedule() -> None:
     troubleshooting = (
-        Path(__file__).parent.parent / "agent" / "data-hub" / "docs" / "troubleshooting.md"
+        DATA_HUB / "docs" / "troubleshooting.md"
     ).read_text(encoding="utf-8")
 
     assert "晚间 summary schedule" in troubleshooting
@@ -103,7 +110,7 @@ def test_troubleshooting_uses_current_evening_schedule() -> None:
 
 
 def test_cron_docs_run_summary_schedule_daily() -> None:
-    cron = (Path(__file__).parent.parent / "agent" / "data-hub" / "docs" / "cron-setup.md").read_text(
+    cron = (DATA_HUB / "docs" / "cron-setup.md").read_text(
         encoding="utf-8"
     )
 
@@ -125,7 +132,7 @@ def test_seed_periodic_templates_include_ai_summary_sections() -> None:
 
 
 def test_runtime_uses_vault_templates_before_seed_templates() -> None:
-    helper_path = Path(__file__).parent.parent / "agent" / "data-hub" / "obsidian_helper.py"
+    helper_path = DATA_HUB / "obsidian_helper.py"
     helper_text = helper_path.read_text(encoding="utf-8")
 
     assert 'vault_dir / "00_System" / "Templates"' in helper_text
