@@ -190,7 +190,8 @@
           "distribution_state": "staged"
         },
         "handoff": {
-          "distribution_state": "staged"
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
         },
         "writing-great-skills": {
           "distribution_state": "staged"

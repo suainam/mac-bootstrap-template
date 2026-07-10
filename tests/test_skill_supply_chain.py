@@ -283,6 +283,20 @@ def test_mattpocock_commands_include_skills_sh_page_backed_skills():
         ]
 
     assert registry.skills[("mattpocock-skills", "diagnose")].distribution_state == "enabled"
+
+    handoff = registry.skills[("mattpocock-skills", "handoff")]
+    assert handoff.scope == "global"
+    assert handoff.distribution_state == "enabled"
+    assert handoff.agents == (
+        "claude",
+        "codex",
+        "opencode",
+        "pi",
+        "reasonix",
+        "antigravity",
+        "cross-agent",
+    )
+
     assert registry.skills[("mattpocock-skills", "write-a-skill")].distribution_state == "staged"
     assert registry.skills[("mattpocock-skills", "zoom-out")].distribution_state == "staged"
 
