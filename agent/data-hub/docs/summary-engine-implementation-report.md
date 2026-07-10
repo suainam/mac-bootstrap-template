@@ -185,7 +185,7 @@ exit: 0
 
 - `summary_inputs.py` 已改为只查询 SQLite 的 published lower revisions，禁止读取下层 Markdown 正文；`period_summary.py` 改为 coverage-aware revision orchestrator，并使用 staged → file_published → published 状态机。
 - `scripts/daily_summary.py`、旧 lifecycle stage 及其 runtime skill caller 已移除；workflow 统一经 `build_<level>_summary`，并识别 `SUMMARY_STATUS=degraded`。
-- 定向回归：period/input/CLI `5 passed`；workflow degraded/lifecycle `27 passed`。
+- 定向回归：period/input/CLI `5 passed`；workflow degraded/lifecycle `27 passed`；隔离 Daily build 走完 evidence → JSON contract → SQLite revision → atomic artifact publish，`3 passed`。
 
 ## 最终验收预留
 
