@@ -15,7 +15,7 @@
 | Brew | `Brewfile`、`brew-bundle.sh` | formula、cask、npm 包与字体 |
 | Shell | `install.sh` | zsh、git、vim、neovim、tmux 与 VS Code |
 | Docker | `infra/docker/install.sh` | Colima、代理与 Docker Compose |
-| Agent | `install-agent-tooling.sh` | skills、MCP、RTK、caveman、Pi 与 CRG |
+| Agent | `install-agent-tooling.sh` | skills、MCP、RTK、caveman、Pi 与 Codebase Memory |
 | Pi | `install-pi-packages.sh` | Pi 原生包 |
 | Obsidian | `editors/obsidian/install.sh` | 可复用 vault 配置与模板 |
 | Ghostty | `terminals/ghostty/repair-fonts.sh` | 字体修复 |

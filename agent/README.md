@@ -19,7 +19,7 @@ make doctor-agent # Verify all configs
 make security-scan  # AgentShield security audit
 ```
 
-All agent configs are driven from [`agent/agent-manifest.json`](agent-manifest.json).
+All agent configs are driven from [`agent-manifest.json`](agent-manifest.json).
 Edit the manifest or canonical files once, then re-run `make agent-tools`.
 Generated runtime markdown files are intentionally short and ordered:
 `12-rules` first, then `RTK`, then `CBM / docs`.
@@ -31,18 +31,18 @@ Generated runtime markdown files are intentionally short and ordered:
 ### Canonical Sources
 
 ```
-bootstrap/agent/agent-manifest.json   ← Agent locations + config targets (edit here)
-bootstrap/agent/rules/12-rules.md     ← Canonical instruction source
+agent/agent-manifest.json             ← Agent locations + config targets (edit here)
+agent/rules/12-rules.md               ← Canonical instruction source
   → ~/.claude/12-rules.md            ← Symlink (Claude @include reads it)
   → ~/.codex/AGENTS.md @/path/ref    ← Codex reads via @/path/to/file
   → ~/.pi/agent/AGENTS.md @~/.claude/12-rules.md  ← Pi reads via AGENTS.md ref
   → ~/.claude/CLAUDE.md @12-rules.md              ← Reasonix inherits via Claude docs
   → ~/.claude/CLAUDE.md @RTK.md                   ← RTK follows 12-rules
 
-bootstrap/agent/rules/common/         ← Canonical rules dir
+agent/rules/common/                   ← Canonical rules dir
   → ~/.claude/rules/common/          ← Claude Code auto-loads rules
 
-bootstrap/agent/rules/python/         ← Canonical python rules
+agent/rules/python/                   ← Canonical python rules
   → ~/.claude/rules/python/          ← Claude Code auto-loads rules
 
 ~/work/GEMINI.md                      ← Generated workspace rules for Antigravity
@@ -155,65 +155,21 @@ Codex config shape, smoke test, and troubleshooting steps.
 
 ## Adding a New MCP Server
 
-### Claude Code
+Managed MCP servers are declared once in `scripts/agent_mcp_runtime.py` as a
+`ServerSpec`. Set `hosts` explicitly, add host-adapter and audit tests, then run:
 
-Two ways:
-1. Plugin marketplace (if bundled with a plugin)
-2. `~/.claude/settings.json` MCP section or `~/.claude/.mcp.json`
-
-### OpenCode
-
-Edit `~/.config/opencode/opencode.json` — config key is `"plugin"` (singular):
-
-```json
-{
-  "plugin": ["./plugins/rtk.ts", "./plugins/caveman/plugin.js"],
-  "mcp": {
-    "my-server": {
-      "enabled": true,
-      "type": "local",
-      "command": ["npx", "-y", "my-mcp-server"]
-    }
-  }
-}
+```bash
+make agent-tools
+make doctor-agent
 ```
 
-### Codex CLI
+Do not hand-edit a managed server in `~/.codex/config.toml`,
+`~/.claude/.mcp.json`, or another generated consumer view. Reconciliation will
+restore desired state. One-off servers with names outside the managed and
+retired catalogs are preserved as unmanaged configuration.
 
-Edit `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.my-server]
-command = "npx -y my-mcp-server"
-```
-
-### Pi
-
-Edit `~/.pi/agent/mcp.json` (global) or `.pi/mcp.json` (project):
-
-```json
-{
-  "mcpServers": {
-    "my-server": {
-      "command": "my-mcp-server"
-    }
-  }
-}
-```
-
-### Reasonix
-
-Edit `~/.reasonix/config.json` or use `/mcp add` inside Reasonix:
-
-```json
-{
-  "mcpServers": {
-    "my-server": {
-      "command": "npx -y my-mcp-server"
-    }
-  }
-}
-```
+Plugin-owned MCP servers remain plugin-owned; do not copy them into this
+catalog unless mac-bootstrap is intentionally taking ownership.
 
 ### Disabling MCPs Per Project
 
@@ -307,7 +263,7 @@ RTK and CBM locations.
 ## File Layout
 
 ```
-bootstrap/
+<template-root>/
 ├── agent/                            ← Agent runtime configuration only
 │   ├── rules/                        ← Canonical operating and language rules
 │   ├── instincts/                    ← Continuous learning skeleton
