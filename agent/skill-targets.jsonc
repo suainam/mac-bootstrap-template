@@ -1,0 +1,47 @@
+{
+  "$schema": "./schemas/skill-targets.schema.json",
+  "version": 1,
+
+  // Derived from the current production skill wiring in:
+  // - agent/agent-manifest.json
+  // - scripts/skill-refresh.sh
+  // - scripts/lib/skill-wiring.sh
+  // Do not change these paths without updating the production baseline guard test.
+  "targets": {
+    "claude": {
+      "path": "~/.claude/skills",
+      "format": "directory",
+      "strategy": "symlink"
+    },
+    "codex": {
+      "path": "~/.codex/skills",
+      "format": "directory",
+      "strategy": "symlink"
+    },
+    "opencode": {
+      "path": "~/.config/opencode/skills",
+      "format": "directory",
+      "strategy": "symlink"
+    },
+    "pi": {
+      "path": "~/.pi/agent/skills",
+      "format": "directory",
+      "strategy": "symlink"
+    },
+    "antigravity": {
+      "path": "~/.gemini/antigravity-cli/skills",
+      "format": "directory",
+      "strategy": "symlink"
+    },
+    "cross-agent": {
+      "path": "~/.agents/skills",
+      "format": "directory",
+      "strategy": "symlink"
+    },
+    "reasonix": {
+      "path": "~/.reasonix/skills",
+      "format": "flat-md",
+      "strategy": "copy"
+    }
+  }
+}

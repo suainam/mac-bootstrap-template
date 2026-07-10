@@ -360,24 +360,27 @@ check_contains "REASONIX.md 12-rules" "$WORK_REASONIX" '## 12 Rules Summary'
 check_max_lines "REASONIX.md length" "$WORK_REASONIX" 60
 
 echo ""
-echo "--- Upstream Skills ---"
-AGENT_SKILLS="$(json_get_path shared.upstream_skills_root)"
-if [ -d "$AGENT_SKILLS/upstream/ecc" ]; then
-  ECC_COUNT=$(find "$AGENT_SKILLS/upstream/ecc" -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')
-  echo "  OK   ECC skills: $ECC_COUNT"
+echo "--- Skill Supply Chain ---"
+if [ -f "$BOOTSTRAP/agent/skills-sources.jsonc" ]; then
+  echo "  OK   skills-sources.jsonc"
 else
-  echo "  MISS ECC (run: make agent-sync)"
+  echo "  MISS skills-sources.jsonc"
 fi
-if [ -d "$AGENT_SKILLS/upstream/mattpocock" ]; then
-  POC_COUNT=$(find "$AGENT_SKILLS/upstream/mattpocock" -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')
-  echo "  OK   Matt Pocock skills: $POC_COUNT"
+if [ -f "$BOOTSTRAP/agent/skill-targets.jsonc" ]; then
+  echo "  OK   skill-targets.jsonc"
 else
-  echo "  MISS Matt Pocock (run: make agent-sync)"
+  echo "  MISS skill-targets.jsonc"
+fi
+if python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" check >/tmp/mac-bootstrap-skill-check.out 2>/tmp/mac-bootstrap-skill-check.err; then
+  sed 's/^/  OK   /' /tmp/mac-bootstrap-skill-check.out
+else
+  echo "  FAIL skill supply-chain check"
+  sed 's/^/       /' /tmp/mac-bootstrap-skill-check.err
 fi
 if [ -d "$CLAUDE_SKILLS_DIR" ] || [ -d "$(json_get_path shared.cross_agent_skills_dir)" ]; then
-  echo "  OK   cross-agent skill links present"
+  echo "  OK   agent skill dirs present"
 else
-  echo "  MISS cross-agent skill links"
+  echo "  MISS agent skill dirs"
 fi
 
 echo ""

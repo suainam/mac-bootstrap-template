@@ -1,107 +1,89 @@
-"""Agent skill promotion and distribution registry checks."""
+"""Agent skill source registry authority checks."""
+
+from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 from helpers import TEMPLATE
 
 
-def test_obsidian_skills_promoted():
-    content = open(os.path.join(TEMPLATE, "agent", "skills-promote.txt")).read()
-    assert "# ── obsidian-skills" in content
+RETIRED_SKILL_GOVERNANCE_FILES = [
+    "agent/skills-manifest.json",
+    "agent/skills-distribution.json",
+    "agent/skills-promote.txt",
+    "scripts/skill_scope_manifest.py",
+    "scripts/check-skill-scope.py",
+    "scripts/skill-route.sh",
+    "scripts/skill-scope-refresh.sh",
+    "scripts/sync-agent-upstreams.sh",
+]
+
+
+def load_sources() -> dict:
+    # This registry is JSONC, but the committed file currently avoids comments so
+    # that this authority test can stay dependency-free.
+    return json.loads(Path(TEMPLATE, "agent", "skills-sources.jsonc").read_text(encoding="utf-8"))
+
+
+def test_skill_sources_registry_is_authoritative():
+    assert os.path.exists(os.path.join(TEMPLATE, "agent", "skills-sources.jsonc"))
+    assert os.path.exists(os.path.join(TEMPLATE, "agent", "skill-targets.jsonc"))
+    assert os.path.exists(os.path.join(TEMPLATE, "scripts", "skill_supply_chain.py"))
+
+
+def test_previous_skill_governance_files_are_removed():
+    for rel in RETIRED_SKILL_GOVERNANCE_FILES:
+        assert not os.path.exists(os.path.join(TEMPLATE, rel)), rel
+
+
+def test_product_strategy_project_skills_are_registered():
+    registry = load_sources()
+    sources = registry["sources"]
+    assert sources["local-personal"]["skills"]["python-data-analysis"]["projects"] == [
+        "product_strategy"
+    ]
+    assert sources["local-personal"]["skills"]["web-video-presentation-delivery"]["projects"] == [
+        "product_strategy"
+    ]
+    assert sources["baoyu-skills"]["skills"]["baoyu-diagram"]["projects"] == [
+        "product_strategy"
+    ]
+    assert sources["guizang-ppt-skill"]["skills"]["guizang-ppt-skill"]["projects"] == [
+        "product_strategy"
+    ]
+
+
+def test_data_hub_pipeline_stage_skills_remain_managed_and_idempotent():
+    registry = load_sources()
+    skills = registry["sources"]["local-personal"]["skills"]
     for skill in [
-        "obsidian-markdown",
-        "obsidian-bases",
-        "json-canvas",
-        "obsidian-cli",
-        "defuddle",
+        "knowledge-source-ingestion",
+        "knowledge-claim-extraction",
+        "knowledge-candidate-review",
+        "knowledge-materialization",
+        "knowledge-daily-weekly-synthesis",
+        "knowledge-hygiene-audit",
+        "knowledge-record",
+        "knowledge-reuse-retrieval",
     ]:
-        assert skill in content
+        assert skills[skill]["scope"] == "project"
+        assert skills[skill]["projects"] == ["mac-bootstrap"]
+        assert skills[skill].get("distribution_state", "enabled") == "enabled"
 
 
-def test_langgpt_prompt_writer_skill_registered():
+def test_langgpt_prompt_writer_skill_registered_as_external_shadow():
     skill = "langgpt-prompt-writer"
     assert os.path.exists(
         os.path.join(TEMPLATE, "agent", "skills", "personal", skill, "SKILL.md")
     )
-
-    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
-        manifest = json.load(fh)
-    assert skill in manifest["global_skills"]
-
-    with open(os.path.join(TEMPLATE, "agent", "skills-distribution.json")) as fh:
-        distribution = json.load(fh)
-    assert distribution["skills"][skill]["apps"] == [
-        "claude",
-        "codex",
-        "opencode",
-        "cross-agent",
-    ]
-
-
-def test_decrypt_materialize_skill_registered_for_product_strategy_scope():
-    skill = "decrypt-materialize"
-    assert os.path.exists(
-        os.path.join(TEMPLATE, "agent", "skills", "personal", skill, "SKILL.md")
-    )
-
-    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
-        manifest = json.load(fh)
-    assert skill in manifest["projects"]["product_strategy"]["skills"]
-    assert (
-        manifest["projects"]["product_strategy"]["skills_dir"]
-        == "${HOME}/work/projects/product_strategy/.agents/skills"
-    )
-
-
-def test_sync_agent_upstreams_reads_global_skills_from_manifest():
-    content = open(
-        os.path.join(TEMPLATE, "scripts", "sync-agent-upstreams.sh")
-    ).read()
-    assert "global-skills" in content
-    assert "skill_scope_manifest.py" in content
-
-
-def test_global_skills_match_personal_dir():
-    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
-        manifest = json.load(fh)
-
-    personal_dir = os.path.join(TEMPLATE, "agent", "skills", "personal")
-    on_disk = {d for d in os.listdir(personal_dir) if os.path.isdir(os.path.join(personal_dir, d))}
-
-    for skill in manifest["global_skills"]:
-        assert skill in on_disk, (
-            f"global_skills has '{skill}' but no SKILL.md at agent/skills/personal/{skill}/"
-        )
-        assert os.path.exists(
-            os.path.join(personal_dir, skill, "SKILL.md")
-        ), f"Missing SKILL.md for global skill: {skill}"
-
-
-def test_knowledge_record_restored_as_project_owned_skill():
-    with open(os.path.join(TEMPLATE, "agent", "skills-manifest.json")) as fh:
-        manifest = json.load(fh)
-    assert "knowledge-lifecycle-manager" in manifest["projects"]["mac-bootstrap"]["skills"]
-    assert "knowledge-record" in manifest["projects"]["mac-bootstrap"]["skills"]
-    assert "knowledge-record" not in manifest["global_skills"]
-
-    with open(os.path.join(TEMPLATE, "agent", "skills-distribution.json")) as fh:
-        distribution = json.load(fh)
-    assert distribution["skills"]["knowledge-record"]["scope"] == "project"
-
-    lifecycle_skill = os.path.join(
-        TEMPLATE, "agent", "skills", "personal", "knowledge-lifecycle-manager", "SKILL.md"
-    )
-    lifecycle_text = open(lifecycle_skill).read()
-    assert "knowledge-record" in lifecycle_text
-
-    record_skill_dir = os.path.join(
-        TEMPLATE, "agent", "skills", "personal", "knowledge-record"
-    )
-    assert os.path.exists(os.path.join(record_skill_dir, "SKILL.md"))
-    assert os.path.exists(os.path.join(record_skill_dir, "README.md"))
-    assert os.path.exists(os.path.join(record_skill_dir, "run.sh"))
-    assert os.path.exists(os.path.join(record_skill_dir, "scripts", "record_knowledge.py"))
+    registry = load_sources()
+    langgpt = registry["sources"]["langgpt"]["skills"][skill]
+    assert langgpt["agents"] == ["claude", "codex", "opencode", "cross-agent"]
+    assert langgpt["distribution_state"] == "staged"
+    assert langgpt["local_shadow_path"] == "agent/skills/personal/langgpt-prompt-writer"
+    assert skill not in registry["sources"]["local-personal"]["skills"]
 
 
 def test_data_hub_readme_mentions_knowledge_record_for_live_push():

@@ -67,59 +67,7 @@ generate_workspace_context_files() {
 }
 
 wire_upstream_skills_step() {
-  local agent_skills="$SHARED_SKILLS_ROOT"
-  if [ ! -d "$agent_skills/upstream" ]; then
-    echo "  SKIP: run 'make agent-sync' first to clone upstream skills"
-    return 0
-  fi
-
-  run mkdir -p "$CLAUDE_SKILLS_DIR" "$CODEX_SKILLS_DIR" \
-    "$CROSS_AGENT_SKILLS_DIR" "$PI_SKILLS_DIR" "$REASONIX_SKILLS_DIR" \
-    "$OPENCODE_SKILLS_DIR" "$ANTIGRAVITY_SKILLS_DIR"
-
-  if [ -d "$CLAUDE_SKILLS_DIR" ]; then
-    local legacy legacy_path target
-    for legacy in cavecrew caveman caveman-commit caveman-compress caveman-help caveman-review caveman-stats; do
-      legacy_path="$CLAUDE_SKILLS_DIR/$legacy"
-      if [ -L "$legacy_path" ]; then
-        target="$(readlink "$legacy_path" 2>/dev/null || true)"
-        case "$target" in
-          "$HOME/.cc-switch/skills/"*)
-            run rm -f "$legacy_path"
-            echo "  Removed legacy Claude skill link: $legacy"
-            ;;
-        esac
-      fi
-    done
-  fi
-
-  echo "  ECC skills → agents"
-  wire_skill_tree "$agent_skills/upstream/ecc"
-
-  echo "  Matt Pocock skills → agents"
-  wire_skill_tree "$agent_skills/upstream/mattpocock"
-
-  echo "  Khazix skills → agents"
-  if [ -d "$agent_skills/upstream/khazix" ]; then
-    wire_skill_tree "$agent_skills/upstream/khazix"
-  fi
-
-  echo "  Garden skills → agents"
-  if [ -d "$agent_skills/upstream/garden" ]; then
-    wire_skill_tree "$agent_skills/upstream/garden"
-  fi
-
-  echo "  Humanizer skills → agents"
-  if [ -d "$agent_skills/upstream/humanizer" ]; then
-    wire_skill_tree "$agent_skills/upstream/humanizer"
-  fi
-
-  echo "  Personal skills → agents"
-  if [ -d "$agent_skills/personal" ]; then
-    wire_skill_tree "$agent_skills/personal"
-  fi
-
-  append_opencode_upstream_skills "$OPENCODE_AGENTS"
+  run python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
 }
 
 configure_prompt_library_step() {

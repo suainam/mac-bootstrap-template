@@ -4,8 +4,8 @@ PYTHON ?= .venv/bin/python
 
 .PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
-	install-antigravity-cli install agent-sync agent-tools agent-refresh skill-route skill-route-clear \
-	skill-route-show skill-route-list skill-route-default skill-scope-check skill-scope-refresh skill-refresh prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	install-antigravity-cli install agent-sync agent-tools agent-refresh \
+	skill-plan skill-fetch skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
@@ -49,20 +49,21 @@ help:
 	@echo ""
 	@echo "── Agent ──"
 	@echo "  agent-tools            Install/configure agent tooling"
-	@echo "  agent-sync             Sync agent upstreams"
+	@echo "  agent-sync             Sync managed skills + prompt libraries"
 	@echo "  agent-refresh          Full sync + full agent reconfigure"
-	@echo "  skill-scope-check      Validate first-party skill scope manifest"
-	@echo "  skill-scope-refresh    Refresh global/project workspace skill views"
-	@echo "  skill-refresh          Sync upstreams + re-wire skills only"
+	@echo "  skill-plan             Summarize skill registry and targets"
+	@echo "  skill-fetch            Fetch one external skill: SOURCE=id SKILL=name"
+	@echo "  skill-audit            Audit one quarantined skill: SOURCE=id SKILL=name"
+	@echo "  skill-diff             Show one quarantined skill diff/hash: SOURCE=id SKILL=name"
+	@echo "  skill-distribute       Wire approved managed skills into agents/projects"
+	@echo "  skill-reconcile        Dry-run stale skill cleanup; APPLY=1 to prune symlinks/copies"
+	@echo "  skill-snapshot         Snapshot current global/project skill views"
+	@echo "  skill-refresh          Validate + wire managed skills"
+	@echo "  skill-check            Validate skill registry and local skill sources"
 	@echo "  prompt-sync            Sync prompt libraries + rebuild prompt index"
 	@echo "  prompt-index           Rebuild prompt index from local prompt upstreams"
 	@echo "  prompt-list            List indexed prompts: Q=query"
 	@echo "  prompt-mcp             Run prompt-library MCP stdio server"
-	@echo "  skill-route            Set skill distribution: SKILL=name APPS=codex,opencode"
-	@echo "  skill-route-clear      Clear skill distribution override: SKILL=name"
-	@echo "  skill-route-show       Show one skill distribution: SKILL=name"
-	@echo "  skill-route-list       List default + per-skill distribution"
-	@echo "  skill-route-default    Set default distribution: APPS=claude,codex,..."
 	@echo "  security-scan          Security scan + fix"
 	@echo "  instinct-sync          Sync instinct files"
 	@echo "  devspace-check         Validate local DevSpace config + prerequisites"
@@ -117,7 +118,7 @@ help:
 bootstrap install:
 	./install.sh --yes --with-vim --with-neovim --cleanup
 	./scripts/install-agent-tooling.sh --configure
-	./scripts/skill-scope-refresh.sh
+	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 check:
 	bash -n install.sh
@@ -140,21 +141,17 @@ check:
 	bash -n scripts/lib/agent-mcp.sh
 	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
-	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/check-skill-scope.py scripts/skill_scope_manifest.py scripts/devspace_local.py scripts/agent_quality_gate.py
-	$(PYTHON) scripts/check-skill-scope.py
+	$(PYTHON) scripts/check-python-syntax.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/skill_supply_chain.py scripts/devspace_local.py scripts/agent_quality_gate.py
+	$(PYTHON) scripts/skill_supply_chain.py check
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
 	bash -n scripts/export-public-template.sh
 	bash -n scripts/publish-public-template.sh
 	bash -n scripts/new-project.sh
 	bash -n scripts/ssh-manage.sh
-	bash -n scripts/sync-agent-upstreams.sh
 	bash -n scripts/sync-agent-prompts.sh
 	bash -n scripts/agent-prompt.sh
 	bash -n scripts/agent-prompt-mcp.sh
-	bash -n scripts/skill-scope-refresh.sh
-	bash -n scripts/skill-route.sh
-	bash -n scripts/skill-refresh.sh
 	bash -n scripts/agent-doctor.sh
 	bash -n editors/vscode/install-extensions.sh
 	bash -n editors/vim/install.sh
@@ -287,26 +284,44 @@ install-downloads-agent:
 install-antigravity-cli:
 	./scripts/install-antigravity-cli.sh
 
-agent-sync:
-	./scripts/sync-agent-upstreams.sh
-	./scripts/sync-agent-prompts.sh
+agent-sync: skill-refresh prompt-sync
 
 agent-tools:
 	./scripts/install-agent-tooling.sh --configure
 
 agent-refresh: agent-sync agent-tools
-	./scripts/skill-scope-refresh.sh
 
-skill-scope-refresh:
-	./scripts/skill-scope-refresh.sh
+skill-plan:
+	$(PYTHON) scripts/skill_supply_chain.py plan
 
-skill-scope-check:
-	$(PYTHON) scripts/check-skill-scope.py --runtime
+skill-fetch:
+	@test -n "$(SOURCE)" || (echo "Usage: make skill-fetch SOURCE=id SKILL=name" >&2; exit 2)
+	@test -n "$(SKILL)" || (echo "Usage: make skill-fetch SOURCE=id SKILL=name" >&2; exit 2)
+	$(PYTHON) scripts/skill_supply_chain.py fetch --source "$(SOURCE)" --skill "$(SKILL)"
 
-skill-refresh:
-	./scripts/sync-agent-upstreams.sh
-	./scripts/skill-scope-refresh.sh
-	./scripts/skill-refresh.sh
+skill-audit:
+	@test -n "$(SOURCE)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
+	@test -n "$(SKILL)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
+	$(PYTHON) scripts/skill_supply_chain.py audit --source "$(SOURCE)" --skill "$(SKILL)"
+
+skill-diff:
+	@test -n "$(SOURCE)" || (echo "Usage: make skill-diff SOURCE=id SKILL=name" >&2; exit 2)
+	@test -n "$(SKILL)" || (echo "Usage: make skill-diff SOURCE=id SKILL=name" >&2; exit 2)
+	$(PYTHON) scripts/skill_supply_chain.py diff --source "$(SOURCE)" --skill "$(SKILL)"
+
+skill-distribute:
+	$(PYTHON) scripts/skill_supply_chain.py distribute
+
+skill-reconcile:
+	$(PYTHON) scripts/skill_supply_chain.py reconcile $(if $(APPLY),--apply,)
+
+skill-snapshot:
+	$(PYTHON) scripts/skill_supply_chain.py snapshot --label "$${LABEL:-manual}"
+
+skill-refresh: skill-check skill-distribute
+
+skill-check:
+	$(PYTHON) scripts/skill_supply_chain.py check
 
 prompt-sync:
 	./scripts/sync-agent-prompts.sh
@@ -319,26 +334,6 @@ prompt-list:
 
 prompt-mcp:
 	./scripts/agent-prompt-mcp.sh
-
-skill-route:
-	@test -n "$(SKILL)" || (echo "Usage: make skill-route SKILL=name APPS=codex,opencode" >&2; exit 2)
-	@test -n "$(APPS)" || (echo "Usage: make skill-route SKILL=name APPS=codex,opencode" >&2; exit 2)
-	./scripts/skill-route.sh set "$(SKILL)" "$(APPS)"
-
-skill-route-clear:
-	@test -n "$(SKILL)" || (echo "Usage: make skill-route-clear SKILL=name" >&2; exit 2)
-	./scripts/skill-route.sh clear "$(SKILL)"
-
-skill-route-show:
-	@test -n "$(SKILL)" || (echo "Usage: make skill-route-show SKILL=name" >&2; exit 2)
-	./scripts/skill-route.sh show "$(SKILL)"
-
-skill-route-list:
-	./scripts/skill-route.sh list
-
-skill-route-default:
-	@test -n "$(APPS)" || (echo "Usage: make skill-route-default APPS=claude,codex,opencode,..." >&2; exit 2)
-	./scripts/skill-route.sh set-default "$(APPS)"
 
 obsidian-kit:
 	@test -n "$(VAULT)" || (echo "Usage: make obsidian-kit VAULT=/path/to/vault" >&2; exit 2)

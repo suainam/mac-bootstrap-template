@@ -22,6 +22,12 @@ __pycache__/
 .code-review-graph/
 skills-lock.json
 
+# Generated skill supply-chain artifacts
+agent/skills/quarantine/
+.agent-state/skills-lock.json
+.agent-state/skill-sync-runs/
+.agent-state/skill-snapshots/
+
 # Private overlay (template → rendered configs)
 private/
 *.local.yaml

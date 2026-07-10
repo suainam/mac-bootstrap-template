@@ -1,8 +1,10 @@
 version: 1
 
-# Skill promotion lists live in agent/skills-promote.txt (canonical source).
-# This file mirrors those lists for documentation; edit skills-promote.txt, not here.
-# See scripts/sync-agent-upstreams.sh for the authoritative consumer.
+# Prompt library metadata remains here.
+# Agent Skill source lineage and distribution now live in:
+# - agent/skills-sources.jsonc
+# - agent/skill-targets.jsonc
+# Do not use this YAML file as the Skill supply-chain authority.
 
 home: "~/.agent"
 

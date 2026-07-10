@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["version", "paths", "defaults", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "version": {"const": 1},
+    "paths": {"type": "object"},
+    "defaults": {"type": "object"},
+    "reference_sources": {"type": "object"},
+    "projects": {"type": "object"},
+    "sources": {"type": "object"}
+  }
+}

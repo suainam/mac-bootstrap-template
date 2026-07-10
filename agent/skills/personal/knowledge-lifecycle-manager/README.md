@@ -70,5 +70,5 @@ need to manually construct transcript JSON.
 
 ## Integration
 
-Registered in `template/agent/skills-distribution.json` as project-scoped skill.
-Symlinked to `~/.claude/skills/knowledge-lifecycle-manager` by bootstrap.
+Registered in `template/agent/skills-sources.jsonc` as a global Data Hub command-center skill.
+Distributed by `scripts/skill_supply_chain.py` according to `template/agent/skill-targets.jsonc`.

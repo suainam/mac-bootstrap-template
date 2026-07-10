@@ -8,7 +8,7 @@ import pytest
 
 
 HOME = os.path.expanduser("~")
-TEMPLATE = os.path.join(HOME, "work", "config", "mac-bootstrap", "template")
+TEMPLATE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DOCTOR_MANIFEST = os.path.join(TEMPLATE, "scripts", "doctor-manifest.json")
 PYTHON = os.path.join(TEMPLATE, ".venv", "bin", "python")
 

@@ -103,7 +103,6 @@ ANTIGRAVITY_HOOKS="$(json_get_path agents.antigravity.paths.hooks)"
 SHARED_SKILLS_ROOT="$(json_get_path shared.upstream_skills_root)"
 PROMPT_LIBRARY_ROOT="$(json_get_path shared.prompt_library_root)"
 CROSS_AGENT_SKILLS_DIR="$(json_get_path shared.cross_agent_skills_dir)"
-SKILL_DISTRIBUTION_FILE="$BOOTSTRAP/agent/skills-distribution.json"
 WORK_ROOT="${WORK_ROOT:-$HOME/work}"
 WORK_AGENTS="$WORK_ROOT/AGENTS.md"
 WORK_GEMINI="$WORK_ROOT/GEMINI.md"
@@ -130,8 +129,8 @@ ensure_agent_dirs
 print_step_header "Step 2a — Workspace context files"
 generate_workspace_context_files
 
-print_step_header "Step 2b — Wire upstream skills into agents"
-wire_upstream_skills_step
+print_step_header "Step 2b — Wire managed skills into agents"
+run python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
 
 print_step_header "Step 2c — Prompt library helper"
 configure_prompt_library_step

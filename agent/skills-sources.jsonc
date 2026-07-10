@@ -1,0 +1,591 @@
+{
+  "$schema": "./schemas/skills-sources.schema.json",
+  "version": 1,
+
+  "paths": {
+    "internal_root": "agent/skills/personal",
+    "standalone_internal_root": "agent/skills",
+    "quarantine_root": "agent/skills/quarantine",
+    "lockfile": ".agent-state/skills-lock.json",
+    "run_log_root": ".agent-state/skill-sync-runs"
+  },
+
+  "defaults": {
+    "external": {
+      "scope": "global",
+      "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+      "distribution_state": "enabled",
+      "audit": {
+        "required": true,
+        "allow_unaudited": false,
+        "max_risk": "LOW",
+        "allow_scripts": false
+      },
+      "gate": {
+        "manual_approval": true,
+        "approved": false
+      }
+    },
+    "internal": {
+      "scope": "project",
+      "distribution_state": "enabled",
+      "audit": {
+        "required": false,
+        "local_validate": true
+      },
+      "gate": {
+        "manual_approval": false,
+        "approved": true
+      }
+    }
+  },
+
+  "reference_sources": {
+    "agentskills-standard": {
+      "type": "external",
+      "ref": "agentskills/agentskills",
+      "purpose": "format and validator reference only; not distributed"
+    }
+  },
+
+  "projects": {
+    "franchise_store": {
+      "skills_dir": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.agents/skills"
+    },
+    "mac-bootstrap": {
+      "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills"
+    },
+    "playground": {
+      "skills_dir": "${HOME}/work/projects/playground/.agents/skills"
+    },
+    "product_strategy": {
+      "skills_dir": "${HOME}/work/projects/product_strategy/.agents/skills"
+    },
+    "www": {
+      "skills_dir": "${HOME}/work/projects/www/.agents/skills"
+    }
+  },
+
+  "sources": {
+    "vercel-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/vercel-labs/skills",
+      "skills": {
+        "find-skills": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "gate": {
+            "manual_approval": true,
+            "approved": false,
+            "reason": "user requested: npx skills add https://github.com/vercel-labs/skills --skill find-skills; approve after quarantine audit"
+          }
+        }
+      }
+    },
+
+    "vercel-agent-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "vercel-labs/agent-skills",
+      "skills": {
+        "web-design-guidelines": {
+          "distribution_state": "staged",
+          "agents": ["codex", "opencode"],
+          "gate": {
+            "manual_approval": true,
+            "approved": false,
+            "reason": "example external skill; approve only after quarantine audit"
+          }
+        }
+      }
+    },
+
+    "anthropic-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "anthropics/skills",
+      "skills": {
+        "pdf": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex"],
+          "gate": {
+            "manual_approval": true,
+            "approved": false,
+            "reason": "example external document skill; approve only after quarantine audit"
+          }
+        }
+      }
+    },
+
+    "everything-claude-code": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/affaan-m/everything-claude-code.git",
+      "skills": {
+        "python-testing": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "docker-patterns": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "data-throughput-accelerator": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "search-first": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "documentation-lookup": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "postgres-patterns": {
+          "distribution_state": "staged"
+        },
+        "database-migrations": {
+          "distribution_state": "staged"
+        },
+        "data-scraper-agent": {
+          "distribution_state": "staged"
+        },
+        "python-patterns": {
+          "distribution_state": "merged",
+          "reason": "merged conceptually with python-data-analysis / coding Python support"
+        },
+        "tdd-workflow": {
+          "distribution_state": "merged",
+          "reason": "TDD cluster will keep one canonical skill"
+        },
+        "verification-loop": {
+          "distribution_state": "merged",
+          "reason": "merged with eval-loop / verification workflow"
+        },
+        "pytorch-patterns": {
+          "distribution_state": "disabled"
+        },
+        "mle-workflow": {
+          "distribution_state": "disabled"
+        },
+        "clickhouse-io": {
+          "distribution_state": "disabled"
+        }
+      }
+    },
+
+    "mattpocock-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/mattpocock/skills",
+      "skills": {
+        "caveman": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "local_shadow_path": "agent/skills/personal/caveman",
+          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill caveman"
+        },
+        "diagnosing-bugs": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "improve-codebase-architecture": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "grill-with-docs": {
+          "distribution_state": "staged"
+        },
+        "handoff": {
+          "distribution_state": "staged"
+        },
+        "writing-great-skills": {
+          "distribution_state": "staged"
+        },
+        "diagnose": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill diagnose"
+        },
+        "write-a-skill": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill write-a-skill; stage by default because it is a skill-authoring helper"
+        },
+        "zoom-out": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill zoom-out; stage by default until routing/noise is confirmed"
+        },
+        "setup-matt-pocock-skills": {
+          "distribution_state": "disabled"
+        },
+        "tdd": {
+          "distribution_state": "merged",
+          "reason": "TDD cluster will keep one canonical skill"
+        }
+      }
+    },
+
+    "baoyu-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/JimLiu/baoyu-skills",
+      "skills": {
+        "baoyu-diagram": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "local_shadow_path": "agent/skills/personal/baoyu-diagram"
+        },
+        "baoyu-infographic": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "local_shadow_path": "agent/skills/personal/baoyu-infographic"
+        }
+      }
+    },
+
+    "guizang-ppt-skill": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/op7418/guizang-ppt-skill",
+      "skills": {
+        "guizang-ppt-skill": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "local_shadow_path": "agent/skills/personal/guizang-ppt-skill"
+        }
+      }
+    },
+
+    "codebase-memory-mcp": {
+      "type": "external",
+      "fetcher": "manual",
+      "ref": "https://github.com/DeusData/codebase-memory-mcp",
+      "skills": {
+        "codebase-memory": {
+          "distribution_state": "staged",
+          "agents": ["claude"],
+          "reason": "current skills.sh list found no SKILL.md in this repo; treat as MCP/runtime documentation source, not installable skill"
+        }
+      }
+    },
+
+    "microsoft-playwright": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/microsoft/playwright",
+      "skills": {
+        "playwright": {
+          "distribution_state": "disabled",
+          "agents": ["codex", "opencode", "cross-agent"],
+          "reason": "existing runtime skill is named playwright, but current skills.sh source exposes playwright-dev/playwright-devops/playwright-test-results/playwright-triage, not playwright"
+        },
+        "playwright-dev": {
+          "distribution_state": "staged",
+          "agents": ["codex", "opencode", "cross-agent"]
+        },
+        "playwright-triage": {
+          "distribution_state": "staged",
+          "agents": ["codex", "opencode", "cross-agent"]
+        }
+      }
+    },
+
+    "langgpt": {
+      "type": "external",
+      "fetcher": "manual",
+      "ref": "https://github.com/langgptai/LangGPT/blob/main/README_zh.md#%E6%96%B9%E6%B3%95%E4%BA%94claude-code-skill%E6%8E%A8%E8%8D%90",
+      "skills": {
+        "langgpt-prompt-writer": {
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "local_shadow_path": "agent/skills/personal/langgpt-prompt-writer",
+          "reason": "LangGPT README recommends Claude Code Skill via marketplace/manual install; keep as staged external source until install path is automated"
+        }
+      }
+    },
+
+    "qiaomu-goal-meta-skill": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "joeseesun/qiaomu-goal-meta-skill",
+      "skills": {
+        "qiaomu-goal-meta-skill": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "local_shadow_path": "agent/skills/personal/qiaomu-goal-meta-skill",
+          "reason": "upstream README installs with: npx skills add joeseesun/qiaomu-goal-meta-skill"
+        }
+      }
+    },
+
+    "khazix-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/KKKKhazix/khazix-skills.git",
+      "skills": {
+        "aihot": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "neat-freak": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+        }
+      }
+    },
+
+    "garden-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/ConardLi/garden-skills.git",
+      "skills": {
+        "beautiful-article": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        },
+        "gpt-image-2": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        },
+        "kb-retriever": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "web-design-engineer": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        },
+        "web-video-presentation": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        }
+      }
+    },
+
+    "humanizer-zh": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/op7418/Humanizer-zh.git",
+      "skills": {
+        "humanizer-zh": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        }
+      }
+    },
+
+    "obsidian-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/kepano/obsidian-skills.git",
+      "skills": {
+        "defuddle": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "obsidian-cli": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "obsidian-markdown": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "obsidian-bases": {
+          "distribution_state": "staged"
+        },
+        "json-canvas": {
+          "distribution_state": "staged"
+        }
+      }
+    },
+
+    "superpowers": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/obra/superpowers.git",
+      "skills": {
+        "using-git-worktrees": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+        },
+        "writing-plans": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+        },
+        "executing-plans": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+        },
+        "brainstorming": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+        },
+        "finishing-a-development-branch": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "requesting-code-review": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "test-driven-development": {
+          "distribution_state": "merged",
+          "reason": "TDD cluster will keep one canonical skill later; currently not distributed from the new registry"
+        }
+      }
+    },
+
+    "local-personal": {
+      "type": "internal",
+      "path": "agent/skills/personal",
+      "skills": {
+        "cavecrew": {
+          "scope": "global",
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "caveman-commit": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "retired after caveman source moved to mattpocock/skills"
+        },
+        "caveman-compress": {
+          "scope": "global",
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "caveman-help": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "retired after caveman source moved to mattpocock/skills"
+        },
+        "caveman-review": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "retired after caveman source moved to mattpocock/skills"
+        },
+        "caveman-stats": {
+          "scope": "global",
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "docker-data-project": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "eval-loop": {
+          "scope": "global",
+          "distribution_state": "merged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
+        },
+        "knowledge-lifecycle-manager": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "沉淀与复用入口，应该全局可用"
+        },
+        "franchise-store-sankey-analysis": {
+          "scope": "project",
+          "projects": ["franchise_store"]
+        },
+        "sankey-flow-analysis": {
+          "scope": "project",
+          "projects": ["franchise_store"]
+        },
+        "web-video-presentation-delivery": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        },
+
+        "knowledge-candidate-review": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-claim-extraction": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-daily-weekly-synthesis": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-hygiene-audit": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-materialization": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "knowledge-record": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "knowledge-reuse-retrieval": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "knowledge-source-ingestion": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
+        },
+        "mac-bootstrap-maintenance": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "network-path-triage": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        },
+        "python-data-analysis": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "product_strategy data-analysis project skill"
+        },
+
+        "daily-claude-battle-boost": {
+          "scope": "project",
+          "projects": ["playground"]
+        },
+        "ottos-effect-analysis": {
+          "scope": "project",
+          "projects": ["playground"]
+        },
+        "ottos-north-star-metric": {
+          "scope": "project",
+          "projects": ["playground"]
+        },
+        "ottos-retail-ab-test": {
+          "scope": "project",
+          "projects": ["playground"]
+        },
+
+        "decrypt-materialize": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "absorbs the old decrypt-read use case; decrypt-read runtime link is currently broken and should not remain a separate managed skill"
+        },
+        "sql-analysis": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        },
+
+        "marimo-analysis": {
+          "scope": "project",
+          "projects": ["www"]
+        },
+        "marimo-dashboard-create": {
+          "scope": "project",
+          "projects": ["www"]
+        },
+        "marimo-etl-test": {
+          "scope": "project",
+          "projects": ["www"]
+        }
+      }
+    },
+
+    "local-standalone": {
+      "type": "internal",
+      "path": "agent/skills",
+      "skills": {
+        "daily-tagger": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"]
+        }
+      }
+    }
+  }
+}

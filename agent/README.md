@@ -103,109 +103,41 @@ The script is intentionally split by responsibility:
 
 ---
 
-## Upstream Skills
+## Skill Supply Chain
 
-Upstream skills are synced into `~/.agent/skills/upstream/` by `make agent-sync`:
+Agent skills are managed by the registry-driven supply chain. The old split between promote list, scope manifest, and distribution matrix has been retired.
 
-```bash
-make agent-sync   # Clone ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian repos → promote whitelisted skills
-make agent-tools  # Re-wire agent skill dirs
-make agent-refresh # Full sync + full agent reconfigure
-make skill-refresh # Preferred path for day-to-day skill maintenance
-```
+Authoritative files:
 
-Then `make agent-tools` wires them as symlinks into each agent's skills dir.
-The bootstrap repo is the skill SSOT. `~/.agent/skills/` is the shared build
-artifact, and agent-specific skill dirs are consumer symlinks/copies only.
-To add a new upstream skill to the whitelist, edit `agent/skills-promote.txt`
-and re-run `make skill-refresh`.
+- `agent/skills-sources.jsonc` — source lineage, scope, project routing, distribution state, audit policy, and gate policy.
+- `agent/skill-targets.jsonc` — agent skill target directories, output format, and symlink/copy strategy.
+- `scripts/skill_supply_chain.py` — parser, validator, quarantine fetcher, gate evaluator, distributor, and snapshot generator.
 
-First-party skills have two independent routing layers:
-
-- Workspace scope: `agent/skills-manifest.json` chooses `global` or a project
-  `.agents/skills/` symlink view.
-- Agent routing: `agent/skills-distribution.json` chooses which apps receive a
-  globally published skill.
-
-The manifest does not route by agent. It only decides whether a first-party
-skill is global or project-local. Upstream skills such as `grill-with-docs` and
-`improve-codebase-architecture` stay remote-synced by
-`scripts/sync-agent-upstreams.sh`; they are not copied into
-`template/agent/skills/personal/`.
-
-The manifest is intentionally grouped for low-friction maintenance:
-
-- `source_root` points at the canonical first-party skill tree.
-- `global_skills` lists names that publish into shared agent views.
-- `projects.<name>.skills` lists names that should only appear in that
-  project's `.agents/skills/`.
-
-Minimal shape:
-
-```json
-{
-  "version": 2,
-  "source_root": "agent/skills/personal",
-  "global_skills": ["cavecrew", "caveman"],
-  "projects": {
-    "playground": {
-      "skills_dir": "${HOME}/work/projects/playground/.agents/skills",
-      "skills": ["ottos-effect-analysis"]
-    }
-  }
-}
-```
-
-Runtime helpers:
+Common commands:
 
 ```bash
-make skill-scope-refresh
-make skill-route SKILL=aihot APPS=codex,opencode
-make skill-route-show SKILL=aihot
-make skill-route-clear SKILL=aihot
-make skill-route-default APPS=claude,codex,opencode,pi,reasonix,antigravity,cross-agent
+make skill-plan
+make skill-check
+make skill-fetch SOURCE=vercel-skills SKILL=find-skills
+make skill-audit SOURCE=vercel-skills SKILL=find-skills
+make skill-diff SOURCE=vercel-skills SKILL=find-skills
+make skill-distribute
+make skill-snapshot LABEL=pre-change
 make skill-refresh
 ```
 
-`make skill-scope-refresh` is responsible for the repo-local `.agents/skills/`
-views only. It should create the current project-scoped links and prune stale
-first-party links that no longer belong in a project's view.
+Rules:
 
-For personal skills:
+- External skills must first enter `agent/skills/quarantine/<source>/<skill>/`.
+- Only `distribution_state: enabled` is installed.
+- `staged`, `disabled`, and `merged` records remain in the registry as audit trail and source lineage.
+- Do not infer authorship from `agent/skills/personal/`; use the registry source record.
+- Project skills are installed into project `.agents/skills/` directories.
+- Global skills are installed into configured agent targets.
 
-```bash
-template/agent/skills/personal/<skill>/SKILL.md   # create or edit source
-agent/skills-manifest.json                        # add to global_skills or projects.<name>.skills
-agent/skills-distribution.json                    # optional agent routing for global skills
-make skill-refresh
-```
+Data Hub skills are treated as an industrialized, reusable, idempotent pipeline. Stage skills such as `knowledge-source-ingestion`, `knowledge-claim-extraction`, `knowledge-candidate-review`, `knowledge-materialization`, `knowledge-daily-weekly-synthesis`, and `knowledge-hygiene-audit` remain managed project skills instead of being collapsed into one-off notes.
 
-To delete a first-party skill, remove it from `agent/skills-manifest.json`,
-delete the personal source dir if applicable, then run `make skill-refresh`.
-
-Source-of-truth split:
-
-- Third-party upstream skills: `agent/skills-promote.txt` sections `everything-claude-code`, `mattpocock-skills`, `khazix-skills`, `garden-skills`, `humanizer-zh`, `obsidian-skills`
-- First-party skills: `template/agent/skills/personal/`
-- First-party workspace scope: `agent/skills-manifest.json`
-- Agent/app distribution matrix: `agent/skills-distribution.json`
-- Project skill views: repo-local `.agents/skills/<skill>` symlinks generated
-  from the manifest
-
-Skill source matrix:
-
-| Source class | Canonical source | Admission control | Scope control | Agent control | Delivered by |
-|-------|-----------------|-------------|-------------|-------------|-------------|
-| First-party global | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-manifest.json` `global_skills` | Add name to `agent/skills-manifest.json` `global_skills` | Default all-apps, or override in `agent/skills-distribution.json` | `make skill-refresh` |
-| First-party project | `template/agent/skills/personal/<skill>/` | Add name to `agent/skills-manifest.json` `projects.<name>.skills` | Add name to `agent/skills-manifest.json` `projects.<name>.skills` | Not agent-routed; only the target project's `.agents/skills/` sees it | `make skill-refresh` |
-| Upstream whitelisted | `~/.agent/skills/upstream/<source>/<skill>/` after sync | Add name to the matching section in `agent/skills-promote.txt` | Always global shared skill | Default all-apps, or override in `agent/skills-distribution.json` | `make skill-refresh` |
-| Plugin / curated runtime skills | Plugin cache or bundled runtime, for example `.codex/plugins/cache/.../skills/...` | Managed by plugin/runtime install, not `skills-promote.txt` | Outside `skills-manifest.json` | Outside `skills-distribution.json` unless you copy/promote them into your own skill tree | Plugin/runtime itself |
-
-Control notes:
-
-- `agent/skills-distribution.json` only affects skills that `skill-refresh` wires into agent skill dirs.
-- Plugin-curated skills such as `build-web-data-visualization:*` are visible only if the runtime/plugin exposes them; they are not part of the first-party or upstream-whitelist distribution flow.
-- If a skill should behave like a managed global skill across Claude, Codex, OpenCode, Pi, Reasonix, Antigravity, and cross-agent, it must be in the `skill-refresh` pipeline rather than only existing inside a plugin cache.
+See `docs/skill-supply-chain.md` for the full runbook.
 
 | Agent | Wiring Mechanism | Example Path |
 |-------|-----------------|-------------|
@@ -215,7 +147,7 @@ Control notes:
 | Pi | Symlink dir → `~/.pi/agent/skills/` | `~/.pi/agent/skills/python-patterns/` |
 | Antigravity | Symlink dir → `~/.gemini/antigravity-cli/skills/` | `~/.gemini/antigravity-cli/skills/python-patterns/` |
 | Cross-agent | Symlink dir → `~/.agents/skills/` | `~/.agents/skills/python-patterns/` |
-| Reasonix | Symlink flat `.md` → `~/.reasonix/skills/` | `~/.reasonix/skills/python-patterns.md` |
+| Reasonix | Copy flat `.md` → `~/.reasonix/skills/` | `~/.reasonix/skills/python-patterns.md` |
 
 ---
 
@@ -312,17 +244,18 @@ cp myskill.md ~/.codex/skills/my-skill/SKILL.md
 ```
 
 Or add a first-party skill to the bootstrap repo and publish it through the
-manifest:
+skill supply-chain registry:
 
 ```bash
 template/agent/skills/personal/my-skill/SKILL.md
-template/agent/skills-manifest.json     # choose global or project scope
+agent/skills-sources.jsonc              # choose source lineage, scope, projects, agents, and gate state
+agent/skill-targets.jsonc               # target paths and format strategy
+make skill-check
 make skill-refresh
 ```
 
-If the skill is in `~/.agent/skills/upstream/`, it is wired automatically by
-`scripts/lib/skill-wiring.sh`. To add a new upstream skill, add its name to
-`agent/skills-promote.txt` and run `make skill-refresh`.
+External skills are declared in `agent/skills-sources.jsonc`, fetched into
+repo-local quarantine, audited, then distributed only when enabled.
 
 ### For Pi
 
@@ -529,10 +462,9 @@ bootstrap/
 │   │   │   ├── marimo-analysis/
 │   │   │   ├── docker-data-project/
 │   │   │   └── eval-loop/
-│   │   └── upstream/                 ← Upstream skills (via agent-sync)
-│   ├── skills-manifest.json          ← First-party global/project scope
-│   ├── skills-promote.txt            ← Upstream whitelist + first-party list
-│   ├── skills-distribution.json      ← Agent/app routing map
+│   │   └── quarantine/               ← Generated external skill staging area
+│   ├── skills-sources.jsonc          ← Skill source lineage, scope, gate, and distribution intent
+│   ├── skill-targets.jsonc           ← Agent skill target paths, format, and symlink/copy strategy
 │   ├── prompts/                      ← Prompt-library registry + docs
 │   ├── manifest.yaml
 │   └── README.md
@@ -542,8 +474,8 @@ bootstrap/
 │   ├── detect-package-manager.sh     ← PM auto-detection
 │   ├── setup-mcp-profiles.sh         ← MCP disable mechanism
 │   ├── add-hook-matchers.sh          ← Finer-grained hooks
-│   ├── sync-agent-upstreams.sh       ← ECC & upstream skill sync
-│   ├── skill-scope-refresh.sh        ← Project .agents/skills symlink views
+│   ├── skill_supply_chain.py         ← Registry-driven skill fetch/audit/distribute/snapshot
+│   ├── skill-refresh.sh              ← Thin compatibility wrapper around skill_supply_chain.py
 │   └── sync-agent-prompts.sh         ← Prompt-library sync + index
 ├── Makefile                           ← All targets documented
 └── README.md                          ← This file
