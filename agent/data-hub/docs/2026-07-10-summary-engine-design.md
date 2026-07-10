@@ -97,7 +97,7 @@ knowledge-lifecycle-manager/manager.py
 5. 校验 schema、维度、证据、数量与长度预算。
 6. 创建或复用 `staged` revision，在一个 SQLite transaction 内写入候选 items、dimensions、sources 与 lineage；不切换 current revision。
 7. 从 staged revision 渲染、校验 Markdown 临时文件。
-8. atomic replace 正式文件；frontmatter 写入 `revision_id` 与 `input_digest`。
+8. renderer 计算完整临时文件 SHA-256，先写入 staged revision 的 `artifact_hash`，再 atomic replace 正式文件；frontmatter 只写 `revision_id` 与 `input_digest`，避免 hash 自引用。
 9. 在第二个 SQLite transaction 内把 revision 标记为 `published`，并切换 logical summary 的 `current_revision_id`。
 10. 若进程在步骤 8–9 之间退出，下一次运行根据正式文件中的 `revision_id` 完成恢复；失败时不得让旧 DB revision 与新文件永久分叉。
 
@@ -442,6 +442,9 @@ UNIQUE(summary_level, period_id)
 revision_id           TEXT PRIMARY KEY
 summary_id            TEXT NOT NULL REFERENCES summaries(summary_id)
 input_digest          TEXT NOT NULL
+coverage_start        TEXT NOT NULL
+coverage_end          TEXT NOT NULL
+closure_status        TEXT NOT NULL  -- provisional | closed
 contract_version      TEXT NOT NULL
 taxonomy_version      TEXT NOT NULL
 policy_version        TEXT NOT NULL
@@ -455,7 +458,7 @@ published_at          TEXT
 UNIQUE(summary_id, input_digest)
 ```
 
-`revision_id` 是可审计生成版本；workflow run/attempt 通过 metadata 或现有 run tables 引用它，不覆盖 logical identity。
+`revision_id` 是可审计生成版本；workflow run/attempt 通过现有 `workflow_runs` / `workflow_steps` 引用它，不覆盖 logical identity。现有 `summary_runs` / `summary_run_sources` 只做一次数据迁移：转换为 legacy revisions 与 evidence sources 后删除，不作为新架构状态层保留。
 
 ### 11.3 `summary_items`
 
@@ -559,14 +562,14 @@ hash(
 
 1. DB 写 staged revision 与完整候选 rows；logical summary 仍指向旧 current revision。
 2. renderer 从 staged revision 生成并校验 temp artifact。
-3. atomic replace 正式文件；文件 frontmatter 包含 `revision_id`、`input_digest`、`artifact_hash`。
+3. renderer 对最终 UTF-8 文件完整字节计算 SHA-256，把值写入 staged revision；随后 atomic replace 正式文件。文件 frontmatter 只包含 `revision_id` 与 `input_digest`。
 4. DB 把 revision 改为 `file_published`，核对正式文件 hash。
 5. DB transaction 把 revision 改为 `published` 并切换 `current_revision_id`。
 
 恢复规则：
 
 - staged + 无正式文件 revision marker：重新渲染/发布。
-- staged/file_published + 正式文件 marker/hash 匹配：完成 DB finalize。
+- staged/file_published + 正式文件 marker 与完整文件 SHA-256 匹配 DB：完成 finalize。
 - 正式文件 marker 指向未知 revision：拒绝覆盖并报错。
 - published revision 与正式文件 hash 不符：健康检查失败，使用 DB payload 重建投影。
 
@@ -677,8 +680,8 @@ Daily 索引示例：
 - 合格 work evidence group：至少包含一个有正文的原始 Daily、Git commit、confirmed knowledge record 或 accepted candidate source。
 - Daily 可生成门槛：至少一个合格 work evidence group。
 - Daily knowledge insight 门槛：至少两个独立 canonical source refs，且来自至少两个 source kinds；或一个本地 source + 一个 llm_wiki Deep Chat citation。
-- Weekly 门槛：所需工作日的已发布 Daily revisions 完整，且至少两个 supporting Daily items。
-- Monthly/Quarterly/Yearly 门槛：直接上一层 required revisions 完整，且至少两个 supporting items；部署日起截断规则继续生效。
+- Weekly 门槛：从 ISO 周开始到本次 `coverage_end` 的所需工作日已有 published Daily revisions，且至少两个 supporting Daily items。
+- Monthly/Quarterly/Yearly 门槛：直接上一层 published revisions 已覆盖 `lower period ∩ higher period ∩ deployment range`，且至少两个 supporting items；边界 dependency closure 与部署日起截断规则继续生效。
 - 不满足整份 Summary 门槛：失败；只是不满足 insight 门槛：允许零洞察。
 
 ### 14.2 degraded 状态传播
@@ -686,7 +689,7 @@ Daily 索引示例：
 - revision 保存 `quality_status=degraded` 与 warning codes。
 - CLI 输出固定 marker：`SUMMARY_STATUS=degraded`。
 - `knowledge_workflows.py` 的 Summary stage 设置 `degraded_ok=True`，并用 success check 将该 marker 映射为 `WorkflowRunner` 的 degraded step/run。
-- `summary_runs`/revision、`workflow_steps`、`workflow_runs` 三层状态必须通过测试保持一致。
+- revision、`workflow_steps`、`workflow_runs` 三层状态必须通过测试保持一致；旧 `summary_runs` 一次迁移后删除。
 - degraded 不是静默成功；status/health 输出必须展示缺失的 evidence provider。
 
 ## 15. 定时调度契约
@@ -707,7 +710,17 @@ launchd 每日触发三个入口：
 - Quarterly：自然季度最后一天。
 - Yearly：自然年最后一天。
 - 同一天可顺序运行多个 workflow，必须先低层后高层。
+- 周/月/季/年边界先展开 dependency closure：若高层所需的当前低层 period 尚无覆盖到该边界的 revision，scheduler 临时加入对应低层 workflow，再运行高层。
 - `chinese_calendar` 是唯一工作日/节假日权威；不得回退为简单 Mon–Fri 后仍声称支持节假日。
+
+### 15.1 Partial 与 closed period 语义
+
+- revision 保存 `coverage_start`、`coverage_end`、`closure_status`。
+- 节前 Weekly 只要求 Daily coverage 到触发日；若同一 ISO 周仍存在后续工作日，revision 为 `provisional`，后续触发生成同一 logical Weekly 的新 revision。
+- 若下一个工作日已超出 ISO 周，Weekly revision 为 `closed`。
+- Monthly/Quarterly/Yearly 在自然边界运行前，通过 dependency closure 生成覆盖到边界的 Weekly/Monthly/Quarterly revision；不等待边界之后的未来工作日。
+- 跨月 Weekly 的 revision 可多次发布；Monthly 固定引用在月末边界时 coverage 匹配的 immutable Weekly revision/items，后续 Weekly 更新不反向改写已发布 Monthly。
+- 高层“上一层完整”定义：每个重叠 lower period 至少存在一个已发布 revision，其 coverage 覆盖 `lower period ∩ higher period ∩ deployment range`。
 
 调度变更同步更新：launchd installer、cron 文档、ops、troubleshooting、测试。真实验收检查生成 plist 与 `launchctl print` 的 Hour/Minute，并分别试跑普通工作日、周末、法定节假日、调休工作日、节前最后工作日、月/季/年边界。
 
@@ -724,6 +737,8 @@ launchd 每日触发三个入口：
 | `summary_contracts.py` | 新增 | schema/taxonomy/value validation |
 | `summary_renderer.py` | 新增 | deterministic Markdown projection |
 | `summary_store.py` | 扩展 | summary/item/dimension/source persistence |
+| `summary_inputs.py` | 重写 | 从 SQLite published revisions/items 解析上一层依赖与 coverage；禁止读取 Markdown 正文 |
+| `schema_migrations.py` | 扩展 | 迁移 legacy summary rows 后删除旧 summary tables |
 | `llm_wiki_client.py` | 扩展 | read-only search/file/graph/review/chat API |
 | `scripts/build_period_summary.py` | 保留 | CLI adapter |
 | `scripts/daily_summary.py` | 删除 | 旧双路径，不保留 wrapper |
@@ -780,6 +795,7 @@ launchd 每日触发三个入口：
 - 新输入生成 immutable revision，旧 revision 保留审计且不混入当前投影。
 - transaction 失败不留下半套数据。
 - staged 后文件失败可重试；atomic replace 后 DB finalize 失败可恢复。
+- legacy `summary_runs` / `summary_run_sources` 数据迁移后旧表删除。
 
 ### 17.4 Rendering tests
 
@@ -797,6 +813,7 @@ launchd 每日触发三个入口：
 - 18:00 每日触发；Daily/Weekly/Monthly/Quarterly/Yearly 由 calendar 分派。
 - 节前最后工作日触发 Weekly；月/季/年末即使非工作日仍触发高层 Summary。
 - 多层 workflow 以 Daily -> Weekly -> Monthly -> Quarterly -> Yearly 顺序执行。
+- 节前 provisional Weekly 可在同一 ISO 周后续工作日更新；月末 dependency closure 固定引用边界 revision。
 
 - runtime/skills/schedule 不引用 `scripts/daily_summary.py`。
 - `knowledge_workflows.py` 不包含旧 stage。
