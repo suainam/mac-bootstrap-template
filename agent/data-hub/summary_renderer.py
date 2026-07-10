@@ -8,7 +8,11 @@ from summary_contracts import SummaryDocument
 def _item_line(item: dict) -> str:
     tags = " ".join(f"#{dimension}" for dimension in item["dimensions"])
     evidence = ", ".join(item["evidence_group_ids"])
-    return f"- **{item['title']}**：{item['conclusion']}（价值：{item['value']}；{tags}；evidence: {evidence}）"
+    lower_refs = " ".join(f"[[{ref}]]" for ref in item.get("lower_summary_refs", []))
+    support = ", ".join(item.get("supporting_item_ids", []))
+    lineage = f"；下层：{lower_refs}" if lower_refs else ""
+    lineage += f"；support: {support}" if support else ""
+    return f"- **{item['title']}**：{item['conclusion']}（价值：{item['value']}；{tags}；evidence: {evidence}{lineage}）"
 
 
 def render_summary_markdown(document: SummaryDocument, *, revision_id: str, input_digest: str) -> str:

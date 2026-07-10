@@ -31,3 +31,15 @@ def test_morning_and_reminder_use_china_workday_gate(monkeypatch):
     assert summary_calendar.should_run_scheduled_event("morning", "2026-10-01") is False
     assert summary_calendar.should_run_scheduled_event("reminder", "2026-10-01") is False
     assert summary_calendar.should_run_scheduled_event("evening", "2026-10-01") is True
+
+
+def test_weekly_boundary_handles_calendar_range_end(monkeypatch):
+    original = summary_calendar.chinese_calendar.is_workday
+
+    def bounded(day):
+        if day.year == 2027:
+            raise NotImplementedError
+        return original(day)
+
+    monkeypatch.setattr(summary_calendar.chinese_calendar, "is_workday", bounded)
+    assert summary_calendar.is_day_before_non_workday("2026-12-31") is True

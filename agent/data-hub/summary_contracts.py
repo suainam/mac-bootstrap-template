@@ -144,6 +144,9 @@ def validate_summary_document(
     bundle: ContractBundle,
     *,
     evidence_group_ids: set[str] | None = None,
+    evidence_groups: Mapping[str, EvidenceGroup] | None = None,
+    lower_item_ids: set[str] | None = None,
+    enforce_length: bool = False,
 ) -> dict[str, Any]:
     """Validate schema, taxonomy, insight count, evidence references, and value rules."""
 
@@ -186,6 +189,37 @@ def validate_summary_document(
             raise SummaryContractError(
                 f"insight count must be one of {sorted(allowed_counts)}, got {insight_count}"
             )
+        work_groups = {
+            group_id
+            for item in value["items"] if item["item_type"] != "insight"
+            for group_id in item["evidence_group_ids"]
+        }
+        if len(work_groups) < int(bundle.policy["daily_min_work_evidence_groups"]):
+            raise SummaryContractError("daily requires evidence-backed work progress")
+        if evidence_groups is not None:
+            for item in value["items"]:
+                if item["item_type"] != "insight":
+                    continue
+                refs = set()
+                kinds = set()
+                for group_id in item["evidence_group_ids"]:
+                    group = evidence_groups[group_id]
+                    refs.update(group.source_refs)
+                    kinds.update(group.source_kinds)
+                if len(refs) < int(bundle.policy["insight_min_source_refs"]) or len(kinds) < int(bundle.policy["insight_min_source_kinds"]):
+                    raise SummaryContractError("daily insight lacks independent cited evidence")
+
+    if value["level"] in {"weekly", "monthly", "quarterly", "yearly"} and lower_item_ids is not None:
+        for item in value["items"]:
+            unknown_support = set(item["supporting_item_ids"]) - lower_item_ids
+            if unknown_support:
+                raise SummaryContractError(f"unknown lower supporting items: {sorted(unknown_support)}")
+
+    if enforce_length and value["level"] in {"daily", "weekly"}:
+        visible = len("".join(str(item.get(field, "")) for item in value["items"] for field in ("title", "conclusion", "value", "trend", "period_change")) + str(value["headline"]))
+        bounds = bundle.policy[f"{value['level']}_chars"]
+        if not int(bounds["min"]) <= visible <= int(bounds["max"]):
+            raise SummaryContractError(f"{value['level']} visible characters must be {bounds['min']}..{bounds['max']}, got {visible}")
 
     _reject_placeholders(value)
     return deepcopy(value)

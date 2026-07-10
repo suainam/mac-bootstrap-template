@@ -31,11 +31,12 @@ def test_daily_coverage_is_closed():
 class JsonBackend:
     def generate(self, prompt):
         evidence_id = re.search(r'evg_[A-Za-z0-9_]+', prompt).group(0)
+        detailed = "可验证进展已经完成并可复用。" * 16
         return (
             '{"contract_version":"summary-v1","taxonomy_version":"dimensions-v1",'
             '"policy_version":"summary-policy-v1","level":"daily","period":"2026-07-10",'
-            '"headline":"已完成。","items":[{"item_type":"outcome","title":"落地",'
-            '"conclusion":"已完成 revision 发布。","value":"可审计。","dimensions":["专业知识"],'
+            f'"headline":"{detailed}","items":[{{"item_type":"outcome","title":"{detailed}",'
+            f'"conclusion":"{detailed}","value":"{detailed}","dimensions":["专业知识"],'
             f'"evidence_group_ids":["{evidence_id}"],"confidence":0.9}}]}}'
         )
 

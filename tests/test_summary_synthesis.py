@@ -15,19 +15,20 @@ from summary_synthesis import prompt_name_for, synthesize_summary
 
 
 def valid_daily_document():
+    detailed = "结构化证据已校验并可复用。" * 16
     return {
         "contract_version": "summary-v1",
         "taxonomy_version": "dimensions-v1",
         "policy_version": "summary-policy-v1",
         "level": "daily",
         "period": "2026-07-10",
-        "headline": "Closed the summary contract.",
+        "headline": detailed,
         "items": [
             {
                 "item_type": "outcome",
-                "title": "Contract",
-                "conclusion": "Structured data is now validated.",
-                "value": "Prevents summary drift.",
+                "title": detailed,
+                "conclusion": detailed,
+                "value": detailed,
                 "dimensions": ["专业知识"],
                 "evidence_group_ids": ["evg_abc"],
                 "confidence": 0.9,
@@ -65,7 +66,7 @@ def test_invalid_json_retries_once_with_validation_error():
     result = synthesize_summary(
         level="daily",
         period_id="2026-07-10",
-        evidence={"evidence_groups": [{"evidence_group_id": "evg_abc"}]},
+        evidence={"evidence_groups": [{"evidence_group_id": "evg_abc", "evidence_kind": "local", "source_refs": ["10_Periodic/Daily/2026-07-10.md"], "source_kinds": ["daily_note"], "payload": {}}]},
         bundle=load_contract_bundle(),
         backend=backend,
     )

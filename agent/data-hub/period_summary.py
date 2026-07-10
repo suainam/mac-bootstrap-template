@@ -119,13 +119,15 @@ def build_period_summary(
             conn=conn, level=level, period_start=coverage.period_start, period_end=coverage.period_end,
             coverage_end=coverage.coverage_end, deployment_start=config.summary.deployment_start,
         )
+        evidence["lower_item_ids"] = []
         for item in lower:
             ref = item.artifact_path or f"70_Summaries/{item.period_id}.md"
             evidence["evidence_groups"].append({
                 "evidence_group_id": f"evg_lower_{item.revision_id.removeprefix('rev_')}",
                 "evidence_kind": "lower_revision", "source_refs": [ref], "source_kinds": ["lower_revision"],
-                "payload": {"revision_id": item.revision_id, "period_id": item.period_id},
+                "payload": {"revision_id": item.revision_id, "period_id": item.period_id, "item_ids": item.item_ids},
             })
+            evidence["lower_item_ids"].extend(item.item_ids)
         evidence["evidence_groups"].sort(key=lambda group: group["evidence_group_id"])
         bundle = load_contract_bundle()
         digest = build_input_digest(level=level, period=coverage.period_id, evidence_packet=evidence, bundle=bundle,

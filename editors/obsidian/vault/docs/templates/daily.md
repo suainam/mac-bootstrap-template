@@ -37,7 +37,7 @@ tags: [daily, work-log]
 
 ## AI 总结
 
-<!-- 由 daily_summary.py 自动填入 -->
+<!-- Summary Engine 自动生成 70_Summaries/Daily 投影；此处保留人工工作记录 -->
 
 ## 明日计划
 

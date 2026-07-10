@@ -32,7 +32,9 @@ def planned_workflows(anchor_date: str) -> list[str]:
     closure = set(triggered)
     for level in ("yearly", "quarterly", "monthly", "weekly"):
         if level in closure:
-            closure.add({"yearly": "quarterly", "quarterly": "monthly", "monthly": "weekly", "weekly": "daily"}[level])
+            lower = {"yearly": "quarterly", "quarterly": "monthly", "monthly": "weekly", "weekly": "daily"}[level]
+            if lower != "daily" or summary_calendar.is_summary_trigger_day("daily", anchor_date):
+                closure.add(lower)
     return [f"build_{level}_summary" for level in levels if level in closure]
 
 

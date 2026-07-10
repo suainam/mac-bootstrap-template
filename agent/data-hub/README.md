@@ -34,10 +34,11 @@ daily + raw/sources
 agent chat / manual record / git events
   -> data-hub SQLite
 
-daily-first retrieval
-+ SQLite records
-+ llm_wiki context
-  -> llm_filter
+Daily / SQLite / landed sources
++ llm_wiki search + Deep Chat citations
+  -> evidence groups (SQLite canonical)
+  -> JSON Schema synthesis
+  -> immutable revision + deterministic Markdown projection
   -> 70_Summaries
   -> optional human promotion
 ```
@@ -52,6 +53,15 @@ Obsidian      -> viewer / editor for Markdown artifacts
 ```
 
 `70_Summaries/Daily` 是自动总结的基座层：weekly 只以本周期内已生成的 daily summaries 为上一层输入；monthly 使用 weekly，quarterly 使用 monthly，yearly 使用 quarterly。缺失上一层时先补齐，再生成更高层 summary。
+
+Summary Engine 的稳定约束：
+
+- Daily 同时写工作进展与知识洞察；洞察只有满足“新信息 + 证据 + 可复用/影响决策”才保留，数量为 0 或 2–4 条。
+- 每条 item 最多两个维度标签：`计划组织`、`创新`、`沟通协作`、`专业知识`、`学习成长`；标签与 evidence group 绑定在条目内，而非标题或整篇文件。
+- SQLite `summaries` / `summary_revisions` 是 Summary canonical state；Markdown 是可恢复投影。weekly 及更高层只引用 lower revision，不复制 Daily 正文。
+- `llm_wiki` 只提供只读搜索、图谱、review 与 Deep Chat citations，不能写 SQLite 或 Summary 文件。
+
+定时链：09:00 创建日报、17:30 工作记录提醒（两者仅 `chinese_calendar` 工作日，包括调休），18:00 每日运行 Summary scheduler；周期边界按 Daily → Weekly → Monthly → Quarterly → Yearly 顺序补齐。
 
 ## Live Record Contract
 

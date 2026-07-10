@@ -16,6 +16,7 @@ class LowerRevision:
     artifact_path: str
     coverage_start: str
     coverage_end: str
+    item_ids: tuple[str, ...]
 
 
 def previous_level(level: str) -> str:
@@ -39,14 +40,17 @@ def resolve_lower_revisions(
     lower = previous_level(level)
     rows = conn.execute(
         """
-        SELECT r.revision_id, s.period_id, r.artifact_path, r.coverage_start, r.coverage_end
+        SELECT r.revision_id, s.period_id, r.artifact_path, r.coverage_start, r.coverage_end,
+               GROUP_CONCAT(i.item_id) AS item_ids
         FROM summaries s
         JOIN summary_revisions r ON r.revision_id = s.current_revision_id
+        LEFT JOIN summary_items i ON i.revision_id = r.revision_id
         WHERE s.summary_level = ?
           AND r.publish_status = 'published'
           AND r.coverage_end >= ?
           AND r.coverage_start <= ?
           AND r.coverage_end >= ?
+        GROUP BY r.revision_id, s.period_id, r.artifact_path, r.coverage_start, r.coverage_end
         ORDER BY r.coverage_start, s.period_id, r.revision_id
         """,
         (lower, max(period_start, deployment_start), min(period_end, coverage_end), deployment_start),
@@ -58,6 +62,7 @@ def resolve_lower_revisions(
             artifact_path=str(row["artifact_path"]),
             coverage_start=str(row["coverage_start"]),
             coverage_end=str(row["coverage_end"]),
+            item_ids=tuple(sorted(filter(None, str(row["item_ids"] or "").split(",")))),
         )
         for row in rows
     ]

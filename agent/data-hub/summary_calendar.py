@@ -29,7 +29,15 @@ def next_workday(value: str) -> str:
 
 def is_day_before_non_workday(value: str) -> bool:
     current = parse_date(value)
-    return bool(chinese_calendar.is_workday(current)) and not chinese_calendar.is_workday(current + timedelta(days=1))
+    if not chinese_calendar.is_workday(current):
+        return False
+    following = current + timedelta(days=1)
+    try:
+        return not bool(chinese_calendar.is_workday(following))
+    except NotImplementedError:
+        # Calendar data can end at a year boundary. The last available workday
+        # must still close its weekly layer instead of crashing the scheduler.
+        return True
 
 
 def is_last_calendar_day_of_month(value: date) -> bool:

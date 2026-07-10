@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from summary_contracts import ContractBundle, SummaryContractError, SummaryDocument, validate_summary_document
+from summary_contracts import ContractBundle, EvidenceGroup, SummaryContractError, SummaryDocument, validate_summary_document
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -72,11 +72,15 @@ def synthesize_summary(
 
     prompt = render_level_prompt(level=level, period_id=period_id, evidence=evidence, bundle=bundle)
     evidence_group_ids = {str(group["evidence_group_id"]) for group in evidence.get("evidence_groups", [])}
+    evidence_groups = {
+        str(group["evidence_group_id"]): EvidenceGroup(str(group["evidence_group_id"]), str(group["evidence_kind"]), tuple(group.get("source_refs", [])), tuple(group.get("source_kinds", [])), dict(group.get("payload", {})))
+        for group in evidence.get("evidence_groups", [])
+    }
     for attempt in range(2):
         raw = _call_backend(backend, prompt)
         try:
             parsed = json.loads(raw)
-            validated = validate_summary_document(parsed, bundle, evidence_group_ids=evidence_group_ids)
+            validated = validate_summary_document(parsed, bundle, evidence_group_ids=evidence_group_ids, evidence_groups=evidence_groups, lower_item_ids=set(evidence.get("lower_item_ids", [])), enforce_length=True)
             return SummaryDocument.from_dict(validated)
         except (json.JSONDecodeError, SummaryContractError, TypeError) as exc:
             if attempt == 1:
