@@ -167,6 +167,14 @@ exit: 0
 - `summary_synthesis` 是纯结构化生成层，不做 Markdown 字符计数、文件写入或 SQLite 状态转换；这些由 renderer/publisher 完成。
 - 真实 backend 可接受 `BackendRequest` 或最小 `generate(prompt)` fake；生产路径由编排层选择已配置 backend，避免在 contract 层绑定私有模型配置。
 
+## Task 5 — Deterministic Markdown Projection
+
+状态：完成；待与本 Task 的代码一起提交。
+
+- `summary_renderer.py` 只投影结构化 document：frontmatter 保留 revision/input digest，正文明确分出“工作进展”和“知识洞察”，每个条目内联能力维度标签与 evidence group ID。
+- 没有合格 insight 时固定写“今日无新增高价值洞察。”；renderer 不读来源、不访问数据库、不调用 LLM。
+- 验证：`.venv/bin/python -m pytest tests/test_summary_renderer.py tests/test_summary_publish_recovery.py -q` → `6 passed in 0.27s`。
+
 ## 最终验收预留
 
 - isolated DB/vault 的 Daily、Weekly、Monthly、Quarterly、Yearly 产物。
