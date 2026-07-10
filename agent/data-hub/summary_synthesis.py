@@ -80,7 +80,16 @@ def synthesize_summary(
         raw = _call_backend(backend, prompt)
         try:
             parsed = json.loads(raw)
-            validated = validate_summary_document(parsed, bundle, evidence_group_ids=evidence_group_ids, evidence_groups=evidence_groups, lower_item_ids=set(evidence.get("lower_item_ids", [])), enforce_length=True)
+            validated = validate_summary_document(
+                parsed,
+                bundle,
+                evidence_group_ids=evidence_group_ids,
+                evidence_groups=evidence_groups,
+                lower_item_ids=set(evidence.get("lower_item_ids", [])),
+                lower_summary_refs=set(evidence.get("lower_summary_refs", [])),
+                lower_item_refs=dict(evidence.get("lower_item_refs", {})),
+                enforce_length=True,
+            )
             return SummaryDocument.from_dict(validated)
         except (json.JSONDecodeError, SummaryContractError, TypeError) as exc:
             if attempt == 1:

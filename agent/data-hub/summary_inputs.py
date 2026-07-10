@@ -95,7 +95,7 @@ def resolve_lower_revisions(
         SELECT r.revision_id, s.period_id, r.artifact_path, r.coverage_start, r.coverage_end,
                GROUP_CONCAT(i.item_id) AS item_ids
         FROM summaries s
-        JOIN summary_revisions r ON r.revision_id = s.current_revision_id
+        JOIN summary_revisions r ON r.summary_id = s.summary_id
         LEFT JOIN summary_items i ON i.revision_id = r.revision_id
         WHERE s.summary_level = ?
           AND r.publish_status = 'published'
@@ -138,7 +138,16 @@ def resolve_lower_revisions(
         if not candidates:
             missing.append(f"{period_id}:{required_start}..{required_end}")
             continue
-        selected.append(max(candidates, key=lambda revision: (revision.coverage_end, revision.revision_id)))
+        selected.append(
+            min(
+                candidates,
+                key=lambda revision: (
+                    revision.coverage_end != required_end,
+                    revision.coverage_end,
+                    revision.revision_id,
+                ),
+            )
+        )
     if missing:
         raise MissingLowerCoverageError(
             f"missing published {lower} coverage for {level}: {', '.join(missing)}"

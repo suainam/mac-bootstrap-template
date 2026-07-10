@@ -202,6 +202,8 @@ def build_period_summary(
             coverage_end=coverage.coverage_end, deployment_start=config.summary.deployment_start,
         )
         evidence["lower_item_ids"] = []
+        evidence["lower_summary_refs"] = []
+        evidence["lower_item_refs"] = {}
         for item in lower:
             artifact_path = Path(item.artifact_path) if item.artifact_path else None
             try:
@@ -217,6 +219,8 @@ def build_period_summary(
                 "payload": {"revision_id": item.revision_id, "period_id": item.period_id, "item_ids": item.item_ids},
             })
             evidence["lower_item_ids"].extend(item.item_ids)
+            evidence["lower_summary_refs"].append(ref)
+            evidence["lower_item_refs"].update({item_id: ref for item_id in item.item_ids})
         evidence["evidence_groups"].sort(key=lambda group: group["evidence_group_id"])
         bundle = load_contract_bundle()
         digest = build_input_digest(level=level, period=coverage.period_id, evidence_packet=evidence, bundle=bundle,
@@ -232,7 +236,13 @@ def build_period_summary(
         revision = stage_revision(conn, summary_id=summary_id, input_digest=digest, coverage_start=coverage.period_start,
                                   coverage_end=coverage.coverage_end, closure_status=coverage.closure_status,
                                   document=document, evidence_groups=groups, quality_status=evidence["quality_status"], metadata={"warnings": evidence["warnings"]})
-        text = render_summary_markdown(document, revision_id=revision.revision_id, input_digest=digest)
+        group_map = {group.evidence_group_id: group for group in groups}
+        text = render_summary_markdown(
+            document,
+            revision_id=revision.revision_id,
+            input_digest=digest,
+            evidence_groups=group_map,
+        )
         _write_atomically(output_path, text)
         marked = mark_file_published(conn, revision.revision_id, output_path, full_file_sha256(output_path))
         published = finalize_revision(conn, marked.revision_id)

@@ -109,6 +109,26 @@ def test_weekly_and_higher_contracts_require_support_fields():
         assert validate_summary_document(doc, bundle)["level"] == level
 
 
+def test_higher_contract_rejects_unresolved_or_mismatched_lower_refs():
+    doc = valid_daily_document()
+    doc["level"] = "weekly"
+    doc["period"] = "2026-W28"
+    doc["items"][0]["supporting_item_ids"] = ["item_a", "item_b"]
+    doc["items"][0]["lower_summary_refs"] = ["70_Summaries/Daily/unrelated.md"]
+
+    with pytest.raises(SummaryContractError, match="unknown lower summary refs"):
+        validate_summary_document(
+            doc,
+            load_contract_bundle(),
+            lower_item_ids={"item_a", "item_b"},
+            lower_summary_refs={"70_Summaries/Daily/2026-07-10.md"},
+            lower_item_refs={
+                "item_a": "70_Summaries/Daily/2026-07-10.md",
+                "item_b": "70_Summaries/Daily/2026-07-10.md",
+            },
+        )
+
+
 def test_contract_versions_must_match_assets():
     doc = valid_daily_document()
     doc["taxonomy_version"] = "dimensions-v0"

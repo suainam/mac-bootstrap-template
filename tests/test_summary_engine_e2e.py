@@ -25,13 +25,16 @@ class StableDeepClient:
 
 
 class StructuredBackend:
-    def __init__(self, level: str, period: str):
+    def __init__(self, level: str, period: str, *, fail_on_call: bool = False):
         self.level = level
         self.period = period
+        self.fail_on_call = fail_on_call
         self.calls = 0
 
     def generate(self, prompt: str) -> str:
         self.calls += 1
+        if self.fail_on_call:
+            raise AssertionError(f"idempotent {self.level} replay must not call the backend")
         decoder = json.JSONDecoder()
         evidence_packet = None
         for index, character in enumerate(prompt):
@@ -125,28 +128,47 @@ def test_five_level_summary_chain_is_idempotent(monkeypatch, tmp_path):
         assert results[level].output_path.is_file()
         assert results[level].quality_status == "complete"
 
-    original_hash = full_file_sha256(results["daily"].output_path)
+    original_hashes = {level: full_file_sha256(result.output_path) for level, result in results.items()}
+    original_revision_ids = {level: result.revision_id for level, result in results.items()}
     conn = get_db_connection(db_path)
     try:
-        original_count = conn.execute("SELECT COUNT(*) FROM summary_revisions").fetchone()[0]
+        original_counts = {
+            table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in (
+                "summaries",
+                "summary_revisions",
+                "summary_items",
+                "summary_evidence_groups",
+                "summary_evidence_sources",
+                "summary_item_evidence",
+                "summary_item_support",
+            )
+        }
     finally:
         conn.close()
 
-    repeated_backend = StructuredBackend("daily", periods["daily"])
-    repeated = period_summary.build_period_summary(
-        "daily",
-        "2026-12-31",
-        backend=repeated_backend,
-        retrieval_packet=packet,
-        llm_wiki_client=StableDeepClient(),
-    )
+    repeated = {}
+    for level in ("daily", "weekly", "monthly", "quarterly", "yearly"):
+        repeated[level] = period_summary.build_period_summary(
+            level,
+            "2026-12-31",
+            backend=StructuredBackend(level, periods[level], fail_on_call=True),
+            retrieval_packet=packet,
+            llm_wiki_client=StableDeepClient(),
+        )
     conn = get_db_connection(db_path)
     try:
-        repeated_count = conn.execute("SELECT COUNT(*) FROM summary_revisions").fetchone()[0]
+        repeated_counts = {
+            table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in original_counts
+        }
     finally:
         conn.close()
 
-    assert repeated.revision_id == results["daily"].revision_id
-    assert repeated_backend.calls == 0
-    assert repeated_count == original_count == 5
-    assert full_file_sha256(repeated.output_path) == original_hash
+    assert {level: result.revision_id for level, result in repeated.items()} == original_revision_ids
+    assert repeated_counts == original_counts
+    assert original_counts["summaries"] == original_counts["summary_revisions"] == 5
+    assert {level: full_file_sha256(result.output_path) for level, result in repeated.items()} == original_hashes
+    for level in ("weekly", "monthly", "quarterly", "yearly"):
+        text = repeated[level].output_path.read_text(encoding="utf-8")
+        assert "Completed the structured summary engine." not in text

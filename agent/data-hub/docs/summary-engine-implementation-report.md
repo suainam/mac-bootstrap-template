@@ -209,8 +209,16 @@ $ .venv/bin/python -m pytest \
     tests/test_summary_engine_e2e.py -q
 ........................................................................ [ 85%]
 ............                                                             [100%]
-84 passed in 1.62s
+86 passed in 1.97s
 ```
+
+### Final review closure
+
+- Boundary replay 不再只读取 `current_revision_id`：resolver 查询全部 published lower revisions，并优先选择 `coverage_end == required_end` 的 immutable boundary snapshot。
+- Renderer 通过 evidence group 映射展示 canonical source refs：vault Markdown 使用 wikilink，`commit:` / `record:` / `candidate:` 使用紧凑代码引用；不再把 `evg_*` 当作用户可读来源。
+- Higher item 的 `supporting_item_ids`、`lower_summary_refs` 与 item→revision ref 映射同时校验，模型不能引用无关 Daily/Weekly。
+- Weekly `跨日趋势` 只渲染 trend prose，不重复完整 item，篇幅 validator 与实际 narrative 字段保持一一对应。
+- 五层 E2E 第二轮逐层重跑；任何 backend 调用都会使测试失败，并对全部 revision IDs、artifact hashes 及 summary 相关表 row counts 做相等检查。
 
 ## 最终验收预留
 

@@ -156,6 +156,8 @@ def validate_summary_document(
     evidence_group_ids: set[str] | None = None,
     evidence_groups: Mapping[str, EvidenceGroup] | None = None,
     lower_item_ids: set[str] | None = None,
+    lower_summary_refs: set[str] | None = None,
+    lower_item_refs: Mapping[str, str] | None = None,
     enforce_length: bool = False,
 ) -> dict[str, Any]:
     """Validate schema, taxonomy, insight count, evidence references, and value rules."""
@@ -236,6 +238,19 @@ def validate_summary_document(
             unknown_support = set(item["supporting_item_ids"]) - lower_item_ids
             if unknown_support:
                 raise SummaryContractError(f"unknown lower supporting items: {sorted(unknown_support)}")
+            item_refs = set(item["lower_summary_refs"])
+            if lower_summary_refs is not None:
+                unknown_refs = item_refs - lower_summary_refs
+                if unknown_refs:
+                    raise SummaryContractError(f"unknown lower summary refs: {sorted(unknown_refs)}")
+            if lower_item_refs is not None:
+                mismatched = {
+                    item_id: lower_item_refs[item_id]
+                    for item_id in item["supporting_item_ids"]
+                    if item_id in lower_item_refs and lower_item_refs[item_id] not in item_refs
+                }
+                if mismatched:
+                    raise SummaryContractError(f"supporting items do not match lower refs: {mismatched}")
 
     if enforce_length and value["level"] in {"daily", "weekly"}:
         visible = summary_prose_character_count(value)
