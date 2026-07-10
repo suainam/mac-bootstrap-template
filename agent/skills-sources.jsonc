@@ -324,7 +324,18 @@
       "skills": {
         "aihot": {
           "scope": "project",
-          "projects": ["mac-bootstrap"]
+          "projects": ["mac-bootstrap"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:4e6b4a71244e3ae08537a7f1bad93bf772b82d231cf92814253d8e36cfff97c4",
+            "reason": "User-confirmed project skill; approved current quarantined version for mac-bootstrap"
+          }
         },
         "neat-freak": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
@@ -339,23 +350,82 @@
       "skills": {
         "beautiful-article": {
           "scope": "project",
-          "projects": ["product_strategy"]
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:cfebd63654dbc0cd7d5519d545fa87d84f437607f58a0aa81d6e17ae550a1e70",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
         },
         "gpt-image-2": {
           "scope": "project",
-          "projects": ["product_strategy"]
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:6ce7d432f83a1f4a160204f90f5782a8b02eae2d78f964448fe35f0de5da2d8a",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
         },
         "kb-retriever": {
           "scope": "project",
-          "projects": ["mac-bootstrap"]
+          "projects": ["mac-bootstrap"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:ad03a02bce64ac15c27c4b282ad607f900137b598ac7f385092834d95bff9b71",
+            "reason": "User-confirmed project skill; approved current quarantined version for mac-bootstrap"
+          }
         },
         "web-design-engineer": {
           "scope": "project",
-          "projects": ["product_strategy"]
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:44432ee5458b019cddf6cb72b7875ae980ffe82a8a1edbc1088d77dcfa1a952a",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
         },
         "web-video-presentation": {
           "scope": "project",
-          "projects": ["product_strategy"]
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:5aed4dedca64ad6d9d78a5d1a208aca866b51852c01a19916cf834a703d6298d",
+            "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
+          }
         }
       }
     },

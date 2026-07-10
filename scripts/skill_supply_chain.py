@@ -658,6 +658,10 @@ def expand_target_path(path: Path, root: Path = ROOT) -> Path:
 def _skill_source_for_distribution(skill: SkillRef, root: Path) -> Path | None:
     if skill.source_type == "internal" and skill.source_path is not None:
         return root / skill.source_path
+    if skill.source_type == "external" and skill.local_shadow_path is not None:
+        source = root / skill.local_shadow_path
+        if source.exists():
+            return source
     if skill.source_type == "external" and skill.quarantine_path is not None:
         source = root / skill.quarantine_path
         if not source.exists():

@@ -351,6 +351,21 @@ def test_project_internal_skill_distributes_only_to_project_view():
     )
 
 
+def test_project_external_shadow_skill_distributes_from_checked_in_shadow():
+    registry = load_registry(ROOT / "agent/skills-sources.jsonc")
+    targets = load_targets(ROOT / "agent/skill-targets.jsonc")
+
+    actions = build_distribution_actions(registry, targets, ROOT)
+
+    baoyu = [action for action in actions if action.skill_name == "baoyu-diagram"]
+    assert len(baoyu) == 1
+    assert baoyu[0].target_agent is None
+    assert baoyu[0].source == ROOT / "agent/skills/personal/baoyu-diagram"
+    assert baoyu[0].target_path.as_posix().endswith(
+        "/work/projects/product_strategy/.agents/skills/baoyu-diagram"
+    )
+
+
 def test_reasonix_distribution_uses_flat_md():
     registry = load_registry(ROOT / "agent/skills-sources.jsonc")
     targets = load_targets(ROOT / "agent/skill-targets.jsonc")
