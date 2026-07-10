@@ -9,7 +9,7 @@
 set -euo pipefail
 
 MAC_BOOTSTRAP_DIR="$HOME/work/config/mac-bootstrap"
-DATA_HUB_DIR="$MAC_BOOTSTRAP_DIR/template/agent/data-hub"
+DATA_HUB_DIR="$MAC_BOOTSTRAP_DIR/template/data-hub"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 LOG_DIR="$HOME/Library/Logs/agent-data-hub"
 

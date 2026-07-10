@@ -3,7 +3,7 @@
   "paths": {
     "repo_root": "$HOME/work/config/mac-bootstrap",
     "template_root": "$HOME/work/config/mac-bootstrap/template",
-    "data_hub_dir": "$HOME/work/config/mac-bootstrap/template/agent/data-hub",
+    "data_hub_dir": "$HOME/work/config/mac-bootstrap/template/data-hub",
     "db_path": "$HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db",
     "vault_dir": "$HOME/work/knowledge",
     "daily_dir": "10_Periodic/Daily",

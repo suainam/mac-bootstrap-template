@@ -4,7 +4,9 @@
 
 ## 修改边界
 
-- 这轮文档和实现说明只改 `template/agent/data-hub/`
+- Data Hub implementation and subsystem documentation live under `template/data-hub/`.
+- Agent Skill source or routing changes belong under `template/agent-skills/`.
+- Agent runtime configuration changes belong under `template/agent/`.
 - 不把 data-hub 文档写到 `private/` 或仓库其他位置
 - 不把本机 secrets、token、私有 API 地址写入 `template/`
 - 不把 `wiki/` 当 data-hub render 目标

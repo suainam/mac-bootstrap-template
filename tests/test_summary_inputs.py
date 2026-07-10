@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "agent" / "data-hub"
+DATA_HUB_DIR = Path(__file__).resolve().parent.parent / "data-hub"
 sys.path.insert(0, str(DATA_HUB_DIR))
 
 from db_helper import get_db_connection

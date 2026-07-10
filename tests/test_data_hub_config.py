@@ -4,8 +4,9 @@ from pathlib import Path
 
 import sys
 
-CURRENT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(CURRENT_DIR.parent / "agent" / "data-hub"))
+from helpers import DATA_HUB
+
+sys.path.insert(0, str(DATA_HUB))
 
 import data_hub_config
 
@@ -98,11 +99,18 @@ def test_default_paths_apply_when_runtime_and_shell_env_missing(monkeypatch, tmp
     assert cfg.paths.vault_dir == Path.home() / "work" / "knowledge"
 
 
+def test_resolve_template_root_from_top_level_data_hub(tmp_path: Path) -> None:
+    data_hub = tmp_path / "template/data-hub"
+    data_hub.mkdir(parents=True)
+
+    assert data_hub_config.resolve_template_root(data_hub) == tmp_path / "template"
+
+
 def test_resolve_repo_root_prefers_nearest_parent_with_private_agent(tmp_path):
     repo_root = tmp_path / "mac-bootstrap"
     template_root = repo_root / ".worktrees" / "template-data-hub"
     (repo_root / "private" / "agent").mkdir(parents=True)
-    (template_root / "agent" / "data-hub").mkdir(parents=True)
+    (template_root / "data-hub").mkdir(parents=True)
 
     assert data_hub_config.resolve_repo_root(template_root) == repo_root
 
@@ -162,7 +170,7 @@ def test_summary_config_can_override_daily_and_deployment_start(monkeypatch, tmp
 
 def test_load_prompt_template_returns_template_when_file_exists(monkeypatch, tmp_path):
     runtime = configure_files(monkeypatch, tmp_path)
-    template_dir = tmp_path / "template" / "agent" / "data-hub" / "prompts"
+    template_dir = tmp_path / "template" / "data-hub" / "prompts"
     template_dir.mkdir(parents=True)
     (template_dir / "test-prompt.md").write_text("Hello, $name!")
     runtime.write_text(f'{{"paths":{{"repo_root":"{tmp_path}","template_root":"{tmp_path}/template"}}}}')
@@ -184,7 +192,7 @@ def test_load_prompt_template_returns_none_when_not_found(monkeypatch, tmp_path)
 
 def test_load_prompt_template_private_overrides_template(monkeypatch, tmp_path):
     runtime = configure_files(monkeypatch, tmp_path)
-    template_dir = tmp_path / "template" / "agent" / "data-hub" / "prompts"
+    template_dir = tmp_path / "template" / "data-hub" / "prompts"
     template_dir.mkdir(parents=True)
     (template_dir / "shared.md").write_text("Template version")
     private_dir = tmp_path / "private" / "agent" / "prompts"

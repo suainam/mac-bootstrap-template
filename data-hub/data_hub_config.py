@@ -13,7 +13,7 @@ CURRENT_DIR = Path(__file__).resolve().parent
 
 def resolve_template_root(current_dir: Path) -> Path:
     for candidate in current_dir.parents:
-        if (candidate / "agent" / "data-hub").is_dir():
+        if (candidate / "data-hub").is_dir():
             return candidate
     raise RuntimeError(f"Unable to resolve template root from {current_dir}")
 
@@ -268,8 +268,9 @@ def load_prompt_template(name: str) -> Template | None:
     """加载 prompt 模板，优先 private 覆盖，回退 template 默认。"""
     config = get_runtime_config()
     private_path = config.paths.repo_root / "private" / "agent" / "prompts" / name
-    template_path = config.paths.template_root / "agent" / "data-hub" / "prompts" / name
-    for path in [private_path, template_path]:
+    configured_template_path = config.paths.template_root / "data-hub" / "prompts" / name
+    local_template_path = TEMPLATE_ROOT / "data-hub" / "prompts" / name
+    for path in [private_path, configured_template_path, local_template_path]:
         if path.exists():
             return Template(path.read_text(encoding="utf-8"))
     return None

@@ -5,7 +5,7 @@ import sys
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(CURRENT_DIR.parent / "agent" / "data-hub"))
+sys.path.insert(0, str(CURRENT_DIR.parent / "data-hub"))
 
 from summary_contracts import EvidenceGroup, SummaryDocument
 from summary_renderer import render_summary_markdown

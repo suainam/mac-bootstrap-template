@@ -15,9 +15,11 @@ from pathlib import Path
 
 import pytest
 
+from helpers import DATA_HUB
+
 # Add data-hub to sys.path
-sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+sys.path.insert(0, str(DATA_HUB))
+sys.path.insert(0, str(DATA_HUB / "scripts"))
 
 
 @pytest.fixture
@@ -31,7 +33,7 @@ def temp_db():
     conn.execute("PRAGMA foreign_keys = ON")
 
     # Load full schema
-    schema_path = Path(__file__).parent.parent / "agent/data-hub/schema.sql"
+    schema_path = DATA_HUB / "schema.sql"
     conn.executescript(schema_path.read_text())
     conn.commit()
 
@@ -188,7 +190,7 @@ def test_execution_log_records_created(mock_env):
 
 
 def test_legacy_weekly_summary_script_is_archived():
-    scripts_dir = Path(__file__).parent.parent / "agent" / "data-hub" / "scripts"
+    scripts_dir = DATA_HUB / "scripts"
 
     assert not (scripts_dir / "weekly_summary.py").exists()
     assert (scripts_dir / "archive" / "weekly_summary.py").exists()

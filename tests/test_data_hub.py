@@ -1,13 +1,23 @@
 import sys
 from pathlib import Path
 
+from helpers import DATA_HUB, TEMPLATE
+
 # 添加脚本目录到 sys.path
-scripts_dir = Path(__file__).parent.parent / "agent" / "data-hub"
+scripts_dir = DATA_HUB
 sys.path.insert(0, str(scripts_dir))
 sys.path.insert(0, str(scripts_dir / "scripts"))
 
 import ingest_logs
 from db_helper import get_db_connection
+
+
+def test_data_hub_is_top_level_subsystem() -> None:
+    assert DATA_HUB.is_dir()
+    assert (DATA_HUB / "README.md").is_file()
+    assert (DATA_HUB / "data_hub_config.py").is_file()
+    assert (DATA_HUB / "scripts").is_dir()
+    assert not (Path(TEMPLATE) / "agent/data-hub").exists()
 
 def test_clean_xml_tags():
     text_with_metadata = "Hello <ADDITIONAL_METADATA>some metadata</ADDITIONAL_METADATA> World"

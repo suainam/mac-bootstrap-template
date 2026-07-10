@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
-DATA_HUB_DIR = CURRENT_DIR.parent / "agent" / "data-hub"
+DATA_HUB_DIR = CURRENT_DIR.parent / "data-hub"
 SCRIPTS_DIR = DATA_HUB_DIR / "scripts"
 sys.path.insert(0, str(DATA_HUB_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))

@@ -122,7 +122,7 @@ Daily + raw/sources
 ## Runtime Config
 
 主配置文件：`private/agent/data_hub.runtime.jsonc`  
-公开样例：`template/agent/data-hub/data_hub.runtime.jsonc.example`
+公开样例：`template/data-hub/data_hub.runtime.jsonc.example`
 
 它集中管理：
 

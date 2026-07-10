@@ -23,11 +23,11 @@ Sibling skills in the lifecycle:
 
 Repo touchpoints:
 
-- `template/agent/data-hub/scripts/ingest_logs.py`
-- `template/agent/data-hub/scripts/ingest_sources.py`
-- `template/agent/data-hub/source_adapters/`
-- `template/agent/data-hub/source_ingest_store.py`
-- `template/agent/data-hub/schema.sql`
+- `template/data-hub/scripts/ingest_logs.py`
+- `template/data-hub/scripts/ingest_sources.py`
+- `template/data-hub/source_adapters/`
+- `template/data-hub/source_ingest_store.py`
+- `template/data-hub/schema.sql`
 - `template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py run --workflow build_daily_summary`
 
 ## Workflow

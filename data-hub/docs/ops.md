@@ -6,11 +6,11 @@
 
 | 任务 | 命令 |
 |------|------|
-| 晚间 summary schedule（自动） | `bash template/agent/data-hub/run-daily-evening.sh` |
+| 晚间 summary schedule（自动） | `bash template/data-hub/run-daily-evening.sh` |
 | 手动补跑指定日期 | 见下方第 1 节 |
-| 查看执行状态 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py status --date 2026-07-04` |
-| 健康检查 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py health` |
-| SQLite 备份 | `template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py backup --date 2026-07-04` |
+| 查看执行状态 | `template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py status --date 2026-07-04` |
+| 健康检查 | `template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py health` |
+| SQLite 备份 | `template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py backup --date 2026-07-04` |
 | 生成周报/月报/季报/年报 | 见下方第 8 节 |
 | 查看候选审核结果 | `sqlite3 $AGENT_DB_PATH "SELECT candidate_date, status, COUNT(*) FROM knowledge_candidates GROUP BY candidate_date, status"` |
 | 重刷日志入库 | 见下方第 2 节 |
@@ -22,7 +22,7 @@
 ```bash
 cd ~/work/config/mac-bootstrap
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date 2026-07-02
 ```
 
@@ -36,22 +36,22 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 失败恢复：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   status --date 2026-07-02
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date 2026-07-02 --retry-failed <run_id>
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date 2026-07-02 --resume <run_id> --from-step build-daily-summary
 ```
 
 ## 2. 手动重刷日志入库
 
 ```bash
-cd ~/work/config/mac-bootstrap/template/agent/data-hub
-source ~/work/config/mac-bootstrap/.venv/bin/activate
-test -f ../../../private/agent/data_hub.runtime.jsonc
+cd ~/work/config/mac-bootstrap/template/data-hub
+source ~/work/config/mac-bootstrap/template/.venv/bin/activate
+test -f ../../private/agent/data_hub.runtime.jsonc
 python3 scripts/ingest_logs.py
 ```
 
@@ -66,7 +66,7 @@ sqlite3 ~/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-python3 template/agent/data-hub/scripts/ingest_sources.py
+python3 template/data-hub/scripts/ingest_sources.py
 ```
 
 常用检查：
@@ -112,7 +112,7 @@ PY
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-template/.venv/bin/python template/agent/data-hub/scripts/generate_candidates.py 2026-07-04
+template/.venv/bin/python template/data-hub/scripts/generate_candidates.py 2026-07-04
 ```
 
 常用检查：
@@ -128,7 +128,7 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-template/.venv/bin/python template/agent/data-hub/scripts/materialize_candidates.py 2026-07-04
+template/.venv/bin/python template/data-hub/scripts/materialize_candidates.py 2026-07-04
 ```
 
 常用检查：
@@ -147,7 +147,7 @@ sqlite3 $HOME/work/config/mac-bootstrap/private/agent/data/agent_history.db \
 
 ```bash
 cd $HOME/work/config/mac-bootstrap
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date 2026-07-04
 ```
 
@@ -160,19 +160,19 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 ```bash
 cd $HOME/work/config/mac-bootstrap
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date 2026-07-09
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_weekly_summary --date 2026-07-09
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_monthly_summary --date 2026-07-09
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_quarterly_summary --date 2026-07-09
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_yearly_summary --date 2026-07-09
 ```
 
@@ -187,7 +187,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 summary 是 quarantine 半成品层，默认不进入 `llm_wiki` 索引，也不会自动晋升到 `40_Knowledge/`。需要晋升时，人工挑选条目后运行：
 
 ```bash
-template/.venv/bin/python template/agent/data-hub/scripts/promote_summary_knowledge.py \
+template/.venv/bin/python template/data-hub/scripts/promote_summary_knowledge.py \
   ~/work/knowledge/70_Summaries/Weekly/2026-W28.md \
   --selections-json selections.json
 ```
@@ -214,14 +214,14 @@ Workflow dry-run：
 
 ```bash
 cd $HOME/work/config/mac-bootstrap/template
-.venv/bin/python agent/data-hub/knowledge_workflows.py build_daily_summary 2026-07-04 --dry-run
-.venv/bin/python agent/data-hub/knowledge_workflows.py build_weekly_summary 2026-07-10 --dry-run
+.venv/bin/python data-hub/knowledge_workflows.py build_daily_summary 2026-07-04 --dry-run
+.venv/bin/python data-hub/knowledge_workflows.py build_weekly_summary 2026-07-10 --dry-run
 ```
 
 ## 10. 晨间脚本验证
 
 ```bash
-cd $HOME/work/config/mac-bootstrap/template/agent/data-hub
+cd $HOME/work/config/mac-bootstrap/template/data-hub
 bash daily_morning.sh
 ```
 

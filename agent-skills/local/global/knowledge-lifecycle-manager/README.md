@@ -65,8 +65,8 @@ need to manually construct transcript JSON.
 - `run.sh` — Shell wrapper for direct invocation
 - `scripts/manager.py` — Public control plane for run/status/candidates/health/record delegation
 - `../knowledge-record/` — Dedicated record skill package and push-path writer
-- `template/agent/data-hub/knowledge_workflows.py` — Canonical workflow registry
-- `template/agent/data-hub/run-daily-evening.sh` — Thin adapter that delegates to manager
+- `template/data-hub/knowledge_workflows.py` — Canonical workflow registry
+- `template/data-hub/run-daily-evening.sh` — Thin adapter that delegates to manager
 
 ## Integration
 

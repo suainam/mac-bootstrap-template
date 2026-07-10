@@ -15,7 +15,7 @@ from workflow_runner import WorkflowRunner
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
-TEMPLATE_DIR = CURRENT_DIR.parents[1]
+TEMPLATE_DIR = CURRENT_DIR.parent
 SCRIPTS_DIR = CURRENT_DIR / "scripts"
 
 

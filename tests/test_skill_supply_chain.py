@@ -22,6 +22,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     build_skills_sh_fetch_command,
     compare_distribution_snapshots,
     evaluate_gate,
+    fetch_external_skill,
     find_unmanaged_skill_dirs,
     inspect_skill_content,
     load_registry,
@@ -29,6 +30,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     snapshot_output_path,
     strip_jsonc_comments,
     validate_skill_dir,
+    write_run_log,
 )
 
 
@@ -266,6 +268,37 @@ def test_anthropic_pdf_command_uses_same_quarantine_fetch_shape():
     assert "--agent" in cmd
     assert "universal" in cmd
     assert "--copy" in cmd
+
+
+def test_fetch_external_skill_uses_registry_quarantine_root(tmp_path: Path) -> None:
+    registry_path = write_registry_for_external(tmp_path, "safe")
+    raw = registry_path.read_text(encoding="utf-8").replace(
+        '"quarantine_root": "agent-skills/external/quarantine"',
+        '"quarantine_root": "custom/quarantine"',
+    )
+    registry_path.write_text(raw, encoding="utf-8")
+    registry = load_registry(registry_path)
+    skill = registry.skills[("external", "safe")]
+
+    result = fetch_external_skill(skill, registry, tmp_path, dry_run=True)
+
+    assert result.cwd == tmp_path / "custom/quarantine/.tmp/external/safe/work"
+    assert result.destination == tmp_path / "custom/quarantine/external/safe"
+
+
+def test_write_run_log_uses_registry_run_log_root(tmp_path: Path) -> None:
+    registry_path = write_registry_for_external(tmp_path, "safe")
+    raw = registry_path.read_text(encoding="utf-8").replace(
+        '"run_log_root": ".agent-state/skill-sync-runs"',
+        '"run_log_root": "custom/run-logs"',
+    )
+    registry_path.write_text(raw, encoding="utf-8")
+    registry = load_registry(registry_path)
+
+    path = write_run_log({"event": "test"}, registry, tmp_path)
+
+    assert path.parent == tmp_path / "custom/run-logs"
+    assert json.loads(path.read_text(encoding="utf-8"))["event"] == "test"
 
 
 def test_baoyu_and_guizang_sources_use_skills_sh_urls():

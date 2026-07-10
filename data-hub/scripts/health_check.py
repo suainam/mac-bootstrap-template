@@ -10,7 +10,7 @@ Usage:
 
 Codex CronCreate configuration:
     Time: Every day at 18:10
-    Command: python $HOME/work/config/mac-bootstrap/template/agent/data-hub/scripts/health_check.py
+    Command: python $HOME/work/config/mac-bootstrap/template/data-hub/scripts/health_check.py
 """
 from __future__ import annotations
 

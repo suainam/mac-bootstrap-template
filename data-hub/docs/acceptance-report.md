@@ -1,10 +1,12 @@
 # Agent Data Hub 真实本机验收报告（归档）
 
 验收日期：2026-07-05  
-入口文档：`template/agent/data-hub/README.md`  
+入口文档：`template/data-hub/README.md`
 验收范围：真实本机 Data Hub 环境、真实 SQLite 账本、真实 Obsidian vault 的 Data Hub 相关路径、durable workflow 状态和 artifact logs。
 
 说明：本报告生成于 shared-root / `llm_wiki` 文档模型和 summary automation 重构定稿之前，因此其中出现的 `50_Sources/*` fixture、`full_cycle`、`daily_ingest_and_review`、`daily_promote_and_summary`、旧 weekly writer 等表述应理解为 2026-07-05 的历史验收样本，不再代表当前推荐目录模型或现行调度入口。现行入口以 [README.md](../README.md)、[CONTEXT.md](../CONTEXT.md)、[ops.md](ops.md) 为准。
+
+目录迁移说明：为保证归档命令仍可复跑，文中的 executable path 已更新为当前 `template/data-hub/` 与 `template/agent-skills/` 路径；验收日期、输出、计数和当时 workflow 语义保持原样。
 
 ## 1. 安全边界
 
@@ -18,7 +20,7 @@
 执行前已备份真实 SQLite DB：
 
 ```text
-command: template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py backup --date 2026-07-05
+command: template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py backup --date 2026-07-05
 backup: $REPO/private/agent/data/backups/agent_history-2026-07-05-131019.db
 sha256: 75f47d0ec3db2e269cb3a7e44713cc6cccc134882c0cca392529283f7cad33ee
 backup_log: status=completed, count=1
@@ -53,7 +55,7 @@ GIT_SEARCH_ROOTS=$HOME/work/config,$HOME/work/projects
 当时 `README.md` 的统一入口是：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow full_cycle --date YYYY-MM-DD
 ```
 
@@ -119,7 +121,7 @@ Stage contract 使用 `StageSpec`，durable runner 接收 typed spec 或兼容 d
 验收命令：
 
 ```bash
-template/.venv/bin/python template/agent/data-hub/knowledge_workflows.py full_cycle 2026-07-05 --dry-run
+template/.venv/bin/python template/data-hub/knowledge_workflows.py full_cycle 2026-07-05 --dry-run
 ```
 
 输出摘要：8 个 `StageSpec`，包含 step name、command、produces、retry policy、success checks、`degraded_ok`。该输出用于确认当时真实 CLI 将执行的 DAG，不写 DB/vault。
@@ -131,7 +133,7 @@ template/.venv/bin/python template/agent/data-hub/knowledge_workflows.py full_cy
 验收命令：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow daily_ingest_and_review --date 2026-07-05 --run-id real_accept_ingest_20260705
 ```
 
@@ -201,7 +203,7 @@ status: active
 验收命令：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow auto_review_only --date 2026-07-05 --run-id real_accept_auto_20260705
 ```
 
@@ -226,7 +228,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 验收命令：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow daily_promote_and_summary --date 2026-07-05 --run-id real_accept_promote_20260705
 ```
 
@@ -277,7 +279,7 @@ line count after run: 48
 验收命令：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow materialize_only --date 2026-07-05 --run-id real_accept_materialize_idem_20260705
 ```
 
@@ -294,7 +296,7 @@ stdout 摘要：
 验收命令：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow weekly_hygiene_and_reuse --date 2026-07-05 --run-id real_accept_hygiene_20260705
 ```
 
@@ -332,7 +334,7 @@ repair_recommendations: 2
 验收命令：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow source_adapter_upgrade --date 2026-07-05 --run-id real_accept_source_upgrade_20260705
 ```
 

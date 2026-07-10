@@ -31,7 +31,7 @@ Canonical `Block` shape:
 
 ## Current repo mapping
 
-- chat logs -> `template/agent/data-hub/scripts/ingest_logs.py`
+- chat logs -> `template/data-hub/scripts/ingest_logs.py`
 - `Meetings/*.md` -> markdown meeting adapter
 - `Wiki-Clips/*.md` -> markdown wiki adapter
 - `Wiki-Clips/*.pdf` -> PDF wiki adapter

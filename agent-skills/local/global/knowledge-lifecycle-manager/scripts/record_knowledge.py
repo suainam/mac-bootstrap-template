@@ -8,7 +8,9 @@ from pathlib import Path
 
 
 CANONICAL_SCRIPT = (
-    Path(__file__).resolve().parents[2]
+    Path(__file__).resolve().parents[4]
+    / "local"
+    / "mac-bootstrap"
     / "knowledge-record"
     / "scripts"
     / "record_knowledge.py"

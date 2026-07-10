@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-DATA_HUB_DIR = Path(__file__).parent.parent / "agent" / "data-hub"
+DATA_HUB_DIR = Path(__file__).parent.parent / "data-hub"
 SCRIPTS_DIR = DATA_HUB_DIR / "scripts"
 sys.path.insert(0, str(DATA_HUB_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))

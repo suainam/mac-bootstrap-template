@@ -22,7 +22,7 @@
 - [docs/README.md](./docs/README.md) — `docs/` 目录边界与索引
 - [docs/acceptance-report.md](./docs/acceptance-report.md) — 已有真实验收记录
 - [docs/archive/upgrade-plan.md](./docs/archive/upgrade-plan.md) — 历史升级设计稿
-- [../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 双系统正式设计稿
+- [../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 双系统正式设计稿
 
 ## 人类视角的主流程
 
@@ -107,7 +107,7 @@ Summary Engine 的稳定约束：
 
 ```bash
 cd ~/work/config/mac-bootstrap
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date 2026-07-09
 ```
 
@@ -124,17 +124,17 @@ step 定义见 [knowledge_workflows.py](./knowledge_workflows.py)。
 周期总结入口：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date 2026-07-09
 
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_weekly_summary --date 2026-07-09
 ```
 
 人工晋升入口：
 
 ```bash
-template/.venv/bin/python template/agent/data-hub/scripts/promote_summary_knowledge.py \
+template/.venv/bin/python template/data-hub/scripts/promote_summary_knowledge.py \
   ~/work/knowledge/70_Summaries/Weekly/2026-W28.md \
   --selections-json selections.json
 ```

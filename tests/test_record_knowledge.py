@@ -11,14 +11,14 @@ import pytest
 
 SCRIPTS_DIR = (
     Path(__file__).parent.parent
-    / "agent" / "skills" / "personal" / "knowledge-record" / "scripts"
+    / "agent-skills" / "local" / "mac-bootstrap" / "knowledge-record" / "scripts"
 )
 sys.path.insert(0, str(SCRIPTS_DIR.resolve()))
 
 import record_knowledge
 
 
-SCHEMA_SQL = (SCRIPTS_DIR.parents[3] / "data-hub" / "schema.sql").read_text()
+SCHEMA_SQL = (SCRIPTS_DIR.parents[4] / "data-hub" / "schema.sql").read_text()
 
 
 def make_conn(tmp_path: Path) -> sqlite3.Connection:

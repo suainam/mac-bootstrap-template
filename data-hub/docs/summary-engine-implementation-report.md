@@ -3,6 +3,8 @@
 更新时间：2026-07-10
 实施分支：`feature/data-hub-summary-engine`
 
+目录迁移说明：本报告中的源码与测试路径已归一到当前 `data-hub/` 和 `agent-skills/` 目录；历史提交、测试输出和实施结论未改写。
+
 ## 基线
 
 - 实施起点：`3c8bc03593e6114e7771e64e8217da2a7c977e49`（`docs(data-hub): plan structured summary engine`）。
@@ -65,7 +67,7 @@ exit: 0
 - `summary_store.py`：提供 deterministic IDs、idempotent staging、revision document load、published lookup、full-file SHA-256、`staged -> file_published -> published` 状态机和 recovery API。
 - `db_helper.py`：连接初始化改用 revision schema migration，并允许测试显式传入临时 DB 路径。
 - `test_summary_publish_recovery.py`：覆盖 replace 后 DB 未更新、file_published 未 finalize、未知 marker 和文件篡改。
-- `test_data_hub.py`：仅补充 `agent/data-hub/scripts` 测试 import path，使计划中的 worktree focused command 可执行；未改变生产行为。
+- `test_data_hub.py`：仅补充 `data-hub/scripts` 测试 import path，使计划中的 worktree focused command 可执行；未改变生产行为。
 
 ### TDD 证据
 

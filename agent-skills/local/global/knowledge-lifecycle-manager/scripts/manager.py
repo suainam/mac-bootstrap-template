@@ -11,30 +11,37 @@ from pathlib import Path
 
 def resolve_template_root(script_path: Path) -> Path:
     for candidate in script_path.parents:
-        if (candidate / "agent" / "data-hub").is_dir():
+        if (candidate / "data-hub").is_dir():
             return candidate
         nested_template = candidate / "template"
-        if (nested_template / "agent" / "data-hub").is_dir():
+        if (nested_template / "data-hub").is_dir():
             return nested_template
     raise RuntimeError(f"Unable to resolve template root from {script_path}")
 
 
 TEMPLATE_ROOT = resolve_template_root(Path(__file__).resolve())
-DATA_HUB = TEMPLATE_ROOT / "agent" / "data-hub"
+DATA_HUB_DIR = TEMPLATE_ROOT / "data-hub"
 PYTHON = TEMPLATE_ROOT / ".venv" / "bin" / "python"
 LOCAL_SCRIPTS_DIR = Path(__file__).resolve().parent
 KNOWLEDGE_RECORD_SCRIPT = (
     TEMPLATE_ROOT
-    / "agent"
-    / "skills"
-    / "personal"
+    / "agent-skills"
+    / "local"
+    / "mac-bootstrap"
     / "knowledge-record"
     / "scripts"
     / "record_knowledge.py"
 )
 
+
+def data_hub_script(name: str) -> Path:
+    path = DATA_HUB_DIR / "scripts" / name
+    if not path.is_file():
+        raise FileNotFoundError(f"Data Hub script not found: {path}")
+    return path
+
 sys.path.insert(0, str(LOCAL_SCRIPTS_DIR))
-sys.path.insert(0, str(DATA_HUB))
+sys.path.insert(0, str(DATA_HUB_DIR))
 from data_hub_config import get_runtime_config
 from db_helper import get_db_connection
 import knowledge_workflows

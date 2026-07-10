@@ -44,13 +44,13 @@
 1. `~/Library/Logs/agent-data-hub/evening.log` 是否有输出
 2. launchd job 是否正常加载：`launchctl list | grep daily-evening`
 3. plist 时间是否正确：18:00 触发
-4. 脚本路径是否正确：`template/agent/data-hub/run-daily-evening.sh`
+4. 脚本路径是否正确：`template/data-hub/run-daily-evening.sh`
 5. durable run 状态：`manager.py status --date YYYY-MM-DD`
 
 失败恢复：
 
 ```bash
-template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py \
+template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
   run --workflow build_daily_summary --date YYYY-MM-DD --retry-failed <run_id>
 ```
 
@@ -119,7 +119,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 
 ```bash
 cd ~/work/config/mac-bootstrap
-template/.venv/bin/python -c 'import json, sys; sys.path.insert(0, "template/agent/data-hub"); from llm_filter import load_backends, OpenAIAPIBackend, BackendRequest; cfg=load_backends()["backends"][0]; resp=OpenAIAPIBackend(cfg).generate(BackendRequest(prompt="只返回 JSON: {\"ok\": true}", timeout=15)); print(json.dumps(resp.__dict__, ensure_ascii=False))'
+template/.venv/bin/python -c 'import json, sys; sys.path.insert(0, "template/data-hub"); from llm_filter import load_backends, OpenAIAPIBackend, BackendRequest; cfg=load_backends()["backends"][0]; resp=OpenAIAPIBackend(cfg).generate(BackendRequest(prompt="只返回 JSON: {\"ok\": true}", timeout=15)); print(json.dumps(resp.__dict__, ensure_ascii=False))'
 ```
 
 5. 若探针返回 `401`，先看 key；若返回 `Connection error`，再看内网路由、代理/TUN、sandbox 或宿主机网络

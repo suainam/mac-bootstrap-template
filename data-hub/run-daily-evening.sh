@@ -3,13 +3,16 @@
 
 set -euo pipefail
 
-ROOT="${1:-$HOME/work/config/mac-bootstrap}"
+DATA_HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE_ROOT="$(cd "$DATA_HUB_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$TEMPLATE_ROOT/.." && pwd)"
+PYTHON="${PYTHON:-$TEMPLATE_ROOT/.venv/bin/python}"
+
 TARGET_DATE="${2:-$(date +%F)}"
 
-cd "$ROOT"
+cd "$REPO_ROOT"
 
-PYTHON="${ROOT}/template/.venv/bin/python"
-SCHEDULE="${ROOT}/template/agent/data-hub/scripts/run_summary_schedule.py"
+SCHEDULE="$DATA_HUB_DIR/scripts/run_summary_schedule.py"
 
 echo "[evening] Starting summary schedule for $TARGET_DATE"
 "$PYTHON" "$SCHEDULE" --date "$TARGET_DATE"

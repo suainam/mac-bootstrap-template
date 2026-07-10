@@ -207,7 +207,7 @@ def test_optional_llm_invalid_output_falls_back_to_template() -> None:
 def test_confirmation_accept_saves_through_writer(tmp_path: Path) -> None:
     db_path = tmp_path / "records.db"
     conn = sqlite3.connect(db_path)
-    conn.executescript((TEMPLATE_ROOT / "agent" / "data-hub" / "schema.sql").read_text())
+    conn.executescript((TEMPLATE_ROOT / "data-hub" / "schema.sql").read_text())
     conn.close()
     draft = suggestion_engine.suggest_record(
         make_thread("本次沉淀了可复用规则和方法，后续可照此处理记录生成。"),
@@ -324,7 +324,7 @@ def test_record_knowledge_dispatches_suggest(monkeypatch) -> None:
 def test_suggest_main_accepts_thread_summary_and_prints_saved_record(tmp_path: Path, capsys) -> None:
     db_path = tmp_path / "records.db"
     conn = sqlite3.connect(db_path)
-    conn.executescript((TEMPLATE_ROOT / "agent" / "data-hub" / "schema.sql").read_text())
+    conn.executescript((TEMPLATE_ROOT / "data-hub" / "schema.sql").read_text())
     conn.close()
 
     exit_code = suggest_record.main(

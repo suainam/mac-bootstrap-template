@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 
-DATA_HUB_DIR = Path(__file__).parent.parent / "agent" / "data-hub"
+DATA_HUB_DIR = Path(__file__).parent.parent / "data-hub"
 SCRIPTS_DIR = DATA_HUB_DIR / "scripts"
 sys.path.insert(0, str(DATA_HUB_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -15,6 +15,10 @@ import claim_extraction
 import hygiene_audit
 import knowledge_retrieval
 import knowledge_workflows
+
+
+def test_workflows_resolve_top_level_template() -> None:
+    assert knowledge_workflows.TEMPLATE_DIR == Path(__file__).resolve().parent.parent
 import source_ingest_store
 from workflow_contracts import StageSpec, SuccessCheck
 from source_adapters.common import Chunk, Item

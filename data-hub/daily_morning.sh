@@ -8,8 +8,13 @@
 
 set -euo pipefail
 
+DATA_HUB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE_ROOT="$(cd "$DATA_HUB_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$TEMPLATE_ROOT/.." && pwd)"
+PYTHON="${PYTHON:-$TEMPLATE_ROOT/.venv/bin/python}"
+
 # ── 加载全局配置 ───────────────────────────────────────────
-ENV_FILE="$HOME/work/config/mac-bootstrap/private/agent/.obsidian_daily.env"
+ENV_FILE="$REPO_ROOT/private/agent/.obsidian_daily.env"
 if [[ -f "$ENV_FILE" ]]; then
   # 忽略注释和空行，导出环境变量
   export $(grep -v '^#' "$ENV_FILE" | xargs)
@@ -24,9 +29,7 @@ DAILY_DIR="$VAULT_DIR/$DAILY_SUBDIR"
 TODAY=$(date +%Y-%m-%d)
 
 # 由 chinese_calendar 覆盖周末、法定节假日和调休工作日。
-ROOT="${MAC_BOOTSTRAP_DIR:-$HOME/work/config/mac-bootstrap}"
-PYTHON="${ROOT}/template/.venv/bin/python"
-if ! "$PYTHON" -c "import sys; sys.path.insert(0, '${ROOT}/template/agent/data-hub'); import summary_calendar; raise SystemExit(0 if summary_calendar.should_run_scheduled_event('morning', '${TODAY}') else 1)"; then
+if ! "$PYTHON" -c "import sys; sys.path.insert(0, '${DATA_HUB_DIR}'); import summary_calendar; raise SystemExit(0 if summary_calendar.should_run_scheduled_event('morning', '${TODAY}') else 1)"; then
   echo "[daily_morning] skip: non-workday $TODAY"
   exit 0
 fi

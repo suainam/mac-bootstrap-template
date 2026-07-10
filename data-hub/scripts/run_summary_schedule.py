@@ -11,8 +11,16 @@ from pathlib import Path
 
 CURRENT_DIR = Path(__file__).resolve().parent
 DATA_HUB_DIR = CURRENT_DIR.parent
-TEMPLATE_ROOT = DATA_HUB_DIR.parents[1]
-MANAGER = TEMPLATE_ROOT / "agent" / "skills" / "personal" / "knowledge-lifecycle-manager" / "scripts" / "manager.py"
+TEMPLATE_ROOT = DATA_HUB_DIR.parent
+MANAGER = (
+    TEMPLATE_ROOT
+    / "agent-skills"
+    / "local"
+    / "global"
+    / "knowledge-lifecycle-manager"
+    / "scripts"
+    / "manager.py"
+)
 PYTHON = TEMPLATE_ROOT / ".venv" / "bin" / "python"
 
 if str(DATA_HUB_DIR) not in sys.path:

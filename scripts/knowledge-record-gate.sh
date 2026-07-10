@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export TEMPLATE_ROOT
+PYTHON_BIN="${PYTHON_BIN:-$TEMPLATE_ROOT/.venv/bin/python}"
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="$(command -v python3.13 || command -v python3)"
+fi
+export PYTHON_BIN
+
 if [ "${1:-}" != "record-push" ]; then
   echo "Usage: knowledge-record-gate.sh record-push <payload-json>" >&2
   exit 2
@@ -29,9 +38,14 @@ background = payload.get("background") or "自动记录本次推送的实质性�
 why_record = payload.get("why_record") or "沉淀一次推送级别的真实变更记录。"
 tags = payload.get("tags") or "推送记录"
 
-manager = "template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py"
+template_root = os.environ["TEMPLATE_ROOT"]
+python_bin = os.environ["PYTHON_BIN"]
+manager = os.path.join(
+    template_root,
+    "agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py",
+)
 command = [
-    "template/.venv/bin/python",
+    python_bin,
     manager,
     "record",
     "--type", "daily",

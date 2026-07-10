@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-python3}"
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  SOURCE_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$SOURCE_DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+TEMPLATE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-$TEMPLATE_ROOT/.venv/bin/python}"
 
-exec "$PYTHON_BIN" "$ROOT/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py" run --workflow build_daily_summary --date "$@"
+exec "$PYTHON_BIN" "$TEMPLATE_ROOT/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py" run --workflow build_daily_summary --date "$@"

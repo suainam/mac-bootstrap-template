@@ -109,7 +109,7 @@ def test_langgpt_prompt_writer_skill_registered_as_external_shadow():
 
 
 def test_data_hub_readme_mentions_knowledge_record_for_live_push():
-    readme_path = os.path.join(TEMPLATE, "agent", "data-hub", "README.md")
+    readme_path = os.path.join(TEMPLATE, "data-hub", "README.md")
     readme_text = open(readme_path, encoding="utf-8").read()
 
     assert "knowledge-record" in readme_text

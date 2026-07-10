@@ -4,8 +4,15 @@
 
 set -euo pipefail
 
-REPO_ROOT="${HOME}/work/config/mac-bootstrap"
-PYTHON="${REPO_ROOT}/template/.venv/bin/python"
-MANAGER="${REPO_ROOT}/template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py"
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  SOURCE_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$SOURCE_DIR/$SOURCE"
+done
+SKILL_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+TEMPLATE_ROOT="$(cd "$SKILL_DIR/../../../.." && pwd)"
+PYTHON="${PYTHON:-$TEMPLATE_ROOT/.venv/bin/python}"
+MANAGER="$SKILL_DIR/scripts/manager.py"
 
 exec "$PYTHON" "$MANAGER" "$@"

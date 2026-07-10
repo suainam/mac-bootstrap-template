@@ -33,6 +33,8 @@ ALLOWED_AGENT_TYPES = {"codex", "claude", "agy", "opencode"}
 TAG_PATTERN = re.compile(r"^[\u4e00-\u9fff][\u4e00-\u9fff\-]*[\u4e00-\u9fff]$|^[\u4e00-\u9fff]$")
 CJK_CHAR_PATTERN = re.compile(r"[\u4e00-\u9fff]")
 LATIN_CHAR_PATTERN = re.compile(r"[A-Za-z]")
+TEMPLATE_ROOT = Path(__file__).resolve().parents[5]
+DATA_HUB_DIR = TEMPLATE_ROOT / "data-hub"
 
 
 def _load_suggest_module():
@@ -63,9 +65,8 @@ def find_db_path() -> Path:
         except json.JSONDecodeError:
             continue
 
-    template_data_hub = cwd / "template" / "agent" / "data-hub"
-    if str(template_data_hub) not in sys.path:
-        sys.path.insert(0, str(template_data_hub))
+    if str(DATA_HUB_DIR) not in sys.path:
+        sys.path.insert(0, str(DATA_HUB_DIR))
     try:
         from data_hub_config import get_runtime_config
 
@@ -73,7 +74,7 @@ def find_db_path() -> Path:
     except Exception:
         pass
 
-    candidate = cwd / "template" / "agent" / "data-hub" / "data_hub.db"
+    candidate = DATA_HUB_DIR / "data_hub.db"
     if candidate.exists():
         return candidate.resolve()
     return cwd / "data_hub.db"

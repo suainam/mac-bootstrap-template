@@ -1,5 +1,7 @@
 # Structured Summary Engine Implementation Plan
 
+> Directory migration note: executable and source paths use the current top-level `data-hub/` and `agent-skills/` layout; task intent and historical execution evidence remain unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the duplicated legacy Daily/period summary paths with one evidence-backed, revisioned Summary Engine that produces useful tagged Daily-to-Yearly Markdown and preserves the 09:00/17:30/18:00 China-workday schedule.
@@ -21,7 +23,7 @@
 - Item dimensions use only `计划组织`, `创新`, `沟通协作`, `专业知识`, `学习成长`; zero to two per item.
 - Schedule: 09:00 morning and 17:30 reminder only on `chinese_calendar` workdays; 18:00 runs every calendar day and dispatches eligible Daily-to-Yearly workflows in lower-to-higher order.
 - Tests use the repository `.venv`; every implementation task follows red-green-refactor and ends with a focused commit.
-- Update `agent/data-hub/docs/summary-engine-implementation-report.md` after every task with commit, tests, counts, artifacts, known gaps, and next checkpoint.
+- Update `data-hub/docs/summary-engine-implementation-report.md` after every task with commit, tests, counts, artifacts, known gaps, and next checkpoint.
 - Do not overwrite real `~/work/knowledge` artifacts until isolated tests pass and the acceptance step explicitly backs them up.
 
 ---
@@ -30,17 +32,17 @@
 
 **Create:**
 
-- `agent/data-hub/summary_contracts.py` — load/validate schema, taxonomy, policy; normalize evidence and output.
-- `agent/data-hub/summary_evidence.py` — deterministic local/llm_wiki evidence collection and grouping.
-- `agent/data-hub/summary_synthesis.py` — level prompt selection, backend call, JSON retry/parse.
-- `agent/data-hub/summary_renderer.py` — deterministic Markdown and recoverable file projection.
-- `agent/data-hub/prompts/higher-period-summary.md` — Monthly/Quarterly/Yearly synthesis.
-- `agent/data-hub/prompts/summary-evidence-research.md` — llm_wiki Deep Chat research request.
-- `agent/data-hub/prompts/summary-output.schema.json` — discriminated Daily/Weekly/Higher JSON contract.
-- `agent/data-hub/prompts/summary-dimensions.v1.json` — canonical taxonomy with include/exclude/examples.
-- `agent/data-hub/prompts/summary-policy.v1.json` — length, insight, evidence sufficiency, and schedule policy.
-- `agent/data-hub/daily_reminder.sh` — workday-gated 17:30 reminder.
-- `agent/data-hub/docs/summary-engine-implementation-report.md` — rolling review evidence.
+- `data-hub/summary_contracts.py` — load/validate schema, taxonomy, policy; normalize evidence and output.
+- `data-hub/summary_evidence.py` — deterministic local/llm_wiki evidence collection and grouping.
+- `data-hub/summary_synthesis.py` — level prompt selection, backend call, JSON retry/parse.
+- `data-hub/summary_renderer.py` — deterministic Markdown and recoverable file projection.
+- `data-hub/prompts/higher-period-summary.md` — Monthly/Quarterly/Yearly synthesis.
+- `data-hub/prompts/summary-evidence-research.md` — llm_wiki Deep Chat research request.
+- `data-hub/prompts/summary-output.schema.json` — discriminated Daily/Weekly/Higher JSON contract.
+- `data-hub/prompts/summary-dimensions.v1.json` — canonical taxonomy with include/exclude/examples.
+- `data-hub/prompts/summary-policy.v1.json` — length, insight, evidence sufficiency, and schedule policy.
+- `data-hub/daily_reminder.sh` — workday-gated 17:30 reminder.
+- `data-hub/docs/summary-engine-implementation-report.md` — rolling review evidence.
 - `tests/test_summary_contracts.py`
 - `tests/test_summary_evidence.py`
 - `tests/test_summary_synthesis.py`
@@ -50,21 +52,21 @@
 **Rewrite/extend:**
 
 - `pyproject.toml`, `uv.lock` — add `jsonschema`.
-- `agent/data-hub/schema.sql`, `schema_migrations.py` — logical summaries, immutable revisions, items, dimensions, evidence, support.
-- `agent/data-hub/summary_store.py` — staged/published revision store and recovery.
-- `agent/data-hub/llm_wiki_client.py`, `llm_wiki_context.py` — `/chat` deep evidence with citations.
-- `agent/data-hub/prompts/chat_review.md`, `daily-summary.md`, `weekly-summary.md` — structured contracts.
-- `agent/data-hub/summary_inputs.py` — SQLite lower-revision dependency resolver; no Markdown body reads.
-- `agent/data-hub/period_summary.py` — thin orchestrator.
-- `agent/data-hub/scripts/build_period_summary.py` — CLI marker output.
-- `agent/data-hub/knowledge_workflows.py` — one summary stage family with degraded propagation.
-- `agent/data-hub/summary_calendar.py`, `scripts/run_summary_schedule.py` — dependency closure and workday/period triggers.
-- `agent/data-hub/daily_morning.sh`, `run-daily-evening.sh`, `launchd/install_obsidian_jobs.sh` — exact schedule.
+- `data-hub/schema.sql`, `schema_migrations.py` — logical summaries, immutable revisions, items, dimensions, evidence, support.
+- `data-hub/summary_store.py` — staged/published revision store and recovery.
+- `data-hub/llm_wiki_client.py`, `llm_wiki_context.py` — `/chat` deep evidence with citations.
+- `data-hub/prompts/chat_review.md`, `daily-summary.md`, `weekly-summary.md` — structured contracts.
+- `data-hub/summary_inputs.py` — SQLite lower-revision dependency resolver; no Markdown body reads.
+- `data-hub/period_summary.py` — thin orchestrator.
+- `data-hub/scripts/build_period_summary.py` — CLI marker output.
+- `data-hub/knowledge_workflows.py` — one summary stage family with degraded propagation.
+- `data-hub/summary_calendar.py`, `scripts/run_summary_schedule.py` — dependency closure and workday/period triggers.
+- `data-hub/daily_morning.sh`, `run-daily-evening.sh`, `launchd/install_obsidian_jobs.sh` — exact schedule.
 - Data Hub tests, lifecycle skill scripts, README/CONTEXT/ops/reference/troubleshooting/cron docs.
 
 **Delete:**
 
-- `agent/data-hub/scripts/daily_summary.py`
+- `data-hub/scripts/daily_summary.py`
 - Tests that only encode deleted `daily_summary_stage()` / `materialization_stage()` compatibility behavior.
 
 ---
@@ -75,12 +77,12 @@
 
 - Modify: `pyproject.toml`
 - Modify: `uv.lock`
-- Create: `agent/data-hub/prompts/summary-output.schema.json`
-- Create: `agent/data-hub/prompts/summary-dimensions.v1.json`
-- Create: `agent/data-hub/prompts/summary-policy.v1.json`
-- Create: `agent/data-hub/summary_contracts.py`
+- Create: `data-hub/prompts/summary-output.schema.json`
+- Create: `data-hub/prompts/summary-dimensions.v1.json`
+- Create: `data-hub/prompts/summary-policy.v1.json`
+- Create: `data-hub/summary_contracts.py`
 - Create: `tests/test_summary_contracts.py`
-- Create: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Create: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -189,7 +191,7 @@ Expected: all contract tests pass.
 Record contract versions, test count, and generated lock change.
 
 ```bash
-git add pyproject.toml uv.lock agent/data-hub/prompts agent/data-hub/summary_contracts.py tests/test_summary_contracts.py agent/data-hub/docs/summary-engine-implementation-report.md
+git add pyproject.toml uv.lock data-hub/prompts data-hub/summary_contracts.py tests/test_summary_contracts.py data-hub/docs/summary-engine-implementation-report.md
 git commit -m "feat(data-hub): add summary contracts"
 ```
 
@@ -197,13 +199,13 @@ git commit -m "feat(data-hub): add summary contracts"
 
 **Files:**
 
-- Modify: `agent/data-hub/schema.sql`
-- Modify: `agent/data-hub/schema_migrations.py`
-- Rewrite: `agent/data-hub/summary_store.py`
-- Modify: `agent/data-hub/db_helper.py`
+- Modify: `data-hub/schema.sql`
+- Modify: `data-hub/schema_migrations.py`
+- Rewrite: `data-hub/summary_store.py`
+- Modify: `data-hub/db_helper.py`
 - Modify: `tests/test_summary_store.py`
 - Create: `tests/test_summary_publish_recovery.py`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -291,7 +293,7 @@ Expected: all pass; legacy rows preserved as legacy revisions, old tables absent
 - [ ] **Step 6: Update report and commit**
 
 ```bash
-git add agent/data-hub/schema.sql agent/data-hub/schema_migrations.py agent/data-hub/db_helper.py agent/data-hub/summary_store.py tests/test_summary_store.py tests/test_summary_publish_recovery.py agent/data-hub/docs/summary-engine-implementation-report.md
+git add data-hub/schema.sql data-hub/schema_migrations.py data-hub/db_helper.py data-hub/summary_store.py tests/test_summary_store.py tests/test_summary_publish_recovery.py data-hub/docs/summary-engine-implementation-report.md
 git commit -m "feat(data-hub): add revisioned summary store"
 ```
 
@@ -299,13 +301,13 @@ git commit -m "feat(data-hub): add revisioned summary store"
 
 **Files:**
 
-- Modify: `agent/data-hub/llm_wiki_client.py`
-- Modify: `agent/data-hub/llm_wiki_context.py`
-- Create: `agent/data-hub/summary_evidence.py`
-- Create: `agent/data-hub/prompts/summary-evidence-research.md`
+- Modify: `data-hub/llm_wiki_client.py`
+- Modify: `data-hub/llm_wiki_context.py`
+- Create: `data-hub/summary_evidence.py`
+- Create: `data-hub/prompts/summary-evidence-research.md`
 - Modify: `tests/test_llm_wiki_client.py`
 - Create: `tests/test_summary_evidence.py`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -387,7 +389,7 @@ Raise `InsufficientEvidenceError` when the policy's whole-summary threshold is n
 Run: `.venv/bin/python -m pytest tests/test_llm_wiki_client.py tests/test_summary_evidence.py tests/test_knowledge_retrieval.py -q`
 
 ```bash
-git add agent/data-hub/llm_wiki_client.py agent/data-hub/llm_wiki_context.py agent/data-hub/summary_evidence.py agent/data-hub/prompts/summary-evidence-research.md tests/test_llm_wiki_client.py tests/test_summary_evidence.py agent/data-hub/docs/summary-engine-implementation-report.md
+git add data-hub/llm_wiki_client.py data-hub/llm_wiki_context.py data-hub/summary_evidence.py data-hub/prompts/summary-evidence-research.md tests/test_llm_wiki_client.py tests/test_summary_evidence.py data-hub/docs/summary-engine-implementation-report.md
 git commit -m "feat(data-hub): collect cited summary evidence"
 ```
 
@@ -395,16 +397,16 @@ git commit -m "feat(data-hub): collect cited summary evidence"
 
 **Files:**
 
-- Rewrite: `agent/data-hub/prompts/chat_review.md`
-- Rewrite: `agent/data-hub/prompts/daily-summary.md`
-- Rewrite: `agent/data-hub/prompts/weekly-summary.md`
-- Create: `agent/data-hub/prompts/higher-period-summary.md`
-- Create: `agent/data-hub/summary_synthesis.py`
-- Modify: `agent/data-hub/data_hub_config.py`
-- Modify: `agent/data-hub/llm_filter.py`
+- Rewrite: `data-hub/prompts/chat_review.md`
+- Rewrite: `data-hub/prompts/daily-summary.md`
+- Rewrite: `data-hub/prompts/weekly-summary.md`
+- Create: `data-hub/prompts/higher-period-summary.md`
+- Create: `data-hub/summary_synthesis.py`
+- Modify: `data-hub/data_hub_config.py`
+- Modify: `data-hub/llm_filter.py`
 - Create: `tests/test_summary_synthesis.py`
 - Modify: `tests/test_candidate_review.py`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -480,7 +482,7 @@ def synthesize_summary(
 Run: `.venv/bin/python -m pytest tests/test_summary_synthesis.py tests/test_candidate_review.py tests/test_llm_filter.py -q`
 
 ```bash
-git add agent/data-hub/prompts agent/data-hub/summary_synthesis.py agent/data-hub/data_hub_config.py agent/data-hub/llm_filter.py tests/test_summary_synthesis.py tests/test_candidate_review.py agent/data-hub/docs/summary-engine-implementation-report.md
+git add data-hub/prompts data-hub/summary_synthesis.py data-hub/data_hub_config.py data-hub/llm_filter.py tests/test_summary_synthesis.py tests/test_candidate_review.py data-hub/docs/summary-engine-implementation-report.md
 git commit -m "feat(data-hub): synthesize structured summaries"
 ```
 
@@ -488,13 +490,13 @@ git commit -m "feat(data-hub): synthesize structured summaries"
 
 **Files:**
 
-- Create: `agent/data-hub/summary_renderer.py`
+- Create: `data-hub/summary_renderer.py`
 - Create: `tests/test_summary_renderer.py`
 - Extend: `tests/test_summary_publish_recovery.py`
 - Add: `tests/fixtures/summary/daily.md`
 - Add: `tests/fixtures/summary/weekly.md`
 - Add: `tests/fixtures/summary/monthly.md`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -538,7 +540,7 @@ Write to `target.with_suffix(target.suffix + '.tmp')`, fsync, compute SHA-256 ov
 Run: `.venv/bin/python -m pytest tests/test_summary_renderer.py tests/test_summary_publish_recovery.py -q`
 
 ```bash
-git add agent/data-hub/summary_renderer.py tests/test_summary_renderer.py tests/test_summary_publish_recovery.py tests/fixtures/summary agent/data-hub/docs/summary-engine-implementation-report.md
+git add data-hub/summary_renderer.py tests/test_summary_renderer.py tests/test_summary_publish_recovery.py tests/fixtures/summary data-hub/docs/summary-engine-implementation-report.md
 git commit -m "feat(data-hub): render recoverable summaries"
 ```
 
@@ -546,13 +548,13 @@ git commit -m "feat(data-hub): render recoverable summaries"
 
 **Files:**
 
-- Rewrite: `agent/data-hub/summary_inputs.py`
-- Rewrite: `agent/data-hub/period_summary.py`
-- Modify: `agent/data-hub/scripts/build_period_summary.py`
+- Rewrite: `data-hub/summary_inputs.py`
+- Rewrite: `data-hub/period_summary.py`
+- Modify: `data-hub/scripts/build_period_summary.py`
 - Modify: `tests/test_summary_inputs.py`
 - Modify: `tests/test_period_summary.py`
 - Modify: `tests/test_build_period_summary_cli.py`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -620,7 +622,7 @@ Run: `.venv/bin/python -m pytest tests/test_summary_inputs.py tests/test_period_
 - [ ] **Step 6: Update report and commit**
 
 ```bash
-git add agent/data-hub/summary_inputs.py agent/data-hub/period_summary.py agent/data-hub/scripts/build_period_summary.py tests/test_summary_inputs.py tests/test_period_summary.py tests/test_build_period_summary_cli.py agent/data-hub/docs/summary-engine-implementation-report.md
+git add data-hub/summary_inputs.py data-hub/period_summary.py data-hub/scripts/build_period_summary.py tests/test_summary_inputs.py tests/test_period_summary.py tests/test_build_period_summary_cli.py data-hub/docs/summary-engine-implementation-report.md
 git commit -m "feat(data-hub): orchestrate revisioned period summaries"
 ```
 
@@ -628,16 +630,16 @@ git commit -m "feat(data-hub): orchestrate revisioned period summaries"
 
 **Files:**
 
-- Modify: `agent/data-hub/knowledge_workflows.py`
-- Delete: `agent/data-hub/scripts/daily_summary.py`
+- Modify: `data-hub/knowledge_workflows.py`
+- Delete: `data-hub/scripts/daily_summary.py`
 - Modify: `tests/test_daily_workflows.py`
 - Delete/replace: `tests/test_daily_summary_runtime.py`
 - Modify: `tests/test_lifecycle_manager_adapters.py`
-- Modify: `agent/skills/personal/knowledge-daily-weekly-synthesis/scripts/run-daily-synthesis.sh`
-- Modify: `agent/skills/personal/knowledge-source-ingestion/scripts/run-full-cycle.sh`
+- Modify: `agent-skills/local/mac-bootstrap/knowledge-daily-weekly-synthesis/scripts/run-daily-synthesis.sh`
+- Modify: `agent-skills/local/mac-bootstrap/knowledge-source-ingestion/scripts/run-full-cycle.sh`
 - Modify: corresponding `SKILL.md` and reference files
-- Modify: `agent/data-hub/obsidian_helper.py`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/obsidian_helper.py`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -675,7 +677,7 @@ Expected: complete marker -> completed; degraded marker -> step/run degraded; no
 - [ ] **Step 5: Update report and commit**
 
 ```bash
-git add -A agent/data-hub agent/skills/personal/knowledge-daily-weekly-synthesis agent/skills/personal/knowledge-source-ingestion tests/test_daily_workflows.py tests/test_lifecycle_manager_adapters.py tests/test_workflow_abandoned.py
+git add -A data-hub agent-skills/local/mac-bootstrap/knowledge-daily-weekly-synthesis agent-skills/local/mac-bootstrap/knowledge-source-ingestion tests/test_daily_workflows.py tests/test_lifecycle_manager_adapters.py tests/test_workflow_abandoned.py
 git commit -m "refactor(data-hub): remove legacy summary path"
 ```
 
@@ -683,16 +685,16 @@ git commit -m "refactor(data-hub): remove legacy summary path"
 
 **Files:**
 
-- Modify: `agent/data-hub/summary_calendar.py`
-- Modify: `agent/data-hub/scripts/run_summary_schedule.py`
-- Modify: `agent/data-hub/daily_morning.sh`
-- Create: `agent/data-hub/daily_reminder.sh`
-- Modify: `agent/data-hub/run-daily-evening.sh`
+- Modify: `data-hub/summary_calendar.py`
+- Modify: `data-hub/scripts/run_summary_schedule.py`
+- Modify: `data-hub/daily_morning.sh`
+- Create: `data-hub/daily_reminder.sh`
+- Modify: `data-hub/run-daily-evening.sh`
 - Modify: `launchd/install_obsidian_jobs.sh`
 - Modify: `tests/test_summary_calendar.py`
 - Modify: `tests/test_summary_schedule.py`
 - Modify: `tests/test_lifecycle_manager_adapters.py`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 
 **Interfaces:**
 
@@ -738,13 +740,13 @@ Run:
 
 ```bash
 .venv/bin/python -m pytest tests/test_summary_calendar.py tests/test_summary_schedule.py tests/test_lifecycle_manager_adapters.py -q
-bash -n agent/data-hub/daily_morning.sh agent/data-hub/daily_reminder.sh agent/data-hub/run-daily-evening.sh launchd/install_obsidian_jobs.sh
+bash -n data-hub/daily_morning.sh data-hub/daily_reminder.sh data-hub/run-daily-evening.sh launchd/install_obsidian_jobs.sh
 ```
 
 - [ ] **Step 5: Update report and commit**
 
 ```bash
-git add agent/data-hub/summary_calendar.py agent/data-hub/scripts/run_summary_schedule.py agent/data-hub/daily_morning.sh agent/data-hub/daily_reminder.sh agent/data-hub/run-daily-evening.sh launchd/install_obsidian_jobs.sh tests/test_summary_calendar.py tests/test_summary_schedule.py tests/test_lifecycle_manager_adapters.py agent/data-hub/docs/summary-engine-implementation-report.md
+git add data-hub/summary_calendar.py data-hub/scripts/run_summary_schedule.py data-hub/daily_morning.sh data-hub/daily_reminder.sh data-hub/run-daily-evening.sh launchd/install_obsidian_jobs.sh tests/test_summary_calendar.py tests/test_summary_schedule.py tests/test_lifecycle_manager_adapters.py data-hub/docs/summary-engine-implementation-report.md
 git commit -m "fix(data-hub): preserve workday summary schedule"
 ```
 
@@ -752,14 +754,14 @@ git commit -m "fix(data-hub): preserve workday summary schedule"
 
 **Files:**
 
-- Modify: `agent/data-hub/README.md`
-- Modify: `agent/data-hub/CONTEXT.md`
-- Modify: `agent/data-hub/docs/README.md`
-- Modify: `agent/data-hub/docs/ops.md`
-- Modify: `agent/data-hub/docs/reference.md`
-- Modify: `agent/data-hub/docs/troubleshooting.md`
-- Modify: `agent/data-hub/docs/cron-setup.md`
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/README.md`
+- Modify: `data-hub/CONTEXT.md`
+- Modify: `data-hub/docs/README.md`
+- Modify: `data-hub/docs/ops.md`
+- Modify: `data-hub/docs/reference.md`
+- Modify: `data-hub/docs/troubleshooting.md`
+- Modify: `data-hub/docs/cron-setup.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 - Modify: relevant skill docs/tests
 
 **Interfaces:**
@@ -809,7 +811,7 @@ Run:
 ```
 
 ```bash
-git add agent/data-hub/README.md agent/data-hub/CONTEXT.md agent/data-hub/docs agent/skills tests
+git add data-hub/README.md data-hub/CONTEXT.md data-hub/docs agent-skills tests
 git commit -m "docs(data-hub): align summary lifecycle runbooks"
 ```
 
@@ -817,7 +819,7 @@ git commit -m "docs(data-hub): align summary lifecycle runbooks"
 
 **Files:**
 
-- Modify: `agent/data-hub/docs/summary-engine-implementation-report.md`
+- Modify: `data-hub/docs/summary-engine-implementation-report.md`
 - Modify only review-requested implementation/docs files.
 
 **Interfaces:**
@@ -886,7 +888,7 @@ The report must contain:
 - rollback steps.
 
 ```bash
-git add agent/data-hub/docs/summary-engine-implementation-report.md
+git add data-hub/docs/summary-engine-implementation-report.md
 git commit -m "docs(data-hub): record summary engine acceptance"
 ```
 

@@ -9,9 +9,11 @@ from pathlib import Path
 
 import pytest
 
+from helpers import DATA_HUB
+
 # Add data-hub to sys.path
-sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "agent/data-hub" / "scripts"))
+sys.path.insert(0, str(DATA_HUB))
+sys.path.insert(0, str(DATA_HUB / "scripts"))
 
 from health_check import format_report, get_failed_executions
 
@@ -147,4 +149,3 @@ def test_get_failed_executions_default_days(temp_db_with_logs, monkeypatch):
     # Call without days parameter (defaults to 3)
     failed = get_failed_executions()
     assert len(failed) == 2
-

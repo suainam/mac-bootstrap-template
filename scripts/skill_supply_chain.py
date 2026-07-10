@@ -494,11 +494,23 @@ def _find_fetched_skill_dir(work_dir: Path, skill_name: str) -> Path:
     raise RegistryError(f"skills.sh did not produce {skill_name}/SKILL.md under {work_dir}")
 
 
-def fetch_external_skill(skill: SkillRef, root: Path = ROOT, dry_run: bool = False) -> CommandResult:
+def fetch_external_skill(
+    skill: SkillRef,
+    registry: Registry,
+    root: Path = ROOT,
+    dry_run: bool = False,
+) -> CommandResult:
     if skill.quarantine_path is None:
         raise RegistryError(f"external skill missing quarantine path: {skill.source_id}/{skill.name}")
     command = build_skills_sh_fetch_command(skill)
-    tmp_work = root / "agent" / "skills" / "quarantine" / ".tmp" / skill.source_id / skill.name / "work"
+    tmp_work = (
+        root
+        / registry.paths["quarantine_root"]
+        / ".tmp"
+        / skill.source_id
+        / skill.name
+        / "work"
+    )
     destination = root / skill.quarantine_path
     if dry_run:
         print(
@@ -619,8 +631,8 @@ def evaluate_gate(
     )
 
 
-def write_run_log(event: dict, root: Path = ROOT) -> Path:
-    log_root = root / ".agent-state" / "skill-sync-runs"
+def write_run_log(event: dict, registry: Registry, root: Path = ROOT) -> Path:
+    log_root = root / registry.paths["run_log_root"]
     log_root.mkdir(parents=True, exist_ok=True)
     now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H%M%SZ")
     path = log_root / f"{now}.jsonl"
@@ -1088,7 +1100,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if not args.source or not args.skill:
         raise RegistryError("fetch requires --source and --skill")
     skill = select_skill(registry, args.source, args.skill)
-    result = fetch_external_skill(skill, ROOT, dry_run=args.dry_run)
+    result = fetch_external_skill(skill, registry, ROOT, dry_run=args.dry_run)
     if result.returncode != 0:
         if result.stdout:
             print(result.stdout)
@@ -1100,8 +1112,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
-def _selected_external_skill(args: argparse.Namespace) -> SkillRef:
-    registry = load_registry(args.registry)
+def _selected_external_skill(
+    args: argparse.Namespace,
+    registry: Registry | None = None,
+) -> SkillRef:
+    registry = registry or load_registry(args.registry)
     if not args.source or not args.skill:
         raise RegistryError(f"{args.command} requires --source and --skill")
     skill = select_skill(registry, args.source, args.skill)
@@ -1183,7 +1198,8 @@ def cmd_snapshot_diff(args: argparse.Namespace) -> int:
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
-    skill = _selected_external_skill(args)
+    registry = load_registry(args.registry)
+    skill = _selected_external_skill(args, registry)
     if args.dry_run:
         print(f"DRY-RUN audit external skill {skill.source_id}/{skill.name}")
         return 0
@@ -1197,7 +1213,9 @@ def cmd_audit(args: argparse.Namespace) -> int:
             "result": "pending",
             "reasons": list(decision.reasons) if decision else ["missing quarantine path"],
             "content_hash": inspection.content_hash if inspection else None,
-        }
+        },
+        registry,
+        ROOT,
     )
     print(f"audit recorded for {skill.source_id}/{skill.name}")
     return 0

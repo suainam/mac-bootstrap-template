@@ -404,6 +404,14 @@ Regression notes:
 
 ## Agent tooling
 
+Template subsystem boundaries:
+
+- `agent/`: agent runtime configuration, rules, prompts, extensions, and quality gates
+- `agent-skills/`: Skill source registry, local Skill sources, external quarantine, and distribution targets
+- `data-hub/`: knowledge persistence, SQLite state, lifecycle workflows, summaries, and projections
+
+The global `knowledge-lifecycle-manager` Skill is the Data Hub control entrypoint; implementation and subsystem runbooks live under [`data-hub/`](data-hub/README.md).
+
 ```bash
 make agent-tools
 make skill-refresh

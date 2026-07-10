@@ -2,8 +2,19 @@ from __future__ import annotations
 
 import os
 from argparse import Namespace
+from pathlib import Path
 
+from helpers import TEMPLATE
 from lifecycle_manager_test_support import load_manager_module
+
+
+def test_manager_resolves_top_level_data_hub() -> None:
+    manager = load_manager_module("manager_cli_data_hub_path")
+
+    assert manager.DATA_HUB_DIR == Path(TEMPLATE) / "data-hub"
+    assert manager.data_hub_script("run_summary_schedule.py") == (
+        Path(TEMPLATE) / "data-hub/scripts/run_summary_schedule.py"
+    )
 
 
 def test_resolve_action_defaults_to_status() -> None:

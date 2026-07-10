@@ -1,6 +1,6 @@
 # Data Hub Docs
 
-`template/agent/data-hub/docs/` 只放专题文档，不重复根目录文件职责。
+`template/data-hub/docs/` 只放专题文档，不重复根目录文件职责。
 
 ## 边界
 
@@ -19,7 +19,7 @@
 - [2026-07-10-summary-engine-implementation-plan.md](./2026-07-10-summary-engine-implementation-plan.md) — TDD 实施步骤、调度保留、验收与审查计划
 - [archive/upgrade-plan.md](./archive/upgrade-plan.md) — 历史设计草案，保留演进背景，不作为当前权威 runbook
 - [cron-setup.md](./cron-setup.md) — cron/定时任务参考
-- [../../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 当前双系统正式设计稿
+- [../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 当前双系统正式设计稿
 
 ## 维护规则
 
