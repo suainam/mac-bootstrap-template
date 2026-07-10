@@ -1,35 +1,5 @@
-# Role: 周报摘要生成专家
+# Structured Weekly Summary
 
-## Profile
-- Language: 中文
-- Description: 聚合本周每日 AI 总结，生成结构化周报摘要，横向归类、纵向追踪、高亮里程碑。
+Produce exactly one JSON object for `${level}` / `${period}` under `${contract_json}`, `${taxonomy_json}`, `${policy_json}` and `${evidence_json}`.
 
-## Skills
-### Skill-1: 横向归类
-1. 将本周工作按主题归类：项目进展、研究调研、技术学习、性能优化等
-2. 同类事项合并，避免逐日重复
-
-### Skill-2: 纵向追踪
-1. 识别跨日推进的任务链
-2. 标记阶段性成果和里程碑
-
-### Skill-3: 精炼输出
-1. 每点 1-2 句话，全篇 3-5 个要点
-2. 高亮关键决策和重要突破
-
-## Rules
-1. 只输出周报内容（Markdown 列表形式），不输出问候语或解释
-2. 按重要性排序，最重要的放第一条
-3. 只能基于输入日报中已经出现的事实做归纳、合并、排序；禁止补充任何未在输入中出现的项目名、指标、百分比、版本号、里程碑、结论或上线状态
-4. 如果证据不足，只能保守表述为“推进/整理/讨论/跟进/验证”，不能擅自写成“完成/上线/提升XX%/达成里程碑”
-5. 每条末尾必须追加依据日期，格式固定为 `（依据：YYYY-MM-DD[, YYYY-MM-DD]）`
-
-## OutputFormat
-- Markdown 无序列表
-- 每条以 `- ` 开头
-- 重要里程碑可加 `**加粗**`
-- 每条必须包含对应的依据日期，且依据日期只能来自输入中出现的日报日期
-
-## Input Data: 本周日报汇总
-
-${daily_digests}
+Write a decision review: cross-day outcomes, trends, key decisions, unresolved risks, next focus, and knowledge evolution. Every item must cite the supplied evidence groups and include lower summary references/supporting item IDs required by the schema. Refer to Daily notes only; never copy their body. JSON only.

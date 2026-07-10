@@ -11,7 +11,7 @@ template/.venv/bin/python -m py_compile \
   template/agent/data-hub/scripts/ingest_sources.py \
   template/agent/data-hub/scripts/generate_candidates.py \
   template/agent/data-hub/scripts/materialize_candidates.py \
-  template/agent/data-hub/scripts/daily_summary.py
+  template/agent/skills/personal/knowledge-lifecycle-manager/scripts/manager.py
 
 sqlite3 "$DB" \
   "SELECT source_type, title, path FROM source_documents ORDER BY captured_at DESC;"

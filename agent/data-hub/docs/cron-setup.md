@@ -30,13 +30,13 @@ Add this to `private/agent/data_hub.runtime.jsonc`.
 
 You can also automate the summary schedule:
 
-### Evening Summary Schedule (18:30)
+### Evening Summary Schedule (18:00)
 
 ```bash
-/cron create "0 30 18 * * *" "cd $HOME/work/config/mac-bootstrap && bash template/agent/data-hub/run-daily-evening.sh"
+/cron create "0 0 18 * * *" "cd $HOME/work/config/mac-bootstrap && bash template/agent/data-hub/run-daily-evening.sh"
 ```
 
-**Schedule**: Every day at 18:30
+**Schedule**: Every day at 18:00
 **Purpose**: Run build_daily_summary and any period summary triggered for the date through the lifecycle manager.
 
 ## Viewing Cron Jobs

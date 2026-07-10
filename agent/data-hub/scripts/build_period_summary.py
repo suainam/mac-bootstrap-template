@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 
@@ -23,8 +25,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    output_path = build_period_summary(args.level, args.anchor_date)
-    print(output_path)
+    result = build_period_summary(args.level, args.anchor_date)
+    print(json.dumps(asdict(result), default=str, ensure_ascii=False))
+    if result.quality_status == "degraded":
+        print("SUMMARY_STATUS=degraded")
 
 
 if __name__ == "__main__":

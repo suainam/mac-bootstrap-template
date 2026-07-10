@@ -77,7 +77,7 @@ def render_daily_note(date: str) -> str:
             "",
             "## AI 总结",
             "",
-            "<!-- 由 daily_summary.py 自动填入 -->",
+            "<!-- 由 Summary Engine 自动写入 70_Summaries/Daily/ -->",
             "",
             "## 明日计划",
             "",

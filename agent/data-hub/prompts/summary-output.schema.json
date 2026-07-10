@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mac-bootstrap.local/schemas/summary-output.schema.json",
+  "contract_version": "summary-v1",
+  "taxonomy_version": "dimensions-v1",
+  "policy_version": "summary-policy-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "taxonomy_version",
+    "policy_version",
+    "level",
+    "period",
+    "headline",
+    "items"
+  ],
+  "properties": {
+    "contract_version": {"const": "summary-v1"},
+    "taxonomy_version": {"const": "dimensions-v1"},
+    "policy_version": {"const": "summary-policy-v1"},
+    "level": {"enum": ["daily", "weekly", "monthly", "quarterly", "yearly"]},
+    "period": {"type": "string", "minLength": 1},
+    "headline": {"type": "string", "minLength": 1},
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/item"}
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_type",
+        "title",
+        "conclusion",
+        "value",
+        "dimensions",
+        "evidence_group_ids",
+        "confidence"
+      ],
+      "properties": {
+        "item_type": {"enum": ["outcome", "decision", "risk", "action", "insight"]},
+        "title": {"type": "string", "minLength": 1},
+        "conclusion": {"type": "string", "minLength": 1},
+        "value": {"type": "string", "minLength": 1},
+        "dimensions": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"enum": ["计划组织", "创新", "沟通协作", "专业知识", "学习成长"]}
+        },
+        "evidence_group_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^evg_[A-Za-z0-9_-]+$"}
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "trend": {"type": "string", "minLength": 1},
+        "supporting_item_ids": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "lower_summary_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "period_change": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"level": {"const": "weekly"}}, "required": ["level"]},
+      "then": {
+        "properties": {
+          "items": {
+            "items": {"required": ["supporting_item_ids", "lower_summary_refs"]}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"level": {"enum": ["monthly", "quarterly", "yearly"]}}, "required": ["level"]},
+      "then": {
+        "properties": {
+          "items": {
+            "items": {"required": ["supporting_item_ids", "lower_summary_refs", "period_change"]}
+          }
+        }
+      }
+    }
+  ]
+}

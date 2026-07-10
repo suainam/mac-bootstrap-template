@@ -1,0 +1,20 @@
+{
+  "contract_version": "summary-v1",
+  "version": "summary-policy-v1",
+  "daily_chars": {
+    "min": 800,
+    "max": 1200
+  },
+  "weekly_chars": {
+    "min": 1200,
+    "max": 1800
+  },
+  "daily_insights": {
+    "allowed": [0, 2, 3, 4]
+  },
+  "max_dimensions_per_item": 2,
+  "daily_min_work_evidence_groups": 1,
+  "insight_min_source_refs": 2,
+  "insight_min_source_kinds": 2,
+  "higher_min_supporting_items": 2
+}

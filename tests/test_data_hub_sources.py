@@ -13,7 +13,6 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import generate_candidates
 import materialize_candidates
-import daily_summary
 import source_dates
 import source_ingest_store
 from candidate_store import candidate_type_for
@@ -376,24 +375,6 @@ def test_prune_stale_candidates_removes_wrong_date_candidates(tmp_path: Path):
         conn.close()
 
     assert remaining == 0
-
-
-def test_inject_summary_to_daily_rewrites_section_in_place(tmp_path: Path):
-    daily_path = tmp_path / "2026-07-04.md"
-    daily_path.write_text(
-        "# 2026-07-04\n\n## AI 总结\n\n- old item\n\n## 明日计划\n\n- [ ] next\n",
-        encoding="utf-8",
-    )
-
-    daily_summary.inject_summary_to_daily(daily_path, "- new item\n- next item")
-    daily_summary.inject_summary_to_daily(daily_path, "- final item")
-    text = daily_path.read_text(encoding="utf-8")
-
-    assert text.count("## AI 总结") == 1
-    assert "- old item" not in text
-    assert "- new item" not in text
-    assert "- final item" in text
-    assert "## 明日计划" in text
 
 
 def test_materialize_daily_candidate_is_idempotent(tmp_path: Path):

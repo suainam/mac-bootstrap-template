@@ -5,6 +5,7 @@ description = "macOS development environment bootstrap tests"
 requires-python = ">=3.12"
 dependencies = [
     "chinese-calendar>=1.9.0",
+    "jsonschema>=4.0",
     "openai>=1.0.0",
 ]
 

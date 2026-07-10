@@ -32,6 +32,32 @@ def test_planned_workflows_for_weekly_trigger(monkeypatch):
     assert run_summary_schedule.planned_workflows("2026-07-10") == ["build_daily_summary", "build_weekly_summary"]
 
 
+def test_period_boundary_expands_lower_dependency_closure(monkeypatch):
+    monkeypatch.setattr(
+        run_summary_schedule.summary_calendar,
+        "is_summary_trigger_day",
+        lambda level, date: level in {"daily", "yearly"},
+    )
+
+    assert run_summary_schedule.planned_workflows("2026-12-31") == [
+        "build_daily_summary",
+        "build_weekly_summary",
+        "build_monthly_summary",
+        "build_quarterly_summary",
+        "build_yearly_summary",
+    ]
+
+
+def test_non_workday_boundary_does_not_invent_daily(monkeypatch):
+    monkeypatch.setattr(
+        run_summary_schedule.summary_calendar,
+        "is_summary_trigger_day",
+        lambda level, date: level == "monthly",
+    )
+
+    assert run_summary_schedule.planned_workflows("2026-10-31") == ["build_weekly_summary", "build_monthly_summary"]
+
+
 def test_run_workflow_delegates_to_lifecycle_manager(monkeypatch):
     calls = []
 

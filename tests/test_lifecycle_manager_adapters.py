@@ -35,7 +35,7 @@ def test_docs_describe_summary_schedule_not_full_cycle() -> None:
     combined = "\n".join([readme, ops, cron])
     assert "build_daily_summary" in combined
     assert "70_Summaries/Daily" in combined
-    assert "18:30" in combined
+    assert "18:00" in combined
     assert "full_cycle" not in readme
     assert "run --workflow full_cycle" not in ops
     assert "run --workflow full_cycle" not in cron
@@ -46,7 +46,6 @@ def test_data_hub_executable_python_scripts_live_under_scripts_dir() -> None:
     script_names = {
         "auto_review.py",
         "claim_extraction.py",
-        "daily_summary.py",
         "generate_candidates.py",
         "health_check.py",
         "hygiene_audit.py",
@@ -81,11 +80,12 @@ def test_obsidian_launchd_installer_uses_current_schedule_and_paths() -> None:
     assert "<integer>18</integer>" in script_text
     assert "<integer>30</integer>" in script_text
     assert "${DATA_HUB_DIR}/daily_morning.sh" in script_text
+    assert "${DATA_HUB_DIR}/daily_reminder.sh" in script_text
     assert "${DATA_HUB_DIR}/run-daily-evening.sh" in script_text
     assert "${SCRIPTS_DIR}/weekly_summary.py" not in script_text
     assert "weekly-summary" in script_text
-    assert "18:30 生成" in script_text
-    assert "18:00 生成" not in script_text
+    assert "18:00  自动生成" in script_text
+    assert "18:30" not in script_text
     assert '\nWEEKLY_LABEL="' not in script_text
     assert "WEEKLY_PLIST" not in script_text
     assert "${SCRIPTS_DIR}/daily_morning.sh" not in script_text
@@ -98,8 +98,8 @@ def test_troubleshooting_uses_current_evening_schedule() -> None:
     ).read_text(encoding="utf-8")
 
     assert "晚间 summary schedule" in troubleshooting
-    assert "18:30 触发" in troubleshooting
-    assert "18:00 触发" not in troubleshooting
+    assert "18:00 触发" in troubleshooting
+    assert "18:30" not in troubleshooting
 
 
 def test_cron_docs_run_summary_schedule_daily() -> None:
@@ -107,9 +107,9 @@ def test_cron_docs_run_summary_schedule_daily() -> None:
         encoding="utf-8"
     )
 
-    assert '/cron create "0 30 18 * * *"' in cron
-    assert "Every day at 18:30" in cron
-    assert "Every weekday at 18:30" not in cron
+    assert '/cron create "0 0 18 * * *"' in cron
+    assert "Every day at 18:00" in cron
+    assert "Every weekday at 18:00" not in cron
 
 
 def test_seed_periodic_templates_include_ai_summary_sections() -> None:
