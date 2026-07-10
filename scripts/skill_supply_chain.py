@@ -835,7 +835,12 @@ def build_reconcile_actions(
     return actions
 
 
-def apply_reconcile_actions(actions: list[ReconcileAction], *, apply: bool = False) -> None:
+def apply_reconcile_actions(
+    actions: list[ReconcileAction],
+    *,
+    apply: bool = False,
+    remove_real_paths: bool = False,
+) -> None:
     for action in actions:
         prefix = "APPLY" if apply else "DRY-RUN"
         print(
@@ -845,6 +850,8 @@ def apply_reconcile_actions(actions: list[ReconcileAction], *, apply: bool = Fal
         if not apply:
             continue
         if action.action == "skip-real-path":
+            if remove_real_paths and action.target_path.is_dir() and not action.target_path.is_symlink():
+                shutil.rmtree(action.target_path)
             continue
         if action.target_path.is_symlink() or action.target_path.is_file():
             action.target_path.unlink()
@@ -1131,7 +1138,7 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
             ROOT,
             allow_worktree_apply=os.environ.get("SKILL_SUPPLY_CHAIN_ALLOW_WORKTREE_APPLY") == "1",
         )
-    apply_reconcile_actions(actions, apply=should_apply)
+    apply_reconcile_actions(actions, apply=should_apply, remove_real_paths=bool(args.remove_real_paths))
     skipped = sum(1 for action in actions if action.action == "skip-real-path")
     removable = len(actions) - skipped
     mode = "APPLY" if should_apply else "DRY-RUN"
@@ -1220,6 +1227,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--after")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply", action="store_true", help="apply destructive reconcile actions")
+    parser.add_argument(
+        "--remove-real-paths",
+        action="store_true",
+        help="allow reconcile to delete real directories; use only with narrow --surface/--skill filters",
+    )
     parser.add_argument(
         "--surface",
         choices=["global", "project"],

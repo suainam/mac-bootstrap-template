@@ -74,10 +74,16 @@
       "skills": {
         "find-skills": {
           "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
           "gate": {
             "manual_approval": true,
-            "approved": false,
-            "reason": "user requested: npx skills add https://github.com/vercel-labs/skills --skill find-skills; approve after quarantine audit"
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:781bd6d3f9b19f8c9af6b53d8d0e4876d0183841b565db34ca7092ffa412d111",
+            "reason": "User-confirmed global routed; approved current quarantined version after clean redistribution"
           }
         }
       }
@@ -123,7 +129,18 @@
       "ref": "https://github.com/affaan-m/everything-claude-code.git",
       "skills": {
         "python-testing": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:076c407824b1271b9068c59e793626e768e98073266c4ed587f752227ef15d6a",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "docker-patterns": {
           "distribution_state": "staged",
@@ -136,10 +153,32 @@
           "reason": "User-confirmed stage; keep source available for ETL/backfill work"
         },
         "search-first": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:747f8d650d4edc84d92e23f1ee993f8e6856150bdc69ae92504c389b3966fb2f",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "documentation-lookup": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:54de2620bc7a901ffbcbfaa8e767b6854b38cbc00fc47c5d2c630be47a2c7ac8",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "postgres-patterns": {
           "distribution_state": "staged"
@@ -190,22 +229,77 @@
           "reason": "User-confirmed delete; diagnose is the global debugging entry"
         },
         "improve-codebase-architecture": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:2823acbf7eb6674817713d21f449418c03dc4dbe33661760cff64255d40f8532",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "grill-with-docs": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:8683d99a2d347d358662c4d4744affd38212913b85a69158118b1f6735e5da7e",
+            "reason": "User-confirmed keep-global; approved current quarantined version after clean redistribution"
+          },
           "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
         },
         "handoff": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:cdbcb9150df241254a5178eeebfa7c20c9a09613b19aea56eb4d4ca79893666e",
+            "reason": "User-confirmed global workflow skill; approved current quarantined version after clean redistribution"
+          },
           "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
         },
         "writing-great-skills": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:396fd1098e3f311f0f4373bab9c503b365f0ffcfe3c5bfbc74840a7e0b046c21",
+            "reason": "User-confirmed keep-global; approved current quarantined version after clean redistribution"
+          },
           "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
         },
         "diagnose": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:c8bafba01efc7a2c67e4f83e7f657a4fa55c5578b1d75c50764ff0f11db4ff6c",
+            "reason": "User-confirmed global debugging entry; restored from pre-clean Reasonix backup because current skills.sh CLI no longer exposes diagnose"
+          },
           "reason": "User-confirmed global debugging entry; skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill diagnose"
         },
         "write-a-skill": {
@@ -266,6 +360,17 @@
       "skills": {
         "codebase-memory": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:e3bdcd27e7d34721c9407ef38c91620c0c2164207ba6bcb1b930231ca0be9aad",
+            "reason": "User-confirmed global; restored from pre-clean Claude runtime backup because upstream is MCP/runtime material"
+          },
           "reason": "User-confirmed global; current skills.sh list found no SKILL.md, so distribution still requires a manual/quarantine source before fresh installs"
         }
       }
@@ -278,6 +383,18 @@
       "skills": {
         "playwright": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:2b1315e0e6c865783aaf7fb8d5455920a4bdc4e46511ed2ad78584e3d553cbf0",
+            "reason": "User-confirmed global; restored current runtime skill from pre-clean Codex backup and bound hash"
+          },
           "reason": "User-confirmed global; existing runtime skill is named playwright, while current skills.sh source exposes playwright-dev/playwright-devops/playwright-test-results/playwright-triage"
         },
         "playwright-dev": {
@@ -338,7 +455,18 @@
           }
         },
         "neat-freak": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:8de86eddde5d5329108fdc0315ffa6167ddb2d5a0e77f091078578de472db99c",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         }
       }
     },
@@ -436,7 +564,18 @@
       "ref": "https://github.com/op7418/Humanizer-zh.git",
       "skills": {
         "humanizer-zh": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:6ec65e7426594de020c5f568b4fb03810acae473acb680fa75debeaf5efa1170",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         }
       }
     },
@@ -478,23 +617,90 @@
       "ref": "https://github.com/obra/superpowers.git",
       "skills": {
         "using-git-worktrees": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:e6306e69246610dc203c8639584542e16bfbb0b09d0adddac533ca009fa93180",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "writing-plans": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:9d6565e8748399c61246be6f2a5af2113caa39feb8d0d6eca199f5b29310bbaf",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "executing-plans": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:c2df3ab9dfbb243f9f82940450dcd7ea3ee0c94f63ef510afd6037d1ac54815c",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "brainstorming": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:a1202a6a5e8d86659745e69030c06bfb033f265d8a276f29b24b8a57c4809399",
+            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+          }
         },
         "finishing-a-development-branch": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:0c140b3e01a984ea1a3d2b79b83406b137847597eaa9a740f6a71a94bccafda4",
+            "reason": "User-confirmed global distribution; approved current quarantined version after clean redistribution"
+          },
           "reason": "User-confirmed global distribution"
         },
         "requesting-code-review": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-10",
+            "approved_hash": "sha256:65cad7b7959ddd26423d94d72a8e8ce669d49be5d3ce9309dd151a999ecf54e1",
+            "reason": "User-confirmed global distribution; approved current quarantined version after clean redistribution"
+          },
           "reason": "User-confirmed global distribution"
         },
         "test-driven-development": {
