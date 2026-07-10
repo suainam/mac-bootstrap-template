@@ -142,6 +142,31 @@ exit: 0
 - Deep Chat 的网络、认证与具体引用质量属于运行时条件；采集器将异常显式降级为 `quality_status=degraded`，后续编排层必须把它写入摘要状态，不能静默伪造完整性。
 - Task 3 只产出 evidence packet，不生成 JSON 摘要或 Markdown；筛选、篇幅和洞察证据门槛由 Task 4/5 执行。
 
+## Task 4 — Contract-First Synthesis
+
+状态：完成；待与本 Task 的代码一起提交。
+
+### 产物
+
+- 重写 Daily/Weekly prompt，并新增 `higher-period-summary.md`；三者都注入 schema、taxonomy、policy 和 evidence packet，只允许 JSON 输出。
+- `summary_synthesis.py`：按 level 选 prompt、调用统一 backend、解析 JSON、按 contract/evidence group 校验；首次失败附带校验错误重试一次，第二次失败显式报错。
+- `chat_review.md`：候选抽取增加可控维度 hint 与 evidence refs，但不把 suggestion 升格为 accepted knowledge。
+- `test_summary_synthesis.py`：覆盖五层 prompt 路由及 invalid JSON 的单次 repair retry。
+
+### 验证
+
+```text
+$ .venv/bin/python -m pytest tests/test_summary_synthesis.py tests/test_candidate_review.py tests/test_llm_filter.py -q
+................................................                         [100%]
+48 passed in 0.74s
+exit: 0
+```
+
+### 风险与下一检查点
+
+- `summary_synthesis` 是纯结构化生成层，不做 Markdown 字符计数、文件写入或 SQLite 状态转换；这些由 renderer/publisher 完成。
+- 真实 backend 可接受 `BackendRequest` 或最小 `generate(prompt)` fake；生产路径由编排层选择已配置 backend，避免在 contract 层绑定私有模型配置。
+
 ## 最终验收预留
 
 - isolated DB/vault 的 Daily、Weekly、Monthly、Quarterly、Yearly 产物。
