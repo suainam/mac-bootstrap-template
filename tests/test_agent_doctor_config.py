@@ -31,6 +31,15 @@ def test_agent_doctor_checks_prompt_mcp_helper():
     assert 'agent-prompt-mcp helper' in content
 
 
+def test_agent_doctor_delegates_mcp_validation_to_runtime_audit():
+    content = open(os.path.join(TEMPLATE, "scripts", "agent-doctor.sh")).read()
+    assert "audit_mcp_config()" in content
+    assert 'agent_mcp_runtime.py" audit' in content
+    assert 'audit_mcp_config codex "$CODEX_TOML" --hooks-path "$CODEX_HOOKS"' in content
+    assert 'audit_mcp_config claude "$CLAUDE_MCP_JSON"' in content
+    assert 'check_contains "config.toml CBM"' not in content
+
+
 def test_agent_doctor_continues_after_agentshield_findings():
     content = open(os.path.join(TEMPLATE, "scripts", "agent-doctor.sh")).read()
     assert 'run npx ecc-agentshield scan || AGENTSHIELD_RC=$?' in content

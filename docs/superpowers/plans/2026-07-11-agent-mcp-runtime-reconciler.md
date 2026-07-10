@@ -16,7 +16,7 @@
 - Keep optional DevSpace and X API behavior environment-driven.
 - Treat OAuth readiness separately from server process availability.
 - TDD every behavior: RED, GREEN, REFACTOR.
-- Historical `code-review-graph` configuration is removed, not retained as a permanent compatibility path.
+- Retired graph-server configuration is removed, not retained as a permanent compatibility path.
 
 ---
 
@@ -101,7 +101,7 @@ Render TOML from the normalized specs. The CLI accepts explicit host/path/contex
 
 - [ ] **Step 4: Convert shell MCP configuration to thin adapters**
 
-Replace embedded per-host MCP definitions with `write_mcp_config`. Retain `write_json_file` only for non-MCP Antigravity settings. Remove `code-review-graph` cleanup statements after the live/source cleanup is proven.
+Replace embedded per-host MCP definitions with `write_mcp_config`. Retain `write_json_file` only for non-MCP Antigravity settings. Remove retired graph-server cleanup statements after the live/source cleanup is proven.
 
 - [ ] **Step 5: Keep Codex wrapper compatibility**
 
@@ -159,7 +159,7 @@ Replace Codex/JSON-agent string checks with CLI audit calls while retaining non-
 
 - [ ] **Step 5: Align docs and remove obsolete residues**
 
-Document desired-state ownership, host adapters, install/apply/audit flow, optional server semantics, and single-representation hooks. Remove obsolete `.code-review-graph/` ignore entries and source cleanup references.
+Document desired-state ownership, host adapters, install/apply/audit flow, optional server semantics, and single-representation hooks. Remove obsolete graph-cache ignore entries and source cleanup references.
 
 - [ ] **Step 6: Run focused GREEN**
 

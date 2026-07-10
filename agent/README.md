@@ -78,15 +78,17 @@ The script is intentionally split by responsibility:
 - Runner source: `template/scripts/agent-quality-gate.sh`
 - Repo-managed git hooks are authoritative for real `commit` / `push` events.
 - Codex `hooks.json` does not own quality gate execution and should not guess git intent from prompts.
+- Codex hook commands use `hooks.json` only; `config.toml` must not define a second hook representation.
 - `pre-commit` is fast and path-sensitive.
 - `pre-push` is authoritative and runs doc alignment, repo validation, and knowledge recording.
 - `QUALITY_GATES_BYPASS=1` is break-glass only and is reported by doctor output.
 - `scripts/lib/agent-shared.sh` — shell helpers (run/try_run, managed block writes)
 - `scripts/lib/agent-manifest.sh` — manifest/path resolution
-- `scripts/lib/agent-mcp.sh` — shared MCP/JSON config writers
+- `scripts/agent_mcp_runtime.py` — normalized MCP desired state, host adapters, rendering, and semantic audit
+- `scripts/lib/agent-mcp.sh` — thin shell adapters that apply normalized MCP state
 - `scripts/lib/agent-configure.sh` — per-step agent/platform configuration bodies
 - `scripts/sync-agent-prompts.sh` + `scripts/agent-prompt-index.py` — prompt-library sync/index
-- `scripts/render-codex-mcp-block.py` + `scripts/sync-codex-mcp-config.py` — idempotent Codex MCP rendering/rewrite
+- `scripts/render-codex-mcp-block.py` + `scripts/sync-codex-mcp-config.py` — compatibility CLI and idempotent Codex managed-section rewrite
 - `scripts/run-doctor-checks.py` + `scripts/doctor-manifest.json` — data-driven doctor checks derived from Brewfile
 
 ---

@@ -8,6 +8,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts" / "agent_mcp_runtime.py"
@@ -108,17 +110,17 @@ def test_json_host_adapter_preserves_unmanaged_state():
     assert result["mcpServers"]["unmanaged"] == {"command": "mine"}
     assert "devspace" not in result["mcpServers"]
     assert result["mcpServers"]["x-docs"] == {"url": "https://docs.x.com/mcp"}
-    assert result["mcpServers"]["context-mode"]["args"] == []
+    assert "context-mode" not in result["mcpServers"]
 
 
 def test_opencode_adapter_uses_local_and_remote_shapes():
     result = runtime.render_json_config(
         "opencode", {"mcp": {}}, runtime.desired_servers(inputs())
     )
-    assert result["mcp"]["context-mode"] == {
+    assert result["mcp"]["codebase-memory-mcp"] == {
         "enabled": True,
         "type": "local",
-        "command": ["context-mode"],
+        "command": ["codebase-memory-mcp"],
     }
     assert result["mcp"]["x-docs"] == {
         "enabled": True,
@@ -187,5 +189,65 @@ def test_render_json_cli_preserves_unmanaged_keys_and_replaces_file(tmp_path):
     rendered = json.loads(target.read_text())
     assert rendered["theme"] == "dark"
     assert rendered["mcpServers"]["mine"] == {"command": "mine"}
-    assert rendered["mcpServers"]["context-mode"]["command"] == "context-mode"
+    assert rendered["mcpServers"]["codebase-memory-mcp"]["command"] == "codebase-memory-mcp"
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_semantic_audit_reports_stable_issue_codes():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.render_json_config("claude", {}, desired)
+    del config["mcpServers"]["codebase-memory-mcp"]
+    config["mcpServers"]["context7"]["command"] = "wrong"
+    config["mcpServers"]["devspace"] = {"url": "https://stale.example/mcp"}
+    config["mcpServers"]["mine"] = {"command": "unmanaged"}
+    issues = runtime.audit_config("claude", config, desired)
+    assert [(issue.code, issue.server) for issue in issues] == [
+        ("missing_server", "codebase-memory-mcp"),
+        ("server_mismatch", "context7"),
+        ("stale_managed_server", "devspace"),
+    ]
+
+
+def test_audit_distinguishes_missing_executable_from_semantic_drift():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.parse_codex_toml(runtime.render_codex_toml(desired))
+    issues = runtime.audit_config(
+        "codex",
+        config,
+        desired,
+        executable_resolver=lambda command: None if command == "context-mode" else command,
+    )
+    assert [(issue.code, issue.server) for issue in issues] == [
+        ("missing_executable", "context-mode")
+    ]
+
+
+def test_remote_oauth_server_is_not_classified_as_broken():
+    desired = runtime.desired_servers(
+        inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
+    )
+    config = runtime.render_json_config("claude", {}, desired)
+    assert runtime.audit_config("claude", config, desired) == []
+
+
+def test_codex_audit_detects_duplicate_hook_representation():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.parse_codex_toml(
+        runtime.render_codex_toml(desired)
+        + '\n[[hooks.SessionStart]]\nmatcher = "startup|resume"\n'
+        + '[[hooks.SessionStart.hooks]]\ntype = "command"\ncommand = "echo ready"\n'
+    )
+    issues = runtime.audit_config(
+        "codex", config, desired, external_hooks_present=True
+    )
+    assert [issue.code for issue in issues] == ["duplicate_hook_representation"]
+
+
+@pytest.mark.parametrize("host", ["claude", "opencode", "pi", "reasonix", "antigravity"])
+def test_every_json_host_round_trips_through_semantic_audit(host):
+    desired = runtime.desired_servers(
+        inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
+    )
+    config = runtime.render_json_config(host, {"unmanaged": True}, desired)
+    assert config["unmanaged"] is True
+    assert runtime.audit_config(host, config, desired) == []

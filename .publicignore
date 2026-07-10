@@ -6,7 +6,6 @@
 
 private/
 .agents/
-.code-review-graph/
 skills-lock.json
 
 .env

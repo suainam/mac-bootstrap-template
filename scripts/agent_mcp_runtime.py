@@ -9,8 +9,10 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
-from typing import Any, Mapping
+import tomllib
+from typing import Any, Callable, Mapping
 
 
 MANAGED_NAMES = (
@@ -93,6 +95,20 @@ class ServerSpec:
     env: Mapping[str, str] = field(default_factory=dict)
     startup_timeout_sec: int | None = None
     tool_approvals: tuple[str, ...] = ()
+    hosts: tuple[str, ...] = (
+        "codex",
+        "claude",
+        "opencode",
+        "pi",
+        "reasonix",
+        "antigravity",
+    )
+
+
+@dataclass(frozen=True)
+class AuditIssue:
+    code: str
+    server: str = ""
 
 
 def managed_server_names() -> tuple[str, ...]:
@@ -122,7 +138,11 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
 
     servers = {
         "context-mode": ServerSpec(
-            "context-mode", "local", command="context-mode", tool_approvals=CONTEXT_MODE_TOOLS
+            "context-mode",
+            "local",
+            command="context-mode",
+            tool_approvals=CONTEXT_MODE_TOOLS,
+            hosts=("codex",),
         ),
         "codebase-memory-mcp": ServerSpec(
             "codebase-memory-mcp",
@@ -188,7 +208,7 @@ def render_json_config(
     current = result.get(root_key)
     servers = deepcopy(current) if isinstance(current, dict) else {}
     for name in MANAGED_NAMES:
-        if name in desired:
+        if name in desired and host in desired[name].hosts:
             servers[name] = adapt_server(host, desired[name])
         else:
             servers.pop(name, None)
@@ -207,6 +227,8 @@ def _toml_array(values: tuple[str, ...]) -> str:
 def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
     sections = ["# BEGIN MAC-BOOTSTRAP MANAGED MCPS"]
     for name, spec in desired.items():
+        if "codex" not in spec.hosts:
+            continue
         lines = [f"[mcp_servers.{name}]"]
         if spec.transport == "remote":
             lines.append(f"url = {_toml_string(spec.url)}")
@@ -228,6 +250,71 @@ def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
             )
     sections.append("# END MAC-BOOTSTRAP MANAGED MCPS")
     return "\n\n".join(sections) + "\n"
+
+
+def parse_codex_toml(text: str) -> dict[str, Any]:
+    return tomllib.loads(text)
+
+
+def _codex_server(spec: ServerSpec) -> dict[str, Any]:
+    if spec.transport == "remote":
+        result: dict[str, Any] = {"url": spec.url}
+    else:
+        result = {"command": spec.command, "args": list(spec.args)}
+        if spec.startup_timeout_sec is not None:
+            result["startup_timeout_sec"] = spec.startup_timeout_sec
+    if spec.env:
+        result["env"] = dict(spec.env)
+    if spec.tool_approvals:
+        result["tools"] = {
+            tool: {"approval_mode": "approve"} for tool in spec.tool_approvals
+        }
+    return result
+
+
+def audit_config(
+    host: str,
+    config: Mapping[str, Any],
+    desired: Mapping[str, ServerSpec],
+    *,
+    external_hooks_present: bool = False,
+    executable_resolver: Callable[[str], str | None] | None = None,
+) -> list[AuditIssue]:
+    root_key = "mcp" if host == "opencode" else "mcpServers"
+    if host == "codex":
+        root_key = "mcp_servers"
+    observed_value = config.get(root_key, {})
+    observed = observed_value if isinstance(observed_value, dict) else {}
+    issues: list[AuditIssue] = []
+
+    for name, spec in desired.items():
+        if host not in spec.hosts:
+            continue
+        if name not in observed:
+            issues.append(AuditIssue("missing_server", name))
+            continue
+        expected = _codex_server(spec) if host == "codex" else adapt_server(host, spec)
+        if observed[name] != expected:
+            issues.append(AuditIssue("server_mismatch", name))
+
+    for name in MANAGED_NAMES:
+        if name in observed and (name not in desired or host not in desired[name].hosts):
+            issues.append(AuditIssue("stale_managed_server", name))
+
+    if executable_resolver is not None:
+        mismatched = {issue.server for issue in issues if issue.code != "stale_managed_server"}
+        for name, spec in desired.items():
+            if host not in spec.hosts:
+                continue
+            if spec.transport == "local" and name not in mismatched:
+                if executable_resolver(spec.command) is None:
+                    issues.append(AuditIssue("missing_executable", name))
+
+    hooks = config.get("hooks", {})
+    toml_hooks_present = isinstance(hooks, dict) and any(key != "state" for key in hooks)
+    if host == "codex" and external_hooks_present and toml_hooks_present:
+        issues.append(AuditIssue("duplicate_hook_representation"))
+    return issues
 
 
 def _runtime_inputs(args: argparse.Namespace) -> RuntimeInputs:
@@ -265,6 +352,17 @@ def main() -> int:
     codex_parser = subparsers.add_parser("render-codex")
     _add_runtime_args(codex_parser)
 
+    audit_parser = subparsers.add_parser("audit")
+    audit_parser.add_argument(
+        "--host",
+        required=True,
+        choices=("codex", "claude", "opencode", "pi", "reasonix", "antigravity"),
+    )
+    audit_parser.add_argument("--path", required=True)
+    audit_parser.add_argument("--hooks-path")
+    audit_parser.add_argument("--check-executables", action="store_true")
+    _add_runtime_args(audit_parser)
+
     args = parser.parse_args()
     desired = desired_servers(_runtime_inputs(args))
     if args.action == "render-codex":
@@ -272,6 +370,28 @@ def main() -> int:
         return 0
 
     target = Path(args.path).expanduser()
+    if args.action == "audit":
+        if not target.exists():
+            print(f"missing_config host={args.host}")
+            return 1
+        if args.host == "codex":
+            config = parse_codex_toml(target.read_text())
+        else:
+            config = json.loads(target.read_text())
+        resolver = shutil.which if args.check_executables else None
+        hooks_present = bool(args.hooks_path and Path(args.hooks_path).expanduser().exists())
+        issues = audit_config(
+            args.host,
+            config,
+            desired,
+            external_hooks_present=hooks_present,
+            executable_resolver=resolver,
+        )
+        for issue in issues:
+            suffix = f" server={issue.server}" if issue.server else ""
+            print(f"{issue.code} host={args.host}{suffix}")
+        return 1 if issues else 0
+
     existing: Mapping[str, Any] = {}
     if target.exists() and target.read_text().strip():
         loaded = json.loads(target.read_text())
