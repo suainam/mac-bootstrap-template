@@ -25,6 +25,17 @@ MANAGED_NAMES = (
     "xapi",
 )
 RETIRED_ALIASES = ("code-review-graph", "codebase-memory")
+CONTEXT7_PROXY_KEYS = {
+    "NODE_USE_ENV_PROXY",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "NO_PROXY",
+    "no_proxy",
+}
 
 CBM_TOOLS = (
     "search_graph",
@@ -285,15 +296,31 @@ def _stable_server_view(name: str, value: Any) -> Any:
     if name != "context7" or not isinstance(value, dict):
         return value
     stable = deepcopy(value)
-    stable.pop("env", None)
-    args = stable.get("args")
-    if isinstance(args, list) and "--api-key" in args:
-        index = args.index("--api-key")
-        del args[index : index + 2]
-    command = stable.get("command")
-    if isinstance(command, list) and "--api-key" in command:
-        index = command.index("--api-key")
-        del command[index : index + 2]
+    env = stable.pop("env", None)
+    if env:
+        valid_env = (
+            isinstance(env, dict)
+            and set(env) == CONTEXT7_PROXY_KEYS
+            and env.get("NODE_USE_ENV_PROXY") == "1"
+            and all(isinstance(item, str) and item for item in env.values())
+        )
+        if not valid_env:
+            stable["invalid_context7_env"] = True
+    for key in ("args", "command"):
+        values = stable.get(key)
+        if not isinstance(values, list) or "--api-key" not in values:
+            continue
+        indexes = [index for index, item in enumerate(values) if item == "--api-key"]
+        valid_key = (
+            len(indexes) == 1
+            and indexes[0] + 1 < len(values)
+            and isinstance(values[indexes[0] + 1], str)
+            and bool(values[indexes[0] + 1])
+        )
+        if valid_key:
+            del values[indexes[0] : indexes[0] + 2]
+        else:
+            stable["invalid_context7_api_key"] = True
     return stable
 
 

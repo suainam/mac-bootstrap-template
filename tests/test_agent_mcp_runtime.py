@@ -104,6 +104,41 @@ def test_audit_ignores_context7_secret_and_proxy_environment_drift():
     assert runtime.audit_config("claude", config, audited) == []
 
 
+@pytest.mark.parametrize(
+    "bad_env",
+    [
+        {"MALICIOUS": "1"},
+        {
+            "NODE_USE_ENV_PROXY": "0",
+            "HTTP_PROXY": "http://proxy",
+            "HTTPS_PROXY": "http://proxy",
+            "http_proxy": "http://proxy",
+            "https_proxy": "http://proxy",
+            "ALL_PROXY": "http://proxy",
+            "all_proxy": "http://proxy",
+            "NO_PROXY": "localhost",
+            "no_proxy": "localhost",
+        },
+    ],
+)
+def test_audit_rejects_invalid_context7_proxy_environment(bad_env):
+    desired = runtime.desired_servers(inputs())
+    config = runtime.render_json_config("claude", {}, desired)
+    config["mcpServers"]["context7"]["env"] = bad_env
+    assert [(issue.code, issue.server) for issue in runtime.audit_config("claude", config, desired)] == [
+        ("server_mismatch", "context7")
+    ]
+
+
+def test_audit_rejects_malformed_context7_api_key_argument():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.render_json_config("claude", {}, desired)
+    config["mcpServers"]["context7"]["args"].append("--api-key")
+    assert [(issue.code, issue.server) for issue in runtime.audit_config("claude", config, desired)] == [
+        ("server_mismatch", "context7")
+    ]
+
+
 def test_runtime_inputs_from_env_supports_lowercase_proxy_and_optional_servers():
     parsed = runtime.RuntimeInputs.from_env(
         bootstrap=Path("/repo"),
