@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
+import subprocess
 import sys
 
 
@@ -135,3 +137,55 @@ def test_managed_server_names_include_optional_names():
         "devspace",
         "xapi",
     )
+
+
+def test_codex_toml_is_rendered_from_normalized_specs():
+    desired = runtime.desired_servers(
+        inputs(
+            context7_key='a"b',
+            http_proxy="http://127.0.0.1:7897",
+            devspace_enabled=True,
+            devspace_url="https://devspace.example/mcp",
+            xapi_enabled=True,
+        )
+    )
+    rendered = runtime.render_codex_toml(desired)
+    assert rendered.startswith("# BEGIN MAC-BOOTSTRAP MANAGED MCPS")
+    assert rendered.endswith("# END MAC-BOOTSTRAP MANAGED MCPS\n")
+    assert '[mcp_servers.codebase-memory-mcp.tools.search_graph]' in rendered
+    assert 'approval_mode = "approve"' in rendered
+    assert 'args = ["-y", "@upstash/context7-mcp", "--api-key", "a\\\"b"]' in rendered
+    assert '[mcp_servers.context7.env]' in rendered
+    assert '[mcp_servers.devspace]' in rendered
+    assert 'startup_timeout_sec = 300' in rendered
+
+
+def test_render_json_cli_preserves_unmanaged_keys_and_replaces_file(tmp_path):
+    target = tmp_path / "settings.json"
+    target.write_text(
+        json.dumps({"theme": "dark", "mcpServers": {"mine": {"command": "mine"}}})
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(MODULE_PATH),
+            "render-json",
+            "--host",
+            "claude",
+            "--path",
+            str(target),
+            "--bootstrap",
+            "/repo",
+            "--context7-command",
+            "npx",
+        ],
+        capture_output=True,
+        text=True,
+        env={"HOME": "/home/alice"},
+    )
+    assert result.returncode == 0, result.stderr
+    rendered = json.loads(target.read_text())
+    assert rendered["theme"] == "dark"
+    assert rendered["mcpServers"]["mine"] == {"command": "mine"}
+    assert rendered["mcpServers"]["context-mode"]["command"] == "context-mode"
+    assert not list(tmp_path.glob("*.tmp"))

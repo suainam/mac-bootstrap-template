@@ -6,19 +6,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from agent_mcp_runtime import managed_server_names
+
 
 START_MARKER = "# BEGIN MAC-BOOTSTRAP MANAGED MCPS"
 END_MARKER = "# END MAC-BOOTSTRAP MANAGED MCPS"
-MANAGED_PREFIXES = (
-    "mcp_servers.context-mode",
-    "mcp_servers.context7",
-    "mcp_servers.codebase-memory-mcp",
-    "mcp_servers.codebase-memory-mcp",
+MANAGED_PREFIXES = tuple(f"mcp_servers.{name}" for name in managed_server_names()) + (
     "mcp_servers.codebase-memory",
-    "mcp_servers.agent-prompt-library",
-    "mcp_servers.x-docs",
-    "mcp_servers.devspace",
-    "mcp_servers.xapi",
 )
 
 

@@ -6,75 +6,32 @@ write_json_file() {
   if [ "${DRY_RUN:-0}" -eq 1 ]; then
     echo "DRY-RUN: write JSON config $target_path"
   else
-    node - "$target_path" "$CONTEXT7_KEY" "$BOOTSTRAP" "$code" <<'NODE'
+    node - "$target_path" "$code" <<'NODE'
 const fs = require("fs");
-const { execSync } = require("child_process");
 const path = process.argv[2];
-const key = process.argv[3] || "";
-const bootstrap = process.argv[4] || "";
-const code = process.argv[5];
-
-const getContext7Config = (key) => {
-  let isGlobal = false;
-  let command = "npx";
-  let args = ["-y", "@upstash/context7-mcp"];
-  try {
-    isGlobal = execSync("command -v context7-mcp", { encoding: "utf8", stdio: [] }).trim() !== "";
-    if (isGlobal) {
-      command = execSync("command -v context7-mcp", { encoding: "utf8" }).trim();
-      args = [];
-    }
-  } catch (e) {}
-  if (key) {
-    args.push("--api-key", key);
-  }
-  const cfg = { command, args };
-  const proxy = process.env.HTTP_PROXY || process.env.http_proxy || "";
-  if (proxy) {
-    cfg.env = {
-      NODE_USE_ENV_PROXY: "1",
-      HTTP_PROXY: proxy,
-      HTTPS_PROXY: process.env.HTTPS_PROXY || process.env.https_proxy || proxy,
-      http_proxy: proxy,
-      https_proxy: process.env.HTTPS_PROXY || process.env.https_proxy || proxy,
-      ALL_PROXY: process.env.ALL_PROXY || proxy,
-    };
-  }
-  return cfg;
-};
-
-const getPromptLibraryConfig = () => ({
-  command: process.env.HOME + "/.local/bin/agent-prompt-mcp",
-  args: [],
-});
-
-const getXDocsConfig = () => ({
-  url: "https://docs.x.com/mcp",
-});
-
-const getDevSpaceConfig = () => {
-  const enabled = process.env.DEVSPACE_MCP_ENABLE === "1";
-  const url = process.env.DEVSPACE_MCP_URL || "";
-  if (!enabled || !url) return null;
-  return { url };
-};
-
-const getXApiConfig = () => {
-  const enabled = process.env.X_MCP_ENABLE === "1";
-  if (!enabled) {
-    return null;
-  }
-  return {
-    command: bootstrap + "/scripts/x-mcp-bridge.sh",
-    args: [],
-    startup_timeout_sec: 300,
-  };
-};
-
-const fn = new Function("fs", "path", "key", "getContext7Config", "getPromptLibraryConfig", "getXDocsConfig", "getDevSpaceConfig", "getXApiConfig", code);
-fn(fs, path, key, getContext7Config, getPromptLibraryConfig, getXDocsConfig, getDevSpaceConfig, getXApiConfig);
+const code = process.argv[3];
+const fn = new Function("fs", "path", code);
+fn(fs, path);
 NODE
   fi
+}
+
+write_mcp_config() {
+  local host="$1" target_path="$2" context7_command="npx"
+  local python_bin="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
+  if have context7-mcp; then
+    context7_command="$(command -v context7-mcp)"
+  fi
+  run mkdir -p "$(dirname "$target_path")"
+  if [ "${DRY_RUN:-0}" -eq 1 ]; then
+    echo "DRY-RUN: render $host MCP config $target_path"
+    return 0
+  fi
+  "$python_bin" "$BOOTSTRAP/scripts/agent_mcp_runtime.py" render-json \
+    --host "$host" \
+    --path "$target_path" \
+    --bootstrap "$BOOTSTRAP" \
+    --context7-command "$context7_command"
 }
 
 ensure_codebase_memory_mcp() {
@@ -90,26 +47,7 @@ ensure_codebase_memory_mcp() {
 
 configure_claude_mcp() {
   [ -f "$CLAUDE_MCP_JSON" ] || return 0
-  write_json_file "$CLAUDE_MCP_JSON" '
-let cfg = {};
-if (fs.existsSync(path)) {
-  const raw = fs.readFileSync(path, "utf8").trim();
-  if (raw) cfg = JSON.parse(raw);
-}
-if (!cfg.mcpServers) cfg.mcpServers = {};
-delete cfg.mcpServers["code-review-graph"];
-cfg.mcpServers["codebase-memory-mcp"] = { command: "codebase-memory-mcp", args: [] };
-cfg.mcpServers["context7"] = getContext7Config(key);
-cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();
-cfg.mcpServers["x-docs"] = getXDocsConfig();
-const devspace = getDevSpaceConfig();
-if (devspace) cfg.mcpServers["devspace"] = devspace;
-else delete cfg.mcpServers["devspace"];
-const xapi = getXApiConfig();
-if (xapi) cfg.mcpServers["xapi"] = xapi;
-else delete cfg.mcpServers["xapi"];
-fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
-'
+  write_mcp_config claude "$CLAUDE_MCP_JSON"
   echo "  Claude Code: CBM + context7 + prompt-library + X docs MCP configured"
 }
 
@@ -149,78 +87,17 @@ configure_codex_mcp() {
 
 configure_opencode_mcp() {
   [ -f "$OPENCODE_CONFIG" ] || return 0
-  write_json_file "$OPENCODE_CONFIG" '
-let cfg = {};
-if (fs.existsSync(path)) {
-  const raw = fs.readFileSync(path, "utf8").trim();
-  if (raw) cfg = JSON.parse(raw);
-}
-if (!cfg.mcp) cfg.mcp = {};
-delete cfg.mcp["code-review-graph"];
-cfg.mcp["codebase-memory-mcp"] = { enabled: true, type: "local", command: ["codebase-memory-mcp"] };
-const c7 = getContext7Config(key);
-cfg.mcp["context7"] = { enabled: true, type: "local", command: [c7.command].concat(c7.args) };
-if (c7.env) cfg.mcp["context7"].env = c7.env;
-const prompt = getPromptLibraryConfig();
-cfg.mcp["agent-prompt-library"] = { enabled: true, type: "local", command: [prompt.command].concat(prompt.args) };
-cfg.mcp["x-docs"] = { enabled: true, type: "remote", url: getXDocsConfig().url };
-const devspace = getDevSpaceConfig();
-if (devspace) cfg.mcp["devspace"] = { enabled: true, type: "remote", url: devspace.url };
-else delete cfg.mcp["devspace"];
-const xapi = getXApiConfig();
-if (xapi) {
-  cfg.mcp["xapi"] = { enabled: true, type: "local", command: [xapi.command].concat(xapi.args) };
-  if (xapi.env) cfg.mcp["xapi"].env = xapi.env;
-} else {
-  delete cfg.mcp["xapi"];
-}
-fs.writeFileSync(path, JSON.stringify(cfg, null, 4) + "\n");
-'
+  write_mcp_config opencode "$OPENCODE_CONFIG"
   echo "  OpenCode: CBM + context7 + prompt-library + X docs MCP configured"
 }
 
 configure_pi_mcp_file() {
-  write_json_file "$PI_MCP_JSON" '
-const cfg = {
-  mcpServers: {
-    "codebase-memory-mcp": { command: "codebase-memory-mcp", args: [] },
-    "context7": getContext7Config(key),
-    "agent-prompt-library": getPromptLibraryConfig(),
-    "x-docs": getXDocsConfig()
-  }
-};
-const devspace = getDevSpaceConfig();
-if (devspace) cfg.mcpServers["devspace"] = devspace;
-const xapi = getXApiConfig();
-if (xapi) cfg.mcpServers["xapi"] = xapi;
-fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
-'
+  write_mcp_config pi "$PI_MCP_JSON"
   echo "  Pi: mcp.json updated with CBM + context7 + prompt-library + X docs"
 }
 
 configure_reasonix_mcp() {
-  write_json_file "$REASONIX_CONFIG" '
-let cfg = {};
-if (fs.existsSync(path)) {
-  const raw = fs.readFileSync(path, "utf8").trim();
-  if (raw) cfg = JSON.parse(raw);
-}
-if (cfg.skipSetup === undefined) cfg.skipSetup = false;
-if (!cfg.mcpServers) cfg.mcpServers = {};
-delete cfg.mcpServers["code-review-graph"];
-delete cfg.mcpServers["codebase-memory"];
-cfg.mcpServers["codebase-memory-mcp"] = { command: "codebase-memory-mcp", args: [] };
-cfg.mcpServers["context7"] = getContext7Config(key);
-cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();
-cfg.mcpServers["x-docs"] = getXDocsConfig();
-const devspace = getDevSpaceConfig();
-if (devspace) cfg.mcpServers["devspace"] = devspace;
-else delete cfg.mcpServers["devspace"];
-const xapi = getXApiConfig();
-if (xapi) cfg.mcpServers["xapi"] = xapi;
-else delete cfg.mcpServers["xapi"];
-fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
-'
+  write_mcp_config reasonix "$REASONIX_CONFIG"
   echo "  Reasonix: config.json merged with CBM + context7 + prompt-library + X docs MCP"
 }
 
@@ -240,21 +117,7 @@ fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
 }
 
 configure_antigravity_mcp_file() {
-  write_json_file "$ANTIGRAVITY_MCP_JSON" '
-const cfg = {
-  mcpServers: {
-    "codebase-memory-mcp": { command: "codebase-memory-mcp", args: [] },
-    "context7": getContext7Config(key),
-    "agent-prompt-library": getPromptLibraryConfig(),
-    "x-docs": getXDocsConfig()
-  }
-};
-const devspace = getDevSpaceConfig();
-if (devspace) cfg.mcpServers["devspace"] = devspace;
-const xapi = getXApiConfig();
-if (xapi) cfg.mcpServers["xapi"] = xapi;
-fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
-'
+  write_mcp_config antigravity "$ANTIGRAVITY_MCP_JSON"
   echo "  Antigravity: mcp_config.json updated with CBM + context7 + prompt-library + X docs"
 }
 

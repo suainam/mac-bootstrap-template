@@ -5,8 +5,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+import argparse
+import json
 import os
 from pathlib import Path
+import tempfile
 from typing import Any, Mapping
 
 
@@ -52,6 +55,7 @@ class RuntimeInputs:
     devspace_enabled: bool = False
     devspace_url: str = ""
     xapi_enabled: bool = False
+    xapi_command: str = ""
 
     @classmethod
     def from_env(
@@ -75,6 +79,7 @@ class RuntimeInputs:
             devspace_enabled=env.get("DEVSPACE_MCP_ENABLE") == "1",
             devspace_url=env.get("DEVSPACE_MCP_URL", ""),
             xapi_enabled=env.get("X_MCP_ENABLE") == "1",
+            xapi_command=env.get("X_MCP_COMMAND", ""),
         )
 
 
@@ -146,7 +151,7 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
         servers["xapi"] = ServerSpec(
             "xapi",
             "local",
-            command=str(inputs.bootstrap / "scripts/x-mcp-bridge.sh"),
+            command=inputs.xapi_command or str(inputs.bootstrap / "scripts/x-mcp-bridge.sh"),
             startup_timeout_sec=300,
         )
     return servers
@@ -189,3 +194,93 @@ def render_json_config(
             servers.pop(name, None)
     result[root_key] = servers
     return result
+
+
+def _toml_string(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _toml_array(values: tuple[str, ...]) -> str:
+    return "[" + ", ".join(_toml_string(value) for value in values) + "]"
+
+
+def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
+    sections = ["# BEGIN MAC-BOOTSTRAP MANAGED MCPS"]
+    for name, spec in desired.items():
+        lines = [f"[mcp_servers.{name}]"]
+        if spec.transport == "remote":
+            lines.append(f"url = {_toml_string(spec.url)}")
+        else:
+            lines.append(f"command = {_toml_string(spec.command)}")
+            lines.append(f"args = {_toml_array(spec.args)}")
+            if spec.startup_timeout_sec is not None:
+                lines.append(f"startup_timeout_sec = {spec.startup_timeout_sec}")
+        sections.append("\n".join(lines))
+        if spec.env:
+            env_lines = [f"[mcp_servers.{name}.env]"]
+            env_lines.extend(
+                f"{key} = {_toml_string(value)}" for key, value in spec.env.items()
+            )
+            sections.append("\n".join(env_lines))
+        for tool in spec.tool_approvals:
+            sections.append(
+                f"[mcp_servers.{name}.tools.{tool}]\napproval_mode = \"approve\""
+            )
+    sections.append("# END MAC-BOOTSTRAP MANAGED MCPS")
+    return "\n\n".join(sections) + "\n"
+
+
+def _runtime_inputs(args: argparse.Namespace) -> RuntimeInputs:
+    return RuntimeInputs.from_env(
+        bootstrap=Path(args.bootstrap).expanduser().resolve(),
+        context7_command=args.context7_command,
+    )
+
+
+def _write_json_atomically(path: Path, value: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+    ) as handle:
+        json.dump(value, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+        temp_path = Path(handle.name)
+    temp_path.replace(path)
+
+
+def _add_runtime_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--bootstrap", required=True)
+    parser.add_argument("--context7-command", required=True)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="action", required=True)
+
+    json_parser = subparsers.add_parser("render-json")
+    json_parser.add_argument("--host", required=True, choices=("claude", "opencode", "pi", "reasonix", "antigravity"))
+    json_parser.add_argument("--path", required=True)
+    _add_runtime_args(json_parser)
+
+    codex_parser = subparsers.add_parser("render-codex")
+    _add_runtime_args(codex_parser)
+
+    args = parser.parse_args()
+    desired = desired_servers(_runtime_inputs(args))
+    if args.action == "render-codex":
+        print(render_codex_toml(desired), end="")
+        return 0
+
+    target = Path(args.path).expanduser()
+    existing: Mapping[str, Any] = {}
+    if target.exists() and target.read_text().strip():
+        loaded = json.loads(target.read_text())
+        if not isinstance(loaded, dict):
+            raise ValueError(f"JSON config root must be an object: {target}")
+        existing = loaded
+    _write_json_atomically(target, render_json_config(args.host, existing, desired))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -102,12 +102,10 @@ def test_agent_mcp_uses_project_python_for_codex_helpers():
 
 def test_agent_mcp_configures_prompt_library_for_json_agents():
     content = open(os.path.join(TEMPLATE, "scripts", "lib", "agent-mcp.sh")).read()
-    assert 'const getPromptLibraryConfig = () => ({' in content
-    assert 'process.env.HOME + "/.local/bin/agent-prompt-mcp"' in content
-    assert 'cfg.mcpServers["agent-prompt-library"] = getPromptLibraryConfig();' in content
-    assert 'command: [prompt.command].concat(prompt.args)' in content
-    assert '"agent-prompt-library": getPromptLibraryConfig()' in content
-    assert 'cfg.mcpServers["x-docs"] = getXDocsConfig();' in content
-    assert 'cfg.mcpServers["devspace"] = devspace;' in content
-    assert 'cfg.mcp["devspace"] = { enabled: true, type: "remote", url: devspace.url };' in content
-    assert '/scripts/x-mcp-bridge.sh' in content
+    assert 'write_mcp_config claude "$CLAUDE_MCP_JSON"' in content
+    assert 'write_mcp_config opencode "$OPENCODE_CONFIG"' in content
+    assert 'write_mcp_config pi "$PI_MCP_JSON"' in content
+    assert 'write_mcp_config reasonix "$REASONIX_CONFIG"' in content
+    assert 'write_mcp_config antigravity "$ANTIGRAVITY_MCP_JSON"' in content
+    assert 'getPromptLibraryConfig' not in content
+    assert 'code-review-graph' not in content
