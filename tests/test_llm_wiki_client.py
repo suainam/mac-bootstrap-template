@@ -8,6 +8,7 @@ CURRENT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(CURRENT_DIR.parent / "agent" / "data-hub"))
 
 from llm_wiki_context import build_llm_wiki_context
+from llm_wiki_client import LlmWikiClient
 
 
 class FakeClient:
@@ -32,3 +33,25 @@ def test_build_llm_wiki_context_merges_search_graph_and_reviews():
     assert packet["results"][0]["path"] == "10_Periodic/Daily/2026-07-09.md"
     assert packet["graph_neighbors"][0]["path"] == "wiki/projects/data-hub.md"
     assert packet["reviews"][0]["id"] == "review-1"
+
+
+def test_chat_requests_deep_evidence_at_project_endpoint(monkeypatch):
+    client = LlmWikiClient("http://127.0.0.1:8080", "knowledge", "LLM_WIKI_TOKEN")
+    calls = []
+
+    def fake_request(method, path, payload=None):
+        calls.append((method, path, payload))
+        return {"message": "evidence-backed answer", "citations": [{"path": "40_Knowledge/ADR/a.md"}]}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    result = client.chat("Find reusable evidence", mode="deep")
+
+    assert result["message"] == "evidence-backed answer"
+    assert calls == [
+        (
+            "POST",
+            "/api/v1/projects/knowledge/chat",
+            {"message": "Find reusable evidence", "mode": "deep"},
+        )
+    ]

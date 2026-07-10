@@ -37,6 +37,15 @@ class LlmWikiClient:
             {"query": query, "limit": limit},
         ).get("results", [])
 
+    def chat(self, message: str, *, mode: str = "deep") -> dict[str, Any]:
+        """Ask the project agent for cited research without owning its conclusions."""
+
+        return self._request(
+            "POST",
+            f"/api/v1/projects/{self.project_id}/chat",
+            {"message": message, "mode": mode},
+        )
+
     def read_file(self, path: str) -> str:
         quoted = parse.quote(path, safe="/")
         data = self._request("GET", f"/api/v1/projects/{self.project_id}/files/content?path={quoted}")

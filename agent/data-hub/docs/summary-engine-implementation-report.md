@@ -117,6 +117,31 @@ exit: 0
 - `source_ingest_store` 暂通过旧函数名桥接到新 migration，避免本 Task 扩展调用方修改；删除旧 runtime 路径与命名由计划中的统一调用链迁移任务完成。
 - `tests/test_period_summary.py` 仍编码旧 `summary_runs` 表行为，需随 period orchestrator 重写任务迁移，不能作为新 store 契约继续保留。
 
+## Task 3 — Cited Evidence Collection and llm_wiki Deep Research
+
+状态：完成；待与本 Task 的代码一起提交。
+
+### 产物
+
+- `llm_wiki_client.py`：新增 `chat(message, mode="deep")`，调用项目级 `/chat` API；该接口只返回上下文证据，Data Hub 不把选择和渲染职责让渡给 llm_wiki。
+- `summary_evidence.py`：把本地 Daily/ADR/Card、未解决 candidate 与 llm_wiki citations 标准化为确定性的 evidence groups；group ID 由规范化 payload/source refs 哈希而来，不依赖模型生成身份。
+- `summary-evidence-research.md`：明确 Deep Chat 只能提供可追溯资料，`70_Summaries/` 永远不能作为 primary evidence。
+- `test_llm_wiki_client.py` / `test_summary_evidence.py`：覆盖请求 contract、确定性、摘要反向引用过滤与不可用时的 degraded 语义。
+
+### 验证
+
+```text
+$ .venv/bin/python -m pytest tests/test_llm_wiki_client.py tests/test_summary_evidence.py -q
+....                                                                     [100%]
+4 passed in 0.12s
+exit: 0
+```
+
+### 风险与下一检查点
+
+- Deep Chat 的网络、认证与具体引用质量属于运行时条件；采集器将异常显式降级为 `quality_status=degraded`，后续编排层必须把它写入摘要状态，不能静默伪造完整性。
+- Task 3 只产出 evidence packet，不生成 JSON 摘要或 Markdown；筛选、篇幅和洞察证据门槛由 Task 4/5 执行。
+
 ## 最终验收预留
 
 - isolated DB/vault 的 Daily、Weekly、Monthly、Quarterly、Yearly 产物。
