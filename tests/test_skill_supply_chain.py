@@ -31,11 +31,11 @@ from scripts.skill_supply_chain import (  # noqa: E402
 
 def test_distribute_apply_rejects_devspace_worktree_by_default():
     with pytest.raises(RegistryError, match="DevSpace worktree"):
-        _assert_safe_apply_root(Path("/Users/suai/.devspace/worktrees/template-example"))
+        _assert_safe_apply_root(Path.home() / ".devspace" / "worktrees" / "template-example")
 
 
 def test_distribute_apply_allows_real_checkout_paths():
-    _assert_safe_apply_root(Path("/Users/suai/work/config/mac-bootstrap/template"))
+    _assert_safe_apply_root(ROOT)
 
 
 def test_strip_jsonc_comments_preserves_urls_and_strings():
