@@ -97,7 +97,9 @@ def generate_weekly_summary(week_summaries: dict[str, str]) -> str:
     template = load_prompt_template("weekly-summary.md")
     if template is None:
         raise RuntimeError("Prompt template not found: weekly-summary.md")
-    base_prompt = template.substitute(daily_digests="\n\n".join(daily_digests))
+    # Archived helper may coexist with the structured Summary Engine prompt;
+    # preserve its historical test utility without claiming it is a runtime path.
+    base_prompt = template.safe_substitute(daily_digests="\n\n".join(daily_digests))
 
     for attempt in range(MAX_WEEKLY_RETRIES + 1):
         prompt = base_prompt if attempt == 0 else f"{base_prompt}\n\n{WEEKLY_RETRY_INSTRUCTION}"
