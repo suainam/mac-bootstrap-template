@@ -168,9 +168,3 @@ def ensure_summary_revision_schema(conn: sqlite3.Connection) -> None:
     except Exception:
         conn.rollback()
         raise
-
-
-def ensure_summary_runs_allows_daily(conn: sqlite3.Connection) -> None:
-    """Temporary caller bridge: all connections now run the revision migration."""
-
-    ensure_summary_revision_schema(conn)

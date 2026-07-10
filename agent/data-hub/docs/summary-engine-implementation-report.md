@@ -181,6 +181,12 @@ exit: 0
 - `daily_morning.sh` 同样使用 `summary_calendar.should_run_scheduled_event()`，因此普通周末、法定节假日跳过，调休工作日执行；晚间调度仍每天触发。
 - `planned_workflows()` 对边界触发做低到高 dependency closure，确保年末等边界按 Daily → Weekly → Monthly → Quarterly → Yearly 执行。
 
+## Task 6/7（进行中）— Revision Orchestration 与旧路径清理
+
+- `summary_inputs.py` 已改为只查询 SQLite 的 published lower revisions，禁止读取下层 Markdown 正文；`period_summary.py` 改为 coverage-aware revision orchestrator，并使用 staged → file_published → published 状态机。
+- `scripts/daily_summary.py`、旧 lifecycle stage 及其 runtime skill caller 已移除；workflow 统一经 `build_<level>_summary`，并识别 `SUMMARY_STATUS=degraded`。
+- 定向回归：period/input/CLI `5 passed`；workflow degraded/lifecycle `27 passed`。
+
 ## 最终验收预留
 
 - isolated DB/vault 的 Daily、Weekly、Monthly、Quarterly、Yearly 产物。

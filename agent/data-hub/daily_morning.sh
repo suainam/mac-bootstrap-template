@@ -89,7 +89,7 @@ PLACEHOLDER_TODO
 
 ## AI 总结
 
-<!-- 由 daily_summary.py 自动填入 -->
+<!-- 由 Summary Engine 写入 70_Summaries/Daily/ -->
 
 ## 明日计划
 

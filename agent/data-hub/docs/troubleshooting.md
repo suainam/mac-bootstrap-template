@@ -12,14 +12,14 @@
 
 检查顺序：
 1. `data_hub.runtime.jsonc` 中 `paths.daily_dir`
-2. `daily_summary.py` 中的 `DAILY_DIR`
+2. runtime config 中的 `summary.root_relative` 与 vault 路径
 3. Obsidian 插件配置是否仍残留旧路径
 
 ## 3. 总结内容重复或覆盖异常
 
 检查顺序：
 1. `obsidian_helper.write_daily_section()` 的替换逻辑
-2. 若是旧测试或旧脚本调用，检查 `daily_summary.py` 的兼容函数 `inject_summary_to_daily()`
+2. 检查 `build_period_summary.py` 输出的 revision_id 与 summary artifact 路径
 3. 日报模板中 `## AI 总结` 是否被手工改坏
 
 ## 4. 外部材料日期归因不符合预期
@@ -109,7 +109,7 @@ template/.venv/bin/python template/agent/skills/personal/knowledge-lifecycle-man
 表现：
 - `generate_candidates.py` 明明配置了内网 backend，却直接掉到 `opencode` / `codex` / `agy`
 - telemetry 里出现 `401`、`Connection error`、`invalid_json_schema`
-- legacy `daily_summary.py` / archived `weekly_summary.py` 变慢，因为前置 API backend 失败后才轮到 CLI
+- Summary Engine backend 变慢，通常因为前置 API backend 失败后才轮到 CLI
 
 检查顺序：
 1. 确认 `private/agent/data_hub.runtime.jsonc` 的 `llm.backends` 顺序是否符合预期
@@ -126,7 +126,7 @@ template/.venv/bin/python -c 'import json, sys; sys.path.insert(0, "template/age
 6. 若 API 已返回文本但仍 fallback，检查返回内容是不是完整 JSON schema；结构化筛选路径会把缺字段或 HTML 错页视为失败
 
 补充说明：
-- `call_llm_raw()` 只要求首个非空文本，适用于 legacy `daily_summary.py` / archived `weekly_summary.py`
+- `call_llm_raw()` 只要求首个非空文本；Summary Engine 会再进行 JSON contract 校验
 - `score_one()` / `filter_candidates_batch()` 要求完整 `FilterResult` schema，适用于 `generate_candidates.py`
 - 因此“backend 能聊天”不等于“llm_filter 结构化筛选一定成功”；还要看输出是否符合 schema
 

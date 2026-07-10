@@ -396,18 +396,18 @@ def test_durable_runner_marks_degraded_stage_and_run(tmp_path: Path, monkeypatch
     monkeypatch.setenv("OBSIDIAN_VAULT_DIR", str(vault_dir))
 
     def fake_command_runner(command, cwd, capture_output, text):
-        return subprocess.CompletedProcess(command, 0, stdout="LLM generation failed", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="SUMMARY_STATUS=degraded", stderr="")
 
     runner = knowledge_workflows.WorkflowRunner(command_runner=fake_command_runner, runs_dir=tmp_path / "runs")
     results = runner.run(
         "custom",
         "2026-07-04",
-        [knowledge_workflows.daily_summary_stage("python", "2026-07-04")],
+        knowledge_workflows.build_workflow_steps("build_daily_summary", "2026-07-04"),
         run_id="run_degraded",
     )
 
     assert results[0]["status"] == "degraded"
-    assert "LLM generation failed" in results[0]["error_message"]
+    assert "SUMMARY_STATUS=degraded" in results[0]["error_message"]
 
     conn = source_ingest_store.get_db_connection(db_path)
     try:
@@ -436,9 +436,9 @@ def test_durable_runner_resume_preserves_degraded_run_status(tmp_path: Path, mon
     monkeypatch.setenv("OBSIDIAN_VAULT_DIR", str(vault_dir))
 
     def first_runner(command, cwd, capture_output, text):
-        return subprocess.CompletedProcess(command, 0, stdout="LLM generation failed", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="SUMMARY_STATUS=degraded", stderr="")
 
-    stage = knowledge_workflows.daily_summary_stage("python", "2026-07-04")
+    stage = knowledge_workflows.build_workflow_steps("build_daily_summary", "2026-07-04")[0]
     with knowledge_workflows.WorkflowRunner(command_runner=first_runner, runs_dir=tmp_path / "runs") as runner:
         first = runner.run("custom", "2026-07-04", [stage], run_id="run_resume_degraded")
 
@@ -452,7 +452,7 @@ def test_durable_runner_resume_preserves_degraded_run_status(tmp_path: Path, mon
 
     assert second == [
         {
-            "name": "knowledge-daily-weekly-synthesis",
+            "name": "build-daily-summary",
             "status": "skipped",
             "run_id": "run_resume_degraded",
         }

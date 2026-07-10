@@ -52,34 +52,13 @@ def build_workflow_steps(workflow_name: str, target_date: str) -> list[StageSpec
                     target_date,
                 ],
                 produces=[f"70_Summaries/{level.capitalize()}/"],
+                success_checks=[
+                    SuccessCheck("output_not_contains", "combined", ["SUMMARY_STATUS=degraded"]),
+                ],
+                degraded_ok=True,
             )
         ]
     raise ValueError(f"unknown workflow: {workflow_name}")
-
-
-def materialization_stage(python: str, target_date: str) -> StageSpec:
-    return StageSpec(
-        name="knowledge-materialization",
-        command=[python, str(SCRIPTS_DIR / "materialize_candidates.py"), target_date],
-        produces=["40_Knowledge/*", f"10_Periodic/Daily/{target_date}.md"],
-        success_checks=[
-            SuccessCheck("file_exists", f"10_Periodic/Daily/{target_date}.md"),
-            SuccessCheck("output_not_contains", "combined", ["duplicate marker failure"]),
-        ],
-    )
-
-
-def daily_summary_stage(python: str, target_date: str) -> StageSpec:
-    return StageSpec(
-        name="knowledge-daily-weekly-synthesis",
-        command=[python, str(SCRIPTS_DIR / "daily_summary.py"), target_date],
-        produces=[f"10_Periodic/Daily/{target_date}.md"],
-        success_checks=[
-            SuccessCheck("file_exists", f"10_Periodic/Daily/{target_date}.md"),
-            SuccessCheck("output_not_contains", "combined", ["LLM generation failed", "生成总结失败", "调用 LLM 失败"]),
-        ],
-        degraded_ok=True,
-    )
 
 
 def run_durable_workflow(
