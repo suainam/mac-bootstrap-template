@@ -113,7 +113,7 @@ def test_registry_contains_external_and_internal_examples():
     langgpt = registry.skills[("langgpt", "langgpt-prompt-writer")]
     assert langgpt.source_type == "external"
     assert langgpt.fetcher == "manual"
-    assert langgpt.distribution_state == "staged"
+    assert langgpt.distribution_state == "enabled"
     assert langgpt.local_shadow_path == Path("agent/skills/personal/langgpt-prompt-writer")
 
     qiaomu = registry.skills[("qiaomu-goal-meta-skill", "qiaomu-goal-meta-skill")]

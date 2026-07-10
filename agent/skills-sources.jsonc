@@ -126,10 +126,14 @@
           "agents": ["claude", "codex", "opencode", "cross-agent"]
         },
         "docker-patterns": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed stage; useful for infra/data projects but not a default global install"
         },
         "data-throughput-accelerator": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "staged",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed stage; keep source available for ETL/backfill work"
         },
         "search-first": {
           "agents": ["claude", "codex", "opencode", "cross-agent"]
@@ -181,24 +185,28 @@
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill caveman"
         },
         "diagnosing-bugs": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed delete; diagnose is the global debugging entry"
         },
         "improve-codebase-architecture": {
           "agents": ["claude", "codex", "opencode", "cross-agent"]
         },
         "grill-with-docs": {
-          "distribution_state": "staged"
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
         },
         "handoff": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
         },
         "writing-great-skills": {
-          "distribution_state": "staged"
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
         },
         "diagnose": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
-          "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill diagnose"
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed global debugging entry; skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill diagnose"
         },
         "write-a-skill": {
           "distribution_state": "staged",
@@ -257,9 +265,8 @@
       "ref": "https://github.com/DeusData/codebase-memory-mcp",
       "skills": {
         "codebase-memory": {
-          "distribution_state": "staged",
-          "agents": ["claude"],
-          "reason": "current skills.sh list found no SKILL.md in this repo; treat as MCP/runtime documentation source, not installable skill"
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed global; current skills.sh list found no SKILL.md, so distribution still requires a manual/quarantine source before fresh installs"
         }
       }
     },
@@ -270,9 +277,8 @@
       "ref": "https://github.com/microsoft/playwright",
       "skills": {
         "playwright": {
-          "distribution_state": "disabled",
-          "agents": ["codex", "opencode", "cross-agent"],
-          "reason": "existing runtime skill is named playwright, but current skills.sh source exposes playwright-dev/playwright-devops/playwright-test-results/playwright-triage, not playwright"
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed global; existing runtime skill is named playwright, while current skills.sh source exposes playwright-dev/playwright-devops/playwright-test-results/playwright-triage"
         },
         "playwright-dev": {
           "distribution_state": "staged",
@@ -291,10 +297,9 @@
       "ref": "https://github.com/langgptai/LangGPT/blob/main/README_zh.md#%E6%96%B9%E6%B3%95%E4%BA%94claude-code-skill%E6%8E%A8%E8%8D%90",
       "skills": {
         "langgpt-prompt-writer": {
-          "distribution_state": "staged",
           "agents": ["claude", "codex", "opencode", "cross-agent"],
           "local_shadow_path": "agent/skills/personal/langgpt-prompt-writer",
-          "reason": "LangGPT README recommends Claude Code Skill via marketplace/manual install; keep as staged external source until install path is automated"
+          "reason": "User-confirmed keep-global/routed; LangGPT README recommends Claude Code Skill via marketplace/manual install"
         }
       }
     },
@@ -305,9 +310,9 @@
       "ref": "joeseesun/qiaomu-goal-meta-skill",
       "skills": {
         "qiaomu-goal-meta-skill": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "local_shadow_path": "agent/skills/personal/qiaomu-goal-meta-skill",
-          "reason": "upstream README installs with: npx skills add joeseesun/qiaomu-goal-meta-skill"
+          "reason": "User-confirmed global distribution; upstream README installs with: npx skills add joeseesun/qiaomu-goal-meta-skill"
         }
       }
     },
@@ -372,19 +377,27 @@
       "ref": "https://github.com/kepano/obsidian-skills.git",
       "skills": {
         "defuddle": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
         },
         "obsidian-cli": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
         },
         "obsidian-markdown": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
         },
         "obsidian-bases": {
-          "distribution_state": "staged"
+          "distribution_state": "disabled",
+          "reason": "User-confirmed drop"
         },
         "json-canvas": {
-          "distribution_state": "staged"
+          "distribution_state": "disabled",
+          "reason": "User-confirmed drop"
         }
       }
     },
@@ -407,10 +420,12 @@
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"]
         },
         "finishing-a-development-branch": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed global distribution"
         },
         "requesting-code-review": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "User-confirmed global distribution"
         },
         "test-driven-development": {
           "distribution_state": "merged",
@@ -436,8 +451,9 @@
         },
         "caveman-compress": {
           "scope": "global",
-          "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed delete"
         },
         "caveman-help": {
           "scope": "global",
@@ -453,8 +469,9 @@
         },
         "caveman-stats": {
           "scope": "global",
-          "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed delete"
         },
         "docker-data-project": {
           "scope": "global",
@@ -463,8 +480,9 @@
         },
         "eval-loop": {
           "scope": "global",
-          "distribution_state": "merged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "reason": "User-confirmed drop"
         },
         "knowledge-lifecycle-manager": {
           "scope": "global",

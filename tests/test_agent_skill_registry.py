@@ -81,7 +81,7 @@ def test_langgpt_prompt_writer_skill_registered_as_external_shadow():
     registry = load_sources()
     langgpt = registry["sources"]["langgpt"]["skills"][skill]
     assert langgpt["agents"] == ["claude", "codex", "opencode", "cross-agent"]
-    assert langgpt["distribution_state"] == "staged"
+    assert langgpt.get("distribution_state", "enabled") == "enabled"
     assert langgpt["local_shadow_path"] == "agent/skills/personal/langgpt-prompt-writer"
     assert skill not in registry["sources"]["local-personal"]["skills"]
 
