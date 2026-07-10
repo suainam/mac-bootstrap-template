@@ -15,7 +15,7 @@ from db_helper import get_db_connection
 from llm_filter import call_llm_raw
 from summary_contracts import EvidenceGroup, build_input_digest, load_contract_bundle
 from summary_evidence import collect_summary_evidence
-from summary_inputs import previous_level, resolve_lower_revisions
+from summary_inputs import current_lower_revision_lineage, previous_level, resolve_lower_revisions
 from summary_renderer import render_summary_markdown
 from summary_store import (
     ensure_logical_summary,
@@ -197,9 +197,15 @@ def build_period_summary(
             level=level, period=coverage.period_id, query=f"{level} summary {coverage.period_id}",
             retrieval_packet=packet, llm_wiki_client=llm_wiki_client if llm_wiki_client is not None else make_llm_wiki_client(),
         )
+        pinned_lower_revisions = current_lower_revision_lineage(
+            conn,
+            level=level,
+            period_id=coverage.period_id,
+        )
         lower = [] if level == "daily" else resolve_lower_revisions(
             conn=conn, level=level, period_start=coverage.period_start, period_end=coverage.period_end,
             coverage_end=coverage.coverage_end, deployment_start=config.summary.deployment_start,
+            preferred_revision_ids=pinned_lower_revisions,
         )
         evidence["lower_item_ids"] = []
         evidence["lower_summary_refs"] = []

@@ -20,6 +20,8 @@ ITEM_TYPE_LABELS = {
 def _wikilink(ref: str) -> str:
     normalized = ref.removesuffix(".md")
     alias = PurePosixPath(normalized).name
+    if "/Daily/" in normalized and len(alias) == 10 and alias[4] == "-":
+        alias = alias[5:]
     return f"[[{normalized}|{alias}]]"
 
 

@@ -128,6 +128,25 @@ def test_higher_contract_rejects_unresolved_or_mismatched_lower_refs():
             },
         )
 
+    doc["items"][0]["lower_summary_refs"] = [
+        "70_Summaries/Daily/2026-07-10.md",
+        "70_Summaries/Daily/2026-07-11.md",
+    ]
+    with pytest.raises(SummaryContractError, match="supporting items do not match lower refs"):
+        validate_summary_document(
+            doc,
+            load_contract_bundle(),
+            lower_item_ids={"item_a", "item_b"},
+            lower_summary_refs={
+                "70_Summaries/Daily/2026-07-10.md",
+                "70_Summaries/Daily/2026-07-11.md",
+            },
+            lower_item_refs={
+                "item_a": "70_Summaries/Daily/2026-07-10.md",
+                "item_b": "70_Summaries/Daily/2026-07-10.md",
+            },
+        )
+
 
 def test_contract_versions_must_match_assets():
     doc = valid_daily_document()

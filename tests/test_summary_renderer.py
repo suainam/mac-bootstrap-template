@@ -53,7 +53,7 @@ def test_daily_renderer_separates_work_and_insights_with_item_tags():
     assert "## 知识洞察" in text
     assert "`专业知识`" in text
     assert "`学习成长` `创新`" in text
-    assert "**证据**：[[10_Periodic/Daily/2026-07-10|2026-07-10]]、`commit:repo:abc123`" in text
+    assert "**证据**：[[10_Periodic/Daily/2026-07-10|07-10]]、`commit:repo:abc123`" in text
     assert "- [[40_Knowledge/ADR/summary-engine|summary-engine]]" in text
     assert "revision_id: rev_test" in text
 
@@ -65,5 +65,5 @@ def test_weekly_renderer_uses_review_sections_and_wikilinks():
     text = render_summary_markdown(document, revision_id="rev_week", input_digest="digest")
     assert "## 决策与变化" in text
     assert "## Daily 索引" in text
-    assert "[[70_Summaries/Daily/2026-07-10|2026-07-10]]" in text
+    assert "[[70_Summaries/Daily/2026-07-10|07-10]]" in text
     assert text.count("跨日重复问题持续下降。") == 1

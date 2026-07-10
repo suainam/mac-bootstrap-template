@@ -244,13 +244,15 @@ def validate_summary_document(
                 if unknown_refs:
                     raise SummaryContractError(f"unknown lower summary refs: {sorted(unknown_refs)}")
             if lower_item_refs is not None:
-                mismatched = {
-                    item_id: lower_item_refs[item_id]
+                expected_refs = {
+                    lower_item_refs[item_id]
                     for item_id in item["supporting_item_ids"]
-                    if item_id in lower_item_refs and lower_item_refs[item_id] not in item_refs
+                    if item_id in lower_item_refs
                 }
-                if mismatched:
-                    raise SummaryContractError(f"supporting items do not match lower refs: {mismatched}")
+                if item_refs != expected_refs:
+                    raise SummaryContractError(
+                        f"supporting items do not match lower refs: expected {sorted(expected_refs)}, got {sorted(item_refs)}"
+                    )
 
     if enforce_length and value["level"] in {"daily", "weekly"}:
         visible = summary_prose_character_count(value)

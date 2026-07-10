@@ -56,8 +56,9 @@ class StructuredBackend:
         )
         lower_item_ids = sorted(set(re.findall(r'"(item_[a-f0-9]+)"', prompt)))
         lower_refs = sorted(set(re.findall(r'"(70_Summaries/[^"]+\.md)"', prompt)))
-        repeat = 9 if self.level == "weekly" else 6
-        prose = "这是经过证据验证、能够影响后续决策并可复用的明确结论。" * repeat
+        repeat = 5 if self.level == "weekly" else 3
+        prose_marker = f"仅属于{self.level}层且不得复制到高层的正文证据。"
+        prose = (prose_marker + "这是经过验证、能够影响决策并可复用的明确结论。") * repeat
         items = []
         for item_type in ("outcome", "decision"):
             item = {
@@ -169,6 +170,8 @@ def test_five_level_summary_chain_is_idempotent(monkeypatch, tmp_path):
     assert repeated_counts == original_counts
     assert original_counts["summaries"] == original_counts["summary_revisions"] == 5
     assert {level: full_file_sha256(result.output_path) for level, result in repeated.items()} == original_hashes
-    for level in ("weekly", "monthly", "quarterly", "yearly"):
+    ordered_levels = ("daily", "weekly", "monthly", "quarterly", "yearly")
+    for index, level in enumerate(ordered_levels[1:], start=1):
         text = repeated[level].output_path.read_text(encoding="utf-8")
-        assert "Completed the structured summary engine." not in text
+        for lower_level in ordered_levels[:index]:
+            assert f"仅属于{lower_level}层且不得复制到高层的正文证据。" not in text

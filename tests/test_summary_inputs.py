@@ -73,6 +73,11 @@ def test_boundary_replay_selects_exact_historical_lower_revision(tmp_path):
     exact_file.write_text("exact", encoding="utf-8")
     mark_file_published(conn, exact.revision_id, exact_file, full_file_sha256(exact_file))
     finalize_revision(conn, exact.revision_id)
+    conn.execute(
+        "UPDATE summary_revisions SET published_at = '2026-07-31T18:00:00' WHERE revision_id = ?",
+        (exact.revision_id,),
+    )
+    conn.commit()
     later = stage_revision(
         conn,
         summary_id=summary_id,
@@ -88,6 +93,31 @@ def test_boundary_replay_selects_exact_historical_lower_revision(tmp_path):
     later_file.write_text("later", encoding="utf-8")
     mark_file_published(conn, later.revision_id, later_file, full_file_sha256(later_file))
     finalize_revision(conn, later.revision_id)
+    later_exact = stage_revision(
+        conn,
+        summary_id=summary_id,
+        input_digest="later-exact-boundary",
+        coverage_start="2026-07-27",
+        coverage_end="2026-07-31",
+        closure_status="provisional",
+        document=document_dict,
+        evidence_groups=[EvidenceGroup("evg_a", "local", ("source",), ("daily_note",), {})],
+        quality_status="complete",
+    )
+    later_exact_file = tmp_path / "weekly-later-exact.md"
+    later_exact_file.write_text("later exact", encoding="utf-8")
+    mark_file_published(
+        conn,
+        later_exact.revision_id,
+        later_exact_file,
+        full_file_sha256(later_exact_file),
+    )
+    finalize_revision(conn, later_exact.revision_id)
+    conn.execute(
+        "UPDATE summary_revisions SET published_at = '2026-08-03T18:00:00' WHERE revision_id = ?",
+        (later_exact.revision_id,),
+    )
+    conn.commit()
 
     selected = resolve_lower_revisions(
         conn=conn,
@@ -96,6 +126,7 @@ def test_boundary_replay_selects_exact_historical_lower_revision(tmp_path):
         period_end="2026-07-31",
         coverage_end="2026-07-31",
         deployment_start="2026-07-27",
+        preferred_revision_ids={exact.revision_id},
     )
 
     assert [revision.revision_id for revision in selected] == [exact.revision_id]

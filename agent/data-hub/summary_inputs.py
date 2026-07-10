@@ -24,6 +24,7 @@ class LowerRevision:
     coverage_start: str
     coverage_end: str
     item_ids: tuple[str, ...]
+    published_at: str
 
 
 def previous_level(level: str) -> str:
@@ -86,6 +87,7 @@ def resolve_lower_revisions(
     period_end: str,
     coverage_end: str,
     deployment_start: str,
+    preferred_revision_ids: set[str] | None = None,
 ) -> list[LowerRevision]:
     """Resolve immutable published revisions without opening their Markdown files."""
 
@@ -93,6 +95,7 @@ def resolve_lower_revisions(
     rows = conn.execute(
         """
         SELECT r.revision_id, s.period_id, r.artifact_path, r.coverage_start, r.coverage_end,
+               r.published_at,
                GROUP_CONCAT(i.item_id) AS item_ids
         FROM summaries s
         JOIN summary_revisions r ON r.summary_id = s.summary_id
@@ -115,6 +118,7 @@ def resolve_lower_revisions(
             coverage_start=str(row["coverage_start"]),
             coverage_end=str(row["coverage_end"]),
             item_ids=tuple(sorted(filter(None, str(row["item_ids"] or "").split(",")))),
+            published_at=str(row["published_at"] or ""),
         )
         for row in rows
     ]
@@ -138,12 +142,18 @@ def resolve_lower_revisions(
         if not candidates:
             missing.append(f"{period_id}:{required_start}..{required_end}")
             continue
+        preferred = [
+            revision
+            for revision in candidates
+            if preferred_revision_ids and revision.revision_id in preferred_revision_ids
+        ]
         selected.append(
             min(
-                candidates,
+                preferred or candidates,
                 key=lambda revision: (
                     revision.coverage_end != required_end,
                     revision.coverage_end,
+                    revision.published_at,
                     revision.revision_id,
                 ),
             )
@@ -153,3 +163,30 @@ def resolve_lower_revisions(
             f"missing published {lower} coverage for {level}: {', '.join(missing)}"
         )
     return selected
+
+
+def current_lower_revision_lineage(
+    conn: sqlite3.Connection,
+    *,
+    level: str,
+    period_id: str,
+) -> set[str]:
+    """Return lower revision IDs already pinned by the current higher revision."""
+
+    if level == "daily":
+        return set()
+    rows = conn.execute(
+        """
+        SELECT DISTINCT lower_item.revision_id
+        FROM summaries higher
+        JOIN summary_items higher_item
+          ON higher_item.revision_id = higher.current_revision_id
+        JOIN summary_item_support support
+          ON support.item_id = higher_item.item_id
+        JOIN summary_items lower_item
+          ON lower_item.item_id = support.supporting_item_id
+        WHERE higher.summary_level = ? AND higher.period_id = ?
+        """,
+        (level, period_id),
+    ).fetchall()
+    return {str(row[0]) for row in rows}

@@ -219,6 +219,9 @@ $ .venv/bin/python -m pytest \
 - Higher item 的 `supporting_item_ids`、`lower_summary_refs` 与 item→revision ref 映射同时校验，模型不能引用无关 Daily/Weekly。
 - Weekly `跨日趋势` 只渲染 trend prose，不重复完整 item，篇幅 validator 与实际 narrative 字段保持一一对应。
 - 五层 E2E 第二轮逐层重跑；任何 backend 调用都会使测试失败，并对全部 revision IDs、artifact hashes 及 summary 相关表 row counts 做相等检查。
+- Higher replay 先读取已发布 higher revision 的 `summary_item_support` lineage；即使同一 lower period 后续发布相同 coverage revision，也继续使用原 boundary snapshot。首次选择则按 exact coverage、最早 published_at 稳定排序。
+- 每个 higher item 的 `lower_summary_refs` 必须与 `supporting_item_ids` 推导出的 refs 完全相等，既不能缺失也不能附加无 supporting item 的索引链接。
+- 五层 no-body-copy 验收使用每个真实 lower artifact 独有的正文标记，逐层断言所有 higher artifacts 均不包含任何 lower body marker。
 
 ## 最终验收预留
 
