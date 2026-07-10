@@ -17,6 +17,7 @@
 - [acceptance-report.md](./acceptance-report.md) — 2026-07-05 真实本机验收记录，含历史路径样本说明
 - [2026-07-10-summary-engine-design.md](./2026-07-10-summary-engine-design.md) — 结构化 Summary Engine、条目级维度、Prompt 契约与幂等设计
 - [2026-07-10-summary-engine-implementation-plan.md](./2026-07-10-summary-engine-implementation-plan.md) — TDD 实施步骤、调度保留、验收与审查计划
+- [summary-engine-implementation-report.md](./summary-engine-implementation-report.md) — 分阶段提交、复审修复、五层 E2E 与最终门禁证据
 - [archive/upgrade-plan.md](./archive/upgrade-plan.md) — 历史设计草案，保留演进背景，不作为当前权威 runbook
 - [cron-setup.md](./cron-setup.md) — cron/定时任务参考
 - [../../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md](../../../docs/superpowers/specs/2026-07-09-data-hub-dual-system-design.md) — 当前双系统正式设计稿

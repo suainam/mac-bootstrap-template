@@ -145,7 +145,7 @@ template/.venv/bin/python template/agent/data-hub/scripts/promote_summary_knowle
 
 - 共享 knowledge root、`llm_wiki` ownership、Obsidian 降级
 - source bucket 默认 `raw/sources/*`
-- `llm_wiki` API client / context packet / retrieval merge
+- `llm_wiki` search/files/graph/reviews/Deep Chat API client、带引用 evidence packet 与 retrieval merge
 - `70_Summaries` 周/月/季/年自动生成与 lineage
 - summary 到 `40_Knowledge` 的人工晋升 gate
 

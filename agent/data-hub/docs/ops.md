@@ -197,16 +197,16 @@ template/.venv/bin/python template/agent/data-hub/scripts/promote_summary_knowle
 ```bash
 cd $HOME/work/config/mac-bootstrap/template
 UV_CACHE_DIR=.uv-cache uv run pytest \
-  tests/test_data_hub.py \
-  tests/test_data_hub_sources.py \
-  tests/test_candidate_review.py \
-  tests/test_materialization.py \
-  tests/archive/test_phase4_weekly_summary.py \
-  tests/test_daily_summary_runtime.py \
-  tests/test_ingest_logs_runtime.py \
-  tests/test_claim_extraction.py \
-  tests/test_auto_review.py \
-  tests/test_hygiene_audit.py \
+  tests/test_summary_contracts.py \
+  tests/test_summary_evidence.py \
+  tests/test_summary_synthesis.py \
+  tests/test_summary_renderer.py \
+  tests/test_summary_inputs.py \
+  tests/test_summary_store.py \
+  tests/test_summary_publish_recovery.py \
+  tests/test_summary_calendar.py \
+  tests/test_summary_schedule.py \
+  tests/test_summary_engine_e2e.py \
   -q
 ```
 

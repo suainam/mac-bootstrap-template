@@ -162,6 +162,7 @@ data-hub 当前使用的 API 契约：
 | 文件内容 | `GET /api/v1/projects/{id}/files/content` |
 | 图谱 | `GET /api/v1/projects/{id}/graph` |
 | review 队列 | `GET /api/v1/projects/{id}/reviews?status=unresolved` |
+| 引用式深度分析 | `POST /api/v1/projects/{id}/chat`，请求使用 `mode: deep` |
 
 protected API 需要 token。优先使用 `LLM_WIKI_TOKEN`，其次读取 private runtime 的 `llm_wiki.token`。
 
@@ -175,13 +176,14 @@ summary_level: daily | weekly | monthly | quarterly | yearly
 status: draft | reviewed | promoted_partially | archived
 generated_by: data-hub
 indexing: excluded
-source_mode: daily-first
-derived_from:
-  - daily
-  - sqlite_records
-  - llm_wiki_context
 promotion_status: not_reviewed
+contract_version: summary-v1
+taxonomy_version: dimensions-v1
+revision_id: rev_...
+input_digest: ...
 ```
+
+来源、条目维度、lower support 与完整 lineage 的 canonical state 位于 SQLite；Markdown 只投影可读 source refs/wikilinks，不复制 lower summary 正文，也不在 frontmatter 重复维护第二份 lineage。
 
 ### `40_Knowledge/*` 从 summary 晋升时的建议字段
 
@@ -196,7 +198,7 @@ source_refs:
 | 层 | 实体 | 角色 |
 |---|---|---|
 | input memory | `10_Periodic/Daily/` | 人类工作痕迹，`llm_wiki` 输入 |
-| canonical state | SQLite | 主动沉淀、review、lineage、summary run metadata |
+| canonical state | SQLite | 主动沉淀、review、immutable summary revisions/items/evidence/lineage |
 | quarantine projection | `70_Summaries/` | 自动总结半成品 |
 | long-term knowledge | `40_Knowledge/` | 人工确认后的长期工作知识 |
 

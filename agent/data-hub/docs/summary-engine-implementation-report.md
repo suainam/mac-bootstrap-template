@@ -1,7 +1,7 @@
 # Summary Engine Implementation Report
 
 更新时间：2026-07-10
-实施分支：`feature/data-hub-summary-engine`
+实施分支：`feat/data-hub-summary-engine`，已合入 child `main`
 
 ## 基线
 
@@ -48,11 +48,11 @@ exit: 0
 
 覆盖范围：合法 Daily、非法/重复/超量维度、Daily 洞察数量、evidence group membership、占位内容、Weekly/Higher 必需支持字段、资产版本一致性、冻结 value objects、canonical JSON 与 input digest 稳定性。
 
-### 风险与下一检查点
+### 后续任务中的处置结果
 
-- Task 1 只定义 contract 边界；EvidencePacket 的确定性分组、实际 source-kind 充足性和 renderer 篇幅计数由后续任务接入 policy。
+- EvidencePacket 的确定性分组、source-kind 资格与 renderer prose 篇幅计数已在后续任务接入同一 policy。
 - `jsonschema` 已写入 lock；其他 worktree/环境需按 lock 同步依赖后才能导入 `summary_contracts`。
-- 下一检查点是 Task 2 的 logical summary、immutable revision 与 recovery store；本提交不提前实现其表或持久化逻辑。
+- Task 2 已实现 logical summary、immutable revision 与 recovery store；Task 1 保持纯 contract 边界。
 
 ## Task 2 — Logical Summaries, Immutable Revisions, and Recovery Store
 
@@ -110,16 +110,16 @@ exit: 0
 - `current_revision_id` 在 staged 阶段保持空，仅 full-file hash 校验通过并 finalize 后切换。
 - replace 后 DB 仍 staged 时，可从 artifact marker + full-file SHA-256 恢复；file_published 文件被篡改时拒绝 finalize。
 
-### 风险与下一检查点
+### 后续任务中的处置结果
 
-- Task 2 只提供 Task 5 所需 recovery API，不实现 renderer 或 atomic replace。
+- Task 5 已接入 renderer 与 atomic replace，并复用本 Task 的 recovery API。
 - legacy artifact 没有可追溯的历史 full-file hash，因此迁移 revision 的 `artifact_hash` 保持空；新 revision 强制使用完整文件 SHA-256。
-- `source_ingest_store` 暂通过旧函数名桥接到新 migration，避免本 Task 扩展调用方修改；删除旧 runtime 路径与命名由计划中的统一调用链迁移任务完成。
-- `tests/test_period_summary.py` 仍编码旧 `summary_runs` 表行为，需随 period orchestrator 重写任务迁移，不能作为新 store 契约继续保留。
+- `source_ingest_store` 已直接使用 `ensure_summary_revision_schema()`；临时旧函数名桥接已删除。
+- `tests/test_period_summary.py` 已迁到 revision/publish contract；旧 `summary_runs` 仅保留一次性迁移 fixture。
 
 ## Task 3 — Cited Evidence Collection and llm_wiki Deep Research
 
-状态：完成；待与本 Task 的代码一起提交。
+状态：完成；提交 `cb0d78b`。
 
 ### 产物
 
@@ -137,14 +137,15 @@ $ .venv/bin/python -m pytest tests/test_llm_wiki_client.py tests/test_summary_ev
 exit: 0
 ```
 
-### 风险与下一检查点
+### 后续任务中的处置结果
 
 - Deep Chat 的网络、认证与具体引用质量属于运行时条件；采集器将异常显式降级为 `quality_status=degraded`，后续编排层必须把它写入摘要状态，不能静默伪造完整性。
-- Task 3 只产出 evidence packet，不生成 JSON 摘要或 Markdown；筛选、篇幅和洞察证据门槛由 Task 4/5 执行。
+- Task 4/5 已消费 evidence packet，并在 publish 前执行篇幅、work evidence、insight evidence 与 lower lineage 门槛。
+- 真实运行发现 accepted record 可能含大量重复正文；采集边界只压缩明确的 prose 字段，并保留首尾各一部分，总展示长度限制为 1600 字符。完整 source payload 的 SHA-256 与 evidence group ID 仍参与 input digest，因此尾部事实变化不会被截断掩盖。
 
 ## Task 4 — Contract-First Synthesis
 
-状态：完成；待与本 Task 的代码一起提交。
+状态：完成；提交 `9703a7e`。
 
 ### 产物
 
@@ -162,16 +163,16 @@ $ .venv/bin/python -m pytest tests/test_summary_synthesis.py tests/test_candidat
 exit: 0
 ```
 
-### 风险与下一检查点
+### 后续任务中的处置结果
 
-- `summary_synthesis` 是纯结构化生成层，不做 Markdown 字符计数、文件写入或 SQLite 状态转换；这些由 renderer/publisher 完成。
+- `summary_synthesis` 保持纯结构化生成；它调用 contract semantic validator 校验 narrative 字符数，文件写入和 SQLite 状态转换仍由 renderer/publisher 负责。
 - 真实 backend 可接受 `BackendRequest` 或最小 `generate(prompt)` fake；生产路径由编排层选择已配置 backend，避免在 contract 层绑定私有模型配置。
 
 ## Task 5 — Deterministic Markdown Projection
 
-状态：完成；待与本 Task 的代码一起提交。
+状态：完成；初始提交 `6fb043e`，最终格式与 lineage 修复见 `ab75d4d`、`539b8b0`、`83dd200`。
 
-- `summary_renderer.py` 只投影结构化 document：frontmatter 保留 revision/input digest，正文明确分出“工作进展”和“知识洞察”，每个条目内联能力维度标签与 evidence group ID。
+- `summary_renderer.py` 只投影结构化 document：Daily/Weekly/Higher 使用固定章节；条目展示类型、维度、结论、价值、canonical source refs、置信度与 lower lineage。
 - 没有合格 insight 时固定写“今日无新增高价值洞察。”；renderer 不读来源、不访问数据库、不调用 LLM。
 - 验证：`.venv/bin/python -m pytest tests/test_summary_renderer.py tests/test_summary_publish_recovery.py -q` → `6 passed in 0.27s`。
 
@@ -209,7 +210,7 @@ $ .venv/bin/python -m pytest \
     tests/test_summary_engine_e2e.py -q
 ........................................................................ [ 85%]
 ............                                                             [100%]
-86 passed in 1.97s
+89 passed in 1.91s
 ```
 
 ### Final review closure
@@ -223,10 +224,18 @@ $ .venv/bin/python -m pytest \
 - 每个 higher item 的 `lower_summary_refs` 必须与 `supporting_item_ids` 推导出的 refs 完全相等，既不能缺失也不能附加无 supporting item 的索引链接。
 - 五层 no-body-copy 验收使用每个真实 lower artifact 独有的正文标记，逐层断言所有 higher artifacts 均不包含任何 lower body marker。
 
-## 最终验收预留
+## 最终验收
 
-- isolated DB/vault 的 Daily、Weekly、Monthly、Quarterly、Yearly 产物。
-- 两次相同输入的 revision/row count 与 Markdown hash 对照。
-- staged/file-published crash-window 恢复证据。
-- 09:00、17:30、18:00 launchd plist 与中国工作日/节假日/调休/周期边界试跑。
-- focused pytest、全量 pytest、`make check`、`make privacy-audit` 与真实 llm_wiki 引用证据。
+| 验收项 | 结果 |
+|---|---|
+| Daily → Yearly isolated chain | 通过；五层各 1 个 logical summary / revision |
+| 相同输入幂等重跑 | 通过；五层 backend 均未再次调用，revision IDs、artifact hashes、相关表 row counts 不变 |
+| staged / file_published crash recovery | 通过；包含 replace 前后两个 crash window、未知 marker 与 hash mismatch |
+| 09:00 / 17:30 / 18:00 | 通过自动测试与 installer 文本检查；morning/reminder 使用中国工作日门禁，evening 每自然日触发 |
+| 普通工作日 / 周末 / 节假日 / 调休 / 周月季年边界 | 通过 `summary_calendar` / scheduler date-injected tests；boundary closure 查询 SQLite coverage |
+| focused Summary Engine suite | `89 passed in 1.91s` |
+| full pytest | `620 passed, 9 skipped in 37.43s` |
+| `make check` | 当前 tree 通过；包含 privacy audit 与 strict doctor |
+| 独立代码复审 | 当前 tree 无 Critical / Important / Minor，`Approved — merge-ready` |
+
+本机 runtime 验收记录属于 private parent，不写入 public template。自动校验只证明洞察满足来源数量、类型与结构门槛；新颖性、可复用性、决策价值及证据蕴含关系仍需人工抽检。

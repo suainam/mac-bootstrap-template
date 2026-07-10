@@ -11,16 +11,17 @@
 ## 2. 摘要写回位置不对
 
 检查顺序：
-1. `data_hub.runtime.jsonc` 中 `paths.daily_dir`
-2. runtime config 中的 `summary.root_relative` 与 vault 路径
-3. Obsidian 插件配置是否仍残留旧路径
+1. runtime config 中的 `paths.vault_dir`
+2. `summary.root_relative` 与对应 `daily_dir` / `weekly_dir` / `monthly_dir` / `quarterly_dir` / `yearly_dir`
+3. `summary_revisions.artifact_path` 与目标 revision 的 `summary_level` / `period_id`
 
 ## 3. 总结内容重复或覆盖异常
 
 检查顺序：
-1. `obsidian_helper.write_daily_section()` 的替换逻辑
-2. 检查 `build_period_summary.py` 输出的 revision_id 与 summary artifact 路径
-3. 日报模板中 `## AI 总结` 是否被手工改坏
+1. 相同 `level + period + input_digest` 是否只存在一个 revision
+2. `summaries.current_revision_id` 是否指向 `publish_status=published` 的 revision
+3. artifact frontmatter 的 `revision_id` / `input_digest` 是否与 SQLite 一致
+4. `artifact_hash` 是否等于完整 Markdown 文件 SHA-256；不一致时从 SQLite document payload 重建投影
 
 ## 4. 外部材料日期归因不符合预期
 
