@@ -95,6 +95,15 @@ def test_context7_proxy_and_key_are_normalized_once():
     assert server.env["ALL_PROXY"] == "socks5://127.0.0.1:7897"
 
 
+def test_audit_ignores_context7_secret_and_proxy_environment_drift():
+    installed = runtime.desired_servers(
+        inputs(context7_key="installed-secret", http_proxy="http://install-proxy")
+    )
+    audited = runtime.desired_servers(inputs())
+    config = runtime.render_json_config("claude", {}, installed)
+    assert runtime.audit_config("claude", config, audited) == []
+
+
 def test_runtime_inputs_from_env_supports_lowercase_proxy_and_optional_servers():
     parsed = runtime.RuntimeInputs.from_env(
         bootstrap=Path("/repo"),
@@ -131,6 +140,35 @@ def test_json_host_adapter_preserves_unmanaged_state():
     assert "devspace" not in result["mcpServers"]
     assert result["mcpServers"]["x-docs"] == {"url": "https://docs.x.com/mcp"}
     assert "context-mode" not in result["mcpServers"]
+
+
+@pytest.mark.parametrize("host,root_key", [("claude", "mcpServers"), ("opencode", "mcp")])
+def test_render_removes_retired_server_aliases(host, root_key):
+    current = {
+        root_key: {
+            "code-review-graph": {"command": "old"},
+            "codebase-memory": {"command": "older"},
+        }
+    }
+    desired = runtime.desired_servers(inputs())
+    result = runtime.render_json_config(host, current, desired)
+    assert "code-review-graph" not in result[root_key]
+    assert "codebase-memory" not in result[root_key]
+
+
+def test_audit_reports_retired_server_alias():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.render_json_config("claude", {}, desired)
+    config["mcpServers"]["code-review-graph"] = {"command": "old"}
+    assert [(issue.code, issue.server) for issue in runtime.audit_config("claude", config, desired)] == [
+        ("retired_server", "code-review-graph")
+    ]
+
+
+@pytest.mark.parametrize("existing,expected", [({}, False), ({"skipSetup": True}, True), ({"skipSetup": False}, False)])
+def test_reasonix_preserves_or_initializes_skip_setup(existing, expected):
+    result = runtime.render_json_config("reasonix", existing, runtime.desired_servers(inputs()))
+    assert result["skipSetup"] is expected
 
 
 def test_opencode_adapter_uses_local_and_remote_shapes():
@@ -278,6 +316,19 @@ def test_atomic_json_writer_replaces_target(tmp_path):
     runtime._write_json_atomically(target, {"value": "ok"})
     assert json.loads(target.read_text()) == {"value": "ok"}
     assert not list(target.parent.glob("*.tmp"))
+
+
+def test_atomic_json_writer_cleans_temp_file_on_serialization_error(monkeypatch, tmp_path):
+    target = tmp_path / "config.json"
+
+    def fail_dump(*args, **kwargs):
+        raise TypeError("cannot serialize")
+
+    monkeypatch.setattr(runtime.json, "dump", fail_dump)
+    with pytest.raises(TypeError, match="cannot serialize"):
+        runtime._write_json_atomically(target, {"bad": object()})
+    assert not target.exists()
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 def test_main_render_codex_and_missing_audit(monkeypatch, capsys, tmp_path):

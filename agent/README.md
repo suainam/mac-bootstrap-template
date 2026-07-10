@@ -91,6 +91,11 @@ The script is intentionally split by responsibility:
 - `scripts/render-codex-mcp-block.py` + `scripts/sync-codex-mcp-config.py` — compatibility CLI and idempotent Codex managed-section rewrite
 - `scripts/run-doctor-checks.py` + `scripts/doctor-manifest.json` — data-driven doctor checks derived from Brewfile
 
+MCP reconciliation preserves unrelated root keys and unmanaged servers. It removes
+retired graph-server aliases, initializes `reasonix.skipSetup` only when absent,
+and treats Context7 API-key/proxy values as volatile during doctor comparison.
+Remote OAuth authorization is runtime readiness, not desired-state drift.
+
 ---
 
 ## Agent Config Matrix

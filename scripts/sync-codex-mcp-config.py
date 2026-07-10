@@ -4,15 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+import stat
+import tempfile
 
-from agent_mcp_runtime import managed_server_names
+from agent_mcp_runtime import managed_server_names, retired_server_names
 
 
 START_MARKER = "# BEGIN MAC-BOOTSTRAP MANAGED MCPS"
 END_MARKER = "# END MAC-BOOTSTRAP MANAGED MCPS"
-MANAGED_PREFIXES = tuple(f"mcp_servers.{name}" for name in managed_server_names()) + (
-    "mcp_servers.codebase-memory",
+MANAGED_PREFIXES = tuple(
+    f"mcp_servers.{name}" for name in managed_server_names() + retired_server_names()
 )
 
 
@@ -62,6 +65,31 @@ def build_output(existing_text: str, managed_block: str) -> str:
     return f"{block}\n"
 
 
+def write_output(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o600
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temp_path = Path(handle.name)
+        temp_path.chmod(mode)
+        temp_path.replace(path)
+        temp_path = None
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("config_path")
@@ -73,7 +101,7 @@ def main() -> int:
 
     existing_text = config_path.read_text() if config_path.exists() else ""
     managed_block = managed_block_path.read_text()
-    config_path.write_text(build_output(existing_text, managed_block))
+    write_output(config_path, build_output(existing_text, managed_block))
     return 0
 
 

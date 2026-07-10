@@ -24,6 +24,7 @@ MANAGED_NAMES = (
     "devspace",
     "xapi",
 )
+RETIRED_ALIASES = ("code-review-graph", "codebase-memory")
 
 CBM_TOOLS = (
     "search_graph",
@@ -113,6 +114,10 @@ class AuditIssue:
 
 def managed_server_names() -> tuple[str, ...]:
     return MANAGED_NAMES
+
+
+def retired_server_names() -> tuple[str, ...]:
+    return RETIRED_ALIASES
 
 
 def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
@@ -205,6 +210,8 @@ def render_json_config(
 ) -> dict[str, Any]:
     root_key = "mcp" if host == "opencode" else "mcpServers"
     result = deepcopy(dict(existing))
+    if host == "reasonix":
+        result.setdefault("skipSetup", False)
     current = result.get(root_key)
     servers = deepcopy(current) if isinstance(current, dict) else {}
     for name in MANAGED_NAMES:
@@ -212,6 +219,8 @@ def render_json_config(
             servers[name] = adapt_server(host, desired[name])
         else:
             servers.pop(name, None)
+    for name in RETIRED_ALIASES:
+        servers.pop(name, None)
     result[root_key] = servers
     return result
 
@@ -272,6 +281,22 @@ def _codex_server(spec: ServerSpec) -> dict[str, Any]:
     return result
 
 
+def _stable_server_view(name: str, value: Any) -> Any:
+    if name != "context7" or not isinstance(value, dict):
+        return value
+    stable = deepcopy(value)
+    stable.pop("env", None)
+    args = stable.get("args")
+    if isinstance(args, list) and "--api-key" in args:
+        index = args.index("--api-key")
+        del args[index : index + 2]
+    command = stable.get("command")
+    if isinstance(command, list) and "--api-key" in command:
+        index = command.index("--api-key")
+        del command[index : index + 2]
+    return stable
+
+
 def audit_config(
     host: str,
     config: Mapping[str, Any],
@@ -294,12 +319,15 @@ def audit_config(
             issues.append(AuditIssue("missing_server", name))
             continue
         expected = _codex_server(spec) if host == "codex" else adapt_server(host, spec)
-        if observed[name] != expected:
+        if _stable_server_view(name, observed[name]) != _stable_server_view(name, expected):
             issues.append(AuditIssue("server_mismatch", name))
 
     for name in MANAGED_NAMES:
         if name in observed and (name not in desired or host not in desired[name].hosts):
             issues.append(AuditIssue("stale_managed_server", name))
+    for name in RETIRED_ALIASES:
+        if name in observed:
+            issues.append(AuditIssue("retired_server", name))
 
     if executable_resolver is not None:
         mismatched = {issue.server for issue in issues if issue.code != "stale_managed_server"}
@@ -326,13 +354,19 @@ def _runtime_inputs(args: argparse.Namespace) -> RuntimeInputs:
 
 def _write_json_atomically(path: Path, value: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
-    ) as handle:
-        json.dump(value, handle, indent=2, ensure_ascii=False)
-        handle.write("\n")
-        temp_path = Path(handle.name)
-    temp_path.replace(path)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+        ) as handle:
+            temp_path = Path(handle.name)
+            json.dump(value, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+        temp_path.replace(path)
+        temp_path = None
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
 
 
 def _add_runtime_args(parser: argparse.ArgumentParser) -> None:

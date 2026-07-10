@@ -38,6 +38,14 @@ def test_agent_doctor_delegates_mcp_validation_to_runtime_audit():
     assert 'audit_mcp_config codex "$CODEX_TOML" --hooks-path "$CODEX_HOOKS"' in content
     assert 'audit_mcp_config claude "$CLAUDE_MCP_JSON"' in content
     assert 'check_contains "config.toml CBM"' not in content
+    assert "--check-executables" in content
+
+
+def test_agent_doctor_avoids_empty_array_expansion_under_nounset():
+    content = open(os.path.join(TEMPLATE, "scripts", "agent-doctor.sh")).read()
+    assert "curl_args=(-fsS" in content
+    assert 'curl "${curl_args[@]}"' in content
+    assert '"${auth_header[@]}"' not in content
 
 
 def test_agent_doctor_continues_after_agentshield_findings():

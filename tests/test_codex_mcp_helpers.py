@@ -6,6 +6,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import stat
 from pathlib import Path
 
 from helpers import PYTHON
@@ -113,3 +114,12 @@ def test_sync_codex_main_writes_from_cli_args(tmp_path):
     finally:
         sys.argv = old_argv
     assert rc == 0
+
+
+def test_atomic_write_preserves_existing_mode(tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_text("old\n")
+    config.chmod(0o600)
+    sync_codex_mcp_config.write_output(config, "new\n")
+    assert config.read_text() == "new\n"
+    assert stat.S_IMODE(config.stat().st_mode) == 0o600

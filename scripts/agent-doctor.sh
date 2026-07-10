@@ -11,7 +11,7 @@ MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
 source "$BOOTSTRAP/scripts/lib/agent-shared.sh"
 load_x_mcp_private_env
 load_devspace_mcp_private_env
-export CONTEXT7_KEY="${CONTEXT7_API_KEY:-}"
+export CONTEXT7_KEY="${CONTEXT7_KEY:-${CONTEXT7_API_KEY:-}}"
 
 manifest_get() {
   local key="$1"
@@ -134,6 +134,7 @@ audit_mcp_config() {
       --path "$path" \
       --bootstrap "$BOOTSTRAP" \
       --context7-command "$context7_command" \
+      --check-executables \
       "$@" 2>&1)"; then
     echo "  OK   $host managed MCP state"
   else
@@ -516,14 +517,14 @@ PY
     echo "  OK   llm_wiki enabled via API ($api_base)"
 
     if command -v curl &>/dev/null; then
-      auth_header=()
+      curl_args=(-fsS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 4)
       if [ "${token_configured:-false}" = "true" ]; then
         token_value="${!token_env:-}"
         if [ -n "$token_value" ]; then
-          auth_header=(-H "Authorization: Bearer $token_value")
+          curl_args+=(-H "Authorization: Bearer $token_value")
         fi
       fi
-      api_status="$(curl -fsS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 4 "${auth_header[@]}" "$api_base/api/v1/projects" 2>/dev/null || true)"
+      api_status="$(curl "${curl_args[@]}" "$api_base/api/v1/projects" 2>/dev/null || true)"
       case "$api_status" in
         200|204)
           echo "  OK   llm_wiki API reachable"
