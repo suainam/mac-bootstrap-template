@@ -55,6 +55,19 @@ Distribute approved/enabled skills from the real checkout only:
 make skill-distribute
 ```
 
+For an intentionally narrow rollout, use all relevant filters together:
+
+```bash
+python3 scripts/skill_supply_chain.py distribute \
+  --surface global --agent codex --skill <skill> --dry-run
+python3 scripts/skill_supply_chain.py distribute \
+  --surface global --agent codex --skill <skill>
+```
+
+`--agent` scopes a global target. It is especially important for target-format
+migrations: it prevents an unrelated target from being rewired while a single
+runtime is being verified.
+
 Do not run a real distribution apply from a DevSpace worktree. It would create user-level symlinks pointing at the temporary worktree path. The distributor refuses this by default; dry-run and snapshots are still safe in worktrees.
 
 Compatibility wrapper:
@@ -96,6 +109,11 @@ python3 scripts/skill_supply_chain.py snapshot-diff --before <pre.json> --after 
 
 The diff reports missing, added, and changed skill entries per target surface. It exits non-zero when the post snapshot is missing entries that existed before.
 
+For an intentional retirement or format migration, record the expected missing
+entries before treating that non-zero exit as a failure. The expected shape is
+explicitly reviewed: added replacement entries, only planned missing legacy
+entries, and no unexpected project-target changes.
+
 ## Stale runtime cleanup
 
 Distribution updates enabled target paths but does not automatically delete old entries. Run reconcile before and after real distribution:
@@ -106,6 +124,73 @@ make skill-reconcile APPLY=1      # prune stale symlinks and flat .md copies
 ```
 
 Reconcile only removes entries that are no longer `enabled` for that target surface. It skips real directories and leaves them for manual review. Like distribution, real cleanup is refused from a DevSpace worktree by default.
+
+### Rename, retire, and delete safely
+
+Do not delete a source record when a Skill is renamed or retired. Set the old
+record to `disabled` with the canonical replacement in `reason`, then use a
+narrow reconcile:
+
+```bash
+python3 scripts/skill_supply_chain.py reconcile \
+  --surface global --skill <old-skill> --dry-run
+python3 scripts/skill_supply_chain.py reconcile \
+  --surface global --skill <old-skill> --apply
+```
+
+This removes only managed symlinks or managed flat copies. It never deletes a
+real directory unless `--remove-real-paths` is explicitly supplied after manual
+review. Verify every configured target afterwards: directory targets must
+resolve to the canonical quarantine or local source; copy targets must byte-match
+the source `SKILL.md`.
+
+### Target-format migration
+
+Some runtimes can load either `<skills>/<name>.md` or
+`<skills>/<name>/SKILL.md`. Prefer the directory form when a Skill has auxiliary
+Markdown, templates, examples, or scripts. It preserves relative references and
+keeps one source tree for every target.
+
+Declare the old form in `targets.jsonc` as `legacy_formats`, then run this
+sequence from the real checkout:
+
+```bash
+make skill-snapshot LABEL=pre-target-migration
+python3 scripts/skill_supply_chain.py distribute \
+  --surface global --agent <agent> --dry-run
+python3 scripts/skill_supply_chain.py reconcile \
+  --surface global --agent <agent> --dry-run
+python3 scripts/skill_supply_chain.py distribute --surface global --agent <agent>
+python3 scripts/skill_supply_chain.py reconcile --surface global --agent <agent> --apply
+make skill-snapshot LABEL=post-target-migration
+```
+
+`legacy_formats` lets reconcile remove a legacy flat file only when it
+byte-matches a registered source `SKILL.md`. Unknown or same-name user Markdown
+remains untouched.
+
+## External intake and acceptance checklist
+
+Use this sequence for every external Skill, including skills.sh sources:
+
+1. Verify the public listing and the canonical upstream path. Do not trust a
+   historical slug when upstream renamed it.
+2. Read every shipped file, including files referenced by `SKILL.md`; identify
+   scripts, external writes, commits, tracker mutations, and runtime-specific
+   assumptions.
+3. Add the registry record with exact source, desired agents, audit policy, and
+   a manual gate bound to the content hash.
+4. Run `fetch`, `audit`, and `diff`; the observed hash must equal
+   `gate.approved_hash` before distribution.
+5. Add a regression test for state, target set, and exact hash. Test a required
+   script allowance explicitly when the source ships scripts.
+6. Snapshot, dry-run, apply narrowly, reconcile retired entries, snapshot again,
+   then scan the real target paths.
+
+Global scope means a reusable policy, not automatic compatibility with every
+runtime. Record intentional target exclusions in the registry `reason`. A Skill
+that requires a host capability such as parent-level parallel agents must not be
+distributed to a runtime that cannot provide it.
 
 ## Data Hub policy
 

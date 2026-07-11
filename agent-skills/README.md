@@ -40,3 +40,16 @@ make skill-reconcile
 
 Run real distribution and reconcile apply only from the real checkout. Full
 operations: [`../docs/skill-supply-chain.md`](../docs/skill-supply-chain.md).
+
+Use the registry CLI for narrow rollout or cleanup; do not hand-edit runtime
+skill directories:
+
+```bash
+python3 scripts/skill_supply_chain.py distribute --surface global --agent codex --skill <skill> --dry-run
+python3 scripts/skill_supply_chain.py reconcile --surface global --agent codex --skill <retired-skill> --dry-run
+```
+
+`reasonix` is a directory/symlink target. Its `legacy_formats` declaration is
+intentional: reconcile removes a legacy flat `.md` copy only when it byte-matches
+a registered source `SKILL.md`, preserving user files and multi-file Skill
+resources such as templates, examples, and scripts.

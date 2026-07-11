@@ -81,6 +81,7 @@ class SkillTarget:
     path: Path
     format: Literal["directory", "flat-md"]
     strategy: Literal["symlink", "copy"]
+    legacy_formats: tuple[Literal["directory", "flat-md"], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -366,6 +367,13 @@ def load_targets(path: Path = DEFAULT_TARGETS) -> dict[str, SkillTarget]:
             raise RegistryError(f"flat-md target must use copy strategy: {agent}")
         if fmt == "directory" and strategy != "symlink":
             raise RegistryError(f"directory target must use symlink strategy: {agent}")
+        legacy_formats_raw = meta.get("legacy_formats", [])
+        if not isinstance(legacy_formats_raw, list) or any(
+            legacy_format not in VALID_TARGET_FORMATS for legacy_format in legacy_formats_raw
+        ):
+            raise RegistryError(f"invalid legacy_formats for {agent}")
+        if fmt in legacy_formats_raw:
+            raise RegistryError(f"target format cannot also be legacy for {agent}: {fmt}")
         raw_path = meta.get("path")
         if not isinstance(raw_path, str) or not raw_path:
             raise RegistryError(f"target path must be a non-empty string: {agent}")
@@ -374,6 +382,7 @@ def load_targets(path: Path = DEFAULT_TARGETS) -> dict[str, SkillTarget]:
             path=Path(raw_path),
             format=fmt,  # type: ignore[arg-type]
             strategy=strategy,  # type: ignore[arg-type]
+            legacy_formats=tuple(legacy_formats_raw),  # type: ignore[arg-type]
         )
     return targets
 
@@ -763,6 +772,55 @@ def _enabled_distribution_specs(
     return specs
 
 
+def _source_for_legacy_reconcile(skill: SkillRef, root: Path) -> Path | None:
+    """Return an existing source without requiring an enabled distribution gate."""
+    candidates = [skill.source_path, skill.local_shadow_path, skill.quarantine_path]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        source = root / candidate
+        if (source / "SKILL.md").is_file():
+            return source
+    return None
+
+
+def _legacy_flat_copy_matches_managed_source(
+    path: Path,
+    skill_name: str,
+    registry: Registry,
+    root: Path,
+) -> bool:
+    try:
+        legacy_content = path.read_bytes()
+    except OSError:
+        return False
+    for skill in registry.skills.values():
+        if skill.name != skill_name:
+            continue
+        source = _source_for_legacy_reconcile(skill, root)
+        if source is None:
+            continue
+        if legacy_content == (source / "SKILL.md").read_bytes():
+            return True
+    return False
+
+
+def filter_reconcile_actions(
+    actions: list[ReconcileAction],
+    *,
+    surface: str | None = None,
+    skill: str | None = None,
+    agent: str | None = None,
+) -> list[ReconcileAction]:
+    if surface:
+        actions = [action for action in actions if action.surface == surface]
+    if skill:
+        actions = [action for action in actions if action.skill_name == skill]
+    if agent:
+        actions = [action for action in actions if action.target_name == agent]
+    return actions
+
+
 def build_reconcile_actions(
     registry: Registry,
     targets: dict[str, SkillTarget],
@@ -792,6 +850,26 @@ def build_reconcile_actions(
                     )
                 )
             continue
+        if "flat-md" in target.legacy_formats:
+            for child in sorted(base.glob("*.md")):
+                skill_name = child.stem
+                if not _legacy_flat_copy_matches_managed_source(
+                    child,
+                    skill_name,
+                    registry,
+                    root,
+                ):
+                    continue
+                actions.append(
+                    ReconcileAction(
+                        surface="global",
+                        target_name=agent,
+                        skill_name=skill_name,
+                        target_path=child,
+                        action="remove-flat-md",
+                        reason="legacy flat-md target format; replaced by directory wiring",
+                    )
+                )
         for child in sorted(base.iterdir()):
             if child.name.startswith("."):
                 continue
@@ -1135,6 +1213,8 @@ def cmd_distribute(args: argparse.Namespace) -> int:
         actions = [action for action in actions if action.target_agent is None]
     if args.skill:
         actions = [action for action in actions if action.skill_name == args.skill]
+    if args.agent:
+        actions = [action for action in actions if action.target_agent == args.agent]
     if not args.dry_run:
         _assert_safe_apply_root(
             ROOT,
@@ -1152,10 +1232,12 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     registry = load_registry(args.registry)
     targets = load_targets(args.targets)
     actions = build_reconcile_actions(registry, targets, ROOT)
-    if args.surface:
-        actions = [action for action in actions if action.surface == args.surface]
-    if args.skill:
-        actions = [action for action in actions if action.skill_name == args.skill]
+    actions = filter_reconcile_actions(
+        actions,
+        surface=args.surface,
+        skill=args.skill,
+        agent=args.agent,
+    )
     should_apply = bool(args.apply)
     if should_apply:
         _assert_safe_apply_root(
@@ -1263,6 +1345,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--surface",
         choices=["global", "project"],
         help="filter distribute or reconcile actions to one distribution surface",
+    )
+    parser.add_argument(
+        "--agent",
+        choices=sorted(VALID_AGENTS),
+        help="filter distribute or reconcile actions to one global agent target",
     )
     return parser
 

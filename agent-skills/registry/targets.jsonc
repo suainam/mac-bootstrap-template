@@ -40,8 +40,9 @@
     },
     "reasonix": {
       "path": "~/.reasonix/skills",
-      "format": "flat-md",
-      "strategy": "copy"
+      "format": "directory",
+      "strategy": "symlink",
+      "legacy_formats": ["flat-md"]
     }
   }
 }

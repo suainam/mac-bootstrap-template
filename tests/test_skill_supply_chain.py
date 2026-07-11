@@ -23,6 +23,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     compare_distribution_snapshots,
     evaluate_gate,
     fetch_external_skill,
+    filter_reconcile_actions,
     find_unmanaged_skill_dirs,
     inspect_skill_content,
     load_registry,
@@ -97,6 +98,22 @@ def test_distribute_filters_actions_by_surface_and_skill(capsys):
 
     assert result == 0
     assert "DRY-RUN distribution actions: 0" in capsys.readouterr().out
+
+    result = main(
+        [
+            "distribute",
+            "--dry-run",
+            "--surface",
+            "global",
+            "--agent",
+            "reasonix",
+            "--skill",
+            "knowledge-lifecycle-manager",
+        ]
+    )
+
+    assert result == 0
+    assert "DRY-RUN distribution actions: 1" in capsys.readouterr().out
 
 
 def test_strip_jsonc_comments_preserves_urls_and_strings():
@@ -210,7 +227,7 @@ def test_skill_targets_match_current_production_distribution():
             "symlink",
         ),
         "cross-agent": (manifest["shared"]["cross_agent_skills_dir"], "directory", "symlink"),
-        "reasonix": (manifest["agents"]["reasonix"]["paths"]["skills"], "flat-md", "copy"),
+        "reasonix": (manifest["agents"]["reasonix"]["paths"]["skills"], "directory", "symlink"),
     }
 
     assert set(targets) == set(expected)
@@ -218,6 +235,7 @@ def test_skill_targets_match_current_production_distribution():
         assert targets[name].path.as_posix() == path
         assert targets[name].format == fmt
         assert targets[name].strategy == strategy
+    assert targets["reasonix"].legacy_formats == ("flat-md",)
 
 
 def test_validate_skill_dir_requires_matching_name(tmp_path: Path):
@@ -363,9 +381,15 @@ def test_mattpocock_commands_include_skills_sh_page_backed_skills():
 
     for name in (
         "codebase-design",
+        "code-review",
         "diagnosing-bugs",
         "domain-modeling",
         "grilling",
+        "implement",
+        "setup-matt-pocock-skills",
+        "tdd",
+        "to-spec",
+        "to-tickets",
         "write-a-skill",
         "zoom-out",
     ):
@@ -489,7 +513,7 @@ def test_project_external_shadow_skill_distributes_from_checked_in_shadow():
     )
 
 
-def test_reasonix_distribution_uses_flat_md():
+def test_reasonix_distribution_uses_directory_symlink():
     registry = load_registry(DEFAULT_REGISTRY)
     targets = load_targets(DEFAULT_TARGETS)
 
@@ -500,16 +524,8 @@ def test_reasonix_distribution_uses_flat_md():
         for action in actions
         if action.skill_name == "knowledge-lifecycle-manager" and action.target_agent == "reasonix"
     ][0]
-    assert reasonix.action == "copy-flat-md"
-    assert reasonix.target_path.name == "knowledge-lifecycle-manager.md"
-
-
-def _filter_reconcile_actions(actions, *, surface=None, skill=None):
-    if surface:
-        actions = [action for action in actions if action.surface == surface]
-    if skill:
-        actions = [action for action in actions if action.skill_name == skill]
-    return actions
+    assert reasonix.action == "link-dir"
+    assert reasonix.target_path.name == "knowledge-lifecycle-manager"
 
 
 def test_reconcile_actions_include_stale_entries_but_not_enabled_targets(tmp_path: Path):
@@ -538,9 +554,12 @@ def test_reconcile_actions_include_stale_entries_but_not_enabled_targets(tmp_pat
 
     names = {(action.target_name, action.skill_name, action.action) for action in actions}
     assert ("codex", "stale-skill", "remove-symlink") in names
-    assert not any(action.skill_name == "knowledge-lifecycle-manager" for action in actions)
+    assert not any(
+        action.target_name == "codex" and action.skill_name == "knowledge-lifecycle-manager"
+        for action in actions
+    )
 
-    filtered = _filter_reconcile_actions(actions, surface="global", skill="stale-skill")
+    filtered = filter_reconcile_actions(actions, surface="global", skill="stale-skill")
     assert [action.skill_name for action in filtered] == ["stale-skill"]
     assert filtered[0].surface == "global"
 
@@ -568,6 +587,67 @@ def test_reconcile_skips_real_directories(tmp_path: Path):
     )
 
 
+def test_reconcile_removes_managed_legacy_flat_md_after_target_migration(tmp_path: Path):
+    registry = load_registry(DEFAULT_REGISTRY)
+    targets = load_targets(DEFAULT_TARGETS)
+    reasonix_root = tmp_path / "reasonix-skills"
+    reasonix_root.mkdir()
+    source = ROOT / "agent-skills/local/global/knowledge-lifecycle-manager/SKILL.md"
+    (reasonix_root / "knowledge-lifecycle-manager.md").write_bytes(source.read_bytes())
+    (reasonix_root / "user-note.md").write_text("keep", encoding="utf-8")
+    targets = {
+        **targets,
+        "reasonix": type(targets["reasonix"])(
+            agent="reasonix",
+            path=reasonix_root,
+            format="directory",
+            strategy="symlink",
+            legacy_formats=("flat-md",),
+        ),
+    }
+
+    actions = build_reconcile_actions(registry, targets, ROOT)
+
+    assert any(
+        action.target_name == "reasonix"
+        and action.skill_name == "knowledge-lifecycle-manager"
+        and action.action == "remove-flat-md"
+        for action in actions
+    )
+    assert not any(action.target_path.name == "user-note.md" for action in actions)
+
+    filtered = filter_reconcile_actions(
+        actions,
+        surface="global",
+        agent="reasonix",
+        skill="knowledge-lifecycle-manager",
+    )
+    assert len(filtered) == 1
+    assert filtered[0].target_name == "reasonix"
+
+
+def test_reconcile_preserves_same_name_legacy_flat_md_without_source_match(tmp_path: Path):
+    registry = load_registry(DEFAULT_REGISTRY)
+    targets = load_targets(DEFAULT_TARGETS)
+    reasonix_root = tmp_path / "reasonix-skills"
+    reasonix_root.mkdir()
+    (reasonix_root / "knowledge-lifecycle-manager.md").write_text("user copy", encoding="utf-8")
+    targets = {
+        **targets,
+        "reasonix": type(targets["reasonix"])(
+            agent="reasonix",
+            path=reasonix_root,
+            format="directory",
+            strategy="symlink",
+            legacy_formats=("flat-md",),
+        ),
+    }
+
+    actions = build_reconcile_actions(registry, targets, ROOT)
+
+    assert not any(action.target_path.name == "knowledge-lifecycle-manager.md" for action in actions)
+
+
 def test_snapshot_captures_global_and_project_targets():
     registry = load_registry(DEFAULT_REGISTRY)
     targets = load_targets(DEFAULT_TARGETS)
@@ -577,7 +657,7 @@ def test_snapshot_captures_global_and_project_targets():
     assert snapshot["schema_version"] == 1
     assert "claude" in snapshot["global_targets"]
     assert "mac-bootstrap" in snapshot["project_targets"]
-    assert snapshot["global_targets"]["reasonix"]["format"] == "flat-md"
+    assert snapshot["global_targets"]["reasonix"]["format"] == "directory"
     assert "global_total_entries" in snapshot["counts"]
     assert "project_total_entries" in snapshot["counts"]
 

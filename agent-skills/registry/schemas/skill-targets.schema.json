@@ -16,7 +16,12 @@
         "properties": {
           "path": {"type": "string", "minLength": 1},
           "format": {"enum": ["directory", "flat-md"]},
-          "strategy": {"enum": ["symlink", "copy"]}
+          "strategy": {"enum": ["symlink", "copy"]},
+          "legacy_formats": {
+            "type": "array",
+            "items": {"enum": ["directory", "flat-md"]},
+            "uniqueItems": true
+          }
         }
       }
     }

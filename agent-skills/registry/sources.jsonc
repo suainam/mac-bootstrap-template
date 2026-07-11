@@ -195,7 +195,7 @@
         },
         "tdd-workflow": {
           "distribution_state": "merged",
-          "reason": "TDD cluster will keep one canonical skill"
+          "reason": "Merged into mattpocock-skills/tdd; do not distribute separately"
         },
         "verification-loop": {
           "distribution_state": "merged",
@@ -269,6 +269,21 @@
           },
           "reason": "User-approved global architecture workflow skill"
         },
+        "code-review": {
+          "agents": ["claude", "codex", "opencode", "pi", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:a0a6ea333e7fd617515f47613832e1f2decb3abf18ac313d7fd0ea5ddda04365",
+            "reason": "User-approved two-axis code review skill; current upstream content manually audited"
+          },
+          "reason": "End-to-end engineering workflow review stage; Reasonix excluded until it supports parent-level parallel review agents"
+        },
         "domain-modeling": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
@@ -329,6 +344,81 @@
           },
           "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
         },
+        "implement": {
+          "agents": ["claude", "codex", "opencode", "pi", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:37152c34127f0609d05e7de3859e8273cefbdadebcb008bf7d46b95e325ce383",
+            "reason": "User-approved implementation stage; current upstream content manually audited, including its commit instruction"
+          },
+          "reason": "End-to-end engineering workflow implementation stage; Reasonix excluded because its code-review dependency requires unavailable parent-level parallel agents"
+        },
+        "setup-matt-pocock-skills": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:41a52a12eaeb5302c9a672af40d4090988b43758438855f0927dc378a2ddd570",
+            "reason": "User-approved workflow setup dependency; current upstream content and its confirmation-before-edit rule manually audited"
+          },
+          "reason": "End-to-end engineering workflow setup dependency; Reasonix directory wiring preserves its five referenced templates"
+        },
+        "tdd": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:e8ecf2e6373d026ec1926fcfb4bf61510e614754c6a9402cd8f33105f5c0d258",
+            "reason": "User-approved canonical TDD dependency; current upstream content manually audited"
+          },
+          "reason": "Canonical generic TDD skill for the Matt Pocock engineering workflow; directory wiring preserves tests and mocking references"
+        },
+        "to-spec": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:305911f9a65016bf31b209ade13da492042e3ebe1434db4161a777a4efc69dbb",
+            "reason": "User-approved specification stage; current upstream content manually audited"
+          },
+          "reason": "End-to-end engineering workflow specification stage; requires setup-matt-pocock-skills tracker configuration before publication"
+        },
+        "to-tickets": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:d03c2c1e5fee2080647ca49e6e4849cf5bbaf9250af9862ebc629d66f181b140",
+            "reason": "User-approved ticketing stage; current upstream content manually audited"
+          },
+          "reason": "End-to-end engineering workflow ticket stage; requires setup-matt-pocock-skills tracker configuration before publication"
+        },
         "writing-great-skills": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
@@ -357,13 +447,6 @@
           "distribution_state": "staged",
           "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill zoom-out; stage by default until routing/noise is confirmed"
-        },
-        "setup-matt-pocock-skills": {
-          "distribution_state": "disabled"
-        },
-        "tdd": {
-          "distribution_state": "merged",
-          "reason": "TDD cluster will keep one canonical skill"
         }
       }
     },
@@ -753,7 +836,7 @@
         },
         "test-driven-development": {
           "distribution_state": "merged",
-          "reason": "TDD cluster will keep one canonical skill later; currently not distributed from the new registry"
+          "reason": "Merged into mattpocock-skills/tdd; do not distribute separately"
         }
       }
     },

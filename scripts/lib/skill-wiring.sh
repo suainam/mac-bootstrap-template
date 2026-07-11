@@ -90,8 +90,11 @@ wire_skill_dir() {
   fi
 
   if skill_has_target "$skill_name" "reasonix"; then
-    run cp -L "$src_dir/SKILL.md" "$REASONIX_SKILLS_DIR/${skill_name}.md"
+    run mkdir -p "$REASONIX_SKILLS_DIR"
+    link_skill_target "$src_dir" "$REASONIX_SKILLS_DIR/${skill_name}"
+    run rm -f "$REASONIX_SKILLS_DIR/${skill_name}.md"
   else
+    run rm -rf "$REASONIX_SKILLS_DIR/${skill_name}"
     run rm -f "$REASONIX_SKILLS_DIR/${skill_name}.md"
   fi
 }

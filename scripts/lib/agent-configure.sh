@@ -597,17 +597,19 @@ configure_reasonix_step() {
   run mkdir -p "$REASONIX_SKILLS_DIR"
   configure_reasonix_mcp
 
-  if [ ! -f "$REASONIX_SKILLS_DIR/caveman.md" ]; then
+  if [ ! -f "$REASONIX_SKILLS_DIR/caveman/SKILL.md" ]; then
     if [ "${DRY_RUN:-0}" -eq 1 ]; then
-      echo "DRY-RUN: write $REASONIX_SKILLS_DIR/caveman.md"
+      echo "DRY-RUN: write $REASONIX_SKILLS_DIR/caveman/SKILL.md"
     else
-      cat > "$REASONIX_SKILLS_DIR/caveman.md" <<'RSKILL'
+      mkdir -p "$REASONIX_SKILLS_DIR/caveman"
+      cat > "$REASONIX_SKILLS_DIR/caveman/SKILL.md" <<'RSKILL'
 # Caveman Mode for Reasonix
 
 Talk terse. Drop articles/filler/pleasantries/hedging.
 Fragments OK. Short synonyms. Technical terms exact.
 Active by default. Off only: "normal mode" or "stop caveman".
 RSKILL
+      rm -f "$REASONIX_SKILLS_DIR/caveman.md"
     fi
     echo "  Reasonix: caveman skill installed"
   fi

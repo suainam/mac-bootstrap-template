@@ -341,8 +341,8 @@ if command -v reasonix &>/dev/null; then
   fi
   audit_mcp_config reasonix "$REASONIX_CONFIG"
   if [ -d "$REASONIX_SKILLS_DIR" ]; then
-    SKILL_COUNT=$(find "$REASONIX_SKILLS_DIR" -name '*.md' | wc -l | tr -d ' ')
-    echo "  OK   skills/ ($SKILL_COUNT skill files)"
+    SKILL_COUNT=$(find -L "$REASONIX_SKILLS_DIR" -maxdepth 2 \( -name 'SKILL.md' -o \( -maxdepth 1 -name '*.md' \) \) | wc -l | tr -d ' ')
+    echo "  OK   skills/ ($SKILL_COUNT skill entrypoints)"
   fi
 fi
 
