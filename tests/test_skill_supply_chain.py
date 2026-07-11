@@ -27,6 +27,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     inspect_skill_content,
     load_registry,
     load_targets,
+    main,
     snapshot_output_path,
     strip_jsonc_comments,
     validate_skill_dir,
@@ -66,6 +67,36 @@ def test_distribute_apply_rejects_devspace_worktree_by_default():
 
 def test_distribute_apply_allows_real_checkout_paths():
     _assert_safe_apply_root(ROOT)
+
+
+def test_distribute_filters_actions_by_surface_and_skill(capsys):
+    result = main(
+        [
+            "distribute",
+            "--dry-run",
+            "--surface",
+            "global",
+            "--skill",
+            "knowledge-lifecycle-manager",
+        ]
+    )
+
+    assert result == 0
+    assert "DRY-RUN distribution actions: 7" in capsys.readouterr().out
+
+    result = main(
+        [
+            "distribute",
+            "--dry-run",
+            "--surface",
+            "project",
+            "--skill",
+            "knowledge-lifecycle-manager",
+        ]
+    )
+
+    assert result == 0
+    assert "DRY-RUN distribution actions: 0" in capsys.readouterr().out
 
 
 def test_strip_jsonc_comments_preserves_urls_and_strings():

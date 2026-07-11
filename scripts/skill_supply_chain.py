@@ -1129,6 +1129,12 @@ def cmd_distribute(args: argparse.Namespace) -> int:
     registry = load_registry(args.registry)
     targets = load_targets(args.targets)
     actions = build_distribution_actions(registry, targets, ROOT)
+    if args.surface == "global":
+        actions = [action for action in actions if action.target_agent is not None]
+    elif args.surface == "project":
+        actions = [action for action in actions if action.target_agent is None]
+    if args.skill:
+        actions = [action for action in actions if action.skill_name == args.skill]
     if not args.dry_run:
         _assert_safe_apply_root(
             ROOT,
@@ -1256,7 +1262,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--surface",
         choices=["global", "project"],
-        help="filter reconcile actions to one distribution surface",
+        help="filter distribute or reconcile actions to one distribution surface",
     )
     return parser
 
