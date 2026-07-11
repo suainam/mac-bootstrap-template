@@ -7,7 +7,13 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
-from agent_mcp_runtime import RuntimeInputs, desired_servers, render_codex_toml
+from agent_mcp_runtime import (
+    RuntimeInputs,
+    apply_default_policy,
+    desired_servers,
+    load_mcp_policy,
+    render_codex_toml,
+)
 
 
 def main() -> int:
@@ -15,8 +21,7 @@ def main() -> int:
     parser.add_argument("--context7-command", required=True)
     parser.add_argument("--context7-api-key")
     parser.add_argument("--devspace-url")
-    parser.add_argument("--enable-x-api", action="store_true")
-    parser.add_argument("--x-api-command", default="x-mcp-bridge.sh")
+    parser.add_argument("--policy")
     args = parser.parse_args()
 
     bootstrap = Path(__file__).resolve().parents[1]
@@ -29,10 +34,11 @@ def main() -> int:
         context7_key=args.context7_api_key or inputs.context7_key,
         devspace_enabled=bool(args.devspace_url),
         devspace_url=args.devspace_url or "",
-        xapi_enabled=args.enable_x_api,
-        xapi_command=args.x_api_command if args.enable_x_api else "",
     )
-    print(render_codex_toml(desired_servers(inputs)), end="")
+    desired = desired_servers(inputs)
+    policy_path = Path(args.policy) if args.policy else bootstrap / "agent/mcp-policy.json"
+    desired = apply_default_policy(desired, load_mcp_policy(policy_path))
+    print(render_codex_toml(desired), end="")
     return 0
 
 

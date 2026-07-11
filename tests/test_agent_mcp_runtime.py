@@ -32,7 +32,6 @@ def inputs(**overrides):
         "no_proxy": "localhost,127.0.0.1,::1",
         "devspace_enabled": False,
         "devspace_url": "",
-        "xapi_enabled": False,
     }
     values.update(overrides)
     return runtime.RuntimeInputs(**values)
@@ -44,12 +43,10 @@ def test_desired_servers_has_one_normalized_catalog():
         "context-mode",
         "codebase-memory-mcp",
         "agent-prompt-library",
-        "x-docs",
         "context7",
     ]
     assert servers["context7"].command == "npx"
     assert servers["context7"].args == ("-y", "@upstash/context7-mcp")
-    assert servers["x-docs"].transport == "remote"
     assert servers["codebase-memory-mcp"].tool_approvals == (
         "search_graph",
         "trace_path",
@@ -67,17 +64,14 @@ def test_desired_servers_has_one_normalized_catalog():
     )
 
 
-def test_optional_servers_are_resolved_from_runtime_inputs():
+def test_optional_devspace_server_is_resolved_from_runtime_inputs():
     servers = runtime.desired_servers(
         inputs(
             devspace_enabled=True,
             devspace_url="https://devspace.example/mcp",
-            xapi_enabled=True,
         )
     )
     assert servers["devspace"].url == "https://devspace.example/mcp"
-    assert servers["xapi"].command == "/repo/scripts/x-mcp-bridge.sh"
-    assert servers["xapi"].startup_timeout_sec == 300
 
 
 def test_context7_proxy_and_key_are_normalized_once():
@@ -139,7 +133,7 @@ def test_audit_rejects_malformed_context7_api_key_argument():
     ]
 
 
-def test_runtime_inputs_from_env_supports_lowercase_proxy_and_optional_servers():
+def test_runtime_inputs_from_env_supports_lowercase_proxy_and_devspace():
     parsed = runtime.RuntimeInputs.from_env(
         bootstrap=Path("/repo"),
         context7_command="context7-mcp",
@@ -148,15 +142,12 @@ def test_runtime_inputs_from_env_supports_lowercase_proxy_and_optional_servers()
             "http_proxy": "http://proxy",
             "DEVSPACE_MCP_ENABLE": "1",
             "DEVSPACE_MCP_URL": "https://devspace.example/mcp",
-            "X_MCP_ENABLE": "1",
-            "X_MCP_COMMAND": "/custom/xapi",
         },
     )
     assert parsed.home == Path("/home/bob")
     assert parsed.https_proxy == "http://proxy"
     assert parsed.all_proxy == "http://proxy"
     assert parsed.devspace_enabled is True
-    assert parsed.xapi_command == "/custom/xapi"
 
 
 def test_json_host_adapter_preserves_unmanaged_state():
@@ -173,7 +164,7 @@ def test_json_host_adapter_preserves_unmanaged_state():
     assert result["theme"] == "dark"
     assert result["mcpServers"]["unmanaged"] == {"command": "mine"}
     assert "devspace" not in result["mcpServers"]
-    assert result["mcpServers"]["x-docs"] == {"url": "https://docs.x.com/mcp"}
+    assert "x-docs" not in result["mcpServers"]
     assert "context-mode" not in result["mcpServers"]
 
 
@@ -215,11 +206,6 @@ def test_opencode_adapter_uses_local_and_remote_shapes():
         "type": "local",
         "command": ["codebase-memory-mcp"],
     }
-    assert result["mcp"]["x-docs"] == {
-        "enabled": True,
-        "type": "remote",
-        "url": "https://docs.x.com/mcp",
-    }
 
 
 def test_managed_server_names_include_optional_names():
@@ -227,10 +213,8 @@ def test_managed_server_names_include_optional_names():
         "context-mode",
         "codebase-memory-mcp",
         "agent-prompt-library",
-        "x-docs",
         "context7",
         "devspace",
-        "xapi",
     )
 
 
@@ -241,7 +225,6 @@ def test_codex_toml_is_rendered_from_normalized_specs():
             http_proxy="http://127.0.0.1:7897",
             devspace_enabled=True,
             devspace_url="https://devspace.example/mcp",
-            xapi_enabled=True,
         )
     )
     rendered = runtime.render_codex_toml(desired)
@@ -252,7 +235,50 @@ def test_codex_toml_is_rendered_from_normalized_specs():
     assert 'args = ["-y", "@upstash/context7-mcp", "--api-key", "a\\\"b"]' in rendered
     assert '[mcp_servers.context7.env]' in rendered
     assert '[mcp_servers.devspace]' in rendered
-    assert 'startup_timeout_sec = 300' in rendered
+    assert '[mcp_servers.x-docs]' not in rendered
+    assert '[mcp_servers.xapi]' not in rendered
+
+
+def test_policy_disables_optional_codex_servers_and_renders_profiles(tmp_path):
+    policy_path = tmp_path / "mcp-policy.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "default_enabled": {
+                    "context-mode": True,
+                    "context7": False,
+                    "devspace": False,
+                },
+                "profiles": {"docs": ["context7"], "devspace": ["devspace"]},
+            }
+        )
+    )
+    policy = runtime.load_mcp_policy(policy_path)
+    desired = runtime.apply_default_policy(
+        runtime.desired_servers(
+            inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
+        ),
+        policy,
+    )
+    assert desired["context-mode"].enabled is True
+    assert desired["context7"].enabled is False
+    assert desired["devspace"].enabled is False
+
+
+def test_policy_rejects_unknown_managed_server(tmp_path):
+    policy_path = tmp_path / "mcp-policy.json"
+    policy_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "default_enabled": {"unknown": False},
+                "profiles": {},
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="unknown MCP names"):
+        runtime.load_mcp_policy(policy_path)
 
 
 def test_render_json_cli_preserves_unmanaged_keys_and_replaces_file(tmp_path):

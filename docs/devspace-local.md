@@ -24,6 +24,8 @@ example file is documentation and shape reference only.
   `private/agent/devspace.home.auth.json` are the durable authoritative copies.
 - `~/.devspace/config.json` and `~/.devspace/auth.json` are runtime mirrors
   used by upstream DevSpace tooling.
+- `devspace.home.auth.json`, `devspace.runtime.jsonc`, and materialized runtime
+  files are kept at mode `0600` by the push/pull workflow.
 
 Normal workflow:
 
@@ -165,8 +167,9 @@ Use that page together with this local runbook:
   distribution.
 - The Gitee page is the reference for browser-side app creation and approval
   flow inside ChatGPT.
-- For Codex CLI specifically, authentication is normally triggered with
-  `codex mcp login devspace`.
+- For Codex CLI specifically, keep DevSpace disabled in normal sessions. Run
+  `codex-mcp devspace mcp login devspace` once to authorize, then use
+  `codex-mcp devspace` for on-demand sessions.
 - The DevSpace approval page asks for the Owner password, which is the
   `ownerToken` stored in `~/.devspace/auth.json`.
 
@@ -174,8 +177,9 @@ When troubleshooting, check the layers in this order:
 
 1. `make devspace-status`
 2. `curl -sS -o /dev/null -w '%{http_code}\n' https://devspace.suainam.eu.org/mcp`
-3. restart the MCP client so it reloads `devspace` config
-4. trigger the client-side login or approval flow
+3. run `codex-mcp devspace mcp login devspace` for Codex, or the equivalent
+   login flow in another MCP client
+4. start a new `codex-mcp devspace` session after approval
 5. compare the browser-side steps with the Gitee walkthrough above
 
 ## Local Verification

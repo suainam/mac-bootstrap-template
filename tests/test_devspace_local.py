@@ -359,6 +359,43 @@ def test_home_pull_updates_private_mirror_only_when_runtime_files_exist(monkeypa
     assert rc == 0
     assert json.loads((private_dir / "devspace.home.config.json").read_text(encoding="utf-8")) == runtime_config
     assert json.loads((private_dir / "devspace.home.auth.json").read_text(encoding="utf-8")) == runtime_auth
+    assert ((private_dir / "devspace.home.auth.json").stat().st_mode & 0o777) == 0o600
+    assert (runtime.stat().st_mode & 0o777) == 0o600
+
+
+def test_home_push_secures_private_and_runtime_files(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    private_dir = repo / "private" / "agent"
+    private_dir.mkdir(parents=True)
+    runtime = private_dir / "devspace.runtime.jsonc"
+    runtime.write_text(
+        json.dumps(
+            {
+                "paths": {"allowed_roots": [str(tmp_path)]},
+                "server": {"host": "127.0.0.1", "port": 7676},
+                "runtime": {"log_dir": str(tmp_path / "logs/devspace")},
+            }
+        )
+    )
+    private_config = private_dir / "devspace.home.config.json"
+    private_config.write_text(
+        json.dumps({"host": "127.0.0.1", "port": 7676, "allowedRoots": ["/tmp/root"]})
+    )
+    private_auth = private_dir / "devspace.home.auth.json"
+    private_auth.write_text(json.dumps({"ownerToken": "1234567890abcdef"}))
+    runtime.chmod(0o644)
+    private_auth.chmod(0o644)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(devspace_local, "verify_home_push_health", lambda **kwargs: [])
+
+    rc = devspace_local.main(["--repo-root", str(repo), "--config", str(runtime), "home-push"])
+
+    assert rc == 0
+    assert (runtime.stat().st_mode & 0o777) == 0o600
+    assert (private_auth.stat().st_mode & 0o777) == 0o600
+    assert ((home / ".devspace/config.json").stat().st_mode & 0o777) == 0o600
+    assert ((home / ".devspace/auth.json").stat().st_mode & 0o777) == 0o600
 
 
 def test_devspace_example_config_targets_current_repo():

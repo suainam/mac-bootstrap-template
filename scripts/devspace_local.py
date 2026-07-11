@@ -298,9 +298,20 @@ def read_json_file(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def write_json_file(path: Path, data: Mapping[str, Any]) -> None:
+def write_json_file(path: Path, data: Mapping[str, Any], mode: int = 0o600) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    path.chmod(mode)
+
+
+def secure_private_devspace_files(repo_root: Path, config_path: Path | None = None) -> None:
+    paths = (
+        config_path or repo_root / "private" / "agent" / "devspace.runtime.jsonc",
+        repo_root / "private" / "agent" / "devspace.home.auth.json",
+    )
+    for path in paths:
+        if path.exists():
+            path.chmod(0o600)
 
 
 def validate_devspace_home_config(data: Mapping[str, Any]) -> list[str]:
@@ -522,6 +533,7 @@ def cmd_home_push(args: argparse.Namespace) -> int:
     home_dir = Path.home()
     config = load_devspace_config(repo_root=repo_root, config_path=args.config)
     paths = devspace_home_paths(home_dir=home_dir, repo_root=repo_root)
+    secure_private_devspace_files(repo_root, args.config)
     private_config = read_json_file(paths["private_config"])
     private_auth = read_json_file(paths["private_auth"])
     errors = validate_devspace_home_config(private_config) + validate_devspace_home_auth(private_auth)
@@ -559,6 +571,7 @@ def cmd_home_pull(args: argparse.Namespace) -> int:
         return 1
     write_json_file(paths["private_config"], runtime_config)
     write_json_file(paths["private_auth"], runtime_auth)
+    secure_private_devspace_files(repo_root, args.config)
     print("OK: pulled ~/.devspace runtime files into private/agent mirror")
     return 0
 

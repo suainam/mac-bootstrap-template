@@ -33,7 +33,7 @@
 |---|---|---|
 | 软件与工具清单 | `Brewfile` | 不把包名硬编码到安装脚本 |
 | Pi 包清单 | `agent/pi-packages.txt` | 独立数据文件 |
-| Agent Runtime | `agent/` | agent 路径、规则、提示词、扩展与质量门禁 |
+| Agent Runtime | `agent/` | agent 路径、规则、提示词、扩展、MCP 启动策略与质量门禁 |
 | Agent Skill 来源与分发 | `agent-skills/registry/sources.jsonc`、`agent-skills/registry/targets.jsonc` | 来源血统、scope、gate、target 目录和格式；运行态目录是派生产物 |
 | Data Hub | `data-hub/` | 知识沉淀、SQLite 状态、周期总结与投影子系统 |
 | Python 公共依赖 | `infra/python/requirements-common.txt` | 供数据分析环境复用 |
@@ -53,7 +53,7 @@
 
 受管 agent 包括 Claude Code、Codex CLI、OpenCode、Pi、Reasonix 与 Antigravity；其路径与配置目标由 `agent/agent-manifest.json` 描述。`agent/` 只拥有 runtime 配置。Agent Skill 由 `agent-skills/registry/sources.jsonc` 管来源血统、scope、gate 与分发意图，由 `agent-skills/registry/targets.jsonc` 管各 agent 的 skill 目录、格式和软链/复制策略；最终的 agent skill 目录是派生产物，不是默认编辑入口。
 
-顶层 orchestrator 是 `scripts/install-agent-tooling.sh`。可复用 shell 逻辑位于 `scripts/lib/`；skill 分发由 `scripts/skill_supply_chain.py` 负责。`scripts/agent_mcp_runtime.py` 是所有受管 MCP server 的 desired-state 权威：它统一解析环境、通过 host adapter 渲染各 agent 格式，并向 `agent-doctor.sh` 提供语义审计。Codex managed-section rewrite 只负责保留用户 TOML，不另行定义 server。安装与 doctor 必须消费同一 desired state，不能各自维护 server 清单。
+顶层 orchestrator 是 `scripts/install-agent-tooling.sh`。可复用 shell 逻辑位于 `scripts/lib/`；skill 分发由 `scripts/skill_supply_chain.py` 负责。`scripts/agent_mcp_runtime.py` 是所有受管 MCP server 连接定义的 desired-state 权威：它统一解析环境、通过 host adapter 渲染各 agent 格式，并向 `agent-doctor.sh` 提供语义审计。`agent/mcp-policy.json` 只管理 Codex 的默认启用状态与按需 profile；`codex-mcp` launcher 将 profile 转成单会话 `-c` 覆盖。Codex managed-section rewrite 只负责保留用户 TOML，不另行定义 server。安装与 doctor 必须消费同一 desired state 和 policy，不能各自维护 server 清单。
 
 Codex hook 命令只写入 `~/.codex/hooks.json`；`config.toml` 只保留 Codex 自身配置和 hook trust state。不要在两个文件中重复定义 hook。
 

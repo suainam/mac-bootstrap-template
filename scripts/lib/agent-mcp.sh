@@ -48,7 +48,7 @@ ensure_codebase_memory_mcp() {
 configure_claude_mcp() {
   [ -f "$CLAUDE_MCP_JSON" ] || return 0
   write_mcp_config claude "$CLAUDE_MCP_JSON"
-  echo "  Claude Code: CBM + context7 + prompt-library + X docs MCP configured"
+  echo "  Claude Code: CBM + context7 + prompt-library MCP configured"
 }
 
 configure_codex_mcp() {
@@ -71,9 +71,6 @@ configure_codex_mcp() {
     if [ -n "${CONTEXT7_KEY:-}" ]; then
       render_args+=(--context7-api-key "$CONTEXT7_KEY")
     fi
-    if [ "${X_MCP_ENABLE:-0}" = "1" ]; then
-      render_args+=(--enable-x-api --x-api-command "$BOOTSTRAP/scripts/x-mcp-bridge.sh")
-    fi
     if [ "${DEVSPACE_MCP_ENABLE:-0}" = "1" ] && [ -n "${DEVSPACE_MCP_URL:-}" ]; then
       render_args+=(--devspace-url "$DEVSPACE_MCP_URL")
     fi
@@ -81,24 +78,27 @@ configure_codex_mcp() {
       "${render_args[@]}" > "$tmp_block"
     "$python_bin" "$BOOTSTRAP/scripts/sync-codex-mcp-config.py" "$CODEX_TOML" "$tmp_block"
     rm -f "$tmp_block"
+
+    rm -f "$(dirname "$CODEX_TOML")"/{docs,prompts,devspace,full}.config.toml
+    run ln -sfn "$BOOTSTRAP/scripts/codex-mcp-profile.py" "$HOME/.local/bin/codex-mcp"
   fi
-  echo "  Codex: context-mode + CBM + context7 + prompt-library + X docs MCP configured"
+  echo "  Codex: core MCPs + on-demand profiles configured"
 }
 
 configure_opencode_mcp() {
   [ -f "$OPENCODE_CONFIG" ] || return 0
   write_mcp_config opencode "$OPENCODE_CONFIG"
-  echo "  OpenCode: CBM + context7 + prompt-library + X docs MCP configured"
+  echo "  OpenCode: CBM + context7 + prompt-library MCP configured"
 }
 
 configure_pi_mcp_file() {
   write_mcp_config pi "$PI_MCP_JSON"
-  echo "  Pi: mcp.json updated with CBM + context7 + prompt-library + X docs"
+  echo "  Pi: mcp.json updated with CBM + context7 + prompt-library"
 }
 
 configure_reasonix_mcp() {
   write_mcp_config reasonix "$REASONIX_CONFIG"
-  echo "  Reasonix: config.json merged with CBM + context7 + prompt-library + X docs MCP"
+  echo "  Reasonix: config.json merged with CBM + context7 + prompt-library MCP"
 }
 
 configure_antigravity_settings_file() {
@@ -118,7 +118,7 @@ fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + "\n");
 
 configure_antigravity_mcp_file() {
   write_mcp_config antigravity "$ANTIGRAVITY_MCP_JSON"
-  echo "  Antigravity: mcp_config.json updated with CBM + context7 + prompt-library + X docs"
+  echo "  Antigravity: mcp_config.json updated with CBM + context7 + prompt-library"
 }
 
 configure_all_mcp() {

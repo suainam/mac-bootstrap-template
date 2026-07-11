@@ -75,10 +75,12 @@ def test_render_codex_mcp_block_emits_proxy_variants():
     assert 'all_proxy = "http://127.0.0.1:7897"' in result.stdout
     assert 'NO_PROXY = "localhost,127.0.0.1,::1"' in result.stdout
     assert '[mcp_servers.agent-prompt-library]' in result.stdout
+    assert '[mcp_servers.agent-prompt-library]\nenabled = false' in result.stdout
     assert str(Path.home() / ".local/bin/agent-prompt-mcp") in result.stdout
     assert '[mcp_servers.agent-prompt-library.tools.search_prompts]' in result.stdout
-    assert '[mcp_servers.x-docs]' in result.stdout
-    assert 'url = "https://docs.x.com/mcp"' in result.stdout
+    assert '[mcp_servers.x-docs]' not in result.stdout
+    assert '[mcp_servers.xapi]' not in result.stdout
+    assert '[mcp_servers.context7]\nenabled = false' in result.stdout
 
 
 def test_render_codex_mcp_block_includes_devspace_url():

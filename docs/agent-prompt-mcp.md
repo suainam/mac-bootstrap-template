@@ -21,6 +21,7 @@ Codex MCP config is generated with an absolute command path:
 
 ```toml
 [mcp_servers.agent-prompt-library]
+enabled = false
 command = "<home>/.local/bin/agent-prompt-mcp"
 args = []
 
@@ -28,8 +29,9 @@ args = []
 approval_mode = "approve"
 ```
 
-Restart the agent session after running `make agent-tools` so the MCP server is
-loaded by the client process.
+Codex keeps this optional server disabled in normal sessions. Start an on-demand
+session with `codex-mcp prompts`; other supported agents continue using their
+host-specific generated MCP configuration.
 
 ## CLI Use
 
@@ -81,6 +83,7 @@ Expected checks:
 
 ```bash
 codex mcp get agent-prompt-library
+codex-mcp prompts mcp get agent-prompt-library
 scripts/agent-doctor.sh
 ```
 
@@ -101,7 +104,8 @@ configuration health checks from running.
 - Missing `agent-prompt-mcp`: rerun `make agent-tools`.
 - Missing index: rerun `make prompt-sync`.
 - Old prompt results: rerun `make prompt-index` after updating upstream repos.
-- Codex does not show the server: run `make agent-tools`, then restart Codex.
+- Codex does not show the server definition: run `make agent-tools`.
+- Codex shows the server as disabled: use `codex-mcp prompts` for that session.
 - MCP client cannot start the server: verify that the generated config uses the
   absolute `~/.local/bin/agent-prompt-mcp` target and that the symlink exists.
 

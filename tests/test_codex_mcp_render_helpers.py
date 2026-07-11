@@ -40,16 +40,11 @@ def test_renderer_includes_optional_servers_only_when_requested():
     default = run_renderer()
     assert default.returncode == 0, default.stderr
     assert "[mcp_servers.devspace]" not in default.stdout
-    assert "[mcp_servers.xapi]" not in default.stdout
 
     enabled = run_renderer(
         "--devspace-url",
         "https://devspace.example/mcp",
-        "--enable-x-api",
-        "--x-api-command",
-        "/tmp/x-mcp-bridge.sh",
     )
     assert enabled.returncode == 0, enabled.stderr
     assert "[mcp_servers.devspace]" in enabled.stdout
     assert 'url = "https://devspace.example/mcp"' in enabled.stdout
-    assert 'command = "/tmp/x-mcp-bridge.sh"' in enabled.stdout

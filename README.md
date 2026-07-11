@@ -343,7 +343,7 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 make bootstrap       # Brewfile + shell/vim/neovim/tmux
 make npm-packages    # Install tracked global npm CLIs (context-mode, CBM, reasonix, ...)
 make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian)
-make agent-tools     # Wire RTK, caveman, CBM, context-mode, X docs, skills for all agents
+make agent-tools     # Wire RTK, caveman, managed MCPs, and skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
 make skill-refresh   # Sync upstreams + re-wire skills only
 make prompt-sync     # Sync prompt libraries + rebuild prompt index
@@ -426,7 +426,8 @@ This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
 - Codebase Memory MCP installer with auto_index config
 - 12 operating rules embedded in all agent system prompts
 - Finer-grained hook matchers (console.log guards, destructive op warnings)
-- MCP profile system (`ECC_DISABLED_MCPS` env var)
+- Codex MCP startup policy and the `codex-mcp` on-demand launcher
+- Legacy ECC MCP exclusion support through `ECC_DISABLED_MCPS`
 
 Quality gate model:
 - `pre-commit` is the fast path for scoped checks

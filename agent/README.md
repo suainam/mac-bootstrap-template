@@ -10,7 +10,7 @@ runtime configuration only.
 # From bootstrap repo root:
 make bootstrap   # Brewfile deps + shell/vim/neovim/tmux config
 make agent-sync  # Validate/distribute registry-enabled skills + sync prompt libraries
-make agent-tools # Configure RTK, caveman, CBM, context7, X docs + wire skills for all agents
+make agent-tools # Configure RTK, caveman, CBM, context7 + wire skills for all agents
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Validate and distribute landed registry sources only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
@@ -19,10 +19,33 @@ make doctor-agent # Verify all configs
 make security-scan  # AgentShield security audit
 ```
 
-All agent configs are driven from [`agent-manifest.json`](agent-manifest.json).
-Edit the manifest or canonical files once, then re-run `make agent-tools`.
+Agent paths and targets are driven from
+[`agent-manifest.json`](agent-manifest.json); Codex MCP startup defaults and
+profiles are driven from [`mcp-policy.json`](mcp-policy.json). Edit canonical
+sources once, then re-run `make agent-tools`.
 Generated runtime markdown files are intentionally short and ordered:
 `12-rules` first, then `RTK`, then `CBM / docs`.
+
+### Codex MCP Profiles
+
+Codex MCP startup policy is managed in [`mcp-policy.json`](mcp-policy.json).
+Keep server connection definitions in `scripts/agent_mcp_runtime.py`; use the
+policy file only for default enablement and named profiles. Run `make
+agent-tools` after changing either source.
+
+The base Codex session starts only core MCPs. Optional MCPs are enabled per
+session through generated profiles:
+
+```bash
+codex-mcp docs       # context7
+codex-mcp prompts    # agent-prompt-library
+codex-mcp devspace   # authenticated remote DevSpace
+codex-mcp full       # all optional managed MCPs
+```
+
+The generated `~/.local/bin/codex-mcp` launcher converts the selected profile
+into per-session Codex config overrides. Profiles control Codex only because
+other supported hosts do not share one portable profile contract.
 
 ---
 
@@ -171,9 +194,10 @@ retired catalogs are preserved as unmanaged configuration.
 Plugin-owned MCP servers remain plugin-owned; do not copy them into this
 catalog unless mac-bootstrap is intentionally taking ownership.
 
-### Disabling MCPs Per Project
+### Legacy ECC MCP Exclusions
 
-Set the `ECC_DISABLED_MCPS` env var to skip specific MCPs:
+`ECC_DISABLED_MCPS` belongs to the inherited ECC setup and does not control the
+managed Codex catalog above. Set it only for ECC-owned MCPs:
 
 ```bash
 export ECC_DISABLED_MCPS="caveman-shrink,memory"
@@ -190,7 +214,7 @@ Or permanently in `~/.zshrc` (already configured by `make agent-tools`).
 | 1 | **AgentShield** | `make security-scan` — runs `npx ecc-agentshield scan --fix` |
 | 2 | **Instincts** | `~/.agent/instincts/active/` — session learnings with confidence scores |
 | 3 | **Language Rules** | `~/.claude/rules/{common,python}/` — auto-loaded by Claude Code |
-| 4 | **MCP Profiles** | `export ECC_DISABLED_MCPS="server1,server2"` |
+| 4 | **ECC MCP Exclusions** | `export ECC_DISABLED_MCPS="server1,server2"` |
 | 5 | **PM Detection** | `make pm-detect` — 6-level priority chain |
 | 6 | **Hook Matchers** | PreToolUse guards for console.log/destructive ops |
 | 7 | **Eval Loop** | Retained under `agent-skills/local/deprecated/eval-loop/SKILL.md` |

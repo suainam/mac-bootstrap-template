@@ -141,7 +141,7 @@ check:
 	bash -n scripts/lib/agent-mcp.sh
 	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
-	$(PYTHON) scripts/check-python-syntax.py scripts/agent_mcp_runtime.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/skill_supply_chain.py scripts/devspace_local.py scripts/agent_quality_gate.py
+	$(PYTHON) scripts/check-python-syntax.py scripts/agent_mcp_runtime.py scripts/codex-mcp-profile.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/skill_supply_chain.py scripts/devspace_local.py scripts/agent_quality_gate.py
 	$(PYTHON) scripts/skill_supply_chain.py check
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh

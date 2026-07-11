@@ -121,6 +121,7 @@ check_contains() {
 
 audit_mcp_config() {
   local host="$1" path="$2" context7_command="npx" output
+  local -a policy_args=()
   shift 2
   if [ ! -f "$path" ]; then
     echo "  MISS $host MCP config"
@@ -129,11 +130,15 @@ audit_mcp_config() {
   if command -v context7-mcp >/dev/null 2>&1; then
     context7_command="$(command -v context7-mcp)"
   fi
+  if [ "$host" = "codex" ]; then
+    policy_args=(--policy "$BOOTSTRAP/agent/mcp-policy.json")
+  fi
   if output="$(python3 "$BOOTSTRAP/scripts/agent_mcp_runtime.py" audit \
       --host "$host" \
       --path "$path" \
       --bootstrap "$BOOTSTRAP" \
       --context7-command "$context7_command" \
+      "${policy_args[@]}" \
       --check-executables \
       "$@" 2>&1)"; then
     echo "  OK   $host managed MCP state"

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import argparse
 import json
 import os
@@ -19,12 +19,10 @@ MANAGED_NAMES = (
     "context-mode",
     "codebase-memory-mcp",
     "agent-prompt-library",
-    "x-docs",
     "context7",
     "devspace",
-    "xapi",
 )
-RETIRED_ALIASES = ("code-review-graph", "codebase-memory")
+RETIRED_ALIASES = ("code-review-graph", "codebase-memory", "x-docs", "xapi")
 CONTEXT7_PROXY_KEYS = {
     "NODE_USE_ENV_PROXY",
     "HTTP_PROXY",
@@ -68,8 +66,6 @@ class RuntimeInputs:
     no_proxy: str = "localhost,127.0.0.1,::1"
     devspace_enabled: bool = False
     devspace_url: str = ""
-    xapi_enabled: bool = False
-    xapi_command: str = ""
 
     @classmethod
     def from_env(
@@ -92,8 +88,6 @@ class RuntimeInputs:
             no_proxy=env.get("NO_PROXY") or env.get("no_proxy") or "localhost,127.0.0.1,::1",
             devspace_enabled=env.get("DEVSPACE_MCP_ENABLE") == "1",
             devspace_url=env.get("DEVSPACE_MCP_URL", ""),
-            xapi_enabled=env.get("X_MCP_ENABLE") == "1",
-            xapi_command=env.get("X_MCP_COMMAND", ""),
         )
 
 
@@ -107,6 +101,7 @@ class ServerSpec:
     env: Mapping[str, str] = field(default_factory=dict)
     startup_timeout_sec: int | None = None
     tool_approvals: tuple[str, ...] = ()
+    enabled: bool = True
     hosts: tuple[str, ...] = (
         "codex",
         "claude",
@@ -172,7 +167,6 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
             command=str(inputs.home / ".local/bin/agent-prompt-mcp"),
             tool_approvals=("search_prompts",),
         ),
-        "x-docs": ServerSpec("x-docs", "remote", url="https://docs.x.com/mcp"),
         "context7": ServerSpec(
             "context7",
             "local",
@@ -183,14 +177,35 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
     }
     if inputs.devspace_enabled and inputs.devspace_url:
         servers["devspace"] = ServerSpec("devspace", "remote", url=inputs.devspace_url)
-    if inputs.xapi_enabled:
-        servers["xapi"] = ServerSpec(
-            "xapi",
-            "local",
-            command=inputs.xapi_command or str(inputs.bootstrap / "scripts/x-mcp-bridge.sh"),
-            startup_timeout_sec=300,
-        )
     return servers
+
+
+def load_mcp_policy(path: Path) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("version") != 1:
+        raise ValueError(f"invalid MCP policy: {path}")
+    defaults = value.get("default_enabled")
+    profiles = value.get("profiles")
+    if not isinstance(defaults, dict) or not isinstance(profiles, dict):
+        raise ValueError(f"invalid MCP policy shape: {path}")
+    unknown = set(defaults) - set(MANAGED_NAMES)
+    for profile, names in profiles.items():
+        if not isinstance(profile, str) or not isinstance(names, list):
+            raise ValueError(f"invalid MCP profile: {profile}")
+        unknown.update(set(names) - set(MANAGED_NAMES))
+    if unknown:
+        raise ValueError(f"unknown MCP names in policy: {', '.join(sorted(unknown))}")
+    return value
+
+
+def apply_default_policy(
+    desired: Mapping[str, ServerSpec], policy: Mapping[str, Any]
+) -> dict[str, ServerSpec]:
+    defaults = policy["default_enabled"]
+    return {
+        name: replace(spec, enabled=bool(defaults.get(name, True)))
+        for name, spec in desired.items()
+    }
 
 
 def adapt_server(host: str, spec: ServerSpec) -> dict[str, Any]:
@@ -250,6 +265,7 @@ def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
         if "codex" not in spec.hosts:
             continue
         lines = [f"[mcp_servers.{name}]"]
+        lines.append(f"enabled = {'true' if spec.enabled else 'false'}")
         if spec.transport == "remote":
             lines.append(f"url = {_toml_string(spec.url)}")
         else:
@@ -289,6 +305,7 @@ def _codex_server(spec: ServerSpec) -> dict[str, Any]:
         result["tools"] = {
             tool: {"approval_mode": "approve"} for tool in spec.tool_approvals
         }
+    result["enabled"] = spec.enabled
     return result
 
 
@@ -399,6 +416,7 @@ def _write_json_atomically(path: Path, value: Mapping[str, Any]) -> None:
 def _add_runtime_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bootstrap", required=True)
     parser.add_argument("--context7-command", required=True)
+    parser.add_argument("--policy")
 
 
 def main() -> int:
@@ -426,6 +444,8 @@ def main() -> int:
 
     args = parser.parse_args()
     desired = desired_servers(_runtime_inputs(args))
+    if args.policy:
+        desired = apply_default_policy(desired, load_mcp_policy(Path(args.policy)))
     if args.action == "render-codex":
         print(render_codex_toml(desired), end="")
         return 0
