@@ -330,7 +330,14 @@ def test_baoyu_and_guizang_sources_use_skills_sh_urls():
 def test_mattpocock_commands_include_skills_sh_page_backed_skills():
     registry = load_registry(DEFAULT_REGISTRY)
 
-    for name in ("diagnose", "write-a-skill", "zoom-out"):
+    for name in (
+        "codebase-design",
+        "diagnosing-bugs",
+        "domain-modeling",
+        "grilling",
+        "write-a-skill",
+        "zoom-out",
+    ):
         cmd = build_skills_sh_fetch_command(registry.skills[("mattpocock-skills", name)])
         assert cmd[:6] == [
             "npx",
@@ -341,7 +348,33 @@ def test_mattpocock_commands_include_skills_sh_page_backed_skills():
             name,
         ]
 
-    assert registry.skills[("mattpocock-skills", "diagnose")].distribution_state == "enabled"
+    assert registry.skills[("mattpocock-skills", "diagnose")].distribution_state == "disabled"
+    expected_agents = (
+        "claude",
+        "codex",
+        "opencode",
+        "pi",
+        "reasonix",
+        "antigravity",
+        "cross-agent",
+    )
+    expected_hashes = {
+        "codebase-design": "sha256:6af47ce35b6d06ce5a06201ab222c29d77fdd0211168526f30035a24e6873c7b",
+        "diagnosing-bugs": "sha256:30d504909484072b68fd2662cf1874da1d5f2c57fa02cbfc0750896c269713bb",
+        "domain-modeling": "sha256:9c70797062c1017367293905782a5a3a6b8f3ea85148abc172996a8de3f60071",
+        "grilling": "sha256:1468bb9078a95a6672a687cd37b97cbc25be2584ec327400b94613e69a1f5956",
+    }
+    for name, expected_hash in expected_hashes.items():
+        skill = registry.skills[("mattpocock-skills", name)]
+        assert skill.distribution_state == "enabled"
+        assert skill.scope == "global"
+        assert skill.agents == expected_agents
+        assert skill.gate.approved is True
+        assert skill.gate.approved_hash == expected_hash
+
+    diagnosing_bugs = registry.skills[("mattpocock-skills", "diagnosing-bugs")]
+    assert diagnosing_bugs.audit.allow_unaudited is True
+    assert diagnosing_bugs.audit.allow_scripts is True
 
     handoff = registry.skills[("mattpocock-skills", "handoff")]
     assert handoff.scope == "global"

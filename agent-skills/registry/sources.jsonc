@@ -224,9 +224,21 @@
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill caveman"
         },
         "diagnosing-bugs": {
-          "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
-          "reason": "User-confirmed delete; diagnose is the global debugging entry"
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:30d504909484072b68fd2662cf1874da1d5f2c57fa02cbfc0750896c269713bb",
+            "reason": "User-approved canonical global debugging skill; current upstream content and HITL script manually audited"
+          },
+          "reason": "User-approved canonical upstream debugging skill for global distribution"
         },
         "improve-codebase-architecture": {
           "agents": ["claude", "codex", "opencode", "cross-agent"],
@@ -241,6 +253,51 @@
             "approved_hash": "sha256:2823acbf7eb6674817713d21f449418c03dc4dbe33661760cff64255d40f8532",
             "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
           }
+        },
+        "codebase-design": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:6af47ce35b6d06ce5a06201ab222c29d77fdd0211168526f30035a24e6873c7b",
+            "reason": "User-approved global architecture vocabulary skill; current upstream content manually audited"
+          },
+          "reason": "User-approved global architecture workflow skill"
+        },
+        "domain-modeling": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:9c70797062c1017367293905782a5a3a6b8f3ea85148abc172996a8de3f60071",
+            "reason": "User-approved global domain vocabulary skill; current upstream content manually audited"
+          },
+          "reason": "User-approved global domain-modeling workflow skill"
+        },
+        "grilling": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-11",
+            "approved_hash": "sha256:1468bb9078a95a6672a687cd37b97cbc25be2584ec327400b94613e69a1f5956",
+            "reason": "User-approved global grilling primitive; current upstream content manually audited"
+          },
+          "reason": "User-approved global design-review workflow skill"
         },
         "grill-with-docs": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
@@ -288,19 +345,8 @@
           "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
         },
         "diagnose": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "audit": {
-            "allow_unaudited": true
-          },
-          "gate": {
-            "manual_approval": true,
-            "approved": true,
-            "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:c8bafba01efc7a2c67e4f83e7f657a4fa55c5578b1d75c50764ff0f11db4ff6c",
-            "reason": "User-confirmed global debugging entry; restored from pre-clean Reasonix backup because current skills.sh CLI no longer exposes diagnose"
-          },
-          "reason": "User-confirmed global debugging entry; skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill diagnose"
+          "distribution_state": "disabled",
+          "reason": "Replaced by the canonical upstream diagnosing-bugs skill"
         },
         "write-a-skill": {
           "distribution_state": "staged",
