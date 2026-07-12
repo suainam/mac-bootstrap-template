@@ -1,5 +1,7 @@
 # Skill Distribution Confirmation
 
+> Historical record only; this confirmation is not an active distribution instruction. Use `docs/skill-supply-chain.md`.
+
 > This is the confirmation view after user review of `2026-07-10-skill-distribution-audit.md`. Use the `Mark` column as the user's current intent, but resolve the open project-routing questions before changing `skills-sources.jsonc` broadly.
 
 ## Latest registry change already applied

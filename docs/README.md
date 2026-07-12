@@ -20,6 +20,7 @@
 - `data-hub-record-knowledge.md`：知识记录路径。
 - `openwiki-boundary-decision.md`：为什么这套模板不采用 OpenWiki 一类 repo wiki。
 - `manual-apps.md`、`shell-startup.md`、`imgup.md`：本机 bootstrap 的通用运维说明。
+- 历史设计与实施记录归档在 `archive/`，仅供审计，不作为当前操作说明。
 
 ## 维护规则
 

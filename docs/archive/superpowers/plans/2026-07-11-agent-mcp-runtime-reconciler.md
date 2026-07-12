@@ -1,6 +1,8 @@
 # Agent MCP Runtime Reconciler Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical record only. This plan originally referenced the retired
+> superpowers workflow; do not execute it. Current MCP guidance is in the
+> relevant `docs/` runbook.
 
 **Goal:** Make one normalized MCP desired-state module render and audit every managed agent configuration, eliminating duplicated server definitions and string-only doctor checks.
 

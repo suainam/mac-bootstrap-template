@@ -1,6 +1,8 @@
 # Agent Skills Directory Migration Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical record only. This plan originally referenced the retired
+> superpowers workflow; do not execute it. Current guidance is in
+> `docs/skill-supply-chain.md`.
 
 **Goal:** Move the Skill supply-chain authority and all managed Skill sources out of `agent/` into a dedicated `agent-skills/` subsystem without changing distribution scope or installed runtime behavior.
 

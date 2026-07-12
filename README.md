@@ -342,10 +342,10 @@ GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 ```bash
 make bootstrap       # Brewfile + shell/vim/neovim/tmux
 make npm-packages    # Install tracked global npm CLIs (context-mode, CBM, reasonix, ...)
-make agent-sync      # Clone upstream skills (ECC + Matt Pocock + Khazix + Garden + Humanizer + Obsidian)
+make agent-sync      # Ensure missing skill bundles + sync prompt libraries
 make agent-tools     # Wire RTK, caveman, managed MCPs, and skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
-make skill-refresh   # Sync upstreams + re-wire skills only
+make skill-refresh   # Ensure missing bundles + re-wire managed skills
 make prompt-sync     # Sync prompt libraries + rebuild prompt index
 make doctor-agent    # Verify all configs (contains AgentShield scan)
 ```
@@ -489,7 +489,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make bootstrap` | Brewfile + shell/vim/neovim/tmux config |
 | `make agent-tools` | Wire all agent tools |
 | `make agent-refresh` | Full sync + full agent reconfigure |
-| `make skill-refresh` | Sync upstreams + re-wire skills only |
+| `make skill-refresh` | Ensure missing bundles + re-wire managed skills |
 | `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
 | `make check` | Syntax + tool validation |
 | `make doctor` | Machine health check |
@@ -500,7 +500,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make private-sync` | Clone/update ignored private overlay repo |
 | `make export-public DEST=/path` | Export tracked template files without git history |
 | `PUBLIC_REPO=owner/repo make publish-public` | Export and push the public template |
-| `make agent-sync` | Sync upstream ECC/Matt Pocock/Khazix/Garden/Humanizer/Obsidian skills |
+| `make agent-sync` | Ensure missing skill bundles + sync prompt libraries |
 | `make pm-detect` | Detect package manager |
 | `make pm-set PNPM` | Set global package manager |
 | `make clean-cache` | Prune build caches |

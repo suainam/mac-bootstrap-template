@@ -1,5 +1,7 @@
 # Skill Distribution Audit Draft
 
+> Historical record only; this draft is not an active distribution instruction. Use `docs/skill-supply-chain.md`.
+
 > Purpose: classify the current production skill distribution before slimming or adding skills. This file is a review checklist, not an execution plan. Do not delete or redistribute anything until the checkboxes are reviewed.
 
 ## Key correction

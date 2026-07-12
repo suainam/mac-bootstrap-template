@@ -1,6 +1,8 @@
 # Data Hub Directory Migration Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical record only. This plan originally referenced the retired
+> superpowers workflow; do not execute it. Current Data Hub guidance is under
+> `data-hub/docs/`.
 
 **Goal:** Move the independent knowledge persistence subsystem from `agent/data-hub/` to top-level `data-hub/` while preserving workflow, SQLite, vault, scheduling, and lifecycle-manager behavior.
 

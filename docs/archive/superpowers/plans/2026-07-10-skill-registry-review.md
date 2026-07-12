@@ -1,5 +1,7 @@
 # Skill Registry Review
 
+> Historical record only; registry counts in this review are not current. Use `agent-skills/registry/` and `docs/skill-supply-chain.md`.
+
 > `90` 是 registry 纳管条目数，不等于当前都安装。只有 `enabled` 参与新分发；`staged` 是保留来源待审，`disabled` 是不分发，`merged` 是被其他 skill 覆盖或合并。
 
 ## Summary

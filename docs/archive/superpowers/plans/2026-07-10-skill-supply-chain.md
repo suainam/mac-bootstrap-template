@@ -1,6 +1,8 @@
 # Skill Supply Chain Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical record only. This plan originally referenced the retired
+> superpowers workflow; do not execute it. Current guidance is in
+> `docs/skill-supply-chain.md`.
 
 **Goal:** Build a governed skill supply-chain system that uses one JSONC registry to fetch external skills into repo-local quarantine, validate/audit/diff them, apply approval gates, and distribute approved internal/external skills to agent-global or project-local skill views.
 
