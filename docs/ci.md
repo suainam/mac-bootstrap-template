@@ -32,7 +32,8 @@ NEAT_FREAK_BASE_REF=origin/main make neat-freak-ci
 ```
 
 When no base revision is supplied, `make neat-freak-ci` checks only working-tree
-and staged changes; GitHub Actions always supplies the event base revision.
+and staged changes; an unchanged clean checkout passes this gate. GitHub Actions
+always supplies the event base revision.
 
 Operational changes must have a corresponding current public documentation change;
 archived documentation does not satisfy this gate.

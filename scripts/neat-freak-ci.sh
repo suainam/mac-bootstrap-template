@@ -30,4 +30,8 @@ while IFS= read -r path; do
   changed_paths+=("$path")
 done < <(git diff --cached --name-only)
 
-exec "$SCRIPT_DIR/neat-freak-gate.sh" check "${changed_paths[@]}"
+if ((${#changed_paths[@]})); then
+  exec "$SCRIPT_DIR/neat-freak-gate.sh" check "${changed_paths[@]}"
+else
+  exec "$SCRIPT_DIR/neat-freak-gate.sh" check
+fi
