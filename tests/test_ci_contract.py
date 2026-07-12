@@ -36,6 +36,7 @@ def test_neat_freak_ci_classifies_workflows_as_operational():
     assert ".github/workflows/*" in gate
     assert "docs/archive/*" in gate
     assert "*.json" in gate
+    assert "*/requirements*.txt" in gate
     assert "has_docs" in gate
 
 

@@ -21,7 +21,7 @@ is_doc_path() {
 
 is_operational_path() {
   case "$1" in
-    *.py|*.sh|*.lua|*.json|*.jsonc|*.yaml|*.yml|*.toml|*.ini|*.plist|*.lock|requirements*.txt|Makefile|*/Makefile|Brewfile|*/Brewfile|Dockerfile|*/Dockerfile|.github/workflows/*|*/.github/workflows/*|template/scripts/*|template/agent/*)
+    *.py|*.sh|*.lua|*.json|*.jsonc|*.yaml|*.yml|*.toml|*.ini|*.plist|*.lock|requirements*.txt|*/requirements*.txt|Makefile|*/Makefile|Brewfile|*/Brewfile|Dockerfile|*/Dockerfile|.github/workflows/*|*/.github/workflows/*|template/scripts/*|template/agent/*)
       return 0
       ;;
   esac

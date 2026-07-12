@@ -36,7 +36,8 @@ and staged changes; an unchanged clean checkout passes this gate. GitHub Actions
 always supplies the event base revision. An empty change set is a valid pass.
 
 Operational changes must have a corresponding current public documentation change;
-archived documentation does not satisfy this gate.
+archived documentation does not satisfy this gate. The gate includes nested build
+and dependency manifests such as Makefiles, lockfiles, and requirements files.
 Documentation, credentials, private parent configuration, external skill
 fetches, and machine-specific runtime state are not part of the CI contract.
 
