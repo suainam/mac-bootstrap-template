@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from dataclasses import replace
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -643,11 +644,21 @@ def test_current_distribution_actions_are_directory_symlinks_only():
 
 
 def test_bundle_distribution_resolves_catalog_relative_path(tmp_path: Path):
-    source = ROOT / "agent-skills/external/quarantine/mattpocock-skills/to-spec"
+    source = tmp_path / "seed/to-spec"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text(
+        "---\nname: to-spec\ndescription: test fixture\n---\n",
+        encoding="utf-8",
+    )
     nested = tmp_path / "agent-skills/external/quarantine/mattpocock-skills/engineering/to-spec"
     nested.parent.mkdir(parents=True)
     shutil.copytree(source, nested)
     registry = load_registry(DEFAULT_REGISTRY)
+    skill_key = ("mattpocock-skills", "to-spec")
+    registry.skills[skill_key] = replace(
+        registry.skills[skill_key],
+        gate=replace(registry.skills[skill_key].gate, manual_approval=False, approved_hash=None),
+    )
 
     actions = build_distribution_actions(registry, load_targets(DEFAULT_TARGETS), tmp_path)
     to_spec = [action for action in actions if action.skill_name == "to-spec" and action.target_agent == "codex"]

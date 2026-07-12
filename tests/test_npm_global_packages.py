@@ -71,7 +71,7 @@ def test_makefile_exposes_npm_package_targets_and_shell_check():
     assert './scripts/install-npm-global-packages.sh --yes' in content
     assert 'npm-packages-upgrade:' in content
     assert './scripts/install-npm-global-packages.sh --yes --upgrade' in content
-    assert 'bash -n scripts/install-npm-global-packages.sh' in content
+    assert '$(MAKE) syntax-check' in content
     assert 'openwiki-distribute:' not in content
     assert 'distribute-openwiki-workflow.sh' not in content
 

@@ -11,6 +11,9 @@ dependencies = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "machine: requires the local macOS machine, installed applications, or managed runtime state",
+]
 
 [tool.coverage.run]
 branch = true

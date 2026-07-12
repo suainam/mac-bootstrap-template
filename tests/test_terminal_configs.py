@@ -2,7 +2,12 @@
 
 import os
 
+import pytest
+
 from helpers import TEMPLATE, require_tmux_live_socket, run
+
+
+pytestmark = pytest.mark.machine
 
 
 # ── Ghostty config ────────────────────────────────────────────────────
@@ -50,7 +55,7 @@ def test_ghostty_font_repair_script_registers_existing_liga_fonts():
 def test_makefile_checks_ghostty_font_repair_script():
     content = open(os.path.join(TEMPLATE, "Makefile")).read()
     assert "ghostty-font-repair:" in content
-    assert "bash -n terminals/ghostty/repair-fonts.sh" in content
+    assert "$(MAKE) syntax-check" in content
 
 # ── tmux config ───────────────────────────────────────────────────────
 

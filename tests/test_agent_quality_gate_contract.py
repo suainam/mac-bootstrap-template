@@ -10,11 +10,14 @@ def read(relative: str) -> str:
 
 def test_makefiles_expose_quality_gate_targets():
     template_makefile = read("Makefile")
-    root_makefile = (ROOT.parent / "Makefile").read_text(encoding="utf-8")
 
     for target in ("quality-gate-pre-commit", "quality-gate-pre-push", "quality-gate-doctor"):
         assert f"{target}:" in template_makefile
-        assert f"{target}:" in root_makefile
+    root_makefile = ROOT.parent / "Makefile"
+    if root_makefile.is_file():
+        content = root_makefile.read_text(encoding="utf-8")
+        for target in ("quality-gate-pre-commit", "quality-gate-pre-push", "quality-gate-doctor"):
+            assert f"{target}:" in content
 
 
 def test_agent_configure_wires_codex_quality_gate_hooks():

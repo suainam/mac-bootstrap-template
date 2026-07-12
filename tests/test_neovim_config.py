@@ -1,6 +1,10 @@
 """Neovim configuration checks."""
 
 import os
+import pytest
+
+
+pytestmark = pytest.mark.machine
 
 
 # ── Neovim config ────────────────────────────────────────────────────

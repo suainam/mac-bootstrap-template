@@ -7,6 +7,9 @@ import pytest
 from helpers import TEMPLATE, run
 
 
+pytestmark = pytest.mark.machine
+
+
 # ── CLI tools ─────────────────────────────────────────────────────────
 
 CLI_TOOLS = [

@@ -82,7 +82,7 @@ def test_makefile_exposes_devspace_targets_and_checks_script():
     assert "devspace-run:" in content
     assert "devspace-doctor:" in content
     assert "devspace-tunnel:" in content
-    assert "bash -n scripts/devspace-local.sh" in content
+    assert "$(MAKE) syntax-check" in content
     assert "./scripts/devspace-local.sh check" in content
     assert "./scripts/devspace-local.sh run" in content
     assert "./scripts/devspace-local.sh doctor" in content

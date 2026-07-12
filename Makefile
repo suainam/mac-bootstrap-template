@@ -3,7 +3,7 @@ UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
 LUAC ?= luac
 
-.PHONY: help bootstrap check ci syntax-check pytest neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
+.PHONY: help bootstrap check ci syntax-check pytest pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
@@ -128,71 +128,11 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 check:
-	bash -n install.sh
-	bash -n scripts/brew-bundle.sh
-	bash -n scripts/configure-proxies.sh
-	bash -n scripts/clear-proxies.sh
-	bash -n scripts/clean-cache.sh
-	bash -n scripts/cache-report.sh
-	bash -n scripts/install-cache-cleanup-agent.sh
-	bash -n scripts/organize-downloads.sh
-	bash -n scripts/install-downloads-organizer-agent.sh
-	bash -n scripts/install-antigravity-cli.sh
-	bash -n scripts/doctor.sh
-	bash -n scripts/install-agent-tooling.sh
-	bash -n scripts/install-llm-wiki.sh
-	bash -n scripts/install-npm-global-packages.sh
-	bash -n scripts/lib/proxy-common.sh
-	bash -n scripts/lib/agent-shared.sh
-	bash -n scripts/lib/agent-manifest.sh
-	bash -n scripts/lib/agent-mcp.sh
-	bash -n scripts/lib/agent-configure.sh
-	bash -n scripts/lib/skill-wiring.sh
-	$(PYTHON) scripts/check-python-syntax.py scripts/agent_mcp_runtime.py scripts/codex-mcp-profile.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/skill_supply_chain.py scripts/skill_registry.py scripts/skill_intake.py scripts/skill_distribution.py scripts/devspace_local.py scripts/agent_quality_gate.py
-	$(PYTHON) scripts/skill_supply_chain.py check
-	bash -n scripts/sync-private-overlay.sh
-	bash -n scripts/privacy-audit.sh
-	bash -n scripts/export-public-template.sh
-	bash -n scripts/publish-public-template.sh
-	bash -n scripts/new-project.sh
-	bash -n scripts/ssh-manage.sh
-	bash -n scripts/sync-agent-prompts.sh
-	bash -n scripts/agent-prompt.sh
-	bash -n scripts/agent-prompt-mcp.sh
-	bash -n scripts/agent-doctor.sh
-	bash -n editors/vscode/install-extensions.sh
-	bash -n editors/vim/install.sh
-	bash -n editors/vim/switch-theme.sh
-	bash -n editors/neovim/install.sh
-	bash -n editors/obsidian/install.sh
-	bash -n multiplexer/tmux/install.sh
-	bash -n multiplexer/tmux/switch-theme.sh
-	bash -n terminals/ghostty/install.sh
-	bash -n terminals/ghostty/repair-fonts.sh
-	bash -n terminals/iterm2/install.sh
-	bash -n terminals/iterm2/switch-theme.sh
-	bash -n desktop/hammerspoon/install.sh
-	luac -p desktop/hammerspoon/init.lua
-	bash -n scripts/install-imgup.sh
-	bash -n scripts/imgup.sh
-	bash -n scripts/claude-daemon-tmux.sh
-	bash -n scripts/tmux-workspace.sh
-	bash -n scripts/switch-terminal-theme.sh
-	bash -n scripts/agent-quality-gate.sh
-	bash -n scripts/neat-freak-gate.sh
-	bash -n scripts/knowledge-record-gate.sh
-	bash -n scripts/devspace-local.sh
-	bash -n scripts/devspace-supervisor.sh
-	bash -n scripts/devspace-tunnel-supervisor.sh
-	bash -n scripts/install-devspace-agents.sh
+	$(MAKE) syntax-check
+	$(MAKE) skill-check
 	./scripts/privacy-audit.sh
 	./scripts/doctor.sh --strict
-	mkdir -p "$(UV_CACHE_DIR)"
-	if .venv/bin/python -c 'import pytest_cov' >/dev/null 2>&1; then \
-		.venv/bin/python -m pytest tests/ -q --cov --cov-report=term-missing; \
-	else \
-		.venv/bin/python -m pytest tests/ -q; \
-	fi
+	$(MAKE) pytest-all
 
 ci:
 	$(MAKE) syntax-check
@@ -205,6 +145,14 @@ syntax-check:
 	PYTHON="$(PYTHON)" LUAC="$(LUAC)" bash scripts/syntax-check.sh
 
 pytest:
+	mkdir -p "$(UV_CACHE_DIR)"
+	if .venv/bin/python -c 'import pytest_cov' >/dev/null 2>&1; then \
+		.venv/bin/python -m pytest tests/ -q -m 'not machine' --cov --cov-report=term-missing; \
+	else \
+		.venv/bin/python -m pytest tests/ -q -m 'not machine'; \
+	fi
+
+pytest-all:
 	mkdir -p "$(UV_CACHE_DIR)"
 	if .venv/bin/python -c 'import pytest_cov' >/dev/null 2>&1; then \
 		.venv/bin/python -m pytest tests/ -q --cov --cov-report=term-missing; \

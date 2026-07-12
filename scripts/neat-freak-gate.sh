@@ -10,7 +10,10 @@ has_operational=0
 
 is_doc_path() {
   case "$1" in
-    *.md|docs/*|*/docs/*|README.md|*/README.md|CLAUDE.md|AGENTS.md)
+    docs/archive/*|*/docs/archive/*)
+      return 1
+      ;;
+    *.md|docs/*|*/docs/*|README.md|*/README.md|CLAUDE.md|AGENTS.md|CONTEXT.md|*/CONTEXT.md)
       return 0
       ;;
   esac
@@ -19,7 +22,7 @@ is_doc_path() {
 
 is_operational_path() {
   case "$1" in
-    *.py|*.sh|Makefile|.github/workflows/*|template/scripts/*|template/agent/*)
+    *.py|*.sh|*.lua|*.json|*.jsonc|*.yaml|*.yml|*.toml|*.ini|*.plist|Makefile|Brewfile|Dockerfile|.github/workflows/*|template/scripts/*|template/agent/*)
       return 0
       ;;
   esac
@@ -38,7 +41,7 @@ done
 case "$mode" in
   check)
     if [[ "$has_operational" -eq 1 && "$has_docs" -eq 0 ]]; then
-      echo "ERROR: operational changes detected without matching doc changes" >&2
+      echo "ERROR: operational changes detected without current public documentation changes" >&2
       exit 1
     fi
     echo "OK: neat-freak check passed"

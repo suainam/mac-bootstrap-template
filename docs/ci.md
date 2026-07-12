@@ -20,7 +20,7 @@ make ci
 The CI contract runs, in order:
 
 1. Shell, Python, and Lua syntax checks.
-2. The pytest suite.
+2. The portable pytest suite (`machine`-marked tests are reserved for local checks).
 3. The public privacy audit.
 4. The skill registry check.
 5. The neat-freak changed-path documentation gate.
@@ -31,7 +31,8 @@ To compare a local branch with a known base revision:
 NEAT_FREAK_BASE_REF=origin/main make neat-freak-ci
 ```
 
-Operational changes must have a corresponding public documentation change.
+Operational changes must have a corresponding current public documentation change;
+archived documentation does not satisfy this gate.
 Documentation, credentials, private parent configuration, external skill
 fetches, and machine-specific runtime state are not part of the CI contract.
 

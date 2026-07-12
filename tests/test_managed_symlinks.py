@@ -7,6 +7,9 @@ import pytest
 from helpers import TEMPLATE, managed_symlinks
 
 
+pytestmark = pytest.mark.machine
+
+
 @pytest.mark.parametrize("path", managed_symlinks().keys())
 def test_symlink_not_broken(path):
     expanded = os.path.expanduser(path)

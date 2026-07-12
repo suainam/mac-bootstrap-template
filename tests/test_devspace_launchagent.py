@@ -70,7 +70,6 @@ def test_devspace_agent_installer_contract():
 
 def test_makefiles_expose_devspace_agent_targets():
     template_makefile = read("Makefile")
-    root_makefile = (ROOT.parent / "Makefile").read_text(encoding="utf-8")
 
     for target in (
         "devspace-install-agent",
@@ -80,8 +79,17 @@ def test_makefiles_expose_devspace_agent_targets():
         "devspace-restart",
     ):
         assert f"{target}:" in template_makefile
-        assert f"{target}:" in root_makefile
 
-    assert "bash -n scripts/devspace-supervisor.sh" in template_makefile
-    assert "bash -n scripts/devspace-tunnel-supervisor.sh" in template_makefile
-    assert "bash -n scripts/install-devspace-agents.sh" in template_makefile
+    root_makefile = ROOT.parent / "Makefile"
+    if root_makefile.is_file():
+        content = root_makefile.read_text(encoding="utf-8")
+        for target in (
+            "devspace-install-agent",
+            "devspace-unload-agent",
+            "devspace-status",
+            "devspace-logs",
+            "devspace-restart",
+        ):
+            assert f"{target}:" in content
+
+    assert "$(MAKE) syntax-check" in template_makefile

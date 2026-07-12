@@ -4,11 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASE_REF="${NEAT_FREAK_BASE_REF:-HEAD~1}"
+ZERO_SHA="0000000000000000000000000000000000000000"
 
 cd "$REPO_ROOT"
 
-if ! git rev-parse --verify "${BASE_REF}^{commit}" >/dev/null 2>&1; then
-  BASE_REF="$(git rev-parse HEAD^ 2>/dev/null || true)"
+if [[ "$BASE_REF" == "$ZERO_SHA" ]]; then
+  BASE_REF=""
+elif [[ -n "$BASE_REF" ]] && ! git rev-parse --verify "${BASE_REF}^{commit}" >/dev/null 2>&1; then
+  echo "ERROR: neat-freak base revision not found: $BASE_REF" >&2
+  exit 2
 fi
 
 changed_paths=()
