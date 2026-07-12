@@ -17,6 +17,7 @@
 - `clash-profile-flow.md`：Clash 源配置、profile 与运行态边界。
 - `agent-prompt-mcp.md`、`agent-subagents.md`：agent 协作与 prompt MCP。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。
+- `ci.md`：公共 CI 契约、GitHub Actions 边界与本地复现方式。
 - `data-hub-record-knowledge.md`：知识记录路径。
 - `openwiki-boundary-decision.md`：为什么这套模板不采用 OpenWiki 一类 repo wiki。
 - `manual-apps.md`、`shell-startup.md`、`imgup.md`：本机 bootstrap 的通用运维说明。

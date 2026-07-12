@@ -19,7 +19,7 @@ is_doc_path() {
 
 is_operational_path() {
   case "$1" in
-    *.py|*.sh|Makefile|template/scripts/*|template/agent/*)
+    *.py|*.sh|Makefile|.github/workflows/*|template/scripts/*|template/agent/*)
       return 0
       ;;
   esac

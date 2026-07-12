@@ -1,8 +1,9 @@
 SHELL := /usr/bin/env bash
 UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
+LUAC ?= luac
 
-.PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
+.PHONY: help bootstrap check ci syntax-check pytest neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
@@ -21,6 +22,10 @@ help:
 	@echo "── Common ──"
 	@echo "  bootstrap              Full bootstrap on this machine"
 	@echo "  check                  Syntax + doctor + tests"
+	@echo "  ci                     Public CI: syntax + pytest + privacy + skill + docs gates"
+	@echo "  syntax-check          Shell, Python, and Lua syntax checks"
+	@echo "  pytest                Run the Python test suite"
+	@echo "  neat-freak-ci         Check changed operational files have public docs"
 	@echo "  doctor                 Machine health check"
 	@echo "  doctor-agent           Agent tooling health check"
 	@echo "  privacy-audit          Redacted privacy scan"
@@ -188,6 +193,27 @@ check:
 	else \
 		.venv/bin/python -m pytest tests/ -q; \
 	fi
+
+ci:
+	$(MAKE) syntax-check
+	$(MAKE) pytest
+	$(MAKE) privacy-audit
+	$(MAKE) skill-check
+	$(MAKE) neat-freak-ci
+
+syntax-check:
+	PYTHON="$(PYTHON)" LUAC="$(LUAC)" bash scripts/syntax-check.sh
+
+pytest:
+	mkdir -p "$(UV_CACHE_DIR)"
+	if .venv/bin/python -c 'import pytest_cov' >/dev/null 2>&1; then \
+		.venv/bin/python -m pytest tests/ -q --cov --cov-report=term-missing; \
+	else \
+		.venv/bin/python -m pytest tests/ -q; \
+	fi
+
+neat-freak-ci:
+	bash scripts/neat-freak-ci.sh
 
 doctor:
 	./scripts/doctor.sh

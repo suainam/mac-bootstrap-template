@@ -354,10 +354,16 @@ make doctor-agent    # Verify all configs (contains AgentShield scan)
 
 ```bash
 make check
+make ci
 make doctor
 make doctor-agent    # Agent health check (symlinks, config files)
 make privacy-audit   # Redacted scan of tracked files
 ```
+
+`make ci` is the public, reproducible validation contract used by GitHub
+Actions. It runs syntax checks, pytest, the privacy audit, the skill registry
+check, and the neat-freak documentation-alignment gate. It does not inspect
+local applications, GUI state, accounts, or generated agent runtime state.
 
 `make check` validates shell syntax, data-driven doctor checks, and runs the
 template pytest suite from `template/.venv`. If `pytest-cov` is installed in the
@@ -492,6 +498,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make skill-refresh` | Ensure missing bundles + re-wire managed skills |
 | `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
 | `make check` | Syntax + tool validation |
+| `make ci` | Public CI contract: syntax, pytest, privacy, skill, and docs gates |
 | `make doctor` | Machine health check |
 | `make doctor-agent` | Agent health check |
 | `make security-scan` | AgentShield audit |

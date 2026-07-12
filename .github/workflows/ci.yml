@@ -1,0 +1,43 @@
+name: Public CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Lua syntax checker
+        run: sudo apt-get update && sudo apt-get install --yes lua5.4
+
+      - name: Install locked development dependencies
+        run: uv sync --locked --group dev
+
+      - name: Run public CI contract
+        env:
+          LUAC: luac5.4
+          NEAT_FREAK_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: make ci
