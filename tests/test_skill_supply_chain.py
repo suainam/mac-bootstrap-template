@@ -24,6 +24,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     build_reconcile_actions,
     build_skills_sh_bundle_fetch_command,
     build_skills_sh_fetch_command,
+    ensure_external_bundles,
     compare_distribution_snapshots,
     discover_bundle_catalog,
     evaluate_gate,
@@ -70,6 +71,33 @@ def test_mattpocock_source_is_managed_as_a_bundle() -> None:
     assert bundle.distribution_state == "enabled"
     assert bundle.catalog_path == Path(".agent-state/skill-bundles/mattpocock-skills.json")
     assert registry.skills[("mattpocock-skills", "to-spec")].bundle_id == "mattpocock-skills"
+
+
+def test_enabled_bundle_is_not_refetched_when_catalog_and_sources_are_present(tmp_path: Path) -> None:
+    registry = load_registry(DEFAULT_REGISTRY)
+    bundle = registry.bundles["mattpocock-skills"]
+    catalog_path = tmp_path / bundle.catalog_path
+    catalog_path.parent.mkdir(parents=True)
+    skills = []
+    for skill in registry.skills.values():
+        if skill.bundle_id != bundle.source_id or skill.distribution_state != "enabled":
+            continue
+        relative_path = Path(skill.name)
+        source = tmp_path / bundle.quarantine_path / relative_path
+        source.mkdir(parents=True)
+        skills.append(
+            {
+                "name": skill.name,
+                "relative_path": relative_path.as_posix(),
+                "content_hash": "sha256:" + "0" * 64,
+            }
+        )
+    catalog_path.write_text(
+        json.dumps({"source_id": bundle.source_id, "ref": bundle.ref, "skills": skills}),
+        encoding="utf-8",
+    )
+
+    assert ensure_external_bundles(registry, tmp_path) == ()
 
 
 def test_disabled_bundle_suppresses_registered_skill_distribution(tmp_path: Path) -> None:

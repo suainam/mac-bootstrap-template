@@ -41,6 +41,11 @@ lifecycle unit for fetch, refresh, disable, and restore; its discovered catalog
 still feeds individual skill audit, approval, scope, and target policy. The
 Matt Pocock source is managed this way.
 
+The intended engineering front door is `/wayfinder` for work larger than one
+session, followed as needed by `/grill-with-docs`, `/to-spec`, `/to-tickets`,
+`/implement`, and `/code-review`. `/wayfinder` maps uncertainty; it does not
+replace the later specification, ticket, implementation, or review stages.
+
 Only `enabled` skills are distributed. `staged`, `disabled`, and `merged` records preserve source lineage and review decisions without installing the skill.
 
 External skills must enter repo-local quarantine first:
@@ -53,6 +58,11 @@ make skill-diff SOURCE=vercel-skills SKILL=find-skills
 
 Use `skill-fetch-bundle` for a source that declares bundle management; the
 single-skill fetch command rejects those sources to prevent a second workflow.
+
+`skill-refresh` runs `skill-ensure-bundles` before distribution. It fetches an
+enabled bundle only when its catalog or source directories are missing, so a
+fresh checkout can self-bootstrap while ordinary refreshes remain local. Use
+`skill-fetch-bundle` explicitly to refresh an existing bundle from upstream.
 
 The fetch command uses `npx skills@latest add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent-skills/external/quarantine/<source>/<skill>/`.
 

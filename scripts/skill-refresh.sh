@@ -35,7 +35,9 @@ done
 
 python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" check
 if [ "$DRY_RUN" -eq 1 ]; then
+  python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles --dry-run
   python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute --dry-run
 else
+  python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles
   python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
 fi

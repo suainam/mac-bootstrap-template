@@ -5,7 +5,7 @@ PYTHON ?= .venv/bin/python
 .PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
-	skill-plan skill-fetch skill-fetch-bundle skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
@@ -54,6 +54,7 @@ help:
 	@echo "  skill-plan             Summarize skill registry and targets"
 	@echo "  skill-fetch            Fetch one non-bundle external skill: SOURCE=id SKILL=name"
 	@echo "  skill-fetch-bundle     Fetch one external bundle: SOURCE=id"
+	@echo "  skill-ensure-bundles   Fetch missing enabled bundles before distribution"
 	@echo "  skill-audit            Audit one quarantined skill: SOURCE=id SKILL=name"
 	@echo "  skill-diff             Show one quarantined skill diff/hash: SOURCE=id SKILL=name"
 	@echo "  skill-distribute       Wire approved managed skills into agents/projects"
@@ -142,7 +143,7 @@ check:
 	bash -n scripts/lib/agent-mcp.sh
 	bash -n scripts/lib/agent-configure.sh
 	bash -n scripts/lib/skill-wiring.sh
-	$(PYTHON) scripts/check-python-syntax.py scripts/agent_mcp_runtime.py scripts/codex-mcp-profile.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/skill_supply_chain.py scripts/devspace_local.py scripts/agent_quality_gate.py
+	$(PYTHON) scripts/check-python-syntax.py scripts/agent_mcp_runtime.py scripts/codex-mcp-profile.py scripts/sync-codex-mcp-config.py scripts/render-codex-mcp-block.py scripts/run-doctor-checks.py scripts/agent-prompt-index.py scripts/agent-prompt-mcp.py scripts/skill_supply_chain.py scripts/skill_registry.py scripts/skill_intake.py scripts/skill_distribution.py scripts/devspace_local.py scripts/agent_quality_gate.py
 	$(PYTHON) scripts/skill_supply_chain.py check
 	bash -n scripts/sync-private-overlay.sh
 	bash -n scripts/privacy-audit.sh
@@ -304,6 +305,9 @@ skill-fetch-bundle:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-fetch-bundle SOURCE=bundle-id" >&2; exit 2)
 	$(PYTHON) scripts/skill_supply_chain.py fetch-bundle --source "$(SOURCE)"
 
+skill-ensure-bundles:
+	$(PYTHON) scripts/skill_supply_chain.py ensure-bundles
+
 skill-audit:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
 	@test -n "$(SKILL)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
@@ -323,7 +327,7 @@ skill-reconcile:
 skill-snapshot:
 	$(PYTHON) scripts/skill_supply_chain.py snapshot --label "$${LABEL:-manual}"
 
-skill-refresh: skill-check skill-distribute
+skill-refresh: skill-check skill-ensure-bundles skill-distribute
 
 skill-check:
 	$(PYTHON) scripts/skill_supply_chain.py check

@@ -129,6 +129,7 @@ print_step_header "Step 2a — Workspace context files"
 generate_workspace_context_files
 
 print_step_header "Step 2b — Wire managed skills into agents"
+run python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles
 run python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
 
 print_step_header "Step 2c — Prompt library helper"

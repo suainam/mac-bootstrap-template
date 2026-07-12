@@ -101,6 +101,16 @@ def cmd_fetch_bundle(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ensure_bundles(args: argparse.Namespace) -> int:
+    registry = load_registry(args.registry)
+    results = ensure_external_bundles(registry, ROOT, dry_run=args.dry_run)
+    if args.dry_run:
+        print(f"DRY-RUN bundle fetches: {len(results)}")
+    else:
+        print(f"ensured external bundles: fetched={len(results)}")
+    return 0 if all(result.returncode == 0 for result in results) else 1
+
+
 def _selected_external_skill(
     args: argparse.Namespace,
     registry: Registry | None = None,
@@ -243,6 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
             "plan",
             "fetch",
             "fetch-bundle",
+            "ensure-bundles",
             "audit",
             "diff",
             "distribute",
@@ -289,6 +300,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_fetch(args)
         if args.command == "fetch-bundle":
             return cmd_fetch_bundle(args)
+        if args.command == "ensure-bundles":
+            return cmd_ensure_bundles(args)
         if args.command == "audit":
             return cmd_audit(args)
         if args.command == "diff":

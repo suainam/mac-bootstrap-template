@@ -116,6 +116,7 @@ def fetch_external_skill(
     tmp_work.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["DISABLE_TELEMETRY"] = "1"
+    env.setdefault("npm_config_cache", str(tmp_work.parent / "npm-cache"))
     completed = subprocess.run(
         command,
         cwd=tmp_work,
@@ -243,6 +244,7 @@ def fetch_external_bundle(
     tmp_work.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["DISABLE_TELEMETRY"] = "1"
+    env.setdefault("npm_config_cache", str(tmp_work.parent / "npm-cache"))
     completed = subprocess.run(
         command,
         cwd=tmp_work,
@@ -293,6 +295,46 @@ def fetch_external_bundle(
         stdout=completed.stdout,
         stderr=completed.stderr,
     )
+
+
+def bundle_needs_fetch(
+    registry: Registry,
+    bundle: SkillBundle,
+    root: Path = ROOT,
+) -> bool:
+    """Return whether an enabled bundle is absent or lacks registered skills."""
+    required = {
+        skill.name
+        for skill in registry.skills.values()
+        if (
+            skill.bundle_id == bundle.source_id
+            and skill.distribution_state == "enabled"
+            and skill.local_shadow_path is None
+        )
+    }
+    entries = load_bundle_catalog(bundle, root)
+    if entries is None:
+        entries = discover_bundle_catalog(bundle, root)
+    available = {
+        entry.name
+        for entry in entries
+        if (root / bundle.quarantine_path / entry.relative_path).is_dir()
+    }
+    return not required.issubset(available)
+
+
+def ensure_external_bundles(
+    registry: Registry,
+    root: Path = ROOT,
+    dry_run: bool = False,
+) -> tuple[CommandResult, ...]:
+    """Fetch enabled bundles only when their registered skills are unavailable."""
+    results: list[CommandResult] = []
+    for bundle in sorted(registry.bundles.values(), key=lambda item: item.source_id):
+        if bundle.distribution_state != "enabled" or not bundle_needs_fetch(registry, bundle, root):
+            continue
+        results.append(fetch_external_bundle(bundle, root, dry_run=dry_run))
+    return tuple(results)
 
 
 def inspect_skill_content(path: Path) -> SkillInspection:

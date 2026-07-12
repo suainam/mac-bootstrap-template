@@ -46,6 +46,11 @@ def registry():
             ALL_AGENTS,
         ),
         (
+            "wayfinder",
+            "sha256:b21256d42f6810e0a8e452dd7f2c273a32869823ce0ec68bda95d6378bfe7cd1",
+            ALL_AGENTS,
+        ),
+        (
             "implement",
             "sha256:37152c34127f0609d05e7de3859e8273cefbdadebcb008bf7d46b95e325ce383",
             DIRECTORY_AGENTS,

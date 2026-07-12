@@ -424,6 +424,21 @@
           },
           "reason": "End-to-end engineering workflow ticket stage; requires setup-matt-pocock-skills tracker configuration before publication"
         },
+        "wayfinder": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-12",
+            "approved_hash": "sha256:b21256d42f6810e0a8e452dd7f2c273a32869823ce0ec68bda95d6378bfe7cd1",
+            "reason": "User-approved planning stage; current upstream content manually audited and compatible with the configured GitHub issue tracker"
+          },
+          "reason": "Optional front door for work larger than one agent session; maps investigation tickets before grill/spec/ticket execution"
+        },
         "writing-great-skills": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
