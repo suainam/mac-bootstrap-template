@@ -2,7 +2,12 @@
 
 import os
 
+import pytest
+
 from helpers import TEMPLATE
+
+
+pytestmark = pytest.mark.machine
 
 
 # ── Hammerspoon ───────────────────────────────────────────────────────

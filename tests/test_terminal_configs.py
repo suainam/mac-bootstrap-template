@@ -7,34 +7,36 @@ import pytest
 from helpers import TEMPLATE, require_tmux_live_socket, run
 
 
-pytestmark = pytest.mark.machine
-
-
 # ── Ghostty config ────────────────────────────────────────────────────
 
+@pytest.mark.machine
 def test_ghostty_config_valid():
     _, err, rc = run("/Applications/Ghostty.app/Contents/MacOS/ghostty +validate-config")
     assert rc == 0, f"Ghostty config invalid: {err}"
 
 
+@pytest.mark.machine
 def test_ghostty_config_does_not_force_term_downgrade():
     config = os.path.expanduser("~/.config/ghostty/config")
     content = open(config).read()
     assert "term = xterm-256color" not in content
 
 
+@pytest.mark.machine
 def test_ghostty_config_has_local_theme_override():
     config = os.path.expanduser("~/.config/ghostty/config")
     content = open(config).read()
     assert 'config-file = "?~/.config/ghostty/theme.local"' in content
 
 
+@pytest.mark.machine
 def test_ghostty_config_has_expected_font():
     config = os.path.expanduser("~/.config/ghostty/config")
     content = open(config).read()
     assert 'font-family = "Liga SFMono Nerd Font"' in content
 
 
+@pytest.mark.machine
 def test_ghostty_config_pins_cjk_fallback():
     config = os.path.expanduser("~/.config/ghostty/config")
     content = open(config).read()
@@ -59,22 +61,26 @@ def test_makefile_checks_ghostty_font_repair_script():
 
 # ── tmux config ───────────────────────────────────────────────────────
 
+@pytest.mark.machine
 def test_tmux_config_loadable():
     require_tmux_live_socket()
 
 
+@pytest.mark.machine
 def test_tmux_has_swap_pane_keys():
     require_tmux_live_socket()
     out, _, _ = run("tmux list-keys 2>/dev/null | grep -c swap-pane")
     assert int(out) >= 4, "Expected at least 4 swap-pane keybindings"
 
 
+@pytest.mark.machine
 def test_tmux_has_cross_window_swap():
     require_tmux_live_socket()
     out, _, _ = run("tmux list-keys 2>/dev/null | grep 'command-prompt.*swap-pane'")
     assert out, "Cross-window swap-pane keybinding (C-a X) not found"
 
 
+@pytest.mark.machine
 def test_tmux_pane_titles():
     workspace_script = open(os.path.join(TEMPLATE, "scripts", "tmux-workspace.sh")).read()
     assert 'ANALYSIS_WINDOW="${TMUX_ANALYSIS_WINDOW:-analysis}"' in workspace_script
@@ -91,6 +97,7 @@ def test_tmux_pane_titles():
     assert titles, "Expected tmux panes to expose non-empty titles"
 
 
+@pytest.mark.machine
 def test_tmux_pane_border_format_shows_title():
     require_tmux_live_socket()
     out, _, _ = run("tmux show-option -g pane-border-format")
@@ -98,11 +105,13 @@ def test_tmux_pane_border_format_shows_title():
     assert 'pane-#{pane_index}' in out, f"pane-border-format doesn't use generic fallback: {out}"
 
 
+@pytest.mark.machine
 def test_tmux_theme_exists():
     path = os.path.expanduser("~/.tmux/theme.conf")
     assert os.path.exists(path)
 
 
+@pytest.mark.machine
 def test_tmux_config_resets_append_only_options_before_readding():
     config = os.path.expanduser("~/.tmux.conf")
     content = open(config).read()
@@ -111,11 +120,13 @@ def test_tmux_config_resets_append_only_options_before_readding():
 
 # ── SSH config ────────────────────────────────────────────────────────
 
+@pytest.mark.machine
 def test_zshrc_defers_host_aliases_to_private_overrides():
     content = open(os.path.expanduser("~/.zshrc")).read()
     assert "Host-specific SSH TERM wrappers belong in ~/.zshrc.local" in content
 
 
+@pytest.mark.machine
 def test_zshrc_defines_fzf_file_and_dir_launchers():
     content = open(os.path.expanduser("~/.zshrc")).read()
     assert "ff()" in content
@@ -124,6 +135,7 @@ def test_zshrc_defines_fzf_file_and_dir_launchers():
     assert "nvim" in content
 
 
+@pytest.mark.machine
 def test_tmux_open_yazi_supports_pick_mode():
     script = os.path.expanduser("~/.local/bin/tmux-open-yazi.sh")
     content = open(script).read()
