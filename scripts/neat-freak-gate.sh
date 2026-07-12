@@ -4,7 +4,6 @@ set -euo pipefail
 mode="${1:-}"
 shift || true
 
-paths=("$@")
 has_docs=0
 has_operational=0
 
@@ -29,7 +28,7 @@ is_operational_path() {
   return 1
 }
 
-for path in "${paths[@]}"; do
+for path in "$@"; do
   if is_doc_path "$path"; then
     has_docs=1
   fi
