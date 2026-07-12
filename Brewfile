@@ -84,6 +84,8 @@ cask "miniforge"
 cask "font-sf-mono-nerd-font-ligaturized"
 
 # ========== npm CLI ==========
+# LazyCodex is intentionally not global-installed; its official installer writes
+# the current Codex plugin/cache state: npx lazycodex-ai@latest install --no-tui --no-codex-autonomous
 npm "reasonix"
 npm "context-mode"
 npm "codebase-memory-mcp"

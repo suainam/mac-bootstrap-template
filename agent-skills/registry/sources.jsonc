@@ -217,6 +217,11 @@
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/mattpocock/skills",
+      "bundle": {
+        "install_mode": "all",
+        "distribution_state": "enabled",
+        "catalog_path": ".agent-state/skill-bundles/mattpocock-skills.json"
+      },
       "skills": {
         "caveman": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
@@ -746,6 +751,8 @@
       "ref": "https://github.com/obra/superpowers.git",
       "skills": {
         "using-git-worktrees": {
+          "distribution_state": "disabled",
+          "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
@@ -760,6 +767,8 @@
           }
         },
         "writing-plans": {
+          "distribution_state": "disabled",
+          "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
@@ -774,6 +783,8 @@
           }
         },
         "executing-plans": {
+          "distribution_state": "disabled",
+          "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
@@ -805,6 +816,8 @@
           }
         },
         "finishing-a-development-branch": {
+          "distribution_state": "disabled",
+          "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
@@ -820,6 +833,8 @@
           "reason": "User-confirmed global distribution"
         },
         "requesting-code-review": {
+          "distribution_state": "disabled",
+          "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true

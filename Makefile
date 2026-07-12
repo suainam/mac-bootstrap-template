@@ -5,7 +5,7 @@ PYTHON ?= .venv/bin/python
 .PHONY: help bootstrap check doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
-	skill-plan skill-fetch skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	skill-plan skill-fetch skill-fetch-bundle skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
@@ -52,7 +52,8 @@ help:
 	@echo "  agent-sync             Sync managed skills + prompt libraries"
 	@echo "  agent-refresh          Full sync + full agent reconfigure"
 	@echo "  skill-plan             Summarize skill registry and targets"
-	@echo "  skill-fetch            Fetch one external skill: SOURCE=id SKILL=name"
+	@echo "  skill-fetch            Fetch one non-bundle external skill: SOURCE=id SKILL=name"
+	@echo "  skill-fetch-bundle     Fetch one external bundle: SOURCE=id"
 	@echo "  skill-audit            Audit one quarantined skill: SOURCE=id SKILL=name"
 	@echo "  skill-diff             Show one quarantined skill diff/hash: SOURCE=id SKILL=name"
 	@echo "  skill-distribute       Wire approved managed skills into agents/projects"
@@ -298,6 +299,10 @@ skill-fetch:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-fetch SOURCE=id SKILL=name" >&2; exit 2)
 	@test -n "$(SKILL)" || (echo "Usage: make skill-fetch SOURCE=id SKILL=name" >&2; exit 2)
 	$(PYTHON) scripts/skill_supply_chain.py fetch --source "$(SOURCE)" --skill "$(SKILL)"
+
+skill-fetch-bundle:
+	@test -n "$(SOURCE)" || (echo "Usage: make skill-fetch-bundle SOURCE=bundle-id" >&2; exit 2)
+	$(PYTHON) scripts/skill_supply_chain.py fetch-bundle --source "$(SOURCE)"
 
 skill-audit:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)

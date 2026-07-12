@@ -7,3 +7,15 @@
 - 修改后先运行最小相关验证；跨模块变更运行 `make check`。
 - 公共发布前运行 `make privacy-audit`。
 - `README.md` 是人类入口；本文件仅保留执行约束。
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues in `suainam/mac-bootstrap-template` are the source for specs and
+tickets. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This is a single-context repository; read `CONTEXT.md` and relevant `docs/`
+guidance before implementation. See `docs/agents/domain.md`.

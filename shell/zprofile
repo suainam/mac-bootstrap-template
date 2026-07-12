@@ -1,2 +1,5 @@
 # Zprofile — login shells
 export ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
+
+# Created by `pipx` on 2026-07-11 03:33:14
+export PATH="$PATH:${HOME}/.local/bin"

@@ -26,6 +26,7 @@ agent-skills/external/quarantine/
 .agent-state/skills-lock.json
 .agent-state/skill-sync-runs/
 .agent-state/skill-snapshots/
+.agent-state/skill-bundles/
 
 # Private overlay (template → rendered configs)
 private/

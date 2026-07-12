@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -14,14 +16,18 @@ sys.path.insert(0, str(ROOT))
 from scripts.skill_supply_chain import (  # noqa: E402
     DEFAULT_REGISTRY,
     DEFAULT_TARGETS,
+    BundleCatalogEntry,
     RegistryError,
     _assert_safe_apply_root,
     build_distribution_actions,
     build_distribution_snapshot,
     build_reconcile_actions,
+    build_skills_sh_bundle_fetch_command,
     build_skills_sh_fetch_command,
     compare_distribution_snapshots,
+    discover_bundle_catalog,
     evaluate_gate,
+    fetch_external_bundle,
     fetch_external_skill,
     filter_reconcile_actions,
     find_unmanaged_skill_dirs,
@@ -51,6 +57,63 @@ def test_registry_version_two_exposes_source_and_state_roots() -> None:
         "run_log_root": Path(".agent-state/skill-sync-runs"),
         "snapshot_root": Path(".agent-state/skill-snapshots"),
     }
+
+
+def test_mattpocock_source_is_managed_as_a_bundle() -> None:
+    registry = load_registry(ROOT / "agent-skills/registry/sources.jsonc")
+
+    bundle = registry.bundles["mattpocock-skills"]
+
+    assert bundle.ref == "https://github.com/mattpocock/skills"
+    assert bundle.fetcher == "skills.sh"
+    assert bundle.install_mode == "all"
+    assert bundle.distribution_state == "enabled"
+    assert bundle.catalog_path == Path(".agent-state/skill-bundles/mattpocock-skills.json")
+    assert registry.skills[("mattpocock-skills", "to-spec")].bundle_id == "mattpocock-skills"
+
+
+def test_disabled_bundle_suppresses_registered_skill_distribution(tmp_path: Path) -> None:
+    registry_path = tmp_path / "sources.jsonc"
+    raw = (ROOT / "agent-skills/registry/sources.jsonc").read_text(encoding="utf-8").replace(
+        '"distribution_state": "enabled",\n        "catalog_path": ".agent-state/skill-bundles/mattpocock-skills.json"',
+        '"distribution_state": "disabled",\n        "catalog_path": ".agent-state/skill-bundles/mattpocock-skills.json"',
+    )
+    registry_path.write_text(raw, encoding="utf-8")
+    registry = load_registry(registry_path)
+
+    matt_actions = [
+        action
+        for action in build_distribution_actions(registry, load_targets(DEFAULT_TARGETS), ROOT)
+        if action.skill_name == "to-spec"
+    ]
+
+    assert matt_actions == []
+
+
+def test_discover_bundle_catalog_hashes_each_skill_tree(tmp_path: Path) -> None:
+    bundle_root = tmp_path / "agent-skills/external/quarantine/mattpocock-skills"
+    first = bundle_root / "engineering" / "alpha"
+    second = bundle_root / "productivity" / "beta"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    (first / "SKILL.md").write_text("# alpha\n", encoding="utf-8")
+    (second / "SKILL.md").write_text("# beta\n", encoding="utf-8")
+    registry = load_registry(ROOT / "agent-skills/registry/sources.jsonc")
+
+    entries = discover_bundle_catalog(registry.bundles["mattpocock-skills"], tmp_path)
+
+    assert entries == (
+        BundleCatalogEntry(
+            name="alpha",
+            relative_path=Path("engineering/alpha"),
+            content_hash=inspect_skill_content(first).content_hash,
+        ),
+        BundleCatalogEntry(
+            name="beta",
+            relative_path=Path("productivity/beta"),
+            content_hash=inspect_skill_content(second).content_hash,
+        ),
+    )
 
 
 def test_snapshot_output_path_uses_registry_snapshot_root(tmp_path: Path) -> None:
@@ -294,7 +357,7 @@ def test_skills_sh_command_uses_specific_skill_and_universal_agent():
 
     assert cmd == [
         "npx",
-        "skills",
+        "skills@latest",
         "add",
         "vercel-labs/agent-skills",
         "--skill",
@@ -319,6 +382,23 @@ def test_anthropic_pdf_command_uses_same_quarantine_fetch_shape():
     assert "--copy" in cmd
 
 
+def test_skills_sh_bundle_command_fetches_all_skills_into_staging():
+    registry = load_registry(DEFAULT_REGISTRY)
+    bundle = registry.bundles["mattpocock-skills"]
+
+    assert build_skills_sh_bundle_fetch_command(bundle) == [
+        "npx",
+        "skills@latest",
+        "add",
+        "https://github.com/mattpocock/skills",
+        "--all",
+        "--agent",
+        "universal",
+        "--copy",
+        "--yes",
+    ]
+
+
 def test_fetch_external_skill_uses_registry_quarantine_root(tmp_path: Path) -> None:
     registry_path = write_registry_for_external(tmp_path, "safe")
     raw = registry_path.read_text(encoding="utf-8").replace(
@@ -333,6 +413,46 @@ def test_fetch_external_skill_uses_registry_quarantine_root(tmp_path: Path) -> N
 
     assert result.cwd == tmp_path / "custom/quarantine/.tmp/external/safe/work"
     assert result.destination == tmp_path / "custom/quarantine/external/safe"
+
+
+def test_fetch_external_bundle_uses_bundle_quarantine_root(tmp_path: Path) -> None:
+    registry = load_registry(DEFAULT_REGISTRY)
+    bundle = registry.bundles["mattpocock-skills"]
+
+    result = fetch_external_bundle(bundle, tmp_path, dry_run=True)
+
+    assert result.cwd == tmp_path / "agent-skills/external/quarantine/.tmp/mattpocock-skills/bundle/work"
+    assert result.destination == tmp_path / "agent-skills/external/quarantine/mattpocock-skills"
+    assert result.command[:4] == ("npx", "skills@latest", "add", "https://github.com/mattpocock/skills")
+
+
+def test_per_skill_fetch_rejects_bundle_managed_source(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["fetch", "--source", "mattpocock-skills", "--skill", "to-spec", "--dry-run"]) == 1
+    assert "use fetch-bundle --source mattpocock-skills" in capsys.readouterr().err
+
+
+def test_fetch_external_bundle_catalogs_staged_content_without_runtime_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry = load_registry(DEFAULT_REGISTRY)
+    bundle = registry.bundles["mattpocock-skills"]
+
+    def fake_run(command, cwd, env, text, capture_output, check):
+        skill = Path(cwd) / ".agents/skills/alpha"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("# alpha\n", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="fetched", stderr="")
+
+    monkeypatch.setattr("scripts.skill_supply_chain.subprocess.run", fake_run)
+    result = fetch_external_bundle(bundle, tmp_path)
+
+    assert result.returncode == 0
+    assert (result.destination / "alpha/SKILL.md").is_file()
+    catalog = json.loads(
+        (tmp_path / ".agent-state/skill-bundles/mattpocock-skills.json").read_text(encoding="utf-8")
+    )
+    assert catalog["skills"][0]["name"] == "alpha"
+    assert not (tmp_path / ".claude/skills").exists()
 
 
 def test_write_run_log_uses_registry_run_log_root(tmp_path: Path) -> None:
@@ -360,7 +480,7 @@ def test_baoyu_and_guizang_sources_use_skills_sh_urls():
 
     assert baoyu_cmd[:6] == [
         "npx",
-        "skills",
+        "skills@latest",
         "add",
         "https://github.com/JimLiu/baoyu-skills",
         "--skill",
@@ -368,7 +488,7 @@ def test_baoyu_and_guizang_sources_use_skills_sh_urls():
     ]
     assert guizang_cmd[:6] == [
         "npx",
-        "skills",
+        "skills@latest",
         "add",
         "https://github.com/op7418/guizang-ppt-skill",
         "--skill",
@@ -396,7 +516,7 @@ def test_mattpocock_commands_include_skills_sh_page_backed_skills():
         cmd = build_skills_sh_fetch_command(registry.skills[("mattpocock-skills", name)])
         assert cmd[:6] == [
             "npx",
-            "skills",
+            "skills@latest",
             "add",
             "https://github.com/mattpocock/skills",
             "--skill",
@@ -456,7 +576,7 @@ def test_find_skills_command_uses_requested_vercel_skills_url():
 
     assert cmd == [
         "npx",
-        "skills",
+        "skills@latest",
         "add",
         "https://github.com/vercel-labs/skills",
         "--skill",
@@ -482,6 +602,30 @@ def test_global_internal_skill_distributes_to_configured_agents():
     assert codex_actions
     assert codex_actions[0].action == "link-dir"
     assert codex_actions[0].source == ROOT / "agent-skills/local/global/knowledge-lifecycle-manager"
+
+
+def test_current_distribution_actions_are_directory_symlinks_only():
+    registry = load_registry(DEFAULT_REGISTRY)
+    targets = load_targets(DEFAULT_TARGETS)
+
+    actions = build_distribution_actions(registry, targets, ROOT)
+
+    assert actions
+    assert {action.action for action in actions} == {"link-dir"}
+
+
+def test_bundle_distribution_resolves_catalog_relative_path(tmp_path: Path):
+    source = ROOT / "agent-skills/external/quarantine/mattpocock-skills/to-spec"
+    nested = tmp_path / "agent-skills/external/quarantine/mattpocock-skills/engineering/to-spec"
+    nested.parent.mkdir(parents=True)
+    shutil.copytree(source, nested)
+    registry = load_registry(DEFAULT_REGISTRY)
+
+    actions = build_distribution_actions(registry, load_targets(DEFAULT_TARGETS), tmp_path)
+    to_spec = [action for action in actions if action.skill_name == "to-spec" and action.target_agent == "codex"]
+
+    assert to_spec
+    assert to_spec[0].source == nested
 
 
 def test_project_internal_skill_distributes_only_to_project_view():

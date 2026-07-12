@@ -15,8 +15,16 @@ Generated/runtime outputs are not authoritative:
 - `.agent-state/skills-lock.json`
 - `.agent-state/skill-sync-runs/`
 - `.agent-state/skill-snapshots/`
+- `.agent-state/skill-bundles/`
 - `~/.claude/skills`, `~/.codex/skills`, `~/.config/opencode/skills`, `~/.pi/agent/skills`, `~/.reasonix/skills`, `~/.gemini/antigravity-cli/skills`, `~/.agents/skills`
 - project `.agents/skills/` directories
+
+Implementation is split by responsibility under `scripts/`:
+
+- `skill_registry.py` — registry models, JSONC parsing, and validation.
+- `skill_intake.py` — skills.sh fetch, inspection, bundle catalog, and audit gate.
+- `skill_distribution.py` — source resolution, symlink reconciliation, and snapshots.
+- `skill_supply_chain.py` — stable CLI entry point and compatibility exports.
 
 ## Source model
 
@@ -28,6 +36,11 @@ Each skill has a source record:
 - `scope: project` for project-local `.agents/skills` distribution.
 - `distribution_state: enabled | staged | disabled | merged`.
 
+An external repository may additionally declare a bundle. A bundle is the
+lifecycle unit for fetch, refresh, disable, and restore; its discovered catalog
+still feeds individual skill audit, approval, scope, and target policy. The
+Matt Pocock source is managed this way.
+
 Only `enabled` skills are distributed. `staged`, `disabled`, and `merged` records preserve source lineage and review decisions without installing the skill.
 
 External skills must enter repo-local quarantine first:
@@ -38,7 +51,21 @@ make skill-audit SOURCE=vercel-skills SKILL=find-skills
 make skill-diff SOURCE=vercel-skills SKILL=find-skills
 ```
 
-The fetch command uses `npx skills add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent-skills/external/quarantine/<source>/<skill>/`.
+Use `skill-fetch-bundle` for a source that declares bundle management; the
+single-skill fetch command rejects those sources to prevent a second workflow.
+
+The fetch command uses `npx skills@latest add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent-skills/external/quarantine/<source>/<skill>/`.
+
+For a bundle, use the bundle entry point instead:
+
+```bash
+make skill-fetch-bundle SOURCE=mattpocock-skills
+```
+
+This runs `npx skills@latest add mattpocock/skills --all --agent universal
+--copy --yes` only inside staging, then writes the fetched source and catalog to
+quarantine. The `--copy` flag is an intake operation; runtime distribution
+continues to use directory soft links.
 
 ## Distribution
 
@@ -168,6 +195,10 @@ make skill-snapshot LABEL=post-target-migration
 `legacy_formats` lets reconcile remove a legacy flat file only when it
 byte-matches a registered source `SKILL.md`. Unknown or same-name user Markdown
 remains untouched.
+
+All current configured runtime targets are directory/soft-link targets. Copy
+actions are not a valid new distribution path; the only retained copy handling
+is byte-matched legacy flat-file cleanup during target migration.
 
 ## External intake and acceptance checklist
 
