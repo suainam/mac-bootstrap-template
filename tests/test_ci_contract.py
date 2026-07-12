@@ -50,5 +50,6 @@ def test_syntax_check_discovers_tracked_source_files():
 def test_neat_freak_ci_rejects_unknown_base_revision():
     checker = read("scripts/neat-freak-ci.sh")
 
+    assert 'BASE_REF="${NEAT_FREAK_BASE_REF-}"' in checker
     assert "base revision not found" in checker
     assert "0000000000000000000000000000000000000000" in checker
