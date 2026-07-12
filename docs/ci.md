@@ -20,7 +20,8 @@ make ci
 The CI contract runs, in order:
 
 1. Shell, Python, and Lua syntax checks.
-2. The portable pytest suite (`machine`-marked tests are reserved for local checks).
+2. The portable pytest suite (`machine`-marked tests are reserved for local checks,
+   including macOS shell, SSH, desktop, and archived runtime checks).
 3. The public privacy audit.
 4. The skill registry check.
 5. The neat-freak changed-path documentation gate.

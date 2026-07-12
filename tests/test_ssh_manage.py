@@ -14,6 +14,9 @@ import pytest
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "ssh-manage.sh"
 
 
+pytestmark = pytest.mark.machine
+
+
 def run_ssh_manage(tmp_home: Path, private_dir: Path, *args: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(tmp_home)

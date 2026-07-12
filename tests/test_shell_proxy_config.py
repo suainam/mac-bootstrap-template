@@ -4,6 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from helpers import TEMPLATE
 
 
@@ -20,6 +22,7 @@ def test_shell_env_exports_full_proxy_matrix():
     assert '&& . "$HOME/.local/bin/env"' not in content
 
 
+@pytest.mark.machine
 def test_shell_env_redirects_rtk_into_writable_subdir_when_repo_root_is_read_only(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -52,6 +55,7 @@ def test_shell_env_redirects_rtk_into_writable_subdir_when_repo_root_is_read_onl
     assert result.stdout == expected
 
 
+@pytest.mark.machine
 def test_shell_env_redirects_rtk_into_tmpdir_when_no_workspace_path_is_writable(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
