@@ -217,6 +217,8 @@ def adapt_server(host: str, spec: ServerSpec) -> dict[str, Any]:
             "type": "local",
             "command": [spec.command, *spec.args],
         }
+    elif host == "claude" and spec.transport == "remote":
+        return {"type": "http", "url": spec.url}
     elif spec.transport == "remote":
         return {"url": spec.url}
     else:

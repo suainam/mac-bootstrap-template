@@ -208,6 +208,20 @@ def test_opencode_adapter_uses_local_and_remote_shapes():
     }
 
 
+def test_claude_remote_adapter_uses_http_transport_shape():
+    result = runtime.render_json_config(
+        "claude",
+        {"mcpServers": {}},
+        runtime.desired_servers(
+            inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
+        ),
+    )
+    assert result["mcpServers"]["devspace"] == {
+        "type": "http",
+        "url": "https://devspace.example/mcp",
+    }
+
+
 def test_managed_server_names_include_optional_names():
     assert runtime.managed_server_names() == (
         "context-mode",
