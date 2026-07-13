@@ -21,9 +21,9 @@ disable-model-invocation: true
 - `references/WORKBOOK_PROCESS.md` — 工作簿物化详细流程
 - `references/SMUDGED_TEXT.md` — Smudged 文本处理
 - `references/CODEX_TSD.md` — Codex TSD 解密流程
-- `references/SCAN_SUMMARY.md` — 加密文件扫描方法和结果
 - `references/OUTPUT_CONTRACT.md` — 输出规范
 - `references/EXAMPLES.md` — 使用示例
+- `references/TESTING.md` — 测试和验证
 
 ---
 
@@ -109,6 +109,6 @@ python3 scripts/scan_encrypted.py --json
 - Windows: 使用 Python `os.walk()`
 - 自动检测默认扫描目录
 
-见 `references/SCAN_SUMMARY.md` 了解扫描方法、性能和解密建议。
+见 `references/CROSSPLATFORM.md` 了解平台差异，`scripts/scan_encrypted.py` 查看实现。
 
 **完成标准**：列出所有加密文件，按类型分组，提供对应解密方法。
