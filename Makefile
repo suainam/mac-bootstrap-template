@@ -14,7 +14,9 @@ LUAC ?= luac
 	quality-gate-pre-commit quality-gate-pre-push quality-gate-doctor \
 	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
 	llm-wiki-install llm-wiki-build llm-wiki-mcp-build llm-wiki-doctor \
-	imgup-install imgup
+	imgup-install imgup \
+	claude-daemon-install claude-daemon-status claude-daemon-logs claude-daemon-unload \
+	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall
 
 help:
 	@echo "Usage: make <target>"
@@ -102,6 +104,11 @@ help:
 	@echo "  claude-daemon-unload     Stop daemon services"
 	@echo "  claude-daemon-status     Show daemon status"
 	@echo "  claude-daemon-logs       Show daemon logs"
+	@echo ""
+	@echo "── System Limits ──"
+	@echo "  maxfiles-limit-install   Install LaunchDaemon raising launchd maxfiles (sudo)"
+	@echo "  maxfiles-limit-status    Show maxfiles daemon + current limit"
+	@echo "  maxfiles-limit-uninstall Remove maxfiles LaunchDaemon (sudo)"
 	@echo ""
 	@echo "── Config ──"
 	@echo "  render-configs         Render config templates"
@@ -402,6 +409,29 @@ claude-daemon-logs:
 claude-daemon-unload:
 	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || true
 	@echo "=== Claude daemon unloaded ==="
+
+# ── System maxfiles limit (survives reboot) ─────────────────
+# launchd's default global soft limit (256) is too low for tools like
+# codex/context-mode that fan out many fds; this raises it at every boot.
+maxfiles-limit-install:
+	sudo cp "$(CURDIR)/launchd/io.local.mac-bootstrap.maxfiles.plist" /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
+	sudo chown root:wheel /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
+	sudo chmod 644 /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
+	sudo launchctl bootout system/io.local.mac-bootstrap.maxfiles 2>/dev/null || true
+	sudo launchctl bootstrap system /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
+	@echo "=== maxfiles daemon installed. Effective now and on every future boot. ==="
+	launchctl limit maxfiles
+
+maxfiles-limit-status:
+	@echo "=== maxfiles daemon ==="
+	sudo launchctl print system/io.local.mac-bootstrap.maxfiles 2>&1 | head -20
+	@echo "--- current limit ---"
+	launchctl limit maxfiles
+
+maxfiles-limit-uninstall:
+	sudo launchctl bootout system/io.local.mac-bootstrap.maxfiles 2>/dev/null || true
+	sudo rm -f /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
+	@echo "=== maxfiles daemon uninstalled ==="
 
 # ── Tmux Workspace ───────────────────────────────────────────────
 tmux-workspace:
