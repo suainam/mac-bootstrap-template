@@ -1,135 +1,119 @@
 ---
 name: web-video-presentation-delivery
 description: "Delivers text-to-video work in this repo through one predictable path: script to storyboard, MiMo TTS assets, HTML player, and OBS-ready manual recording. Use when the user provides text, outline, article, or voiceover material and wants a web-video-presentation style video in this project."
+disable-model-invocation: true
 ---
 
 # Web Video Presentation Delivery
 
-Use this skill to keep text-to-video delivery in this repo on one **single-player** path.
+单一路径：文本 → 脚本 → TTS → HTML 播放器 → OBS 录制。
 
-## Quick start
+---
 
-Use this skill when the work includes:
+## 触发条件
 
-- turning text, outline, article, or voiceover copy into a browser video presentation
-- reusing the existing chapter HTML + player + MiMo TTS flow
-- preparing an OBS-ready delivery path instead of inventing a new recording mechanism
+使用此技能当工作包含：
+- 将文本/大纲/文章转为浏览器视频演示
+- 复用现有 chapter HTML + player + MiMo TTS 流程
+- 准备 OBS 录制（而非发明新录制机制）
 
-Default output:
+---
 
-1. align the script and storyboard
-2. generate or update TTS assets with existing scripts
-3. update chapter HTML and the shared player only where needed
-4. verify browser playback
-5. hand off an OBS-ready manual recording path
+## 工作流程
 
-## Workflow
+### 1. 单一路径约束
 
-### 1. Lock the single-player path
+**稳定架构**：
+- 一个播放器：`tutorial_video_presentation_player.html`
+- 一个录制视图：`?auto=1&obs=1`
+- 一个启动方式：浏览器 `Space` 键
+- 一个录制工具：OBS
 
-Before editing anything, keep these invariants:
+见 `references/PITFALLS.md` 了解已废弃方案。
 
-- one shared player: `tutorial_video_presentation_player.html`
-- one recording view: `?auto=1&obs=1`
-- one manual playback entry: browser `Space`
-- one external recorder: `OBS`
+### 2. 脚本资产
 
-Do not add a second recording path unless the user explicitly asks for it.
+**源文件**：
+- `docs/scripts/tutorial_script.md`
+- `docs/scripts/voiceover_tts_script.md`
+- `docs/scripts/audio_storyboard.md`
 
-### 2. Build or update the script assets
+**构建工具**：
+- `scripts/build_storyboard_json.py`
+- `scripts/rewrite_storyboard_v3.py`
 
-Prefer the existing repo flow:
+**处理新文本**：
+1. 对齐到章节/步骤结构
+2. 更新 markdown 源（单一真身）
+3. 重建 storyboard JSON
 
-- source copy:
-  - `docs/scripts/tutorial_script.md`
-  - `docs/scripts/voiceover_tts_script.md`
-  - `docs/scripts/audio_storyboard.md`
-- storyboard JSON:
-  - `scripts/build_storyboard_json.py`
-  - `scripts/rewrite_storyboard_v3.py`
+### 3. TTS 生成
 
-If the user gives fresh text:
+**现有脚本**：
+- 章节原型：`scripts/mimo_tts_ch1.py`
+- 步骤克隆：`scripts/mimo_tts_step_clone.py`
 
-1. align it into chapter/step structure
-2. update the markdown source of truth
-3. rebuild storyboard JSON instead of hand-editing multiple downstream files
+**约定**（除非明确更改）：
+- 克隆风格：对话式
+- 输出目录：`audio/mimo_*`
+- 播放器直接读取这些路径
 
-### 3. Reuse the current TTS pipeline
+### 4. HTML 编辑
 
-Use the existing MiMo scripts before inventing new synthesis glue:
-
-- chapter prototype:
-  - `scripts/mimo_tts_ch1.py`
-- step-level clone synthesis:
-  - `scripts/mimo_tts_step_clone.py`
-
-Keep these conventions unless the user changes them:
-
-- clone style stays conversational, not announcer-style
-- step wav files stay under `audio/mimo_*`
-- the player reads those existing step wav paths directly
-
-### 4. Edit HTML chapters surgically
-
-Touch only the files that actually need content or layout updates:
-
-- `tutorial_video_presentation_ch1.html` ... `tutorial_video_presentation_ch7.html`
+**目标文件**：
+- `tutorial_video_presentation_ch1.html` ... `ch7.html`
 - `tutorial_video_presentation_player.html`
 
-Keep the current player model:
+**播放器模型**：
+- 同章节步骤切换：`postMessage`
+- 跨章节切换：iframe reload
+- `obs=1` 隐藏非必要 UI
+- 手动 Space 启动
 
-- same-chapter step changes use `postMessage`
-- chapter changes reload the iframe
-- `obs=1` hides non-essential chrome
-- manual `Space` start remains the stable route
+### 5. 验证顺序
 
-Do not reintroduce:
+**必须按顺序**：
+1. 浏览器播放正常
+2. 音频播放正常
+3. 步骤切换和章节转换同步
+4. `obs=1` 视图正确
+5. **然后**才进入 OBS 调试
 
-- browser `MediaRecorder`
-- `file://` recording workflows
-- automatic AppleScript-driven start as the default path
-- multiple competing start modes
+浏览器播放失败时，不要跳到 OBS。
 
-### 5. Verify playback before talking about recording
+### 6. OBS 录制
 
-Verification order:
+**标准流程**：
+1. 启动 HTTP 服务（见 `references/COMMANDS.md`）
+2. 打开 `http://127.0.0.1:8787/tutorial_video_presentation_player.html?auto=1&obs=1&session=<timestamp>`
+3. 确认 OBS 预览
+4. 开始 OBS 录制
+5. 浏览器按 Space
+6. 验证输出文件有音频
 
-1. browser playback works
-2. audio plays in browser
-3. step changes and chapter transitions stay in sync
-4. `obs=1` view hides non-essential UI
-5. only then move to OBS capture
+见 `references/TROUBLESHOOTING.md` 处理录制问题。
 
-If browser playback is broken, do not continue to OBS troubleshooting yet.
+### 7. 文档更新
 
-### 6. Record through OBS, manually
+**如果工作改变了稳定路径**，更新：
+- `docs/video-recording-runbook.md`
+- `docs/video-recording-retrospective.md`
+- `video_presentation/README.md`
+- `.agents/README.md`（如技能接口变化）
 
-Stable path in this repo:
+---
 
-1. start local HTTP service
-2. open `http://127.0.0.1:8787/tutorial_video_presentation_player.html?auto=1&obs=1&session=<timestamp>`
-3. confirm OBS preview first
-4. start OBS recording
-5. manually press `Space` in the browser
-6. verify the output file has audio
+## 完成标准
 
-### 7. Finish with docs, not chat-only tribal knowledge
+- [ ] 文件路径已更新
+- [ ] 浏览器播放测试通过
+- [ ] OBS 录制路径已验证（或说明录制限制）
+- [ ] 文档已更新（如有架构变化）
 
-If the work changes the stable route:
+---
 
-- update `docs/video-recording-runbook.md`
-- update `docs/video-recording-retrospective.md`
-- update `video_presentation/README.md`
-- update `.agents/README.md` if the reusable skill surface changed
+## 引用
 
-## Deliverables
-
-Return:
-
-- updated file path(s)
-- short summary of what changed
-- any remaining recording or audio caveats
-
-## Reference
-
-See [REFERENCE.md](REFERENCE.md) for stable commands, non-goals, and repo-specific pitfalls.
+- `references/COMMANDS.md` — 稳定命令和配置
+- `references/PITFALLS.md` — 已知陷阱和禁区
+- `references/TROUBLESHOOTING.md` — 常见问题解决
