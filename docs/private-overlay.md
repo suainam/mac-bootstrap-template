@@ -22,6 +22,7 @@ private/editors/neovim/ai.lua
 private/agent/x-mcp.jsonc
 private/infra/code-server/env.sh
 private/python/odps_config.py
+private/zerotier/<host>.network-id
 ```
 
 Note: Private paths stay as `private/clash/`, `private/infra/`, and `private/python/` (not the new
@@ -54,6 +55,11 @@ For remote code-server deployment, `infra/code-server/install.sh` first looks
 for `private/infra/code-server/env.sh` (or the same path under
 `$MAC_BOOTSTRAP_PRIVATE_DIR`) to load `CODE_SERVER_HOST` and
 `CODE_SERVER_DIR`. Keep real bastion names there, not in the public template.
+
+The public `Brewfile` installs the ZeroTier client, but it does not join a
+network. Keep network IDs, managed addresses, and host-specific SSH routing in
+the private parent, for example under `private/zerotier/` and
+`private/shell/ssh_config.d/`. Never copy those values into this template.
 
 Parent `bootstrap.sh`:
 

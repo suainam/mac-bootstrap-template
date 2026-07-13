@@ -65,6 +65,7 @@ cask "cc-switch"
 
 # ========== 网络 & 安全 ==========
 brew "cloudflared"
+cask "zerotier-one"
 cask "clash-verge-rev"
 cask "uuremote"
 cask "xiaomi-cloud"
