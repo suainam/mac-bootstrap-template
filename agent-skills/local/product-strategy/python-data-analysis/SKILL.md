@@ -1,6 +1,7 @@
 ---
 name: python-data-analysis
 description: "Use for Python data analysis tasks: load data, inspect quality, transform with pandas/polars/duckdb, create reproducible summaries, and validate results before presenting conclusions."
+disable-model-invocation: true
 ---
 
 # Python Data Analysis
@@ -28,3 +29,10 @@ Default stack inside containers:
 
 Never silently coerce dirty data. When parsing fails, preserve the raw column,
 create a cleaned column, and report the parse failure rate.
+
+---
+
+## References
+
+- `references/DATA_QUALITY.md` — 数据质量检查清单和模板
+- `references/ANALYSIS_PATTERNS.md` — 对比、拆分、下钻等分析方法

@@ -1,6 +1,7 @@
 ---
 name: sql-analysis
 description: "Use for SQL analytics work: profile tables, write readable queries, verify joins and aggregations, and produce auditable analytical outputs."
+disable-model-invocation: true
 ---
 
 # SQL Analysis
@@ -28,3 +29,11 @@ Join checks:
 
 For local files, prefer DuckDB when possible so CSV/parquet analysis stays close
 to production SQL habits.
+
+---
+
+## References
+
+- `references/PROFILING_CHECKLIST.md` — 表分析检查清单和模板
+- `references/JOIN_PATTERNS.md` — Join 验证和常见模式
+- `references/ANALYSIS_PATTERNS.md` — 对比、拆分、下钻等分析方法
