@@ -413,6 +413,24 @@ Regression notes:
 - Remove that file after the drill so scheduled runs return to the default
   keepalive behavior
 
+## System limits (maxfiles)
+
+launchd's default global `maxfiles` soft limit (256) is too low for tools
+that fan out many file descriptors (e.g. Codex's `context-mode` hooks),
+causing `Too many open files (os error 24)`.
+
+```bash
+make maxfiles-limit-install    # sudo; installs a LaunchDaemon, raises to 65536/200000
+make maxfiles-limit-status     # show daemon state + current limit
+make maxfiles-limit-uninstall  # sudo; remove the LaunchDaemon
+```
+
+The LaunchDaemon (`launchd/io.local.mac-bootstrap.maxfiles.plist`) reapplies
+the limit on every boot, so it survives restarts. `sudo` is required because
+`maxfiles` is a system-wide, root-owned `LaunchDaemon` under
+`/Library/LaunchDaemons/`, unlike the other jobs on this page which install
+as per-user `LaunchAgent`s.
+
 ## Agent tooling
 
 Template subsystem boundaries:
@@ -520,6 +538,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make install-cache-agent` | Install weekly cache cleanup job |
 | `make organize-downloads` | Sort files from `~/Downloads` |
 | `make install-downloads-agent` | Install auto-organizer for downloads |
+| `make maxfiles-limit-install` | Install LaunchDaemon raising launchd maxfiles (sudo) |
 
 ## Cache cleanup
 
