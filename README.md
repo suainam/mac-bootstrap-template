@@ -186,6 +186,7 @@ private/clash/work-mac.yaml
 private/editors/neovim/ai.lua
 private/infra/code-server/env.sh
 private/python/odps_config.py
+private/zerotier/<host>.network-id       # Private mesh network membership
 private/shell/ssh_config                 # Canonical ~/.ssh/config source
 private/shell/ssh_config.d/<legacy-host>   # SSH host config (symlinked, see below)
 private/shell/ssh_keys/<key>             # SSH keys (symlinked into ~/.ssh/keys/)
@@ -195,6 +196,10 @@ Host-specific deployment values should live in the matching private overlay
 path. For example, `infra/code-server/install.sh` will source
 `private/infra/code-server/env.sh` for `CODE_SERVER_HOST` and `CODE_SERVER_DIR`
 before it falls back to shell environment variables.
+
+The Brewfile installs the ZeroTier client only. Network membership, managed
+addresses, and host routing remain private; see
+[`docs/private-overlay.md`](docs/private-overlay.md).
 
 ### SSH config deploy strategy
 
