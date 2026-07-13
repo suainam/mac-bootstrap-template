@@ -170,6 +170,11 @@ Use that page together with this local runbook:
 - For Codex CLI specifically, keep DevSpace disabled in normal sessions. Run
   `codex-mcp devspace mcp login devspace` once to authorize, then use
   `codex-mcp devspace` for on-demand sessions.
+- Managed Claude remote MCP entries must include both `type: http` and the
+  server `url`; `make agent-tools` renders this host-specific shape.
+- If Claude or OpenCode reports `needs authentication`, run
+  `claude mcp login devspace` or `opencode mcp auth devspace` respectively.
+  OAuth credentials are client-local state, not managed configuration drift.
 - The DevSpace approval page asks for the Owner password, which is the
   `ownerToken` stored in `~/.devspace/auth.json`.
 
