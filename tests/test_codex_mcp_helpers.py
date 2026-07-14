@@ -85,6 +85,23 @@ value = 1
     assert "[keep]" in stripped
 
 
+def test_strip_managed_sections_removes_retired_x_servers():
+    text = """
+[mcp_servers.x-docs]
+url = "https://docs.x.com/mcp"
+
+[mcp_servers.xapi]
+command = "old-x-command"
+
+[keep]
+value = 1
+""".strip()
+    stripped = sync_codex_mcp_config.strip_managed_sections(text)
+    assert "[mcp_servers.x-docs]" not in stripped
+    assert "[mcp_servers.xapi]" not in stripped
+    assert "[keep]" in stripped
+
+
 def test_sync_codex_main_writes_from_cli_args(tmp_path):
     config = tmp_path / "config.toml"
     block = tmp_path / "block.toml"

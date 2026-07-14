@@ -106,6 +106,9 @@ def main() -> int:
         print("Context7 private config invalid", file=sys.stderr)
         return 2
 
+    if sys.argv[1:] == ["--validate-private-config"]:
+        return 0
+
     environment = os.environ.copy()
     environment.pop("CONTEXT7_API_KEY", None)
     if key is not None:

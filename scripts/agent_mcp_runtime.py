@@ -22,7 +22,7 @@ MANAGED_NAMES = (
     "context7",
     "devspace",
 )
-RETIRED_ALIASES = ("code-review-graph", "codebase-memory")
+RETIRED_ALIASES = ("code-review-graph", "codebase-memory", "x-docs", "xapi")
 CONTEXT7_PROXY_KEYS = {
     "NODE_USE_ENV_PROXY",
     "HTTP_PROXY",

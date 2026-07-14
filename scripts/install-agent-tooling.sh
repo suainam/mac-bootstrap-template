@@ -57,6 +57,10 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
+if [ "$DRY_RUN" -eq 0 ]; then
+  "$PYTHON_BIN" "$BOOTSTRAP/scripts/context7-mcp-bridge.py" --validate-private-config
+fi
+
 RULES_FILE="$(canonical_path canonical.rules_file)"
 RULES_COMMON_SRC="$(canonical_path canonical.rules_common_dir)"
 RULES_PYTHON_SRC="$(canonical_path canonical.rules_python_dir)"

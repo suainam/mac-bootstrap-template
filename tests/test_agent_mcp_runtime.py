@@ -143,12 +143,16 @@ def test_render_removes_retired_server_aliases(host, root_key):
         root_key: {
             "code-review-graph": {"command": "old"},
             "codebase-memory": {"command": "older"},
+            "x-docs": {"url": "https://docs.x.com/mcp"},
+            "xapi": {"command": "old-x-command"},
         }
     }
     desired = runtime.desired_servers(inputs())
     result = runtime.render_json_config(host, current, desired)
     assert "code-review-graph" not in result[root_key]
     assert "codebase-memory" not in result[root_key]
+    assert "x-docs" not in result[root_key]
+    assert "xapi" not in result[root_key]
 
 
 def test_audit_reports_retired_server_alias():

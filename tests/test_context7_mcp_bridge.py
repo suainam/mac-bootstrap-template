@@ -71,6 +71,25 @@ def test_bridge_tightens_tracked_private_config_permissions(tmp_path: Path):
     assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
 
 
+def test_bridge_validation_tightens_permissions_without_launching(tmp_path: Path):
+    private_dir = tmp_path / "private"
+    config_path = private_dir / "agent/context7.runtime.jsonc"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text('{"api_key": "ctx-secret"}', encoding="utf-8")
+    config_path.chmod(0o644)
+    env = {**os.environ, "MAC_BOOTSTRAP_PRIVATE_DIR": str(private_dir)}
+
+    result = subprocess.run(
+        [PYTHON, str(BRIDGE), "--validate-private-config"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
+
+
 def test_bridge_runs_keyless_when_private_config_is_missing(tmp_path: Path):
     result, capture_env, _ = run_bridge(tmp_path, None)
     assert result.returncode == 0, result.stderr

@@ -242,6 +242,11 @@ else
 fi
 check_contains "AGENTS.md 12-rules ref" "$CODEX_AGENTS" '12-rules.md'
 check_contains "AGENTS.md context-mode SOP" "$CODEX_AGENTS" '## Context Mode SOP'
+if "$PYTHON_BIN" "$BOOTSTRAP/scripts/context7-mcp-bridge.py" --validate-private-config; then
+  echo "  OK   Context7 private config and permissions"
+else
+  echo "  MISS Context7 private config or permissions"
+fi
 audit_mcp_config codex "$CODEX_TOML" --hooks-path "$CODEX_HOOKS"
 check_contains "hooks.json context-mode SOP reminder" "$CODEX_HOOKS" 'CONTEXT-MODE SOP:'
 check_contains "quality gate manifest" "$BOOTSTRAP/agent/quality-gates/manifest.jsonc" '"events"'
