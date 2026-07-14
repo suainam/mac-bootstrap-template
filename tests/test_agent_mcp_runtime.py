@@ -25,7 +25,6 @@ def inputs(**overrides):
         "home": Path("/home/alice"),
         "bootstrap": Path("/repo"),
         "context7_command": "npx",
-        "context7_key": "",
         "http_proxy": "",
         "https_proxy": "",
         "all_proxy": "",
@@ -47,6 +46,10 @@ def test_desired_servers_has_one_normalized_catalog():
     ]
     assert servers["context7"].command == "npx"
     assert servers["context7"].args == ("-y", "@upstash/context7-mcp")
+    assert servers["context7"].host_commands["codex"] == (
+        "/repo/scripts/context7-mcp-bridge.py"
+    )
+    assert servers["context7"].host_args["codex"] == ()
     assert servers["codebase-memory-mcp"].tool_approvals == (
         "search_graph",
         "trace_path",
@@ -74,30 +77,6 @@ def test_optional_devspace_server_is_resolved_from_runtime_inputs():
     assert servers["devspace"].url == "https://devspace.example/mcp"
 
 
-def test_context7_proxy_and_key_are_normalized_once():
-    server = runtime.desired_servers(
-        inputs(
-            context7_key="secret",
-            http_proxy="http://127.0.0.1:7897",
-            https_proxy="http://127.0.0.1:7898",
-            all_proxy="socks5://127.0.0.1:7897",
-        )
-    )["context7"]
-    assert server.args[-2:] == ("--api-key", "secret")
-    assert server.env["NODE_USE_ENV_PROXY"] == "1"
-    assert server.env["HTTPS_PROXY"] == "http://127.0.0.1:7898"
-    assert server.env["ALL_PROXY"] == "socks5://127.0.0.1:7897"
-
-
-def test_audit_ignores_context7_secret_and_proxy_environment_drift():
-    installed = runtime.desired_servers(
-        inputs(context7_key="installed-secret", http_proxy="http://install-proxy")
-    )
-    audited = runtime.desired_servers(inputs())
-    config = runtime.render_json_config("claude", {}, installed)
-    assert runtime.audit_config("claude", config, audited) == []
-
-
 @pytest.mark.parametrize(
     "bad_env",
     [
@@ -119,15 +98,6 @@ def test_audit_rejects_invalid_context7_proxy_environment(bad_env):
     desired = runtime.desired_servers(inputs())
     config = runtime.render_json_config("claude", {}, desired)
     config["mcpServers"]["context7"]["env"] = bad_env
-    assert [(issue.code, issue.server) for issue in runtime.audit_config("claude", config, desired)] == [
-        ("server_mismatch", "context7")
-    ]
-
-
-def test_audit_rejects_malformed_context7_api_key_argument():
-    desired = runtime.desired_servers(inputs())
-    config = runtime.render_json_config("claude", {}, desired)
-    config["mcpServers"]["context7"]["args"].append("--api-key")
     assert [(issue.code, issue.server) for issue in runtime.audit_config("claude", config, desired)] == [
         ("server_mismatch", "context7")
     ]
@@ -164,7 +134,6 @@ def test_json_host_adapter_preserves_unmanaged_state():
     assert result["theme"] == "dark"
     assert result["mcpServers"]["unmanaged"] == {"command": "mine"}
     assert "devspace" not in result["mcpServers"]
-    assert "x-docs" not in result["mcpServers"]
     assert "context-mode" not in result["mcpServers"]
 
 
@@ -222,6 +191,21 @@ def test_claude_remote_adapter_uses_http_transport_shape():
     }
 
 
+def test_non_codex_context7_hosts_remain_keyless():
+    desired = runtime.desired_servers(inputs())
+    claude = runtime.render_json_config("claude", {}, desired)
+    opencode = runtime.render_json_config("opencode", {}, desired)
+    assert claude["mcpServers"]["context7"] == {
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp"],
+    }
+    assert opencode["mcp"]["context7"]["command"] == [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp",
+    ]
+
+
 def test_managed_server_names_include_optional_names():
     assert runtime.managed_server_names() == (
         "context-mode",
@@ -235,7 +219,6 @@ def test_managed_server_names_include_optional_names():
 def test_codex_toml_is_rendered_from_normalized_specs():
     desired = runtime.desired_servers(
         inputs(
-            context7_key='a"b',
             http_proxy="http://127.0.0.1:7897",
             devspace_enabled=True,
             devspace_url="https://devspace.example/mcp",
@@ -246,11 +229,10 @@ def test_codex_toml_is_rendered_from_normalized_specs():
     assert rendered.endswith("# END MAC-BOOTSTRAP MANAGED MCPS\n")
     assert '[mcp_servers.codebase-memory-mcp.tools.search_graph]' in rendered
     assert 'approval_mode = "approve"' in rendered
-    assert 'args = ["-y", "@upstash/context7-mcp", "--api-key", "a\\\"b"]' in rendered
+    assert 'command = "/repo/scripts/context7-mcp-bridge.py"' in rendered
+    assert '[mcp_servers.context7]\nenabled = true\ncommand = "/repo/scripts/context7-mcp-bridge.py"\nargs = []' in rendered
     assert '[mcp_servers.context7.env]' in rendered
     assert '[mcp_servers.devspace]' in rendered
-    assert '[mcp_servers.x-docs]' not in rendered
-    assert '[mcp_servers.xapi]' not in rendered
 
 
 def test_policy_disables_optional_codex_servers_and_renders_profiles(tmp_path):
@@ -471,10 +453,8 @@ def test_main_audits_valid_and_duplicate_hook_codex(monkeypatch, capsys, tmp_pat
         "https_proxy",
         "ALL_PROXY",
         "all_proxy",
-        "CONTEXT7_KEY",
         "DEVSPACE_MCP_ENABLE",
         "DEVSPACE_MCP_URL",
-        "X_MCP_ENABLE",
     ):
         monkeypatch.delenv(name, raising=False)
     assert runtime.main() == 0

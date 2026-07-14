@@ -19,7 +19,6 @@ from agent_mcp_runtime import (
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context7-command", required=True)
-    parser.add_argument("--context7-api-key")
     parser.add_argument("--devspace-url")
     parser.add_argument("--policy")
     args = parser.parse_args()
@@ -31,7 +30,6 @@ def main() -> int:
     )
     inputs = replace(
         inputs,
-        context7_key=args.context7_api_key or inputs.context7_key,
         devspace_enabled=bool(args.devspace_url),
         devspace_url=args.devspace_url or "",
     )

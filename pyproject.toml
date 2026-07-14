@@ -21,6 +21,7 @@ include = [
     "data-hub/*.py",
     "data-hub/source_adapters/*.py",
     "scripts/agent_mcp_runtime.py",
+    "scripts/context7-mcp-bridge.py",
     "scripts/check-python-syntax.py",
     "scripts/render-codex-mcp-block.py",
     "scripts/run-doctor-checks.py",

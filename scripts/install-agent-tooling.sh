@@ -6,6 +6,7 @@ DRY_RUN=0
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOOTSTRAP="$(cd "$SCRIPT_DIR/.." && pwd)"
 MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
+PYTHON_BIN="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
 
 . "$BOOTSTRAP/scripts/lib/agent-shared.sh"
 . "$BOOTSTRAP/scripts/lib/agent-manifest.sh"
@@ -13,7 +14,6 @@ MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
 . "$BOOTSTRAP/scripts/lib/agent-mcp.sh"
 . "$BOOTSTRAP/scripts/lib/agent-configure.sh"
 
-load_x_mcp_private_env
 load_devspace_mcp_private_env
 
 usage() {
@@ -56,8 +56,6 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
-
-CONTEXT7_KEY="${CONTEXT7_API_KEY:-}"
 
 RULES_FILE="$(canonical_path canonical.rules_file)"
 RULES_COMMON_SRC="$(canonical_path canonical.rules_common_dir)"
@@ -129,8 +127,8 @@ print_step_header "Step 2a — Workspace context files"
 generate_workspace_context_files
 
 print_step_header "Step 2b — Wire managed skills into agents"
-run python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles
-run python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
+run "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles
+run "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
 
 print_step_header "Step 2c — Prompt library helper"
 configure_prompt_library_step
@@ -146,9 +144,6 @@ configure_caveman_step
 
 print_step_header "Step 6 — Codebase Memory MCP + Context7"
 ensure_codebase_memory_mcp
-if [ -z "$CONTEXT7_KEY" ]; then
-  echo "  NOTE: CONTEXT7_API_KEY not set — context7 may have rate limits"
-fi
 
 print_step_header "Step 7 — MCP config for all agents"
 configure_all_mcp

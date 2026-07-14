@@ -22,16 +22,20 @@ def run_renderer(*args: str, env: dict[str, str] | None = None):
     )
 
 
-def test_renderer_uses_normalized_proxy_and_api_key():
+def test_renderer_uses_normalized_proxy_without_api_key_argument():
     env = {
         **os.environ,
         "HTTP_PROXY": "http://127.0.0.1:7897",
         "HTTPS_PROXY": "http://127.0.0.1:7898",
         "ALL_PROXY": "socks5://127.0.0.1:7897",
     }
-    result = run_renderer("--context7-api-key", "abc", env=env)
+    result = run_renderer(env=env)
     assert result.returncode == 0, result.stderr
-    assert 'args = ["-y", "@upstash/context7-mcp", "--api-key", "abc"]' in result.stdout
+    assert (
+        '[mcp_servers.context7]\nenabled = true\n'
+        f'command = "{ROOT / "scripts" / "context7-mcp-bridge.py"}"\nargs = []'
+    ) in result.stdout
+    assert "abc" not in result.stdout
     assert 'HTTP_PROXY = "http://127.0.0.1:7897"' in result.stdout
     assert 'HTTPS_PROXY = "http://127.0.0.1:7898"' in result.stdout
 

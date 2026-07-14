@@ -61,10 +61,6 @@
       "args": [
         "-y",
         "@upstash/context7-mcp"
-      ],
-      "api_key_env": "CONTEXT7_API_KEY",
-      "api_key_args": [
-        "--api-key"
       ]
     }
   },

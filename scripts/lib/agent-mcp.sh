@@ -68,9 +68,6 @@ configure_codex_mcp() {
     local python_bin="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
     tmp_block="$(mktemp)"
     local render_args=(--context7-command "$ctx7_cmd_path")
-    if [ -n "${CONTEXT7_KEY:-}" ]; then
-      render_args+=(--context7-api-key "$CONTEXT7_KEY")
-    fi
     if [ "${DEVSPACE_MCP_ENABLE:-0}" = "1" ] && [ -n "${DEVSPACE_MCP_URL:-}" ]; then
       render_args+=(--devspace-url "$DEVSPACE_MCP_URL")
     fi

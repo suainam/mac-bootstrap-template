@@ -12,7 +12,7 @@ private/
     code-server/
       env.sh          # CODE_SERVER_HOST / CODE_SERVER_DIR for deploy scripts
   agent/
-    x-mcp.jsonc       # X API MCP OAuth client credentials for local agent tooling
+    context7.runtime.jsonc  # Optional Context7 key, consumed only by Codex
   shell/
     ssh_config         # Optional override for ~/.ssh/config; canonical source when you want full private ownership
     ssh_config.d/

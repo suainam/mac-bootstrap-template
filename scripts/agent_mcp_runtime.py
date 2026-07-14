@@ -22,7 +22,7 @@ MANAGED_NAMES = (
     "context7",
     "devspace",
 )
-RETIRED_ALIASES = ("code-review-graph", "codebase-memory", "x-docs", "xapi")
+RETIRED_ALIASES = ("code-review-graph", "codebase-memory")
 CONTEXT7_PROXY_KEYS = {
     "NODE_USE_ENV_PROXY",
     "HTTP_PROXY",
@@ -59,7 +59,6 @@ class RuntimeInputs:
     home: Path
     bootstrap: Path
     context7_command: str
-    context7_key: str = ""
     http_proxy: str = ""
     https_proxy: str = ""
     all_proxy: str = ""
@@ -81,7 +80,6 @@ class RuntimeInputs:
             home=Path(env.get("HOME", str(Path.home()))),
             bootstrap=bootstrap,
             context7_command=context7_command,
-            context7_key=env.get("CONTEXT7_KEY", ""),
             http_proxy=http_proxy,
             https_proxy=env.get("HTTPS_PROXY") or env.get("https_proxy") or http_proxy,
             all_proxy=env.get("ALL_PROXY") or env.get("all_proxy") or http_proxy,
@@ -97,6 +95,8 @@ class ServerSpec:
     transport: str
     command: str = ""
     args: tuple[str, ...] = ()
+    host_commands: Mapping[str, str] = field(default_factory=dict)
+    host_args: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     url: str = ""
     env: Mapping[str, str] = field(default_factory=dict)
     startup_timeout_sec: int | None = None
@@ -130,8 +130,6 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
     context7_args: list[str] = []
     if inputs.context7_command == "npx":
         context7_args.extend(("-y", "@upstash/context7-mcp"))
-    if inputs.context7_key:
-        context7_args.extend(("--api-key", inputs.context7_key))
 
     context7_env: dict[str, str] = {}
     if inputs.http_proxy:
@@ -172,6 +170,10 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
             "local",
             command=inputs.context7_command,
             args=tuple(context7_args),
+            host_commands={
+                "codex": str(inputs.bootstrap / "scripts/context7-mcp-bridge.py")
+            },
+            host_args={"codex": ()},
             env=context7_env,
         ),
     }
@@ -208,21 +210,31 @@ def apply_default_policy(
     }
 
 
+def server_command(host: str, spec: ServerSpec) -> str:
+    return spec.host_commands.get(host, spec.command)
+
+
+def server_args(host: str, spec: ServerSpec) -> tuple[str, ...]:
+    return spec.host_args.get(host, spec.args)
+
+
 def adapt_server(host: str, spec: ServerSpec) -> dict[str, Any]:
+    command = server_command(host, spec)
+    args = server_args(host, spec)
     if host == "opencode":
         if spec.transport == "remote":
             return {"enabled": True, "type": "remote", "url": spec.url}
         result: dict[str, Any] = {
             "enabled": True,
             "type": "local",
-            "command": [spec.command, *spec.args],
+            "command": [command, *args],
         }
     elif host == "claude" and spec.transport == "remote":
         return {"type": "http", "url": spec.url}
     elif spec.transport == "remote":
         return {"url": spec.url}
     else:
-        result = {"command": spec.command, "args": list(spec.args)}
+        result = {"command": command, "args": list(args)}
 
     if spec.env:
         result["env"] = dict(spec.env)
@@ -271,8 +283,8 @@ def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
         if spec.transport == "remote":
             lines.append(f"url = {_toml_string(spec.url)}")
         else:
-            lines.append(f"command = {_toml_string(spec.command)}")
-            lines.append(f"args = {_toml_array(spec.args)}")
+            lines.append(f"command = {_toml_string(server_command('codex', spec))}")
+            lines.append(f"args = {_toml_array(server_args('codex', spec))}")
             if spec.startup_timeout_sec is not None:
                 lines.append(f"startup_timeout_sec = {spec.startup_timeout_sec}")
         sections.append("\n".join(lines))
@@ -298,7 +310,10 @@ def _codex_server(spec: ServerSpec) -> dict[str, Any]:
     if spec.transport == "remote":
         result: dict[str, Any] = {"url": spec.url}
     else:
-        result = {"command": spec.command, "args": list(spec.args)}
+        result = {
+            "command": server_command("codex", spec),
+            "args": list(server_args("codex", spec)),
+        }
         if spec.startup_timeout_sec is not None:
             result["startup_timeout_sec"] = spec.startup_timeout_sec
     if spec.env:
@@ -325,21 +340,6 @@ def _stable_server_view(name: str, value: Any) -> Any:
         )
         if not valid_env:
             stable["invalid_context7_env"] = True
-    for key in ("args", "command"):
-        values = stable.get(key)
-        if not isinstance(values, list) or "--api-key" not in values:
-            continue
-        indexes = [index for index, item in enumerate(values) if item == "--api-key"]
-        valid_key = (
-            len(indexes) == 1
-            and indexes[0] + 1 < len(values)
-            and isinstance(values[indexes[0] + 1], str)
-            and bool(values[indexes[0] + 1])
-        )
-        if valid_key:
-            del values[indexes[0] : indexes[0] + 2]
-        else:
-            stable["invalid_context7_api_key"] = True
     return stable
 
 
@@ -381,7 +381,7 @@ def audit_config(
             if host not in spec.hosts:
                 continue
             if spec.transport == "local" and name not in mismatched:
-                if executable_resolver(spec.command) is None:
+                if executable_resolver(server_command(host, spec)) is None:
                     issues.append(AuditIssue("missing_executable", name))
 
     hooks = config.get("hooks", {})

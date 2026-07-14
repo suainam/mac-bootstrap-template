@@ -4,7 +4,7 @@
     "context-mode": true,
     "codebase-memory-mcp": true,
     "agent-prompt-library": false,
-    "context7": false,
+    "context7": true,
     "devspace": false
   },
   "profiles": {

@@ -68,23 +68,6 @@ name = "alice"
     assert '[user]' in stripped
 
 
-def test_strip_managed_sections_removes_x_servers():
-    text = """
-[mcp_servers.x-docs]
-url = "https://docs.x.com/mcp"
-
-[mcp_servers.xapi]
-command = "npx"
-
-[keep]
-value = 1
-""".strip()
-    stripped = sync_codex_mcp_config.strip_managed_sections(text)
-    assert "[mcp_servers.x-docs]" not in stripped
-    assert "[mcp_servers.xapi]" not in stripped
-    assert "[keep]" in stripped
-
-
 def test_strip_managed_sections_removes_agent_prompt_library():
     text = """
 [mcp_servers.agent-prompt-library]

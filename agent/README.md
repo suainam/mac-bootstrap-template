@@ -33,11 +33,11 @@ Keep server connection definitions in `scripts/agent_mcp_runtime.py`; use the
 policy file only for default enablement and named profiles. Run `make
 agent-tools` after changing either source.
 
-The base Codex session starts only core MCPs. Optional MCPs are enabled per
-session through generated profiles:
+The base Codex session starts core MCPs plus Context7. Other optional MCPs are
+enabled per session through generated profiles:
 
 ```bash
-codex-mcp docs       # context7
+codex-mcp docs       # context7 profile override
 codex-mcp prompts    # agent-prompt-library
 codex-mcp devspace   # authenticated remote DevSpace
 codex-mcp full       # all optional managed MCPs
@@ -46,6 +46,14 @@ codex-mcp full       # all optional managed MCPs
 The generated `~/.local/bin/codex-mcp` launcher converts the selected profile
 into per-session Codex config overrides. Profiles control Codex only because
 other supported hosts do not share one portable profile contract.
+
+Codex Context7 launches through `scripts/context7-mcp-bridge.py`. The wrapper
+reads the optional key from private `private/agent/context7.runtime.jsonc`
+(mode `0600`) at process start and passes it only to the child environment.
+Generated configs and non-Codex hosts remain keyless; a missing key uses the
+anonymous Context7 service. Check the private file mode with
+`stat -f '%Sp' private/agent/context7.runtime.jsonc` (expect `-rw-------`) and
+managed state with `make doctor-agent`; refresh with `make agent-tools`.
 
 ---
 
@@ -115,8 +123,8 @@ The script is intentionally split by responsibility:
 - `scripts/run-doctor-checks.py` + `scripts/doctor-manifest.json` — data-driven doctor checks derived from Brewfile
 
 MCP reconciliation preserves unrelated root keys and unmanaged servers. It removes
-retired graph-server aliases, initializes `reasonix.skipSetup` only when absent,
-and treats Context7 API-key/proxy values as volatile during doctor comparison.
+retired graph-server aliases and initializes `reasonix.skipSetup` only when absent.
+Context7 proxy values are treated as volatile during doctor comparison.
 Remote OAuth authorization is runtime readiness, not desired-state drift.
 
 ---

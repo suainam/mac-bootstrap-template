@@ -22,9 +22,6 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
             '[mcp_servers.context7.env]\n'
             'HTTP_PROXY = "http://old"\n'
             '\n'
-            '[mcp_servers.x-docs]\n'
-            'url = "https://old.example/mcp"\n'
-            '\n'
             '[mcp_servers.devspace]\n'
             'url = "https://old-devspace.example/mcp"\n'
             '\n'
@@ -48,7 +45,6 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
 
         assert content.count("[mcp_servers.context-mode.tools.ctx_search]") == 1
         assert content.count("[mcp_servers.context7.env]") == 0
-        assert content.count("[mcp_servers.x-docs]") == 0
         assert content.count("[mcp_servers.devspace]") == 0
         assert content.count("# BEGIN MAC-BOOTSTRAP MANAGED MCPS") == 1
         assert 'model = "gpt-5"' in content
@@ -70,17 +66,17 @@ def test_render_codex_mcp_block_emits_proxy_variants():
         env=env,
     )
     assert result.returncode == 0, result.stderr
-    assert 'command = "npx"' in result.stdout
-    assert 'args = ["-y", "@upstash/context7-mcp"]' in result.stdout
+    assert (
+        '[mcp_servers.context7]\nenabled = true\n'
+        f'command = "{TEMPLATE}/scripts/context7-mcp-bridge.py"\nargs = []'
+    ) in result.stdout
     assert 'all_proxy = "http://127.0.0.1:7897"' in result.stdout
     assert 'NO_PROXY = "localhost,127.0.0.1,::1"' in result.stdout
     assert '[mcp_servers.agent-prompt-library]' in result.stdout
     assert '[mcp_servers.agent-prompt-library]\nenabled = false' in result.stdout
     assert str(Path.home() / ".local/bin/agent-prompt-mcp") in result.stdout
     assert '[mcp_servers.agent-prompt-library.tools.search_prompts]' in result.stdout
-    assert '[mcp_servers.x-docs]' not in result.stdout
-    assert '[mcp_servers.xapi]' not in result.stdout
-    assert '[mcp_servers.context7]\nenabled = false' in result.stdout
+    assert '[mcp_servers.context7]\nenabled = true' in result.stdout
 
 
 def test_render_codex_mcp_block_includes_devspace_url():

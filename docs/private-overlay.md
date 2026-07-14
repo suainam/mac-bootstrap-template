@@ -19,11 +19,18 @@ Files in `private/` mirror the public repo paths:
 ```text
 private/clash/work-mac.yaml
 private/editors/neovim/ai.lua
-private/agent/x-mcp.jsonc
 private/infra/code-server/env.sh
 private/python/odps_config.py
 private/zerotier/<host>.network-id
+private/agent/context7.runtime.jsonc
 ```
+
+The optional Context7 key belongs in `private/agent/context7.runtime.jsonc` with
+mode `0600`. Only `scripts/context7-mcp-bridge.py` reads it for the default-
+enabled Codex Context7 server; generated configs and other agent hosts remain
+keyless. Missing or placeholder keys use the anonymous service. Validate the
+overlay and managed configs with `stat -f '%Sp' private/agent/context7.runtime.jsonc`
+and `make doctor-agent`.
 
 Note: Private paths stay as `private/clash/`, `private/infra/`, and `private/python/` (not the new
 public paths `proxy/clash/` or `infra/python/`) to avoid breaking existing

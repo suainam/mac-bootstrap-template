@@ -8,10 +8,9 @@ DRY_RUN=0
 FIX=0
 BOOTSTRAP="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
+PYTHON_BIN="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
 source "$BOOTSTRAP/scripts/lib/agent-shared.sh"
-load_x_mcp_private_env
 load_devspace_mcp_private_env
-export CONTEXT7_KEY="${CONTEXT7_KEY:-${CONTEXT7_API_KEY:-}}"
 
 manifest_get() {
   local key="$1"
@@ -133,7 +132,7 @@ audit_mcp_config() {
   if [ "$host" = "codex" ]; then
     policy_args=(--policy "$BOOTSTRAP/agent/mcp-policy.json")
   fi
-  if output="$(python3 "$BOOTSTRAP/scripts/agent_mcp_runtime.py" audit \
+  if output="$("$PYTHON_BIN" "$BOOTSTRAP/scripts/agent_mcp_runtime.py" audit \
       --host "$host" \
       --path "$path" \
       --bootstrap "$BOOTSTRAP" \
@@ -390,7 +389,7 @@ if [ -f "$BOOTSTRAP/agent-skills/registry/targets.jsonc" ]; then
 else
   echo "  MISS skill-targets.jsonc"
 fi
-if python3 "$BOOTSTRAP/scripts/skill_supply_chain.py" check >/tmp/mac-bootstrap-skill-check.out 2>/tmp/mac-bootstrap-skill-check.err; then
+if "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" check >/tmp/mac-bootstrap-skill-check.out 2>/tmp/mac-bootstrap-skill-check.err; then
   sed 's/^/  OK   /' /tmp/mac-bootstrap-skill-check.out
 else
   echo "  FAIL skill supply-chain check"
