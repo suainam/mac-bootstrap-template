@@ -11,6 +11,10 @@ import unicodedata
 from typing import NoReturn
 
 
+class InvalidPrivateConfigError(Exception):
+    pass
+
+
 def strip_jsonc(text: str) -> str:
     output: list[str] = []
     in_string = False
@@ -70,11 +74,12 @@ def load_private_key(path: Path) -> str | None:
     if not path.exists():
         return None
     try:
+        path.chmod(0o600)
         data = json.loads(strip_jsonc(path.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        raise ValueError("invalid Context7 private config") from None
+        raise InvalidPrivateConfigError from None
     if not isinstance(data, dict):
-        raise ValueError("invalid Context7 private config")
+        raise InvalidPrivateConfigError
     key = data.get("api_key")
     if key is None:
         return None
@@ -85,7 +90,7 @@ def load_private_key(path: Path) -> str | None:
         or not key
         or any(unicodedata.category(char) == "Cc" for char in key)
     ):
-        raise ValueError("invalid Context7 private config")
+        raise InvalidPrivateConfigError
     return key
 
 
@@ -97,7 +102,7 @@ def launch(command: str, arguments: list[str], environment: dict[str, str]) -> N
 def main() -> int:
     try:
         key = load_private_key(config_path())
-    except ValueError:
+    except InvalidPrivateConfigError:
         print("Context7 private config invalid", file=sys.stderr)
         return 2
 

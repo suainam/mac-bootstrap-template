@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import stat
 import subprocess
 
 import pytest
@@ -61,6 +62,13 @@ def test_bridge_injects_private_key_into_child_only(tmp_path: Path):
     assert capture_env.read_text(encoding="utf-8") == "ctx-secret"
     assert capture_args.read_text(encoding="utf-8") == "--probe"
     assert "ctx-secret" not in result.stdout + result.stderr
+
+
+def test_bridge_tightens_tracked_private_config_permissions(tmp_path: Path):
+    result, _, _ = run_bridge(tmp_path, '{"api_key": "ctx-secret"}')
+    config_path = tmp_path / "private/agent/context7.runtime.jsonc"
+    assert result.returncode == 0, result.stderr
+    assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
 
 
 def test_bridge_runs_keyless_when_private_config_is_missing(tmp_path: Path):

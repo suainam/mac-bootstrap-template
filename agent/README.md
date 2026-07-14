@@ -49,7 +49,8 @@ other supported hosts do not share one portable profile contract.
 
 Codex Context7 launches through `scripts/context7-mcp-bridge.py`. The wrapper
 reads the optional key from private `private/agent/context7.runtime.jsonc`
-(mode `0600`) at process start and passes it only to the child environment.
+(normalized to mode `0600`) at process start and passes it only to the child
+environment.
 Generated configs and non-Codex hosts remain keyless; a missing key uses the
 anonymous Context7 service. Check the private file mode with
 `stat -f '%Sp' private/agent/context7.runtime.jsonc` (expect `-rw-------`) and
