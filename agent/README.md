@@ -47,10 +47,10 @@ The generated `~/.local/bin/codex-mcp` launcher converts the selected profile
 into per-session Codex config overrides. Profiles control Codex only because
 other supported hosts do not share one portable profile contract.
 
-Codex Context7 launches through `scripts/context7-mcp-bridge.py`. The wrapper
-reads the optional key from private `private/agent/context7.runtime.jsonc`
-(normalized to mode `0600`) at process start and passes it only to the child
-environment.
+Codex Context7 launches through `scripts/context7-mcp-bridge.py`. Agent refresh
+and doctor validate the optional key in `private/agent/context7.runtime.jsonc`
+and restore mode `0600` before reading it; the wrapper passes the key only to
+the child environment at process start.
 Generated configs and non-Codex hosts remain keyless; a missing key uses the
 anonymous Context7 service. Check the private file mode with
 `stat -f '%Sp' private/agent/context7.runtime.jsonc` (expect `-rw-------`) and
