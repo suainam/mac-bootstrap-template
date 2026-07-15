@@ -273,50 +273,80 @@ else:
 
 ---
 
-## 示例 9: 解密 Codex TSD 加密数据库
+## 示例 9: 解密 Codex TSD 加密数据库（2026-07-15 实战案例）
 
 ### 场景
-Codex 无法启动，报告数据库文件被锁或无法访问。
+nvim 打开 `~/.codex/config.toml` 显示 `%TSD-Header-###%` 加密内容，需要解密。
+
+### 优先解密文件列表
+```
+config.toml                 # Codex 配置
+config.toml.0715.bak        # 配置备份
+logs_2.sqlite               # 日志数据库
+goals_1.sqlite              # 目标数据库
+memories_1.sqlite           # 记忆数据库
+session_index.jsonl         # 会话索引
+```
 
 ### 前置检查
 
 ```bash
-# 1. 确认加密状态
-head -c 16 ~/.codex/memories_1.sqlite | od -c
-# 输出: %   T   S   D   -   H   e   a   d   e   r   ...
+# 1. 确认加密状态（原始字节）
+head -c 20 ~/.codex/config.toml | xxd
+# 输出: 00000000: 2554 5344 2d48 6561 6465 722d 2323 2325  %TSD-Header-###%
 
-# 2. 检查 Codex 是否在运行
-ps aux | grep codex | grep -v grep
+# 2. 检查 Codex 进程
+pgrep -fl codex
 
-# 3. 如果在运行，完全退出 Codex
+# 3. 停止 Codex（如需要）
+# 方法1: 使用脚本自动停止
+python3 scripts/decrypt_codex_crossplatform.py ~/.codex --stop-daemon
+
+# 方法2: 手动停止
+killall codex codex-threadrip codex-code-mode
 ```
 
-### 执行解密
+### 执行解密（跨平台）
 
 ```bash
-# 基本用法（自动备份并替换）
-python3 scripts/decrypt_codex.py ~/.codex
+# 基本用法（自动备份并替换原文件）
+python3 scripts/decrypt_codex_crossplatform.py ~/.codex --stop-daemon
 
-# 仅解密不替换（更安全）
-python3 scripts/decrypt_codex.py ~/.codex --no-replace
+# 仅解密到 decrypted/ 不替换（更安全）
+python3 scripts/decrypt_codex_crossplatform.py ~/.codex --no-replace
 
-# 指定备份目录
-python3 scripts/decrypt_codex.py ~/.codex --backup-dir ~/codex_backups
+# 强制执行（Codex 运行时也解密，危险）
+python3 scripts/decrypt_codex_crossplatform.py ~/.codex --force
 ```
 
 ### 输出示例
 
 ```
+使用默认 Codex 目录: $HOME/.codex
+错误: Codex 进程仍在运行:
+  PID 4835: codex-threadrip
+  PID 37242: codex
+  PID 38106: codex-code-mode
+
+尝试停止守护进程...
+已停止守护服务，等待进程退出...
+✓ 所有进程已停止
+
 找到 5 个加密文件
 
-处理: memories_1.sqlite
-  ✓ 已解密到: ~/.codex/decrypted/memories_1.sqlite
-  ✓ 已备份到: ~/.codex/backups/memories_1.sqlite.backup_20260713_220530
+处理: config.toml
+  ✓ 已解密到: ~/.codex/decrypted/config.toml
+  ✓ 已备份到: ~/.codex/backups/config.toml.backup_20260715_082113
   ✓ 已替换原文件
+
+处理: logs_2.sqlite
+  ✓ 已解密到: ~/.codex/decrypted/logs_2.sqlite
+  ✓ 已备份到: ~/.codex/backups/logs_2.sqlite.backup_20260715_082113
+  ✓ 已替换原文件 (415.5 MB)
 
 处理: session_index.jsonl
   ✓ 已解密到: ~/.codex/decrypted/session_index.jsonl
-  ✓ 已备份到: ~/.codex/backups/session_index.jsonl.backup_20260713_220530
+  ✓ 已备份到: ~/.codex/backups/session_index.jsonl.backup_20260715_082331
   ✓ 已替换原文件
 
 ============================================================
@@ -329,21 +359,44 @@ python3 scripts/decrypt_codex.py ~/.codex --backup-dir ~/codex_backups
 ### 验证解密
 
 ```bash
-# 检查文件头已变为标准格式
-head -c 16 ~/.codex/memories_1.sqlite | od -c
-# 输出: S   Q   L   i   t   e       f   o   r   m   a   t       3
+# 1. 检查文件头（TOML）
+head -c 20 ~/.codex/config.toml
+# 输出: model_provider = "O
 
-# 测试数据库访问
-sqlite3 ~/.codex/memories_1.sqlite "SELECT COUNT(*) FROM sqlite_master;"
+# 2. 检查文件头（SQLite）
+head -c 20 ~/.codex/logs_2.sqlite | xxd
+# 输出: 00000000: 5351 4c69 7465 2066 6f72 6d61 7420 3300  SQLite format 3.
 
-# 测试 JSONL
-head -1 ~/.codex/session_index.jsonl | jq .
+# 3. 测试数据库访问
+sqlite3 ~/.codex/memories_1.sqlite "SELECT name FROM sqlite_master WHERE type='table';"
+
+# 4. 测试 JSONL
+head -1 ~/.codex/session_index.jsonl | python3 -m json.tool
 ```
 
-### 恢复备份（如需要）
+### TSD 透明解密机制
+
+**重要发现**: `~/.codex/` 路径下存在系统级透明解密 hook。
 
 ```bash
-# 如果解密后仍有问题，恢复备份
-cp ~/.codex/backups/memories_1.sqlite.backup_20260713_220530 \
-   ~/.codex/memories_1.sqlite
+# Python open() 读到解密内容（即使磁盘是加密的）
+python3 -c "print(open('~/.codex/config.toml').read(100))"
+# 输出: model_provider = ...（明文）
+
+# 但原始字节仍是 TSD 加密
+xxd -l 20 ~/.codex/config.toml
+# 输出: %TSD-Header-###%
+```
+
+**影响**: 
+- vim 能正常显示（透明解密生效）
+- nvim 显示加密内容（未配置 cryptmethod）
+- 解密脚本必须用 `dd` 绕过 Python VFS hook
+
+### 恢复备份
+
+```bash
+# 如果解密后有问题，恢复备份
+cp ~/.codex/backups/config.toml.backup_20260715_082113 ~/.codex/config.toml
+cp ~/.codex/backups/logs_2.sqlite.backup_20260715_082113 ~/.codex/logs_2.sqlite
 ```

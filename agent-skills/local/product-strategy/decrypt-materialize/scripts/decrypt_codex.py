@@ -51,11 +51,21 @@ def stop_codex_daemon() -> bool:
 
 
 def is_tsd_encrypted(path: Path) -> bool:
-    """检查文件是否为 TSD 加密格式"""
+    """检查文件是否为 TSD 加密格式
+
+    注意: Python 读取会被 TSD 透明层解密,必须用系统工具绕过
+    """
     try:
-        with path.open('rb') as f:
-            header = f.read(16)
-            return b'TSD-Header' in header
+        import subprocess
+        result = subprocess.run(
+            ['xxd', '-l', '16', '-p', str(path)],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        header_hex = result.stdout.strip().replace('\n', '')
+        # %TSD-Header-###% = 255453442d4865616465722d23232325
+        return header_hex.startswith('255453442d486561646572')
     except Exception:
         return False
 
@@ -220,6 +230,7 @@ def main() -> int:
 
     # 已知的可能被加密的文件（显式列表比 glob 更可靠）
     known_files = [
+        "config.toml",
         "goals_1.sqlite",
         "logs_2.sqlite",
         "memories_1.sqlite",

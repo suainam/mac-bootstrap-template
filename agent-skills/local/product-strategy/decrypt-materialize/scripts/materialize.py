@@ -173,16 +173,17 @@ def export_xlsx(
             safe_name = sanitize_sheet_name(sheet_name) if not sheet_map else sheet_name
             output_path = output_dir / f"{workbook_name}_{safe_name}_{date_tag}.csv"
 
-            # 导出 CSV
+            # 导出 CSV（跳过空行）
             row_count = 0
             col_count = 0
             with output_path.open("w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
                 for row in ws.iter_rows():
                     values = [normalize_cell(cell.value) for cell in row]
-                    writer.writerow(values)
-                    row_count += 1
-                    if values:
+                    # 跳过完全空的行
+                    if any(v for v in values):
+                        writer.writerow(values)
+                        row_count += 1
                         col_count = max(col_count, len(values))
 
             sheets_info.append({

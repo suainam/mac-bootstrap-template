@@ -139,11 +139,20 @@ def kill_process(pid: int) -> bool:
 
 
 def is_tsd_encrypted(path: Path) -> bool:
-    """检查文件是否为 TSD 加密格式"""
+    """检查文件是否为 TSD 加密格式
+
+    在 ~/.codex 路径下，系统透明解密会拦截所有 Python 进程的文件操作（包括 subprocess）。
+    解决方案：用 dd + bash 直接读取原始字节，绕过 Python runtime hook。
+    """
     try:
-        with path.open('rb') as f:
-            header = f.read(16)
-            return b'TSD-Header' in header
+        import subprocess
+
+        result = subprocess.run(
+            ['bash', '-c', f'dd if="{path}" bs=1 count=16 2>/dev/null'],
+            capture_output=True,
+            check=False
+        )
+        return b'TSD-Header' in result.stdout
     except Exception:
         return False
 
@@ -314,12 +323,19 @@ def main() -> int:
     backup_dir = args.backup_dir or (codex_dir / "backups")
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    # 已知的可能被加密的文件
+    # 已知的可能被加密的文件（优先级顺序）
     known_files = [
-        "goals_1.sqlite",
+        # 配置文件（优先）
+        "config.toml",
+        "config.toml.0715.bak",
+        "config.toml.bak",
+        "config.toml.bak-context-mode",
+        # 数据库文件
         "logs_2.sqlite",
+        "goals_1.sqlite",
         "memories_1.sqlite",
         "state_5.sqlite",
+        # JSON Lines 文件
         "session_index.jsonl",
         "history.jsonl",
         "transcription-history.jsonl",
