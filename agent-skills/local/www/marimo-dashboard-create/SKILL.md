@@ -22,6 +22,8 @@ description: Creates or updates Marimo dashboard pages in `www/marimo/merchandis
 默认只改代码。不构建、不重启、不跑 Docker，除非用户明确要求。
 默认 Python 项目边界在 `www/` 根目录；如果要跑宿主机校验或 pytest，优先用
 `uv run --extra test ...`，不要在 `marimo/` 子目录里自己拼环境。
+需要具体写法时，读 `EXAMPLES.md`；里面有页面骨架、ETL task 接入、筛选说明和
+preview 容器定位示例。
 
 ## Workflow
 

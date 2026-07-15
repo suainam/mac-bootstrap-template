@@ -112,3 +112,63 @@ if __name__ == "__main__":
 Add a small function for the new dataset and call it from the existing shared ETL main flow. Write outputs atomically and keep `*_latest.parquet` as the notebook input.
 
 Do not add a second cron daemon or a second compose service for the new page.
+
+## New ETL task checklist
+
+When adding a dashboard-specific task such as `hot_sales_expansion`, update the
+whole chain in one change:
+
+```text
+merchandise/lib/<topic>_etl.py
+merchandise/lib/<topic>_data.py
+merchandise/etl/fetch_data.py
+.gitea/workflows/etl-refresh.yaml
+scripts/validate-staging.sh
+scripts/verify-deployment.sh
+merchandise/tests/test_fetch_data.py
+merchandise/tests/test_<topic>_etl.py
+merchandise/tests/test_<topic>_data.py
+```
+
+In `fetch_data.py`, cover both the one-off task and `all`:
+
+```python
+VALID_TASKS = {"all", "clearance", "merchandise", "assortment", "<topic>"}
+
+if task == "all":
+    subtask_order = ["clearance", "merchandise", "assortment", "<topic>"]
+```
+
+## Filter guidance note
+
+Use a small note below global filters when the page has mixed global and local
+controls:
+
+```python
+mo.Html(
+    """
+    <div class="filter-note">
+      说明：跟踪类型、批次、汇总层级会影响整个看板的数据范围；
+      汇总层级选择省区或营运区时，请同步选择具体区域。
+    </div>
+    """
+)
+```
+
+Keep item/category/keyword filters near the item detail table when they do not
+control the full dashboard.
+
+## Preview container check
+
+If the preview URL works but `docker compose exec` enters an old container, find
+the real container by port or branch slug:
+
+```bash
+CID=$(docker ps --format '{{.ID}} {{.Names}} {{.Ports}}' \
+  | awk '/59452|feature-hot-sales-expansion-dashboard/ {print $1; exit}')
+
+docker exec -it "$CID" python -m etl.fetch_data --task <topic>
+```
+
+Code deployment and ETL refresh are separate. A preview can serve the latest
+notebook while still needing a manual refresh of `/workspace/data/serve`.

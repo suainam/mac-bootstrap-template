@@ -29,6 +29,8 @@ docker exec merchandise-dashboard-dev python -m pytest tests/<target>.py --no-co
 
 如果容器名不是 `merchandise-dashboard-dev`，先用 `docker ps` 取真实名字。
 
+需要具体断言写法或排查流程时，读 `EXAMPLES.md`。
+
 ## Current reality
 
 - 当前项目是 `marimo/merchandise`，不是旧的 `marimo_non_catalog_clearance`。

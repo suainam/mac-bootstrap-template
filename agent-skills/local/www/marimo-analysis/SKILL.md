@@ -7,6 +7,9 @@ description: Use when building or refactoring marimo notebooks for Python data a
 
 Use marimo as a reproducible data app, not a scratchpad.
 
+When examples would help, read `EXAMPLES.md` for concrete patterns around
+filter scope, ratio formatting, and multi-source dimension checks.
+
 Repo-specific reality for `www/marimo`:
 
 - Python project boundary is `www/`, not `marimo/`; `pyproject.toml` and
