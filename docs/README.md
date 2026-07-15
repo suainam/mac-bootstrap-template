@@ -14,6 +14,7 @@
 
 - `private-overlay.md`：公开模板与私有父仓的覆盖契约。
 - `devspace-local.md`：DevSpace 本地服务、LaunchAgent 与 home mirror。
+- `colima-local.md`：按需启动的本地 Docker runtime、代理与日志边界。
 - `clash-profile-flow.md`：Clash 源配置、profile 与运行态边界。
 - `agent-prompt-mcp.md`、`agent-subagents.md`：agent 协作与 prompt MCP。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。
