@@ -880,6 +880,11 @@
           "distribution_state": "staged",
           "agents": ["claude", "codex", "opencode", "cross-agent"]
         },
+        "decrypt-materialize": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "cross-agent"],
+          "reason": "通用解密/物化工具,支持 TSD/工作簿/smudged文本,跨平台"
+        },
         "knowledge-lifecycle-manager": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
@@ -963,11 +968,6 @@
           "scope": "project",
           "projects": ["product_strategy"],
           "reason": "product_strategy data-analysis project skill"
-        },
-        "decrypt-materialize": {
-          "scope": "project",
-          "projects": ["product_strategy"],
-          "reason": "absorbs the old decrypt-read use case; decrypt-read runtime link is currently broken and should not remain a separate managed skill"
         },
         "sql-analysis": {
           "scope": "project",

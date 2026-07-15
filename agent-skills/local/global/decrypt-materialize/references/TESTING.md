@@ -15,7 +15,7 @@ pip3 install numbers-parser==4.18.5  # Numbers 支持（可选）
 ### 自动化测试
 
 ```bash
-cd template/agent-skills/local/product-strategy/decrypt-materialize
+cd template/agent-skills/local/global/decrypt-materialize
 python3 scripts/test_materialize.py
 ```
 
