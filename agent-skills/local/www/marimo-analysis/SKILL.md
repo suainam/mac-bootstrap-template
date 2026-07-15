@@ -33,12 +33,23 @@ Guidelines:
 - Keep ratios honest: sum numerators/denominators first, then compute ratios.
 - Reuse `lib/theme.py` and existing helper patterns before adding notebook-only
   styling or duplicated transforms.
+- Name mixed filter scopes in the UI. Users should not have to infer whether a
+  filter controls all KPIs/tables or only one detail section.
+- Handle hierarchical dimensions deliberately. If a province or region view
+  needs a concrete province/region, show guidance or an empty state until that
+  value is selected.
+- Format business ratios in the unit users expect. Percent-like values should
+  display as percentages or percentage points, not raw decimals.
+- For multi-source dashboards, remove invalid shared keys consistently across
+  all frames before building controls, so a hidden batch in one section cannot
+  remain selectable elsewhere.
 
 When converting messy notebook exploration:
 
 1. Preserve the original question and output target.
 2. Pull stable transformation logic into named functions.
-3. Add lightweight checks for shape, nulls, and aggregate totals.
+3. Add lightweight checks for shape, nulls, aggregate totals, and shared
+   dimension coverage across sources.
 4. Make the final cells read like a report: input assumptions, charts/tables,
    caveats, and export.
 5. If the notebook depends on new ETL outputs or changed schema, update the

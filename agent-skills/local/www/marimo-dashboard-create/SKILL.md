@@ -35,6 +35,8 @@ description: Creates or updates Marimo dashboard pages in `www/marimo/merchandis
    - `serve/`：页面最终直读的小文件
 5. 命名要带专题前缀，避免和别的页面混淆，例如 `off_catalog_clearing_*`。
 6. 不新增 Docker service，不改端口，不拆出新的部署单元，除非用户明确要求。
+7. 新增 ETL task 时，同步检查 `fetch_data.py` task 白名单、`all` 子任务顺序、页面触发 task、Gitea 手动 ETL workflow、smoke/verify notebook 列表和测试。
+8. 区分代码发布和数据刷新：preview/staging/production 部署不等于已经刷新 `serve` 数据；页面空数据时先确认目标 `serve` 文件是否存在。
 
 ## Questions
 
@@ -54,12 +56,15 @@ description: Creates or updates Marimo dashboard pages in `www/marimo/merchandis
 - dashboard 专属转换逻辑，只有在 notebook / ETL / tests 复用时才下沉到 `lib/`。
 - ETL 输出先写进共享 `etl/fetch_data.py` 或其调用 helper，不要绕开统一任务入口。
 - 聚合比例必须按分子分母求和后再算，不能 `mean()` 比例列。
+- 比例展示要用业务可读的百分比格式，例如 `0.00066 -> 0.07%`，不要裸露小数。
 - 明细表隐藏技术编码列，但可以保留这些列用于排序和过滤。
 - 如果页面要接新 parquet，先检查导出模块、测试、文档是否要一起改。
+- 筛选控件作用域要在 UI 上说清楚：全局筛选、局部明细筛选、需要配套选择的层级筛选不要混在一起让用户猜。
 - 需要用户或同事接手时，把页面对应的数据入口、回归入口、部署影响补到 README / docs，
   不要只改 notebook。
 - 不要把远端 `marimo` / `marimo-next` / `marimo-previews/*` 目录里的 Git 状态当成页面
   是否已部署的判断依据；以 workflow SHA 和 revision label 为准。
+- 验证 preview 时，按端口或分支 slug 找真实容器；不要只相信当前目录下 `docker compose exec` 进入的服务就是正在访问的 URL。
 
 ## Validation
 

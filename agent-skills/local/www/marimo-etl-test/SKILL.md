@@ -63,6 +63,13 @@ docker exec merchandise-dashboard-dev python -m pytest tests/<target>.py --no-co
    - 优先跑 `test_gitea_deploy.py`
    - 断言应以当前主仓库、semver tag 发布、revision label 校验为准
    - 不要保留旧的 subtree split 或旧 split-repo 假设
+6. 如果新增了 ETL task：
+   - 测 `VALID_TASKS` 包含新 task。
+   - 测 `main(["--task", "<task>"])` 只跑该 task。
+   - 测 `_run_<task>` 把所有源表传给 serve builder。
+   - 测 `task == "all"` 时子任务顺序包含新 task。
+   - 测部署/手动 ETL workflow 的 task allowlist 包含新 task。
+7. 对跨表共享筛选字段做回归，尤其是批次、跟踪类型、地理层级和观察口径；如果某个批次任一源表标记为未来窗口，页面层要一致排除该批次。
 
 ## Test rules
 
@@ -71,6 +78,7 @@ docker exec merchandise-dashboard-dev python -m pytest tests/<target>.py --no-co
 - 改 `process_info` / `process_agg` 语义时，测试必须同步到最新表结构，不要保留旧的“本地清单 + dim_store 再拼表”假设。
 - 比例字段测试必须验证“先求和再算比例”，不能默认平均比例列。
 - 文件命名测试要覆盖专题前缀，例如 `off_catalog_clearing_*`。
+- 百分比展示测试要覆盖小数值，例如 `0.00066` 应显示为 `0.07%`，避免业务看到空值或裸小数。
 
 ## Commands
 
@@ -119,6 +127,7 @@ UV_CACHE_DIR=.uv-cache uv run --extra test pytest \
 - `uv` 默认缓存目录不可写：改用 `UV_CACHE_DIR=.uv-cache`。
 - 宿主机缺依赖时不要直接 `pip install`；优先 `uv sync` / `uv run --extra test ...`。
 - 容器里前端没数据，但 pytest 全绿：通常是新 `serve` 文件没生成，不是测试漏了。
+- `docker compose exec` 报新 task invalid choice，但按端口访问页面是新版：可能进错容器。用 `docker ps --format '{{.ID}} {{.Names}} {{.Ports}}'` 按端口或 preview slug 找真实容器，再 `docker exec`。
 - ETL 查 ODPS 返回 0 行：先确认是不是误走了 `source="parquet"`。
 - 改了 notebook 读新文件名，但没重跑 ETL：前端一定空白。
 - 改了表结构字段名，比如新增 `store_name`：先等表变更完成，再重跑 ETL，不要在代码里瞎兜底。
