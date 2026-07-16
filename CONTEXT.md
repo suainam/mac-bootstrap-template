@@ -41,6 +41,7 @@
 | VS Code 扩展 | `editors/vscode/extensions.txt` | 仅维护扩展 ID |
 | doctor 检查 | `scripts/doctor-manifest.json` | 数据驱动检查与 cask 覆盖 |
 | 私有覆盖契约 | `docs/private-overlay.md` | 说明父仓 overlay 的边界与优先级 |
+| Issue/PR 规范 | `docs/agents/issue-tracker.md` | 标题、标签、关联、完成与关闭规则 |
 
 数据清单应保持独立；不要把清单内容复制进脚本、README 或 agent 规则。
 
