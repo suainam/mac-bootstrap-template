@@ -38,10 +38,10 @@ brew "lazygit"
 # brew "devpod"  # Not used anymore
 
 # ========== 容器 ==========
-# docker + colima 已移除 — 本地不再跑容器，统一走远程堡垒机
-# 需要恢复时：brew install docker colima && colima start && cd docker && docker compose up -d
-# brew "docker"
-# brew "colima"
+brew "docker"
+brew "docker-buildx"
+brew "docker-compose"
+brew "colima"
 
 # ========== 浏览器 ==========
 cask "google-chrome"

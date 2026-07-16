@@ -15,6 +15,7 @@ LUAC ?= luac
 	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
 	llm-wiki-install llm-wiki-build llm-wiki-mcp-build llm-wiki-doctor \
 	imgup-install imgup \
+	colima-start colima-stop colima-status colima-doctor \
 	claude-daemon-install claude-daemon-status claude-daemon-logs claude-daemon-unload \
 	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall
 
@@ -93,6 +94,10 @@ help:
 	@echo "  llm-wiki-build         Run official llm_wiki desktop build"
 	@echo "  llm-wiki-mcp-build     Build llm_wiki bundled MCP server"
 	@echo "  llm-wiki-doctor        Check llm_wiki checkout and prerequisites"
+	@echo "  colima-start           Start isolated local Docker runtime"
+	@echo "  colima-stop            Stop local Docker runtime"
+	@echo "  colima-status          Show local Docker runtime status"
+	@echo "  colima-doctor          Verify proxy, Docker, and log rotation"
 	@echo ""
 	@echo "── Tmux ──"
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
@@ -172,6 +177,18 @@ neat-freak-ci:
 
 doctor:
 	./scripts/doctor.sh
+
+colima-start:
+	./scripts/colima-local.sh start
+
+colima-stop:
+	./scripts/colima-local.sh stop
+
+colima-status:
+	./scripts/colima-local.sh status
+
+colima-doctor:
+	./scripts/colima-local.sh doctor
 
 devspace-check:
 	./scripts/devspace-local.sh check
