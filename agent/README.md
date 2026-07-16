@@ -283,6 +283,21 @@ The install script runs `pi install ~/.pi/agent/extensions/rtk.ts` and
 `pi install npm:pi-mcp-extension` automatically. MCP servers live in `mcp.json`,
 not `settings.toml`.
 
+## Third-Party Codex Plugins (omo / lazycodex)
+
+Do not install `oh-my-opencode` (aka `omo`, package `lazycodex-ai`,
+publisher `sisyphuslabs`) via `npx lazycodex-ai install` or the Codex
+plugin marketplace. Its `omo run` / `ulw-loop` workflow defaults to an
+agent name (`sisyphus`) that its own bundled agent list does not
+contain, so every run fails with `Agent not found: "sisyphus"` while
+still exiting `0` (silent failure). It also leaves heavy residue on
+uninstall (`~/.omo/`, dead symlinks in `~/.local/bin/omo*`, orphaned
+`[agents.lazycodex-*]` blocks in `~/.codex/config.toml`, npx cache
+dirs) that the official `npx lazycodex-ai uninstall` does not fully
+remove — verify manually after uninstalling. If this project ever
+needs its LSP/codegraph MCP features, re-evaluate against a newer
+pinned version first.
+
 ## Codex Sandbox Note
 
 Codex tool sandboxes cannot always write under `$HOME` or the git repo root, so
