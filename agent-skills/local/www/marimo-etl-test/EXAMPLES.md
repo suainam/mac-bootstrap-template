@@ -7,6 +7,19 @@
 Use this skill to add focused tests for task registration, one-off execution,
 `all` execution, serve output, and workflow allowlists.
 
+Run those tests in the Docker-authoritative Merchandise environment. For a code-only
+worktree change, mount the worktree read-only instead of installing host dependencies:
+
+```bash
+mkdir -p <marimo-worktree>/merchandise/tests/_test_data_tmp
+docker run --rm \
+  --tmpfs /repo/merchandise/tests/_test_data_tmp:rw \
+  -v <marimo-worktree>:/repo:ro \
+  -w /repo/merchandise \
+  --entrypoint python merchandise:dev \
+  -m pytest tests/test_fetch_data.py --no-cov -q -p no:cacheprovider
+```
+
 ## Task registration
 
 ```python
@@ -91,3 +104,6 @@ CID=$(docker ps --format '{{.ID}} {{.Names}} {{.Ports}}' \
 docker exec -it "$CID" \
   python -m etl.fetch_data --task hot_sales_expansion
 ```
+
+Before accepting this result, inspect the container mounts and revision label. A matching
+container name is insufficient evidence that the command used the intended branch.

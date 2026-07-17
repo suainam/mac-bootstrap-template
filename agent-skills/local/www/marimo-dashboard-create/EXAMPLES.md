@@ -128,7 +128,11 @@ scripts/verify-deployment.sh
 merchandise/tests/test_fetch_data.py
 merchandise/tests/test_<topic>_etl.py
 merchandise/tests/test_<topic>_data.py
+merchandise/config/dashboard_pages.yaml
 ```
+
+Register each serve output with its grain, unique key, required columns, snapshot behavior,
+empty-data behavior, and real producer/consumer pytest node IDs.
 
 In `fetch_data.py`, cover both the one-off task and `all`:
 
