@@ -1,68 +1,59 @@
 ---
 name: marimo-analysis
-description: Use when building or refactoring marimo notebooks for Python data apps, reproducible analysis, interactive reports, or browser-first local workflows.
+description: Builds or refactors reproducible Merchandise Marimo analysis and notebook data flows with explicit metric, filter, multi-source, serve, and consumer contracts. Use when changing dashboard metrics, ratios, filters, chart data, notebook reactivity, exports, or analytical interpretation under `www/marimo/merchandise`.
 ---
 
 # Marimo Analysis
 
-Use marimo as a reproducible data app, not a scratchpad.
+Use Marimo as a reproducible data app, not a scratchpad. Work in the authoritative Marimo Git
+worktree and read local `AGENTS.md`, `CONTEXT.md`, the Dashboard development contract, page
+registry, related ETL/data helpers, and tests.
 
-When examples would help, read `EXAMPLES.md` for concrete patterns around
-filter scope, ratio formatting, and multi-source dimension checks.
+Read `EXAMPLES.md` for filter-scope, ratio-formatting, and multi-source examples.
 
-Repo-specific reality for `www/marimo`:
+## Design Rules
 
-- Python project boundary is `www/`, not `marimo/`; `pyproject.toml` and
-  `uv.lock` live at the workspace root.
-- Notebook changes usually touch four layers together: notebook, `lib/`,
-  `etl/fetch_data.py`, and tests.
-- Current deploy/handoff contract is documented in `marimo/README.md`,
-  `marimo/merchandise/docs/ops-knowledge-base.md`, and
-  `marimo/merchandise/docs/deployment-update.md`.
-- Remote `marimo` / `marimo-next` / `marimo-previews/*` are deploy trees, not
-  authoritative Git worktrees.
+- Separate loading, transformation, visualization, and export cells.
+- Pull stable transformations and business calculations into named `lib/` functions.
+- Read small stable serve outputs; do not make notebooks read `raw/` or `agg/` directly.
+- Preserve reactive dependencies and avoid hidden mutation or cell-order assumptions.
+- State metric grain, numerator, denominator, time basis, exclusions, and display unit.
+- Sum numerators and denominators before calculating ratios; do not average ratios.
+- Distinguish percentages from percentage-point changes.
+- Label global, section, and detail filter scopes.
+- Intersect valid shared keys across all sources before building controls.
+- Show guidance or an empty state when a hierarchy requires a concrete region/province.
+- Keep page and export on the same run/snapshot, or label the difference explicitly.
+- Reuse `lib.theme` and established layout helpers before adding notebook-only styles.
 
-Guidelines:
+## Data Contract
 
-- Keep data loading, transformation, visualization, and export in separate cells.
-- Put configuration and paths near the top.
-- Prefer reactive UI controls for user-facing parameters.
-- Avoid hidden global mutation that makes cell order matter.
-- Cache expensive reads or transformations when the project convention supports
-  it.
-- Keep browser-facing notebooks safe to run from a fresh container.
-- Match the repo's current `raw/agg/serve` layering instead of inventing ad hoc
-  file flows.
-- Keep ratios honest: sum numerators/denominators first, then compute ratios.
-- Reuse `lib/theme.py` and existing helper patterns before adding notebook-only
-  styling or duplicated transforms.
-- Name mixed filter scopes in the UI. Users should not have to infer whether a
-  filter controls all KPIs/tables or only one detail section.
-- Handle hierarchical dimensions deliberately. If a province or region view
-  needs a concrete province/region, show guidance or an empty state until that
-  value is selected.
-- Format business ratios in the unit users expect. Percent-like values should
-  display as percentages or percentage points, not raw decimals.
-- For multi-source dashboards, remove invalid shared keys consistently across
-  all frames before building controls, so a hidden batch in one section cannot
-  remain selectable elsewhere.
+When analysis changes a serve output, update the registry with its `granularity`, `unique_key`,
+`required_columns`, `snapshot`, and `empty_behavior`. Update both sides:
 
-When converting messy notebook exploration:
+- Producer tests prove files, schema, grain, snapshot, and empty behavior.
+- Consumer tests load producer-shaped fixtures and prove filters, metrics, and display data.
+- Cross-source tests prove snapshot and shared-key consistency.
 
-1. Preserve the original question and output target.
-2. Pull stable transformation logic into named functions.
-3. Add lightweight checks for shape, nulls, aggregate totals, and shared
-   dimension coverage across sources.
-4. Make the final cells read like a report: input assumptions, charts/tables,
-   caveats, and export.
-5. If the notebook depends on new ETL outputs or changed schema, update the
-   corresponding tests and ETL path in the same change.
+Bind those real pytest node IDs in the page registry. Do not use a filename text match as the
+only producer/consumer proof.
 
-Validation:
+## Refactoring Exploration
 
-- Quick syntax check:
-  `python -m py_compile marimo/merchandise/notebooks/<page>.py`
-- Pytest/regression:
-  route to `marimo-etl-test`
-- Host-side project env:
-  `cd <www-root> && UV_CACHE_DIR=.uv-cache uv run --extra test ...`
+1. Preserve the original business question and expected output.
+2. Identify source and serve grain before changing charts.
+3. Extract stable transformations into testable functions.
+4. Add checks for shape, required columns, nulls, aggregate totals, shared dimensions, and
+   empty data.
+5. Keep final notebook cells focused on controls, charts/tables, caveats, and export.
+
+## Validation
+
+- Run `python -m py_compile merchandise/notebooks/<page>.py` for syntax.
+- Run `make check` when registry, navigation, smoke, ETL, serve, README, or theme debt changes.
+- Invoke `$marimo-etl-test` for all pytest and runtime validation. Docker is the test authority;
+  host uv is optional fast feedback only when derived from Docker dependency inputs.
+- For visible changes, validate a real revision-matched preview at desktop and narrow viewport
+  and exercise the relevant filter/selection flow.
+
+Commit and push the Marimo child repository before updating the parent submodule pointer.
