@@ -1,0 +1,4 @@
+interface:
+  display_name: "Marimo Excel Report"
+  short_description: "Build and verify semantic Excel reports for Marimo"
+  default_prompt: "Use $marimo-excel-report to build and verify a bilingual semantic Excel report."

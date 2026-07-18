@@ -1080,6 +1080,10 @@
         "marimo-etl-test": {
           "scope": "project",
           "projects": ["www"]
+        },
+        "marimo-excel-report": {
+          "scope": "project",
+          "projects": ["www"]
         }
       }
     }
