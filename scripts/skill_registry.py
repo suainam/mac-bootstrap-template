@@ -55,6 +55,7 @@ class GatePolicy:
     approved_at: str | None = None
     approved_version: str | None = None
     approved_hash: str | None = None
+    auto_update: bool = False
     reason: str | None = None
 
 
@@ -245,6 +246,7 @@ def _gate_policy(raw: dict | None) -> GatePolicy:
         approved_at=raw.get("approved_at"),
         approved_version=raw.get("approved_version"),
         approved_hash=raw.get("approved_hash"),
+        auto_update=bool(raw.get("auto_update", False)),
         reason=raw.get("reason"),
     )
 
@@ -256,6 +258,7 @@ def _path_map(raw: dict) -> dict[str, Path]:
         "lockfile": ".agent-state/skills-lock.json",
         "run_log_root": ".agent-state/skill-sync-runs",
         "snapshot_root": ".agent-state/skill-snapshots",
+        "candidate_root": ".agent-state/skill-candidates",
     }
     merged = {**defaults, **raw}
     unknown = sorted(set(merged) - set(defaults))

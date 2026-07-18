@@ -89,7 +89,12 @@ def cmd_fetch_bundle(args: argparse.Namespace) -> int:
     if not args.source:
         raise RegistryError("fetch-bundle requires --source")
     bundle = select_bundle(registry, args.source)
-    result = fetch_external_bundle(bundle, ROOT, dry_run=args.dry_run)
+    result = fetch_external_bundle(
+        bundle,
+        ROOT,
+        dry_run=args.dry_run,
+        candidate_root=ROOT / registry.paths["candidate_root"],
+    )
     if result.returncode != 0:
         if result.stdout:
             print(result.stdout)
@@ -97,7 +102,7 @@ def cmd_fetch_bundle(args: argparse.Namespace) -> int:
             print(result.stderr, file=sys.stderr)
         return result.returncode
     if not result.dry_run:
-        print(f"fetched external bundle {bundle.source_id} -> {bundle.quarantine_path}")
+        print(f"staged external bundle {bundle.source_id} -> {result.destination}")
     return 0
 
 
@@ -109,6 +114,41 @@ def cmd_ensure_bundles(args: argparse.Namespace) -> int:
     else:
         print(f"ensured external bundles: fetched={len(results)}")
     return 0 if all(result.returncode == 0 for result in results) else 1
+
+
+def cmd_promote_bundle(args: argparse.Namespace) -> int:
+    registry = load_registry(args.registry)
+    if not args.source:
+        raise RegistryError("promote requires --source")
+    bundle = select_bundle(registry, args.source)
+    result = promote_external_bundle(registry, bundle, ROOT, dry_run=args.dry_run)
+    mode = "DRY-RUN" if args.dry_run else "promoted"
+    print(
+        f"{mode} external bundle {bundle.source_id}: "
+        f"promoted={len(result.promoted)} blocked={len(result.blocked)}"
+    )
+    if result.blocked:
+        print("blocked: " + ", ".join(result.blocked))
+    return 0 if args.dry_run or result.promoted or result.destination.exists() else 1
+
+
+def cmd_update_bundles(args: argparse.Namespace) -> int:
+    registry = load_registry(args.registry)
+    if args.source and args.source not in registry.bundles:
+        raise RegistryError(f"unknown bundle: {args.source}")
+    fetches, promotions = update_external_bundles(
+        registry,
+        ROOT,
+        source_id=args.source,
+        dry_run=args.dry_run,
+    )
+    failures = [result for result in fetches if result.returncode != 0]
+    blocked = sum(len(result.blocked) for result in promotions)
+    print(
+        f"updated external bundles: fetched={len(fetches) - len(failures)} "
+        f"failed={len(failures)} blocked={blocked}"
+    )
+    return 1 if failures else 0
 
 
 def _selected_external_skill(
@@ -254,6 +294,8 @@ def build_parser() -> argparse.ArgumentParser:
             "fetch",
             "fetch-bundle",
             "ensure-bundles",
+            "promote",
+            "update-bundles",
             "audit",
             "diff",
             "distribute",
@@ -302,6 +344,10 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_fetch_bundle(args)
         if args.command == "ensure-bundles":
             return cmd_ensure_bundles(args)
+        if args.command == "promote":
+            return cmd_promote_bundle(args)
+        if args.command == "update-bundles":
+            return cmd_update_bundles(args)
         if args.command == "audit":
             return cmd_audit(args)
         if args.command == "diff":

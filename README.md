@@ -351,6 +351,8 @@ make agent-sync      # Ensure missing skill bundles + sync prompt libraries
 make agent-tools     # Wire RTK, caveman, managed MCPs, and skills for all agents
 make agent-refresh   # Full sync + full agent reconfigure
 make skill-refresh   # Ensure missing bundles + re-wire managed skills
+make skill-update SOURCE=mattpocock-skills  # Fetch + safely promote upstream updates
+make system-upgrade  # Interactive brew update/upgrade + safe skill refresh
 make prompt-sync     # Sync prompt libraries + rebuild prompt index
 make doctor-agent    # Verify all configs (contains AgentShield scan)
 ```
@@ -444,6 +446,7 @@ The global `knowledge-lifecycle-manager` Skill is the Data Hub control entrypoin
 ```bash
 make agent-tools
 make skill-refresh
+make skill-update SOURCE=mattpocock-skills
 ```
 
 This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
@@ -519,6 +522,8 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make agent-tools` | Wire all agent tools |
 | `make agent-refresh` | Full sync + full agent reconfigure |
 | `make skill-refresh` | Ensure missing bundles + re-wire managed skills |
+| `make skill-update SOURCE=mattpocock-skills` | Fetch and safely promote an external bundle |
+| `make system-upgrade` | Interactive Homebrew update/upgrade followed by safe skill refresh |
 | `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
 | `make check` | Syntax + tool validation |
 | `make ci` | Public CI contract: syntax, pytest, privacy, skill, and docs gates |

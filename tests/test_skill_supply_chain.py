@@ -37,6 +37,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     load_registry,
     load_targets,
     main,
+    promote_external_bundle,
     snapshot_output_path,
     strip_jsonc_comments,
     validate_skill_dir,
@@ -58,6 +59,7 @@ def test_registry_version_two_exposes_source_and_state_roots() -> None:
         "lockfile": Path(".agent-state/skills-lock.json"),
         "run_log_root": Path(".agent-state/skill-sync-runs"),
         "snapshot_root": Path(".agent-state/skill-snapshots"),
+        "candidate_root": Path(".agent-state/skill-candidates"),
     }
 
 
@@ -72,6 +74,7 @@ def test_mattpocock_source_is_managed_as_a_bundle() -> None:
     assert bundle.distribution_state == "enabled"
     assert bundle.catalog_path == Path(".agent-state/skill-bundles/mattpocock-skills.json")
     assert registry.skills[("mattpocock-skills", "to-spec")].bundle_id == "mattpocock-skills"
+    assert registry.skills[("mattpocock-skills", "to-spec")].gate.auto_update is True
 
 
 def test_enabled_bundle_is_not_refetched_when_catalog_and_sources_are_present(tmp_path: Path) -> None:
@@ -451,7 +454,7 @@ def test_fetch_external_bundle_uses_bundle_quarantine_root(tmp_path: Path) -> No
     result = fetch_external_bundle(bundle, tmp_path, dry_run=True)
 
     assert result.cwd == tmp_path / "agent-skills/external/quarantine/.tmp/mattpocock-skills/bundle/work"
-    assert result.destination == tmp_path / "agent-skills/external/quarantine/mattpocock-skills"
+    assert result.destination == tmp_path / ".agent-state/skill-candidates/mattpocock-skills"
     assert result.command[:4] == ("npx", "skills@latest", "add", "https://github.com/mattpocock/skills")
 
 
@@ -477,11 +480,44 @@ def test_fetch_external_bundle_catalogs_staged_content_without_runtime_write(
 
     assert result.returncode == 0
     assert (result.destination / "alpha/SKILL.md").is_file()
-    catalog = json.loads(
-        (tmp_path / ".agent-state/skill-bundles/mattpocock-skills.json").read_text(encoding="utf-8")
-    )
+    catalog = json.loads((result.destination / "catalog.json").read_text(encoding="utf-8"))
     assert catalog["skills"][0]["name"] == "alpha"
+    assert not (tmp_path / "agent-skills/external/quarantine/mattpocock-skills").exists()
     assert not (tmp_path / ".claude/skills").exists()
+
+
+def test_promote_external_bundle_updates_existing_script_free_skill(tmp_path: Path) -> None:
+    registry = load_registry(DEFAULT_REGISTRY)
+    bundle = registry.bundles["mattpocock-skills"]
+    skill = registry.skills[("mattpocock-skills", "to-spec")]
+    skill = replace(
+        skill,
+        gate=replace(skill.gate, approved_hash="sha256:" + "0" * 64, auto_update=True),
+        audit=replace(skill.audit, allow_unaudited=True, max_risk="LOW"),
+    )
+    registry = replace(registry, skills={**registry.skills, (skill.source_id, skill.name): skill})
+
+    active = tmp_path / bundle.quarantine_path / "to-spec"
+    active.mkdir(parents=True)
+    (active / "SKILL.md").write_text("# old\n", encoding="utf-8")
+    candidate = tmp_path / registry.paths["candidate_root"] / bundle.source_id / "to-spec"
+    candidate.mkdir(parents=True)
+    (candidate / "SKILL.md").write_text("# updated\n", encoding="utf-8")
+    entry = BundleCatalogEntry(
+        name="to-spec",
+        relative_path=Path("to-spec"),
+        content_hash=inspect_skill_content(candidate).content_hash,
+    )
+    from scripts.skill_supply_chain import write_bundle_catalog
+
+    write_bundle_catalog(bundle, (entry,), tmp_path, output_path=candidate.parent / "catalog.json")
+
+    result = promote_external_bundle(registry, bundle, tmp_path)
+
+    assert result.promoted == ("to-spec",)
+    assert result.blocked == ()
+    assert (tmp_path / bundle.quarantine_path / "to-spec/SKILL.md").read_text(encoding="utf-8") == "# updated\n"
+    assert (tmp_path / bundle.catalog_path).is_file()
 
 
 def test_write_run_log_uses_registry_run_log_root(tmp_path: Path) -> None:

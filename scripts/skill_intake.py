@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 try:
@@ -18,6 +19,15 @@ globals().update(
 )
 
 RISK_ORDER = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+
+
+@dataclass(frozen=True)
+class BundlePromotionResult:
+    source_id: str
+    destination: Path
+    promoted: tuple[str, ...]
+    blocked: tuple[str, ...]
+    dry_run: bool = False
 
 
 def select_skill(registry: Registry, source_id: str, skill_name: str) -> SkillRef:
@@ -200,8 +210,9 @@ def write_bundle_catalog(
     bundle: SkillBundle,
     entries: tuple[BundleCatalogEntry, ...],
     root: Path = ROOT,
+    output_path: Path | None = None,
 ) -> Path:
-    path = root / bundle.catalog_path
+    path = output_path or (root / bundle.catalog_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "source_id": bundle.source_id,
@@ -225,12 +236,13 @@ def fetch_external_bundle(
     bundle: SkillBundle,
     root: Path = ROOT,
     dry_run: bool = False,
+    candidate_root: Path | None = None,
 ) -> CommandResult:
     command = build_skills_sh_bundle_fetch_command(bundle)
     tmp_work = root / bundle.quarantine_path.parent / ".tmp" / bundle.source_id / "bundle" / "work"
-    destination = root / bundle.quarantine_path
+    destination = (candidate_root or root / ".agent-state/skill-candidates") / bundle.source_id
     if dry_run:
-        print(f"DRY-RUN fetch external bundle {bundle.source_id} -> {bundle.quarantine_path.as_posix()}")
+        print(f"DRY-RUN fetch external bundle {bundle.source_id} -> {destination.relative_to(root).as_posix()}")
         return CommandResult(
             command=tuple(command),
             cwd=tmp_work,
@@ -286,7 +298,7 @@ def fetch_external_bundle(
             destination.unlink()
     destination.parent.mkdir(parents=True, exist_ok=True)
     candidate.replace(destination)
-    write_bundle_catalog(bundle, entries, root)
+    write_bundle_catalog(bundle, entries, root, output_path=destination / "catalog.json")
     return CommandResult(
         command=tuple(command),
         cwd=tmp_work,
@@ -333,7 +345,15 @@ def ensure_external_bundles(
     for bundle in sorted(registry.bundles.values(), key=lambda item: item.source_id):
         if bundle.distribution_state != "enabled" or not bundle_needs_fetch(registry, bundle, root):
             continue
-        results.append(fetch_external_bundle(bundle, root, dry_run=dry_run))
+        result = fetch_external_bundle(
+            bundle,
+            root,
+            dry_run=dry_run,
+            candidate_root=root / registry.paths["candidate_root"],
+        )
+        results.append(result)
+        if result.returncode == 0 and not dry_run:
+            promote_external_bundle(registry, bundle, root)
     return tuple(results)
 
 
@@ -367,8 +387,14 @@ def discover_bundle_catalog(bundle: SkillBundle, root: Path = ROOT) -> tuple[Bun
     return _discover_bundle_catalog_root(root / bundle.quarantine_path, bundle.source_id)
 
 
-def load_bundle_catalog(bundle: SkillBundle, root: Path = ROOT) -> tuple[BundleCatalogEntry, ...] | None:
-    path = root / bundle.catalog_path
+def candidate_bundle_path(registry: Registry, bundle: SkillBundle, root: Path = ROOT) -> Path:
+    return root / registry.paths["candidate_root"] / bundle.source_id
+
+
+def load_bundle_catalog_path(
+    bundle: SkillBundle,
+    path: Path,
+) -> tuple[BundleCatalogEntry, ...] | None:
     if not path.is_file():
         return None
     try:
@@ -379,38 +405,31 @@ def load_bundle_catalog(bundle: SkillBundle, root: Path = ROOT) -> tuple[BundleC
         raise RegistryError(f"bundle catalog identity mismatch: {bundle.source_id}")
     raw_skills = raw.get("skills")
     if not isinstance(raw_skills, list):
-        raise RegistryError(f"bundle catalog skills must be an array: {bundle.source_id}")
+        raise RegistryError(f"bundle catalog skills must be a list: {bundle.source_id}")
     entries: list[BundleCatalogEntry] = []
     seen_names: set[str] = set()
     for item in raw_skills:
         if not isinstance(item, dict):
-            raise RegistryError(f"bundle catalog entry must be an object: {bundle.source_id}")
+            raise RegistryError(f"invalid bundle catalog entry: {bundle.source_id}")
         name = item.get("name")
         relative_path = item.get("relative_path")
         content_hash = item.get("content_hash")
-        if not isinstance(name, str) or not NAME_RE.match(name):
-            raise RegistryError(f"invalid bundle catalog skill name: {bundle.source_id}/{name}")
-        if name in seen_names:
-            raise RegistryError(f"duplicate bundle catalog skill name: {bundle.source_id}/{name}")
-        relative = Path(relative_path) if isinstance(relative_path, str) else None
-        if (
-            relative is None
-            or not relative_path
-            or relative.is_absolute()
-            or ".." in relative.parts
-        ):
+        if not isinstance(name, str) or not NAME_RE.fullmatch(name):
+            raise RegistryError(f"invalid bundle catalog skill name: {bundle.source_id}")
+        relative = Path(str(relative_path)) if isinstance(relative_path, str) else None
+        if relative is None or relative.is_absolute() or ".." in relative.parts:
             raise RegistryError(f"invalid bundle catalog path: {bundle.source_id}/{name}")
         if not isinstance(content_hash, str) or not content_hash.startswith("sha256:"):
             raise RegistryError(f"invalid bundle catalog hash: {bundle.source_id}/{name}")
+        if name in seen_names:
+            raise RegistryError(f"duplicate bundle catalog skill: {bundle.source_id}/{name}")
         seen_names.add(name)
-        entries.append(
-            BundleCatalogEntry(
-                name=name,
-                relative_path=relative,
-                content_hash=content_hash,
-            )
-        )
+        entries.append(BundleCatalogEntry(name, relative, content_hash))
     return tuple(entries)
+
+
+def load_bundle_catalog(bundle: SkillBundle, root: Path = ROOT) -> tuple[BundleCatalogEntry, ...] | None:
+    return load_bundle_catalog_path(bundle, root / bundle.catalog_path)
 
 
 def _risk_exceeds(actual: str, maximum: str) -> bool:
@@ -445,7 +464,17 @@ def evaluate_gate(
         elif skill.gate.approved_hash:
             approved_version_matches = skill.gate.approved_hash == inspection.content_hash
             if not approved_version_matches:
-                reasons.append("approved hash does not match current content")
+                auto_safe = (
+                    skill.source_type == "external"
+                    and skill.gate.auto_update
+                    and skill.gate.approved
+                    and not inspection.has_scripts
+                    and skill.audit.max_risk.upper() == "LOW"
+                )
+                if auto_safe:
+                    approved_version_matches = True
+                else:
+                    reasons.append("approved hash does not match current content")
         elif skill.source_type == "external":
             approved_version_matches = False
             reasons.append("manual approval for external skill must bind approved_hash")
@@ -455,6 +484,133 @@ def evaluate_gate(
         requires_user_approval=requires_user_approval,
         approved_version_matches=approved_version_matches,
     )
+
+
+def promote_external_bundle(
+    registry: Registry,
+    bundle: SkillBundle,
+    root: Path = ROOT,
+    dry_run: bool = False,
+) -> BundlePromotionResult:
+    """Promote only policy-approved candidate skills into active quarantine."""
+    candidate_root = candidate_bundle_path(registry, bundle, root)
+    candidate_catalog = load_bundle_catalog_path(bundle, candidate_root / "catalog.json")
+    if candidate_catalog is None:
+        raise RegistryError(f"bundle candidate is unavailable: {bundle.source_id}")
+
+    active_root = root / bundle.quarantine_path
+    promote_root = active_root.parent / f".{bundle.source_id}.promote"
+    if promote_root.exists():
+        shutil.rmtree(promote_root)
+    if active_root.is_dir() and not active_root.is_symlink():
+        shutil.copytree(active_root, promote_root)
+    else:
+        promote_root.mkdir(parents=True, exist_ok=True)
+
+    promoted: list[str] = []
+    blocked: list[str] = []
+    registered = {
+        skill.name: skill
+        for skill in registry.skills.values()
+        if skill.bundle_id == bundle.source_id
+    }
+    for entry in candidate_catalog:
+        skill = registered.get(entry.name)
+        if skill is None:
+            blocked.append(f"{entry.name}:unregistered")
+            continue
+        source = candidate_root / entry.relative_path
+        if not source.is_dir():
+            blocked.append(f"{entry.name}:missing")
+            continue
+        inspection = inspect_skill_content(source)
+        decision = evaluate_gate(skill, inspection, audit=None)
+        current = active_root / entry.relative_path
+        auto_update = (
+            current.is_dir()
+            and skill.gate.auto_update
+            and skill.gate.approved
+            and not inspection.has_scripts
+            and skill.audit.max_risk.upper() == "LOW"
+        )
+        if not decision.allowed or (not auto_update and skill.gate.approved_hash != inspection.content_hash):
+            blocked.append(f"{entry.name}:{','.join(decision.reasons) or 'approval-baseline-mismatch'}")
+            continue
+        target = promote_root / entry.relative_path
+        if target.exists() or target.is_symlink():
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, target)
+        promoted.append(entry.name)
+
+    result = BundlePromotionResult(
+        source_id=bundle.source_id,
+        destination=active_root,
+        promoted=tuple(sorted(promoted)),
+        blocked=tuple(sorted(blocked)),
+        dry_run=dry_run,
+    )
+    if dry_run:
+        shutil.rmtree(promote_root)
+        return result
+
+    if not promoted and not active_root.exists():
+        shutil.rmtree(promote_root)
+        return result
+    active_backup = active_root.parent / f".{bundle.source_id}.previous"
+    if active_backup.exists():
+        shutil.rmtree(active_backup)
+    if active_root.exists():
+        active_root.replace(active_backup)
+    promote_root.replace(active_root)
+    if active_backup.exists():
+        shutil.rmtree(active_backup)
+    entries = _discover_bundle_catalog_root(active_root, bundle.source_id)
+    write_bundle_catalog(bundle, entries, root)
+    write_run_log(
+        {
+            "event": "bundle-promote",
+            "source": bundle.source_id,
+            "promoted": list(result.promoted),
+            "blocked": list(result.blocked),
+        },
+        registry,
+        root,
+    )
+    return result
+
+
+def update_external_bundles(
+    registry: Registry,
+    root: Path = ROOT,
+    source_id: str | None = None,
+    dry_run: bool = False,
+) -> tuple[tuple[CommandResult, ...], tuple[BundlePromotionResult, ...]]:
+    """Fetch enabled external bundles, then promote only safe candidates."""
+    bundles = sorted(registry.bundles.values(), key=lambda item: item.source_id)
+    if source_id is not None:
+        bundles = [bundle for bundle in bundles if bundle.source_id == source_id]
+    fetches: list[CommandResult] = []
+    promotions: list[BundlePromotionResult] = []
+    for bundle in bundles:
+        if bundle.distribution_state != "enabled":
+            continue
+        result = fetch_external_bundle(
+            bundle,
+            root,
+            dry_run=dry_run,
+            candidate_root=root / registry.paths["candidate_root"],
+        )
+        fetches.append(result)
+        if result.returncode == 0:
+            if dry_run:
+                print(f"DRY-RUN promote external bundle {bundle.source_id}")
+            else:
+                promotions.append(promote_external_bundle(registry, bundle, root))
+    return tuple(fetches), tuple(promotions)
 
 
 def write_run_log(event: dict, registry: Registry, root: Path = ROOT) -> Path:

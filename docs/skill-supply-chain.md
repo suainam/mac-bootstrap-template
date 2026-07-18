@@ -16,6 +16,7 @@ Generated/runtime outputs are not authoritative:
 - `.agent-state/skill-sync-runs/`
 - `.agent-state/skill-snapshots/`
 - `.agent-state/skill-bundles/`
+- `.agent-state/skill-candidates/`
 - `~/.claude/skills`, `~/.codex/skills`, `~/.config/opencode/skills`, `~/.pi/agent/skills`, `~/.reasonix/skills`, `~/.gemini/antigravity-cli/skills`, `~/.agents/skills`
 - project `.agents/skills/` directories
 
@@ -62,7 +63,7 @@ single-skill fetch command rejects those sources to prevent a second workflow.
 `skill-refresh` runs `skill-ensure-bundles` before distribution. It fetches an
 enabled bundle only when its catalog or source directories are missing, so a
 fresh checkout can self-bootstrap while ordinary refreshes remain local. Use
-`skill-fetch-bundle` explicitly to refresh an existing bundle from upstream.
+`skill-update` to refresh an existing bundle from upstream.
 
 The fetch command uses `npx skills@latest add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent-skills/external/quarantine/<source>/<skill>/`.
 
@@ -72,10 +73,35 @@ For a bundle, use the bundle entry point instead:
 make skill-fetch-bundle SOURCE=mattpocock-skills
 ```
 
-This runs `npx skills@latest add mattpocock/skills --all --agent universal
---copy --yes` only inside staging, then writes the fetched source and catalog to
-quarantine. The `--copy` flag is an intake operation; runtime distribution
-continues to use directory soft links.
+This runs `npx skills@latest add https://github.com/mattpocock/skills --all
+--agent universal --copy --yes` only inside a temporary work directory, then
+writes the candidate source and its catalog to
+`.agent-state/skill-candidates/mattpocock-skills/`. It never overwrites active
+quarantine. Promote a staged candidate explicitly with:
+
+```bash
+make skill-promote SOURCE=mattpocock-skills
+```
+
+Promotion is per skill and atomic at the bundle directory boundary. A known,
+already-approved, script-free, `LOW`-risk skill with unchanged source identity
+may use `gate.auto_update: true` to accept a changed upstream hash without a
+new manual approval. New or unregistered skills, scripts, missing approval
+baselines, higher-risk content, and gate/audit failures remain blocked in the
+candidate directory. The active catalog is rewritten only after promotion.
+
+The daily update entry point is:
+
+```bash
+make system-upgrade
+```
+
+It requires a real interactive terminal, runs `brew update` and `brew upgrade`
+in that same terminal, and only then refreshes the configured source (default:
+`mattpocock-skills`) and distributes approved skills. Homebrew owns any sudo
+prompt; the wrapper does not capture, store, or supply passwords. Set
+`BREW_BIN`, `PYTHON_BIN`, or `SKILL_SOURCE` only when the local installation
+needs a non-default executable or bundle.
 
 ## Distribution
 

@@ -6,7 +6,7 @@ LUAC ?= luac
 .PHONY: help bootstrap check ci syntax-check pytest pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
-	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
@@ -63,6 +63,8 @@ help:
 	@echo "  skill-fetch            Fetch one non-bundle external skill: SOURCE=id SKILL=name"
 	@echo "  skill-fetch-bundle     Fetch one external bundle: SOURCE=id"
 	@echo "  skill-ensure-bundles   Fetch missing enabled bundles before distribution"
+	@echo "  skill-promote          Promote a staged bundle: SOURCE=id"
+	@echo "  skill-update           Fetch + safely promote bundle updates: SOURCE=id"
 	@echo "  skill-audit            Audit one quarantined skill: SOURCE=id SKILL=name"
 	@echo "  skill-diff             Show one quarantined skill diff/hash: SOURCE=id SKILL=name"
 	@echo "  skill-distribute       Wire approved managed skills into agents/projects"
@@ -70,6 +72,7 @@ help:
 	@echo "  skill-snapshot         Snapshot current global/project skill views"
 	@echo "  skill-refresh          Validate + wire managed skills"
 	@echo "  skill-check            Validate skill registry and local skill sources"
+	@echo "  system-upgrade         Interactive brew update/upgrade + safe skill refresh"
 	@echo "  prompt-sync            Sync prompt libraries + rebuild prompt index"
 	@echo "  prompt-index           Rebuild prompt index from local prompt upstreams"
 	@echo "  prompt-list            List indexed prompts: Q=query"
@@ -306,6 +309,13 @@ skill-fetch-bundle:
 skill-ensure-bundles:
 	$(PYTHON) scripts/skill_supply_chain.py ensure-bundles
 
+skill-promote:
+	@test -n "$(SOURCE)" || (echo "Usage: make skill-promote SOURCE=bundle-id" >&2; exit 2)
+	$(PYTHON) scripts/skill_supply_chain.py promote --source "$(SOURCE)"
+
+skill-update:
+	$(PYTHON) scripts/skill_supply_chain.py update-bundles --source "$(or $(SOURCE),mattpocock-skills)"
+
 skill-audit:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
 	@test -n "$(SKILL)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
@@ -326,6 +336,9 @@ skill-snapshot:
 	$(PYTHON) scripts/skill_supply_chain.py snapshot --label "$${LABEL:-manual}"
 
 skill-refresh: skill-check skill-ensure-bundles skill-distribute
+
+system-upgrade:
+	./scripts/system-upgrade.sh
 
 skill-check:
 	$(PYTHON) scripts/skill_supply_chain.py check

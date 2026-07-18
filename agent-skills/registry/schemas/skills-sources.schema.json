@@ -13,7 +13,8 @@
         "quarantine_root",
         "lockfile",
         "run_log_root",
-        "snapshot_root"
+        "snapshot_root",
+        "candidate_root"
       ],
       "additionalProperties": false,
       "properties": {
@@ -21,7 +22,8 @@
         "quarantine_root": {"type": "string", "minLength": 1},
         "lockfile": {"type": "string", "minLength": 1},
         "run_log_root": {"type": "string", "minLength": 1},
-        "snapshot_root": {"type": "string", "minLength": 1}
+        "snapshot_root": {"type": "string", "minLength": 1},
+        "candidate_root": {"type": "string", "minLength": 1}
       }
     },
     "defaults": {"type": "object"},

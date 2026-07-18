@@ -7,7 +7,8 @@
     "quarantine_root": "agent-skills/external/quarantine",
     "lockfile": ".agent-state/skills-lock.json",
     "run_log_root": ".agent-state/skill-sync-runs",
-    "snapshot_root": ".agent-state/skill-snapshots"
+    "snapshot_root": ".agent-state/skill-snapshots",
+    "candidate_root": ".agent-state/skill-candidates"
   },
 
   "defaults": {
@@ -217,6 +218,14 @@
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/mattpocock/skills",
+      "audit": {
+        "allow_unaudited": true,
+        "max_risk": "LOW",
+        "allow_scripts": false
+      },
+      "gate": {
+        "auto_update": true
+      },
       "bundle": {
         "install_mode": "all",
         "distribution_state": "enabled",
