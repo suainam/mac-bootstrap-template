@@ -36,6 +36,7 @@ VALID_TARGET_STRATEGIES = {"symlink", "copy"}
 VALID_DISTRIBUTION_STATES = {"enabled", "staged", "disabled", "merged"}
 VALID_BUNDLE_INSTALL_MODES = {"all"}
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ class SkillRef:
     scope: Literal["global", "project"]
     agents: tuple[str, ...]
     projects: tuple[str, ...]
+    dependencies: tuple[str, ...]
     distribution_state: Literal["enabled", "staged", "disabled", "merged"]
     gate: GatePolicy
     audit: AuditPolicy
@@ -365,6 +367,11 @@ def load_registry(path: Path = DEFAULT_REGISTRY) -> Registry:
                 raise RegistryError(f"unknown projects for {source_id}/{skill_name}: {unknown_projects}")
             if scope == "project" and not projects_for_skill:
                 raise RegistryError(f"project skill needs projects: {source_id}/{skill_name}")
+            dependencies = _tuple_of_strings(
+                merged.get("dependencies"), name=f"{source_id}/{skill_name}.dependencies"
+            )
+            for dependency in dependencies:
+                _validate_name("skill dependency", dependency)
             distribution_state = str(merged.get("distribution_state", "enabled"))
             if distribution_state not in VALID_DISTRIBUTION_STATES:
                 raise RegistryError(
@@ -398,6 +405,7 @@ def load_registry(path: Path = DEFAULT_REGISTRY) -> Registry:
                 scope=scope,  # type: ignore[arg-type]
                 agents=agents,
                 projects=projects_for_skill,
+                dependencies=dependencies,
                 distribution_state=distribution_state,  # type: ignore[arg-type]
                 gate=_gate_policy(merged.get("gate")),
                 audit=_audit_policy(merged.get("audit")),
@@ -479,6 +487,17 @@ def validate_skill_dir(path: Path, expected_name: str) -> list[str]:
         errors.append(f"frontmatter name mismatch: {skill_md} expected={expected_name} actual={actual_name}")
     if "description" not in meta:
         errors.append(f"missing frontmatter description: {skill_md}")
+    text = skill_md.read_text(encoding="utf-8")
+    missing_markdown = set()
+    for raw_target in MARKDOWN_LINK_RE.findall(text):
+        target = raw_target.split("#", 1)[0]
+        if not target.lower().endswith(".md") or target.startswith(("/", "http://", "https://")):
+            continue
+        referenced = (path / target).resolve()
+        if not referenced.is_file():
+            missing_markdown.add(referenced)
+    for referenced in sorted(missing_markdown):
+        errors.append(f"missing referenced markdown file: {referenced}")
     return errors
 
 
@@ -508,11 +527,47 @@ def find_unmanaged_skill_dirs(registry: Registry, root: Path = ROOT) -> list[Pat
 def validate_registry_sources(registry: Registry, root: Path = ROOT) -> list[str]:
     errors: list[str] = []
     for skill in registry.skills.values():
-        if skill.source_type != "internal" or skill.source_path is None:
-            continue
-        errors.extend(validate_skill_dir(root / skill.source_path, skill.name))
+        source_paths = (skill.local_shadow_path, skill.source_path, skill.quarantine_path)
+        source_path = next(
+            (root / path for path in source_paths if path is not None and (root / path).is_dir()),
+            None,
+        )
+        if source_path is not None:
+            errors.extend(validate_skill_dir(source_path, skill.name))
     for path in find_unmanaged_skill_dirs(registry, root):
         errors.append(f"unmanaged internal skill source: {path.relative_to(root)}")
+    enabled_by_name: dict[str, list[SkillRef]] = {}
+    for skill in registry.skills.values():
+        if skill.distribution_state == "enabled":
+            enabled_by_name.setdefault(skill.name, []).append(skill)
+    for skill in registry.skills.values():
+        if skill.distribution_state != "enabled":
+            continue
+        for dependency in skill.dependencies:
+            candidates = enabled_by_name.get(dependency, [])
+            if not candidates:
+                errors.append(
+                    f"skill dependency not enabled: {skill.source_id}/{skill.name} -> {dependency}"
+                )
+                continue
+            eligible = [
+                candidate
+                for candidate in candidates
+                if candidate.scope == "global"
+                or (
+                    skill.scope == "project"
+                    and candidate.scope == "project"
+                    and set(skill.projects).issubset(candidate.projects)
+                )
+            ]
+            covered_agents = {agent for candidate in eligible for agent in candidate.agents}
+            missing_agents = sorted(set(skill.agents) - covered_agents)
+            if missing_agents:
+                errors.append(
+                    "skill dependency missing target coverage: "
+                    f"{skill.source_id}/{skill.name} -> {dependency} "
+                    f"agents={','.join(missing_agents)}"
+                )
     return errors
 
 

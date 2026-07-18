@@ -373,6 +373,21 @@
           },
           "reason": "End-to-end engineering workflow implementation stage; Reasonix excluded because its code-review dependency requires unavailable parent-level parallel agents"
         },
+        "prototype": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-18",
+            "approved_hash": "sha256:34a2e7866454c90e04f8efd6a2175c46b95f913ecdf066cc142059829b46b6e9",
+            "reason": "User-approved wayfinder prototype dependency; current upstream content and its three Markdown files manually audited"
+          },
+          "reason": "Required wayfinder dependency for runnable logic or UI decision prototypes"
+        },
         "setup-matt-pocock-skills": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
@@ -435,6 +450,7 @@
         },
         "wayfinder": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "dependencies": ["domain-modeling", "grilling", "prototype", "setup-matt-pocock-skills"],
           "audit": {
             "allow_unaudited": true
           },

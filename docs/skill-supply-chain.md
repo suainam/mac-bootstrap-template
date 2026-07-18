@@ -36,6 +36,7 @@ Each skill has a source record:
 - `scope: global` for user-level agent distribution.
 - `scope: project` for project-local `.agents/skills` distribution.
 - `distribution_state: enabled | staged | disabled | merged`.
+- `dependencies`: optional hard Skill dependencies by registered Skill name.
 
 An external repository may additionally declare a bundle. A bundle is the
 lifecycle unit for fetch, refresh, disable, and restore; its discovered catalog
@@ -48,6 +49,11 @@ session, followed as needed by `/grill-with-docs`, `/to-spec`, `/to-tickets`,
 replace the later specification, ticket, implementation, or review stages.
 
 Only `enabled` skills are distributed. `staged`, `disabled`, and `merged` records preserve source lineage and review decisions without installing the skill.
+
+`skill-check` verifies every enabled dependency covers the dependent Skill's
+agent and project targets. It also verifies relative `.md` files linked from an
+available `SKILL.md`, so auxiliary contracts such as `CONTEXT-FORMAT.md` cannot
+silently disappear from a landed source.
 
 External skills must enter repo-local quarantine first:
 

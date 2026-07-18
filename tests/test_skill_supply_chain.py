@@ -40,6 +40,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     promote_external_bundle,
     snapshot_output_path,
     strip_jsonc_comments,
+    validate_registry_sources,
     validate_skill_dir,
     write_run_log,
 )
@@ -75,6 +76,15 @@ def test_mattpocock_source_is_managed_as_a_bundle() -> None:
     assert bundle.catalog_path == Path(".agent-state/skill-bundles/mattpocock-skills.json")
     assert registry.skills[("mattpocock-skills", "to-spec")].bundle_id == "mattpocock-skills"
     assert registry.skills[("mattpocock-skills", "to-spec")].gate.auto_update is True
+    assert registry.skills[("mattpocock-skills", "wayfinder")].dependencies == (
+        "domain-modeling",
+        "grilling",
+        "prototype",
+        "setup-matt-pocock-skills",
+    )
+    assert registry.skills[("mattpocock-skills", "prototype")].gate.approved_hash == (
+        "sha256:34a2e7866454c90e04f8efd6a2175c46b95f913ecdf066cc142059829b46b6e9"
+    )
 
 
 def test_enabled_bundle_is_not_refetched_when_catalog_and_sources_are_present(tmp_path: Path) -> None:
@@ -344,6 +354,69 @@ def test_validate_skill_dir_requires_matching_name(tmp_path: Path):
     errors = validate_skill_dir(skill_dir, "example-skill")
 
     assert any("frontmatter name mismatch" in error for error in errors)
+
+
+def test_validate_skill_dir_reports_missing_markdown_reference(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "agent-skills/local/mac-bootstrap/example-skill"
+    skill_dir.mkdir(parents=True)
+    skill_dir.joinpath("SKILL.md").write_text(
+        "---\nname: example-skill\ndescription: Example\n---\n\n"
+        "Use [the required format](./CONTEXT-FORMAT.md).\n",
+        encoding="utf-8",
+    )
+
+    errors = validate_skill_dir(skill_dir, "example-skill")
+
+    assert errors == [
+        f"missing referenced markdown file: {skill_dir / 'CONTEXT-FORMAT.md'}"
+    ]
+
+
+def test_validate_registry_sources_requires_enabled_dependency_agent_coverage(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "agent-skills/local/test"
+    for name in ("wayfinder", "prototype"):
+        skill_dir = source_root / name
+        skill_dir.mkdir(parents=True)
+        skill_dir.joinpath("SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: Test {name}\n---\n",
+            encoding="utf-8",
+        )
+    registry_path = tmp_path / "skills-sources.jsonc"
+    registry_path.write_text(
+        '''{
+          "version": 2,
+          "paths": {"local_root": "agent-skills/local"},
+          "defaults": {"internal": {"scope": "global", "audit": {"required": false}, "gate": {"approved": true}}},
+          "projects": {},
+          "sources": {
+            "test": {
+              "type": "internal",
+              "path": "agent-skills/local/test",
+              "skills": {
+                "prototype": {"agents": ["claude"]},
+                "wayfinder": {"agents": ["claude", "codex"], "dependencies": ["prototype"]}
+              }
+            }
+          }
+        }''',
+        encoding="utf-8",
+    )
+
+    errors = validate_registry_sources(load_registry(registry_path), tmp_path)
+
+    assert errors == [
+        "skill dependency missing target coverage: test/wayfinder -> prototype agents=codex"
+    ]
+
+    registry = load_registry(registry_path)
+    registry.skills.pop(("test", "prototype"))
+
+    assert validate_registry_sources(registry, tmp_path) == [
+        "unmanaged internal skill source: agent-skills/local/test/prototype",
+        "skill dependency not enabled: test/wayfinder -> prototype",
+    ]
 
 
 def test_find_unmanaged_skill_dirs_reports_nested_unregistered_source(tmp_path: Path) -> None:
