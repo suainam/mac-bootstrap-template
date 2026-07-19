@@ -84,6 +84,31 @@ def test_lifecycle_manager_is_global_but_stage_skills_are_project_scoped():
         assert skills[skill].get("distribution_state", "enabled") == "enabled"
 
 
+def test_repo_knowledge_curator_is_globally_distributed_with_its_bundle():
+    registry = load_sources()
+    skill = registry["sources"]["local-global"]["skills"]["curate-repo-knowledge"]
+    source = Path(
+        TEMPLATE, "agent-skills/local/global/curate-repo-knowledge"
+    )
+
+    assert skill["scope"] == "global"
+    assert skill["agents"] == [
+        "claude",
+        "codex",
+        "opencode",
+        "pi",
+        "reasonix",
+        "antigravity",
+        "cross-agent",
+    ]
+    assert (source / "SKILL.md").is_file()
+    assert (source / "scripts/audit_project.py").is_file()
+    assert (source / "references/auroraops-example.md").is_file()
+    retired = registry["sources"]["khazix-skills"]["skills"]["neat-freak"]
+    assert retired["distribution_state"] == "disabled"
+    assert "curate-repo-knowledge" in retired["reason"]
+
+
 def test_langgpt_prompt_writer_skill_registered_as_external_shadow():
     skill = "langgpt-prompt-writer"
     assert os.path.exists(
