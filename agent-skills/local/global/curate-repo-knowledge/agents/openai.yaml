@@ -1,0 +1,4 @@
+interface:
+  display_name: "Curate Repository Knowledge"
+  short_description: "Route and reconcile lean repository knowledge"
+  default_prompt: "Use $curate-repo-knowledge to audit this repository knowledge, then propose the smallest evidence-backed bootstrap or reconciliation patch."

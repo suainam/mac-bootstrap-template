@@ -629,7 +629,9 @@
           }
         },
         "neat-freak": {
+          "distribution_state": "disabled",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "Replaced by the internal global curate-repo-knowledge skill",
           "audit": {
             "allow_unaudited": true
           },
@@ -914,6 +916,11 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "reason": "沉淀与复用入口，应该全局可用"
+        },
+        "curate-repo-knowledge": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "通用仓库知识冷启动、权威路由、文档收敛与按需记忆毕业"
         }
       }
     },
