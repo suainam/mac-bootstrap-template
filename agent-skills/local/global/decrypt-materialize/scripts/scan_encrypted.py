@@ -62,7 +62,7 @@ def get_default_scan_dirs() -> list[str]:
 
 
 def check_encryption(path: Path) -> tuple[bool, str]:
-    """检测文件是否加密"""
+    """检测文件是否加密（绕过 TSD 透明层）"""
     # 跳过明显的二进制格式
     if path.suffix.lower() in SKIP_EXTENSIONS:
         return False, ''
@@ -74,17 +74,30 @@ def check_encryption(path: Path) -> tuple[bool, str]:
     except:
         return False, ''
 
+    # TSD 检测：用 dd 绕过 Python 透明层（见 CODEX_TSD.md）
+    header = None
     try:
-        with path.open('rb') as f:
-            header = f.read(256)
-
-        for enc_type, sig in ENCRYPTION_SIGNATURES.items():
-            if header.startswith(sig) or sig in header[:128]:
-                return True, enc_type
-
-        return False, ''
+        result = subprocess.run(
+            ['bash', '-c', f'dd if="{path}" bs=1 count=256 2>/dev/null'],
+            capture_output=True, check=False, timeout=2
+        )
+        header = result.stdout
     except:
-        return False, ''
+        pass
+
+    # fallback：其他加密类型或 dd 不可用时用 Python 读取
+    if header is None or len(header) == 0:
+        try:
+            with path.open('rb') as f:
+                header = f.read(256)
+        except:
+            return False, ''
+
+    for enc_type, sig in ENCRYPTION_SIGNATURES.items():
+        if header.startswith(sig) or sig in header[:128]:
+            return True, enc_type
+
+    return False, ''
 
 
 def scan_directory(directory: Path, recursive: bool = True, max_depth: int = 5) -> dict:

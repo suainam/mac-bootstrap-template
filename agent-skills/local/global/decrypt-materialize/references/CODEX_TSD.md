@@ -12,7 +12,9 @@
 2. **系统工具失败** - `cat/vim` 显示乱码,`sqlite3` 报错 "file is not a database"
 3. **文件头异常** - `xxd` 显示 `%TSD-Header-###%`,但应用能正常打开
 
-### 确认方法
+### 确认方法（Agent 必读）
+
+**核心原则**：TSD 透明层拦截 Python 进程的文件读取，必须用系统工具绕过。
 
 **错误方法** (失效):
 ```python
@@ -21,7 +23,7 @@ with open(path, 'rb') as f:
     return b'TSD-Header' in f.read(16)
 ```
 
-**正确方法** (用系统工具绕过透明层):
+**正确方法 1** (用 xxd):
 ```bash
 # xxd 读取原始磁盘字节
 xxd -l 16 file.sqlite
@@ -29,16 +31,22 @@ xxd -l 16 file.sqlite
 # 明文: 00000000: 5351 4c69 7465 2066 6f72 6d61 7420 3300  SQLite format 3.
 ```
 
-Python 判断逻辑:
+**正确方法 2** (用 dd，推荐用于脚本):
 ```python
 import subprocess
 def is_tsd_encrypted(path):
-    result = subprocess.run(['xxd', '-l', '16', '-p', str(path)],
-                          capture_output=True, text=True)
-    header_hex = result.stdout.strip().replace('\n', '')
-    # %TSD-Header-###% = 255453442d4865616465722d23232325
-    return header_hex.startswith('255453442d486561646572')
+    # dd 直接读取磁盘字节，绕过 Python runtime hook
+    result = subprocess.run(
+        ['bash', '-c', f'dd if="{path}" bs=1 count=16 2>/dev/null'],
+        capture_output=True, check=False, timeout=2
+    )
+    return b'TSD-Header' in result.stdout
 ```
+
+**为什么不能用 Python open()**：
+- Python `open()` / `pathlib.Path.read_bytes()` 都会触发透明解密
+- 即使是 `subprocess.run(['cat', path])`，如果 Python 解析输出也会被拦截
+- 必须让**非 Python 工具**读取磁盘字节，输出二进制流
 
 ---
 

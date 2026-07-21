@@ -66,10 +66,15 @@ python3 scripts/materialize.py <source> [--output-dir DIR] [--date-tag YYYYMMDD]
 
 ## 分支 3: Codex TSD 解密
 
-**识别**：文件头包含 `%TSD-Header-###%`，通常是 Codex 的 `.sqlite` 或 `.jsonl` 文件。
+**默认数据位置**：
+- macOS/Linux: `~/.codex`（用户数据目录）
+- Windows: `%USERPROFILE%\.codex`
+- ⚠️ 不是应用缓存目录 `~/Library/Application Support/Codex`
+
+**识别**：文件头包含 `%TSD-Header-###%`，通常是 `.sqlite` / `.jsonl` / `.toml` 文件。
 
 **处理**：
-1. 检查 Codex 进程是否在运行（默认拒绝在运行时解密）
+1. 检查 Codex 进程：`pgrep -fl codex`（完整命令行，避免截断）
 2. 自动备份原文件（带时间戳）
 3. 用 Python sqlite3/文件 API 透明读取并写入未加密副本
 4. 可选择仅解密到 `decrypted/` 或替换原文件
@@ -77,7 +82,7 @@ python3 scripts/materialize.py <source> [--output-dir DIR] [--date-tag YYYYMMDD]
 **跨平台**：
 ```bash
 # 自动检测平台并使用相应命令
-python3 scripts/decrypt_codex_crossplatform.py [codex_dir] --stop-daemon
+python3 scripts/decrypt_codex_crossplatform.py ~/.codex --stop-daemon
 ```
 
 见 `references/CODEX_TSD.md` 了解详细操作，`references/CROSSPLATFORM.md` 了解平台差异。
