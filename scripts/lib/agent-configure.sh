@@ -420,8 +420,6 @@ ensure_claude_instructions() {
 }
 
 ensure_codex_instructions() {
-  [ -f "$CODEX_AGENTS" ] || return 0
-
   if [ "${DRY_RUN:-0}" -eq 1 ]; then
     echo "DRY-RUN: render canonical rules into $CODEX_AGENTS"
   else

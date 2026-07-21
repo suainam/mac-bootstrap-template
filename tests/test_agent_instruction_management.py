@@ -68,6 +68,31 @@ ensure_codex_instructions
     assert "@/legacy/12-rules.md" not in content
 
 
+def test_codex_instruction_generation_creates_missing_global_file(tmp_path: Path):
+    target = tmp_path / "missing" / "AGENTS.md"
+    rules = tmp_path / "12-rules.md"
+    rtk = tmp_path / "RTK.md"
+    rules.write_text("canonical-rule\n")
+    rtk.write_text("canonical-rtk\n")
+
+    result = run_bash(
+        f'''set -euo pipefail
+run() {{ "$@"; }}
+source "{TEMPLATE}/scripts/lib/agent-shared.sh"
+source "{TEMPLATE}/scripts/lib/agent-configure.sh"
+DRY_RUN=0
+BOOTSTRAP="{TEMPLATE}"
+CODEX_AGENTS="{target}"
+RULES_FILE="{rules}"
+CODEX_RTK="{rtk}"
+ensure_codex_instructions
+'''
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "canonical-rule" in target.read_text()
+
+
 def test_instruction_verifier_rejects_tampered_managed_content(tmp_path: Path):
     target = tmp_path / "AGENTS.md"
     rules = tmp_path / "12-rules.md"
