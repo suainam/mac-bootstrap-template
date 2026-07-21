@@ -422,16 +422,13 @@ ensure_claude_instructions() {
 ensure_codex_instructions() {
   [ -f "$CODEX_AGENTS" ] || return 0
 
-  if ! grep -q '12-rules.md' "$CODEX_AGENTS" 2>/dev/null; then
-    if [ "${DRY_RUN:-0}" -eq 1 ]; then
-      echo "DRY-RUN: append 12-rules ref to $CODEX_AGENTS"
-    else
-      echo -e '\n@'"$HOME"'/.claude/12-rules.md' >> "$CODEX_AGENTS"
-    fi
-    echo "  Added 12-rules ref"
+  if [ "${DRY_RUN:-0}" -eq 1 ]; then
+    echo "DRY-RUN: render canonical rules into $CODEX_AGENTS"
   else
-    echo "  12-rules ref already present"
+    python3 "$BOOTSTRAP/scripts/agent-instructions.py" render \
+      --target "$CODEX_AGENTS" --rules "$RULES_FILE" --rtk "$CODEX_RTK"
   fi
+  echo "  Codex canonical rules embedded"
 
   local codex_crg_block='<!-- codebase-memory-mcp:start -->
 # Codebase Knowledge Graph (codebase-memory-mcp)

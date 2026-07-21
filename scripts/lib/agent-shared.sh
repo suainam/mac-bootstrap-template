@@ -159,7 +159,10 @@ if start != -1 and finish != -1 and finish >= start:
     finish += len(end)
     while finish < len(text) and text[finish] == "\n":
         finish += 1
-    text = text[:start].rstrip() + "\n\n" + block.rstrip() + "\n"
+    prefix = text[:start].rstrip()
+    suffix = text[finish:].lstrip("\n")
+    parts = [part for part in (prefix, block.rstrip(), suffix.rstrip()) if part]
+    text = "\n\n".join(parts) + "\n"
 else:
     text = text.rstrip() + "\n\n" + block.rstrip() + "\n"
 path.write_text(text)
