@@ -302,8 +302,7 @@ pgrep -fl codex
 # 方法1: 使用脚本自动停止
 python3 scripts/decrypt_codex_crossplatform.py ~/.codex --stop-daemon
 
-# 方法2: 手动停止
-killall codex codex-threadrip codex-code-mode
+# 方法2: 正常退出对应前台 Codex 会话
 ```
 
 ### 执行解密（跨平台）
@@ -391,7 +390,7 @@ xxd -l 20 ~/.codex/config.toml
 **影响**: 
 - vim 能正常显示（透明解密生效）
 - nvim 显示加密内容（未配置 cryptmethod）
-- 解密脚本必须用 `dd` 绕过 Python VFS hook
+- Unix 解密脚本直接执行 `dd` 参数数组绕过 Python VFS hook，不经过 shell
 
 ### 恢复备份
 

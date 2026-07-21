@@ -17,6 +17,7 @@ pip3 install numbers-parser==4.18.5  # Numbers 支持（可选）
 ```bash
 cd template/agent-skills/local/global/decrypt-materialize
 python3 scripts/test_materialize.py
+python3 -m pytest -q
 ```
 
 测试覆盖：
@@ -25,6 +26,9 @@ python3 scripts/test_materialize.py
 - ✅ 加密检测（错误处理）
 - ✅ 命名规范验证（单下划线 `_`）
 - ✅ CSV 验证（行数、列数、禁止值）
+- ✅ SQLite WAL 已提交事务保留
+- ✅ 特殊文件名不会触发 shell 执行
+- ✅ Windows 默认路径与安全停止行为
 
 ### 手动测试
 

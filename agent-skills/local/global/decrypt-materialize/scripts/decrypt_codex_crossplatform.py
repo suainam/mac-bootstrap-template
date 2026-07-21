@@ -33,11 +33,9 @@ def get_codex_dir() -> Path:
     system = get_platform()
 
     if system == 'windows':
-        # Windows: %APPDATA%\.codex
-        appdata = Path(os.environ.get('APPDATA', ''))
-        if appdata:
-            return appdata / '.codex'
-        return Path.home() / 'AppData/Roaming/.codex'
+        # Windows: %USERPROFILE%\.codex
+        userprofile = os.environ.get('USERPROFILE')
+        return Path(userprofile) / '.codex' if userprofile else Path.home() / '.codex'
     else:
         # macOS/Linux: ~/.codex
         return Path.home() / '.codex'
@@ -72,7 +70,7 @@ def check_codex_running() -> tuple[list[int], list[str]]:
         else:
             # macOS/Linux: pgrep
             result = subprocess.run(
-                ["pgrep", "-il", "codex"],
+                ["pgrep", "-ifl", "codex"],
                 capture_output=True,
                 text=True,
                 check=False
@@ -124,59 +122,40 @@ def stop_codex_daemon() -> bool:
         return False
 
 
-def kill_process(pid: int) -> bool:
-    """杀掉进程（跨平台）"""
-    system = get_platform()
-
-    try:
-        if system == 'windows':
-            subprocess.run(['taskkill', '/F', '/PID', str(pid)], check=True)
-        else:
-            subprocess.run(['kill', str(pid)], check=True)
-        return True
-    except:
-        return False
-
-
 def is_tsd_encrypted(path: Path) -> bool:
     """检查文件是否为 TSD 加密格式
 
-    在 ~/.codex 路径下，系统透明解密会拦截所有 Python 进程的文件操作（包括 subprocess）。
-    解决方案：用 dd + bash 直接读取原始字节，绕过 Python runtime hook。
+    在 ~/.codex 路径下，系统透明解密可能拦截 Python 文件操作。
+    Unix 平台直接执行 dd（无 shell）读取原始字节；其他平台回退到文件 API。
     """
     try:
         import subprocess
 
-        result = subprocess.run(
-            ['bash', '-c', f'dd if="{path}" bs=1 count=16 2>/dev/null'],
-            capture_output=True,
-            check=False
-        )
-        return b'TSD-Header' in result.stdout
+        if get_platform() != 'windows' and shutil.which('dd'):
+            result = subprocess.run(
+                ['dd', f'if={path}', 'bs=16', 'count=1'],
+                capture_output=True,
+                check=False,
+            )
+            header = result.stdout
+        else:
+            header = path.read_bytes()[:16]
+        return b'TSD-Header' in header
     except Exception:
         return False
 
 
 def decrypt_sqlite(src: Path, dst: Path) -> dict:
-    """解密 SQLite 数据库（直接文件复制，避免 sqlite3.backup() 损坏数据）"""
+    """Materialize a consistent SQLite snapshot, including committed WAL data."""
     try:
-        # Python 读取时自动透明解密，直接复制字节
-        with open(src, 'rb') as f_in:
-            data = f_in.read()
-
-        # 写入解密后的数据
-        with open(dst, 'wb') as f_out:
-            f_out.write(data)
-
-        # 验证文件头
-        if not data.startswith(b'SQLite format 3'):
-            return {
-                "status": "error",
-                "error": "Not a valid SQLite database"
-            }
+        src_conn = sqlite3.connect(str(src))
+        dst_conn = sqlite3.connect(str(dst))
+        try:
+            src_conn.backup(dst_conn)
+        finally:
+            src_conn.close()
 
         # 验证数据库完整性
-        dst_conn = sqlite3.connect(str(dst))
         cursor = dst_conn.cursor()
 
         # 关键：完整性检查
@@ -201,6 +180,10 @@ def decrypt_sqlite(src: Path, dst: Path) -> dict:
             "integrity": "ok"
         }
     except Exception as e:
+        try:
+            dst_conn.close()
+        except (NameError, sqlite3.Error):
+            pass
         return {
             "status": "error",
             "error": str(e)
@@ -251,8 +234,6 @@ def backup_file(src: Path, backup_dir: Path) -> Path:
 
 
 def main() -> int:
-    import os  # 移到这里避免全局导入
-
     parser = argparse.ArgumentParser(
         description="解密 Codex TSD 加密的数据库文件（跨平台）"
     )
@@ -308,13 +289,7 @@ def main() -> int:
             print("\n尝试停止守护进程...", file=sys.stderr)
             if stop_codex_daemon():
                 print("已停止守护服务，等待进程退出...", file=sys.stderr)
-                time.sleep(2)
-
-                # 强制杀掉残留进程
-                for pid in pids:
-                    kill_process(pid)
-
-                time.sleep(1)
+                time.sleep(3)
 
                 # 再次检查
                 pids, names = check_codex_running()

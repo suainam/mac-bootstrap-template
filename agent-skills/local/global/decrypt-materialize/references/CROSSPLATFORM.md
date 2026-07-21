@@ -12,15 +12,15 @@ decrypt-materialize 技能已支持跨平台：macOS、Linux、Windows。
 |------|----------|
 | macOS | `~/.codex` |
 | Linux | `~/.codex` |
-| Windows | `%APPDATA%\.codex` |
+| Windows | `%USERPROFILE%\.codex` |
 
 ### 进程管理
 
 | 平台 | 检查进程 | 杀进程 | 守护进程 |
 |------|----------|--------|----------|
-| macOS | `pgrep -il codex` | `kill PID` | `launchctl unload` |
-| Linux | `pgrep -il codex` | `kill PID` | `systemctl --user stop codex` |
-| Windows | `tasklist /FI "IMAGENAME eq codex*"` | `taskkill /F /PID` | 无守护机制 |
+| macOS | `pgrep -ifl codex` | 用户手动退出 | `launchctl unload` |
+| Linux | `pgrep -ifl codex` | 用户手动退出 | `systemctl --user stop codex` |
+| Windows | `tasklist /FI "IMAGENAME eq codex*"` | 用户手动退出 | 无守护机制 |
 
 ### 文件扫描
 
@@ -78,7 +78,7 @@ python3 scripts/scan_encrypted.py ~/Documents
 **进程管理**：
 - 没有 systemd/launchd 守护进程
 - 进程退出后不会自动重启
-- `--stop-daemon` 选项在 Windows 上无操作
+- `--stop-daemon` 选项在 Windows 上无操作；仍有前台进程时安全退出
 
 **编码**：
 - 默认使用 UTF-8

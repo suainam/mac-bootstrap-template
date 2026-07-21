@@ -3,18 +3,20 @@
 
 import csv
 import json
+import sys
 import tempfile
 from pathlib import Path
 
 try:
     from openpyxl import Workbook
 except ImportError:
-    print("需要安装 openpyxl: pip3 install openpyxl")
-    exit(1)
+    Workbook = None
 
 
 def create_test_workbook(path: Path):
     """创建测试用的 Excel 工作簿"""
+    if Workbook is None:
+        raise RuntimeError("需要安装 openpyxl: pip3 install openpyxl")
     wb = Workbook()
 
     # 工作表 1: 商品信息
@@ -72,7 +74,7 @@ def verify_csv(path: Path, expected_rows: int, expected_cols: int) -> bool:
     return True
 
 
-def test_basic_export():
+def check_basic_export():
     """测试基本导出"""
     print("\n=== 测试 1: 基本导出 ===")
 
@@ -86,7 +88,7 @@ def test_basic_export():
         # 运行导出
         import subprocess
         result = subprocess.run([
-            "python3",
+            sys.executable,
             "scripts/materialize.py",
             str(workbook),
             "--output-dir", str(tmpdir),
@@ -125,7 +127,7 @@ def test_basic_export():
         return success
 
 
-def test_sheet_mapping():
+def check_sheet_mapping():
     """测试工作表映射"""
     print("\n=== 测试 2: 工作表映射 ===")
 
@@ -140,7 +142,7 @@ def test_sheet_mapping():
         import subprocess
         sheet_map = json.dumps({"商品信息": "product_info", "销售数据": "sales_data"})
         result = subprocess.run([
-            "python3",
+            sys.executable,
             "scripts/materialize.py",
             str(workbook),
             "--output-dir", str(tmpdir),
@@ -172,7 +174,7 @@ def test_sheet_mapping():
         return success
 
 
-def test_encryption_detection():
+def check_encryption_detection():
     """测试加密检测（模拟）"""
     print("\n=== 测试 3: 加密检测 ===")
 
@@ -181,7 +183,7 @@ def test_encryption_detection():
 
     import subprocess
     result = subprocess.run([
-        "python3",
+        sys.executable,
         "scripts/materialize.py",
         "/tmp/nonexistent_file.xlsx"
     ], capture_output=True, text=True, cwd=Path(__file__).parent.parent)
@@ -196,13 +198,16 @@ def test_encryption_detection():
 
 def main():
     """运行所有测试"""
+    if Workbook is None:
+        print("需要安装 openpyxl: pip3 install openpyxl")
+        return 1
     print("开始测试工作簿物化脚本")
     print("=" * 50)
 
     tests = [
-        ("基本导出", test_basic_export),
-        ("工作表映射", test_sheet_mapping),
-        ("加密检测", test_encryption_detection),
+        ("基本导出", check_basic_export),
+        ("工作表映射", check_sheet_mapping),
+        ("加密检测", check_encryption_detection),
     ]
 
     results = []

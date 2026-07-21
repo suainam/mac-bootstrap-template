@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -42,7 +43,7 @@ def get_default_scan_dirs() -> list[str]:
 
     if system == 'windows':
         return [
-            os.path.expandvars('%APPDATA%\\.codex'),
+            os.path.expandvars('%USERPROFILE%\\.codex'),
             os.path.expandvars('%USERPROFILE%\\Documents'),
             os.path.expandvars('%USERPROFILE%\\Desktop'),
             os.path.expandvars('%USERPROFILE%\\Downloads'),
@@ -74,14 +75,15 @@ def check_encryption(path: Path) -> tuple[bool, str]:
     except:
         return False, ''
 
-    # TSD 检测：用 dd 绕过 Python 透明层（见 CODEX_TSD.md）
+    # TSD 检测：直接调用 dd，不经过 shell 字符串解析。
     header = None
     try:
-        result = subprocess.run(
-            ['bash', '-c', f'dd if="{path}" bs=1 count=256 2>/dev/null'],
-            capture_output=True, check=False, timeout=2
-        )
-        header = result.stdout
+        if platform.system().lower() != 'windows' and shutil.which('dd'):
+            result = subprocess.run(
+                ['dd', f'if={path}', 'bs=256', 'count=1'],
+                capture_output=True, check=False, timeout=2
+            )
+            header = result.stdout
     except:
         pass
 
@@ -269,7 +271,7 @@ def main() -> int:
             # 解密建议
             print("解密方法:")
             if 'TSD' in all_results:
-                print("  TSD: python3 scripts/decrypt_codex.py ~/.codex --stop-daemon")
+                print("  TSD: python3 scripts/decrypt_codex_crossplatform.py ~/.codex --stop-daemon")
             if 'GPG' in all_results or 'GPG_ASCII' in all_results:
                 print("  GPG: gpg -d <file> -o <output>")
             if 'OpenSSL_AES' in all_results:
