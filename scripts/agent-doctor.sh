@@ -241,7 +241,14 @@ if [ -d "$CODEX_SKILLS_DIR/caveman" ]; then
 else
   echo "  MISS caveman skill"
 fi
-check_contains "AGENTS.md 12-rules ref" "$CODEX_AGENTS" '12-rules.md'
+if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
+  --target "$CODEX_AGENTS" \
+  --rules "$BOOTSTRAP/agent/rules/12-rules.md" \
+  --rtk "$HOME/.codex/RTK.md"; then
+  echo "  OK   AGENTS.md canonical rules content"
+else
+  echo "  MISS AGENTS.md canonical rules content"
+fi
 check_contains "AGENTS.md context-mode SOP" "$CODEX_AGENTS" '## Context Mode SOP'
 if "$PYTHON_BIN" "$BOOTSTRAP/scripts/context7-mcp-bridge.py" --validate-private-config; then
   echo "  OK   Context7 private config and permissions"

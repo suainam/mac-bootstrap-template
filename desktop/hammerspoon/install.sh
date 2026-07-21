@@ -40,4 +40,4 @@ install_spoon "HSKeybindings"
 
 
 
-echo "Done. Reload Hammerspoon after opening the app once."
+echo "Done. Reload with: killall Hammerspoon && open -a Hammerspoon"

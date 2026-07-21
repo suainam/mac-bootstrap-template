@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -42,7 +43,7 @@ def get_default_scan_dirs() -> list[str]:
 
     if system == 'windows':
         return [
-            os.path.expandvars('%APPDATA%\\.codex'),
+            os.path.expandvars('%USERPROFILE%\\.codex'),
             os.path.expandvars('%USERPROFILE%\\Documents'),
             os.path.expandvars('%USERPROFILE%\\Desktop'),
             os.path.expandvars('%USERPROFILE%\\Downloads'),
@@ -62,7 +63,7 @@ def get_default_scan_dirs() -> list[str]:
 
 
 def check_encryption(path: Path) -> tuple[bool, str]:
-    """检测文件是否加密"""
+    """检测文件是否加密（绕过 TSD 透明层）"""
     # 跳过明显的二进制格式
     if path.suffix.lower() in SKIP_EXTENSIONS:
         return False, ''
@@ -74,17 +75,31 @@ def check_encryption(path: Path) -> tuple[bool, str]:
     except:
         return False, ''
 
+    # TSD 检测：直接调用 dd，不经过 shell 字符串解析。
+    header = None
     try:
-        with path.open('rb') as f:
-            header = f.read(256)
-
-        for enc_type, sig in ENCRYPTION_SIGNATURES.items():
-            if header.startswith(sig) or sig in header[:128]:
-                return True, enc_type
-
-        return False, ''
+        if platform.system().lower() != 'windows' and shutil.which('dd'):
+            result = subprocess.run(
+                ['dd', f'if={path}', 'bs=256', 'count=1'],
+                capture_output=True, check=False, timeout=2
+            )
+            header = result.stdout
     except:
-        return False, ''
+        pass
+
+    # fallback：其他加密类型或 dd 不可用时用 Python 读取
+    if header is None or len(header) == 0:
+        try:
+            with path.open('rb') as f:
+                header = f.read(256)
+        except:
+            return False, ''
+
+    for enc_type, sig in ENCRYPTION_SIGNATURES.items():
+        if header.startswith(sig) or sig in header[:128]:
+            return True, enc_type
+
+    return False, ''
 
 
 def scan_directory(directory: Path, recursive: bool = True, max_depth: int = 5) -> dict:
@@ -256,7 +271,7 @@ def main() -> int:
             # 解密建议
             print("解密方法:")
             if 'TSD' in all_results:
-                print("  TSD: python3 scripts/decrypt_codex.py ~/.codex --stop-daemon")
+                print("  TSD: python3 scripts/decrypt_codex_crossplatform.py ~/.codex --stop-daemon")
             if 'GPG' in all_results or 'GPG_ASCII' in all_results:
                 print("  GPG: gpg -d <file> -o <output>")
             if 'OpenSSL_AES' in all_results:

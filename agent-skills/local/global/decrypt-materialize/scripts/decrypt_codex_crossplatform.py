@@ -33,11 +33,9 @@ def get_codex_dir() -> Path:
     system = get_platform()
 
     if system == 'windows':
-        # Windows: %APPDATA%\.codex
-        appdata = Path(os.environ.get('APPDATA', ''))
-        if appdata:
-            return appdata / '.codex'
-        return Path.home() / 'AppData/Roaming/.codex'
+        # Windows: %USERPROFILE%\.codex
+        userprofile = os.environ.get('USERPROFILE')
+        return Path(userprofile) / '.codex' if userprofile else Path.home() / '.codex'
     else:
         # macOS/Linux: ~/.codex
         return Path.home() / '.codex'
@@ -72,7 +70,7 @@ def check_codex_running() -> tuple[list[int], list[str]]:
         else:
             # macOS/Linux: pgrep
             result = subprocess.run(
-                ["pgrep", "-il", "codex"],
+                ["pgrep", "-ifl", "codex"],
                 capture_output=True,
                 text=True,
                 check=False
@@ -124,66 +122,68 @@ def stop_codex_daemon() -> bool:
         return False
 
 
-def kill_process(pid: int) -> bool:
-    """杀掉进程（跨平台）"""
-    system = get_platform()
-
-    try:
-        if system == 'windows':
-            subprocess.run(['taskkill', '/F', '/PID', str(pid)], check=True)
-        else:
-            subprocess.run(['kill', str(pid)], check=True)
-        return True
-    except:
-        return False
-
-
 def is_tsd_encrypted(path: Path) -> bool:
     """检查文件是否为 TSD 加密格式
 
-    在 ~/.codex 路径下，系统透明解密会拦截所有 Python 进程的文件操作（包括 subprocess）。
-    解决方案：用 dd + bash 直接读取原始字节，绕过 Python runtime hook。
+    在 ~/.codex 路径下，系统透明解密可能拦截 Python 文件操作。
+    Unix 平台直接执行 dd（无 shell）读取原始字节；其他平台回退到文件 API。
     """
     try:
         import subprocess
 
-        result = subprocess.run(
-            ['bash', '-c', f'dd if="{path}" bs=1 count=16 2>/dev/null'],
-            capture_output=True,
-            check=False
-        )
-        return b'TSD-Header' in result.stdout
+        if get_platform() != 'windows' and shutil.which('dd'):
+            result = subprocess.run(
+                ['dd', f'if={path}', 'bs=16', 'count=1'],
+                capture_output=True,
+                check=False,
+            )
+            header = result.stdout
+        else:
+            header = path.read_bytes()[:16]
+        return b'TSD-Header' in header
     except Exception:
         return False
 
 
 def decrypt_sqlite(src: Path, dst: Path) -> dict:
-    """解密 SQLite 数据库"""
+    """Materialize a consistent SQLite snapshot, including committed WAL data."""
     try:
         src_conn = sqlite3.connect(str(src))
         dst_conn = sqlite3.connect(str(dst))
-        src_conn.backup(dst_conn)
+        try:
+            src_conn.backup(dst_conn)
+        finally:
+            src_conn.close()
+
+        # 验证数据库完整性
+        cursor = dst_conn.cursor()
+
+        # 关键：完整性检查
+        integrity_result = cursor.execute('PRAGMA integrity_check;').fetchone()[0]
+        if integrity_result != 'ok':
+            dst_conn.close()
+            return {
+                "status": "error",
+                "error": f"Database integrity check failed: {integrity_result}"
+            }
 
         # 获取表信息
-        cursor = dst_conn.cursor()
         cursor.execute("SELECT name, type FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
 
-        src_conn.close()
         dst_conn.close()
-
-        # 验证文件头
-        with dst.open('rb') as f:
-            header = f.read(16)
-            is_standard = header.startswith(b'SQLite format 3')
 
         return {
             "status": "success",
             "tables": len(tables),
             "table_names": [t[0] for t in tables],
-            "verified_header": is_standard
+            "integrity": "ok"
         }
     except Exception as e:
+        try:
+            dst_conn.close()
+        except (NameError, sqlite3.Error):
+            pass
         return {
             "status": "error",
             "error": str(e)
@@ -234,8 +234,6 @@ def backup_file(src: Path, backup_dir: Path) -> Path:
 
 
 def main() -> int:
-    import os  # 移到这里避免全局导入
-
     parser = argparse.ArgumentParser(
         description="解密 Codex TSD 加密的数据库文件（跨平台）"
     )
@@ -291,13 +289,7 @@ def main() -> int:
             print("\n尝试停止守护进程...", file=sys.stderr)
             if stop_codex_daemon():
                 print("已停止守护服务，等待进程退出...", file=sys.stderr)
-                time.sleep(2)
-
-                # 强制杀掉残留进程
-                for pid in pids:
-                    kill_process(pid)
-
-                time.sleep(1)
+                time.sleep(3)
 
                 # 再次检查
                 pids, names = check_codex_running()
@@ -364,8 +356,8 @@ def main() -> int:
         # 解密
         if src.suffix == '.sqlite':
             result = decrypt_sqlite(src, dst)
-        elif src.suffix == '.jsonl':
-            result = decrypt_jsonl(src, dst)
+        elif src.suffix in {'.jsonl', '.toml', '.sql', '.xls'}:
+            result = decrypt_jsonl(src, dst)  # 通用文本透明读写
         else:
             result = {"status": "error", "error": "Unsupported file type"}
 
@@ -380,10 +372,30 @@ def main() -> int:
                 backup_path = backup_file(src, backup_dir)
                 print(f"  ✓ 已备份到: {backup_path}")
 
-                shutil.copy2(dst, src)
-                print(f"  ✓ 已替换原文件")
-                result["replaced"] = True
-                result["backup_path"] = str(backup_path)
+                try:
+                    shutil.copy2(dst, src)
+
+                    # 校验替换是否成功
+                    if not src.exists():
+                        raise FileNotFoundError(f"替换后原文件不存在: {src}")
+
+                    # 校验文件大小是否一致
+                    src_size = src.stat().st_size
+                    dst_size = dst.stat().st_size
+                    if src_size != dst_size:
+                        raise ValueError(f"文件大小不匹配: 原={src_size}, 解密={dst_size}")
+
+                    print(f"  ✓ 已替换原文件")
+                    result["replaced"] = True
+                    result["backup_path"] = str(backup_path)
+                    result["verified"] = True
+
+                except Exception as e:
+                    print(f"  ✗ 替换失败: {e}")
+                    print(f"    手动恢复命令: cp {dst} {src}")
+                    result["replaced"] = False
+                    result["replace_error"] = str(e)
+                    result["manual_recovery"] = f"cp {dst} {src}"
         else:
             print(f"  ✗ 失败: {result['error']}")
 
@@ -398,6 +410,14 @@ def main() -> int:
 
     if not args.no_replace:
         print(f"  备份目录: {backup_dir}")
+
+        # 检查替换失败的文件
+        replace_failed = [r for r in results if r["status"] == "success" and not r.get("replaced", False)]
+        if replace_failed:
+            print(f"\n⚠️  警告: {len(replace_failed)} 个文件替换失败，需要手动恢复:")
+            for r in replace_failed:
+                print(f"    {r['file']}: {r.get('manual_recovery', 'N/A')}")
+
     print(f"  解密目录: {decrypted_dir}")
 
     # 输出 JSON 结果

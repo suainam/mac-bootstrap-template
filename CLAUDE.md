@@ -19,3 +19,6 @@ tickets. See `docs/agents/issue-tracker.md`.
 
 This is a single-context repository; read `CONTEXT.md` and relevant `docs/`
 guidance before implementation. See `docs/agents/domain.md`.
+
+For Hammerspoon configuration or runtime work, read
+`desktop/hammerspoon/README.md` before editing or reloading the app.

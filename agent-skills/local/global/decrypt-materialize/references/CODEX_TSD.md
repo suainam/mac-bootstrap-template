@@ -12,7 +12,9 @@
 2. **系统工具失败** - `cat/vim` 显示乱码,`sqlite3` 报错 "file is not a database"
 3. **文件头异常** - `xxd` 显示 `%TSD-Header-###%`,但应用能正常打开
 
-### 确认方法
+### 确认方法（Agent 必读）
+
+**核心原则**：TSD 透明层拦截 Python 进程的文件读取，必须用系统工具绕过。
 
 **错误方法** (失效):
 ```python
@@ -21,7 +23,7 @@ with open(path, 'rb') as f:
     return b'TSD-Header' in f.read(16)
 ```
 
-**正确方法** (用系统工具绕过透明层):
+**正确方法 1** (用 xxd):
 ```bash
 # xxd 读取原始磁盘字节
 xxd -l 16 file.sqlite
@@ -29,16 +31,22 @@ xxd -l 16 file.sqlite
 # 明文: 00000000: 5351 4c69 7465 2066 6f72 6d61 7420 3300  SQLite format 3.
 ```
 
-Python 判断逻辑:
+**正确方法 2** (直接执行 dd，推荐用于 Unix 脚本):
 ```python
 import subprocess
 def is_tsd_encrypted(path):
-    result = subprocess.run(['xxd', '-l', '16', '-p', str(path)],
-                          capture_output=True, text=True)
-    header_hex = result.stdout.strip().replace('\n', '')
-    # %TSD-Header-###% = 255453442d4865616465722d23232325
-    return header_hex.startswith('255453442d486561646572')
+    # 参数数组不经过 shell，文件名中的元字符不会执行
+    result = subprocess.run(
+        ['dd', f'if={path}', 'bs=16', 'count=1'],
+        capture_output=True, check=False, timeout=2
+    )
+    return b'TSD-Header' in result.stdout
 ```
+
+**为什么不能用 Python open()**：
+- Python `open()` / `pathlib.Path.read_bytes()` 都会触发透明解密
+- Unix 上应以参数数组直接执行**非 Python 工具**读取磁盘字节，不经过 shell
+- Windows 或缺少 `dd` 时回退到文件 API，并以测试覆盖平台行为
 
 ---
 
@@ -148,7 +156,7 @@ done
 
 ## 执行流程
 
-1. **检查进程** - 检测 Codex 进程，如有 `--stop-daemon` 则停止 launchd 服务
+1. **检查进程** - 检测 Codex 进程；`--stop-daemon` 只停止明确管理的服务，不强杀其他进程
 2. **扫描文件** - 用 `xxd` 检测 TSD 加密头(不依赖固定文件列表)
 3. **解密** - SQLite 用 `.backup()`，其他用文件读写
 4. **备份替换** - 备份原文件（带时间戳），复制解密文件到原位置
@@ -199,12 +207,11 @@ head -1 ~/.codex/session_index.jsonl | jq .
 ## 故障排查
 
 ### 守护进程重启
-**症状**：kill 进程后立即重启
+**症状**：停止受管服务后仍检测到前台 Codex 进程
 **解决**：
 ```bash
 launchctl unload ~/Library/LaunchAgents/dev.wangnov.codex-threadripper.plist
-killall codex codex-threadripper
-# 或使用 --stop-daemon 选项
+# 或使用 --stop-daemon；若仍有前台进程，脚本会安全退出
 ```
 
 ### WAL 锁定
