@@ -104,6 +104,17 @@ def export_xls(
         target_sheets = [(wb.sheet_by_index(i), wb.sheet_by_index(i).name) for i in range(wb.nsheets)]
 
     for ws, sheet_name in target_sheets:
+        if ws.nrows == 0:
+            sheets_info.append({
+                "sheet": ws.name,
+                "file": None,
+                "rows": 0,
+                "cols": 0,
+                "skipped": True,
+                "reason": "empty sheet, no CSV written"
+            })
+            continue
+
         safe_name = sanitize_sheet_name(sheet_name) if not sheet_map else sheet_name
         output_path = output_dir / f"{workbook_name}_{safe_name}_{date_tag}.csv"
 
@@ -185,6 +196,18 @@ def export_xlsx(
                         writer.writerow(values)
                         row_count += 1
                         col_count = max(col_count, len(values))
+
+            if row_count == 0:
+                output_path.unlink(missing_ok=True)
+                sheets_info.append({
+                    "sheet": ws.title,
+                    "file": None,
+                    "rows": 0,
+                    "cols": 0,
+                    "skipped": True,
+                    "reason": "empty sheet, no CSV written"
+                })
+                continue
 
             sheets_info.append({
                 "sheet": ws.title,

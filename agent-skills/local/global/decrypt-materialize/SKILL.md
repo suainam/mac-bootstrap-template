@@ -66,28 +66,42 @@ python3 scripts/materialize.py <source> [--output-dir DIR] [--date-tag YYYYMMDD]
 
 ## 分支 3: Codex TSD 解密
 
-**默认数据位置**：
-- macOS/Linux: `~/.codex`（用户数据目录）
-- Windows: `%USERPROFILE%\.codex`
-- ⚠️ 不是应用缓存目录 `~/Library/Application Support/Codex`
+**识别**：文件头包含 `%TSD-Header-###%`，任意位置的文件都可能加密。
 
-**识别**：文件头包含 `%TSD-Header-###%`，通常是 `.sqlite` / `.jsonl` / `.toml` 文件。
+**TSD 透明层机制**：
+- 按扩展名激活（`.sqlite` / `.sql` / `.xls` / `.jsonl` / `.toml` 等），不限路径
+- 不透明扩展名（如 `.md`）需重命名为支持的扩展名后 Python 读取自动解密
+- 批量脚本默认扫描 `~/.codex`（macOS/Linux）或 `%USERPROFILE%\.codex`（Windows），但单文件解密不受路径限制
 
-**处理**：
+**处理方式**：
+
+**单文件快速解密**（任意路径）：
+```python
+# 不透明扩展名（如 .md）：重命名激活透明层
+from pathlib import Path
+src = Path('encrypted.md')
+temp = src.with_suffix('.sql')  # 重命名为透明扩展名
+temp.write_bytes(src.read_bytes())
+content = temp.read_text()  # 自动解密
+Path('decrypted.md').write_text(content)
+temp.unlink()
+```
+
+**批量解密** `~/.codex` 目录：
 1. 检查 Codex 进程：`pgrep -fl codex`（完整命令行，避免截断）
 2. 自动备份原文件（带时间戳）
 3. 用 Python sqlite3/文件 API 透明读取并写入未加密副本
 4. 可选择仅解密到 `decrypted/` 或替换原文件
 
-**跨平台**：
+**跨平台批量脚本**：
 ```bash
-# 自动检测平台并使用相应命令
+# 自动检测平台并使用相应命令（默认扫描 ~/.codex）
 python3 scripts/decrypt_codex_crossplatform.py ~/.codex --stop-daemon
 ```
 
-见 `references/CODEX_TSD.md` 了解详细操作，`references/CROSSPLATFORM.md` 了解平台差异。
+见 `references/CODEX_TSD.md` 了解详细操作（含透明层机制说明），`references/CROSSPLATFORM.md` 了解平台差异。
 
-**完成标准**：加密文件被解密为标准格式，原文件已备份。
+**完成标准**：加密文件被解密为标准格式，批量操作时原文件已备份。
 
 ---
 

@@ -27,4 +27,4 @@ Saved:    7,356 tokens (~65%)
 ## See also
 
 - [`SKILL.md`](./SKILL.md) — hook contract and mechanics
-- [Caveman README](../../README.md) — repo overview
+- [Caveman README](https://github.com/mattpocock/caveman) — repo overview

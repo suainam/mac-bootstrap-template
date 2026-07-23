@@ -46,6 +46,7 @@ brew "colima"
 # ========== 浏览器 ==========
 cask "google-chrome"
 cask "microsoft-edge"
+cask "brave-browser"
 
 # ========== 开发工具 ==========
 # Optional fallback editor; no longer installed by default.
@@ -74,6 +75,7 @@ cask "bitwarden"
 # ========== 办公 & 沟通 ==========
 cask "wpsoffice"
 cask "wechatwork"
+cask "chatgpt"
 cask "obs"
 cask "obsidian"
 cask "workbuddy"

@@ -97,6 +97,12 @@ except Exception as e:
 - 占位符字符串（`NULL`, `null`, `None`, `none`, `NaN`, `nan`，trim 后）→ `""`
 - 保持：普通字符串、数值、原始行列顺序
 
+### 空工作表不导出
+
+工作表整体无数据（`rows == 0`，跳过空行后）时，**不写 CSV 文件**，只在报告里标记 `skipped: true` 并给出原因。避免为空表生成 0 字节垃圾文件、污染暂存目录、拖累下游合并/校验脚本。
+
+`xlsx`（openpyxl）和 `xls`（xlrd）两条导出路径都已实现此跳过逻辑；`numbers` 路径在选表阶段已通过 `_has_data_numbers` 过滤空表，天然不受影响。
+
 ### 执行
 
 ```bash
