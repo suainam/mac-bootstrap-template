@@ -24,6 +24,12 @@ echo "Running Homebrew update and upgrade in the current terminal..."
 "${BREW_BIN}" update
 "${BREW_BIN}" upgrade
 
+echo "Patching Chrome to ensure Gemini features remain enabled..."
+(
+  cd "${ROOT_DIR}"
+  make patch-chrome-gemini || true
+)
+
 echo "Refreshing approved external skills: ${SKILL_SOURCE}"
 (
   cd "${ROOT_DIR}"

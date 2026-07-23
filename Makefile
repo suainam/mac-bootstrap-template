@@ -132,6 +132,7 @@ help:
 	@echo "  pm-set                 Set global package manager"
 	@echo "  mcp-profiles           Setup MCP profiles"
 	@echo "  hook-matchers          Add hook matchers"
+	@echo "  patch-chrome-gemini    Patch Google Chrome Local State to enable Gemini"
 	@echo ""
 	@echo "── ImgBed ──"
 	@echo "  imgup                  Upload images to CloudFlare-ImgBed (alias for imgup-install)"
@@ -414,6 +415,9 @@ mcp-profiles:
 
 hook-matchers:
 	./scripts/add-hook-matchers.sh
+
+patch-chrome-gemini:
+	./scripts/patch-chrome-gemini.sh
 
 # ── Claude Code Daemon ─────────────────────────────────────
 claude-daemon-install:
