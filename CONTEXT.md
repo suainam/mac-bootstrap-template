@@ -33,7 +33,8 @@
 |---|---|---|
 | 软件与工具清单 | `Brewfile` | 不把包名硬编码到安装脚本 |
 | Pi 包清单 | `agent/pi-packages.txt` | 独立数据文件 |
-| Agent Runtime | `agent/` | agent 路径、规则、提示词、扩展、MCP 启动策略与质量门禁 |
+| Agent Runtime | `agent/` | agent 路径、规则、提示词、扩展与 MCP 启动策略 |
+| Agent quality gate | `docs/agents/quality-gates.md` | hook 上下文、repo/machine 分层、worktree/submodule 运行与验收 |
 | Agent Skill 来源与分发 | `agent-skills/registry/sources.jsonc`、`agent-skills/registry/targets.jsonc` | 来源血统、scope、gate、target 目录和格式；运行态目录是派生产物 |
 | 公共 CI 验证 | `Makefile` 的 `ci` target 与 `.github/workflows/ci.yml` | `make ci` 做可复现检查；本机 doctor、GUI 状态和用户运行态仍由 `make check`、`make doctor` 负责 |
 | Data Hub | `data-hub/` | 知识沉淀、SQLite 状态、周期总结与投影子系统 |
