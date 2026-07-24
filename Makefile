@@ -3,7 +3,7 @@ UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
 LUAC ?= luac
 
-.PHONY: help bootstrap check repo-check machine-check ci syntax-check pytest pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
+.PHONY: help bootstrap check repo-check machine-check ci syntax-check pytest pytest-machine pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
@@ -29,7 +29,8 @@ help:
 	@echo "  machine-check          Strict machine health check"
 	@echo "  ci                     Public CI: syntax + pytest + privacy + skill + docs gates"
 	@echo "  syntax-check          Shell, Python, and Lua syntax checks"
-	@echo "  pytest                Run the Python test suite"
+	@echo "  pytest                Run repository-only Python tests"
+	@echo "  pytest-machine        Run machine-dependent Python tests"
 	@echo "  neat-freak-ci         Check changed operational files have public docs"
 	@echo "  doctor                 Machine health check"
 	@echo "  doctor-agent           Agent tooling health check"
@@ -149,10 +150,11 @@ repo-check:
 	$(MAKE) syntax-check
 	$(MAKE) skill-check
 	./scripts/privacy-audit.sh
-	$(MAKE) pytest-all
+	$(MAKE) pytest
 
 machine-check:
 	./scripts/doctor.sh --strict
+	$(MAKE) pytest-machine
 
 check: repo-check machine-check
 
@@ -173,6 +175,10 @@ pytest:
 	else \
 		.venv/bin/python -m pytest tests/ -q -m 'not machine'; \
 	fi
+
+pytest-machine:
+	mkdir -p "$(UV_CACHE_DIR)"
+	.venv/bin/python -m pytest tests/ -q -m machine
 
 pytest-all:
 	mkdir -p "$(UV_CACHE_DIR)"

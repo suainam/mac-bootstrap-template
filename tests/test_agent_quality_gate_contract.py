@@ -32,6 +32,16 @@ def test_makefiles_expose_quality_gate_targets():
             assert f"{target}:" in content
 
 
+def test_repo_and_machine_checks_split_pytest_markers():
+    content = read("Makefile")
+    repo_check = content.split("repo-check:", 1)[1].split("machine-check:", 1)[0]
+    machine_check = content.split("machine-check:", 1)[1].split("ci:", 1)[0]
+
+    assert "$(MAKE) pytest\n" in repo_check
+    assert "pytest-all" not in repo_check
+    assert "$(MAKE) pytest-machine" in machine_check
+
+
 def test_agent_configure_wires_codex_quality_gate_hooks():
     content = read("scripts/lib/agent-configure.sh")
 
