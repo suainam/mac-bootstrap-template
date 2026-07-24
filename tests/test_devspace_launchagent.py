@@ -36,7 +36,7 @@ def test_devspace_supervisor_contract():
     assert "STARTUP_TIMEOUT_SECONDS=180" in content
     assert "CHECK_INTERVAL_SECONDS=30" in content
     assert "MAX_FAILURES=3" in content
-    assert 'export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
+    assert 'export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
     assert "trap terminate TERM INT" in content
 
 
@@ -46,7 +46,7 @@ def test_devspace_tunnel_supervisor_contract():
     assert "./scripts/devspace-local.sh --dry-run tunnel-run" in content
     assert "./scripts/devspace-local.sh tunnel-run" in content
     assert "<redacted>" in content
-    assert 'export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
+    assert 'export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
     assert "cloudflare_tunnel_token" not in content
 
 

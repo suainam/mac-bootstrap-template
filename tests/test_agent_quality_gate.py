@@ -82,6 +82,43 @@ def test_bypass_state_is_detected_from_env(monkeypatch):
     assert quality_gate.is_bypass_enabled("QUALITY_GATES_BYPASS") is True
 
 
+def test_bypass_skips_execution_and_writes_audit_log(tmp_path, monkeypatch):
+    manifest_path = tmp_path / "manifest.jsonc"
+    log_path = tmp_path / "quality-gates-bypass.log"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "bypass": {
+                    "env_var": "QUALITY_GATES_BYPASS",
+                    "log_file": str(log_path),
+                },
+                "events": {
+                    "pre-push": {
+                        "default_gates": ["classify", "make-check"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("QUALITY_GATES_BYPASS", "1")
+    monkeypatch.setattr(quality_gate, "_default_manifest_path", lambda: manifest_path)
+    monkeypatch.setattr(quality_gate, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(quality_gate, "collect_changed_paths", lambda event, root: ["CLAUDE.md"])
+
+    def fail_execute(*args, **kwargs):
+        raise AssertionError("bypass must not execute quality gates")
+
+    monkeypatch.setattr(quality_gate, "execute_plan", fail_execute)
+
+    assert quality_gate.main(["pre-push"]) == 0
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert record["event"] == "pre-push"
+    assert record["env_var"] == "QUALITY_GATES_BYPASS"
+    assert record["paths"] == ["CLAUDE.md"]
+    assert record["repo_root"] == str(tmp_path)
+
+
 def test_select_repo_gate_scope_uses_template_for_docs_only_changes():
     scope = quality_gate.select_repo_gate_scope([
         "docs/superpowers/specs/2026-07-07-agent-quality-gates-design.md"

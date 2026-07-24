@@ -5,6 +5,7 @@ import fnmatch
 import json
 import os
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
 import sys
@@ -79,6 +80,33 @@ def select_gates(event: str, classes: list[str], manifest: Mapping[str, Any]) ->
 
 def is_bypass_enabled(env_var: str) -> bool:
     return os.environ.get(env_var, "") == "1"
+
+
+def record_bypass(
+    event: str,
+    plan: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    repo_root: Path,
+) -> Path:
+    bypass_cfg = manifest.get("bypass") or {}
+    env_var = str(bypass_cfg.get("env_var") or "QUALITY_GATES_BYPASS")
+    raw_log_path = str(bypass_cfg.get("log_file") or "").strip()
+    if not raw_log_path:
+        raise ValueError("quality gate bypass log_file is not configured")
+
+    log_path = Path(os.path.expandvars(os.path.expanduser(raw_log_path)))
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event": event,
+        "env_var": env_var,
+        "repo_root": str(repo_root),
+        "paths": list(plan.get("paths") or []),
+        "classes": list(plan.get("classes") or []),
+    }
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return log_path
 
 
 def render_gate_plan(event: str, paths: list[str], manifest: Mapping[str, Any]) -> dict[str, Any]:
@@ -400,8 +428,29 @@ def main(argv: list[str] | None = None) -> int:
     paths = collect_changed_paths(event, repo_root)
     plan = render_gate_plan(event, paths, manifest)
     plan["date"] = os.environ.get("QUALITY_GATES_RECORD_DATE", "")
+    bypass_cfg = manifest.get("bypass") or {}
+    bypass_env_var = str(bypass_cfg.get("env_var") or "QUALITY_GATES_BYPASS")
+    bypass_enabled = is_bypass_enabled(bypass_env_var)
     if dry_run:
-        print(json.dumps({"dry_run": True, **plan}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"dry_run": True, "bypass_enabled": bypass_enabled, **plan},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if bypass_enabled:
+        try:
+            log_path = record_bypass(event, plan, manifest, repo_root)
+        except (OSError, ValueError) as exc:
+            print(f"ERROR: failed to record quality gate bypass: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"WARNING: quality gate bypassed via {bypass_env_var}=1; "
+            f"audit log: {log_path}",
+            file=sys.stderr,
+        )
         return 0
     return execute_plan(plan, manifest, dry_run=False)
 
