@@ -38,8 +38,9 @@ Closes #7
 - 父子仓按 child-first、pointer-second 完成：先合并子仓 PR，再合并父仓
   submodule pointer；两边都合并后才清理两边的分支。
 - linked worktree 或 submodule 中的 pre-push 只执行 repository checks；跨仓命令先清理
-  调用方的 Git local environment。用户级 symlink、LaunchAgent 等 machine checks 由真实管理
-  checkout 严格验证，不要求临时 worktree 接管机器状态。
+  调用方的 Git local environment。`repo-check` 只跑非 `machine` 测试；严格 doctor 与
+  `machine` 标记测试由真实管理 checkout 的 `machine-check` 执行，不要求临时 worktree
+  接管用户级 symlink、LaunchAgent 等机器状态。
 - 收尾同时核对远端与本地：删除已合并 PR 的远端 head branch，prune remote-tracking
   refs，并用 `git branch -d` 删除已验证合并的本地分支；只清理已不存在路径的
   worktree 元数据，不移除活动 worktree。
