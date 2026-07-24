@@ -1,0 +1,18 @@
+# Herdr Configuration File
+# Ported some settings from tmux
+
+[keys]
+# Change prefix to match tmux (Ctrl+a)
+prefix = "ctrl+a"
+
+# Tmux port bindings
+reload_config = "prefix+r"
+split_vertical = "prefix+\\"
+split_horizontal = "prefix+minus"
+
+[ui]
+# Herdr's UI is generally opinionated for agents, but you can configure theme/layout here if needed later.
+
+[ui.toast]
+# Best Practice: 让 Herdr 调用 macOS 系统通知，当后台 Agent 跑完长任务时弹窗提醒你
+delivery = "system"

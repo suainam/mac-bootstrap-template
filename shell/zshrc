@@ -203,7 +203,7 @@ tmwork() {
 
 is_tmux_host_terminal() {
     case "${TERM_PROGRAM:-}" in
-        iTerm.app|ghostty)
+        iTerm.app)
             return 0
             ;;
         *)
@@ -212,7 +212,7 @@ is_tmux_host_terminal() {
     esac
 }
 
-if [[ "${MAC_BOOTSTRAP_AUTO_ATTACH_TMUX:-1}" == "1" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$TMUX" ]] && is_tmux_host_terminal; then
+if [[ "${MAC_BOOTSTRAP_AUTO_ATTACH_TMUX:-1}" == "1" ]] && [[ -z "$SSH_CONNECTION" ]] && [[ -o interactive ]] && [[ -z "$TMUX" ]] && [[ -z "$HERDR_ENV" ]] && is_tmux_host_terminal; then
     tmwork
 fi
 

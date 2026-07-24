@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+echo "=== Installing herdr (if missing) ==="
+if ! command -v herdr &> /dev/null; then
+    if command -v brew &> /dev/null; then
+        brew install herdr
+    else
+        echo "Homebrew not found. Please install herdr manually: curl -fsSL https://herdr.dev/install.sh | sh"
+    fi
+else
+    echo "  herdr is already installed."
+fi
+
+echo "=== Linking config.toml ==="
+mkdir -p ~/.config/herdr
+ln -sf "$DIR/config.toml" ~/.config/herdr/config.toml
+echo "  ~/.config/herdr/config.toml -> herder/config.toml"
+
+echo "Done. Herdr configuration is installed."
+echo "You can start it by running 'herdr'."
