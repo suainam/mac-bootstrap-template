@@ -170,22 +170,22 @@ syntax-check:
 
 pytest:
 	mkdir -p "$(UV_CACHE_DIR)"
-	if .venv/bin/python -c 'import pytest_cov' >/dev/null 2>&1; then \
-		.venv/bin/python -m pytest tests/ -q -m 'not machine' --cov --cov-report=term-missing; \
+	if $(PYTHON) -c 'import pytest_cov' >/dev/null 2>&1; then \
+		$(PYTHON) -m pytest tests/ -q -m 'not machine' --cov --cov-report=term-missing; \
 	else \
-		.venv/bin/python -m pytest tests/ -q -m 'not machine'; \
+		$(PYTHON) -m pytest tests/ -q -m 'not machine'; \
 	fi
 
 pytest-machine:
 	mkdir -p "$(UV_CACHE_DIR)"
-	.venv/bin/python -m pytest tests/ -q -m machine
+	$(PYTHON) -m pytest tests/ -q -m machine
 
 pytest-all:
 	mkdir -p "$(UV_CACHE_DIR)"
-	if .venv/bin/python -c 'import pytest_cov' >/dev/null 2>&1; then \
-		.venv/bin/python -m pytest tests/ -q --cov --cov-report=term-missing; \
+	if $(PYTHON) -c 'import pytest_cov' >/dev/null 2>&1; then \
+		$(PYTHON) -m pytest tests/ -q --cov --cov-report=term-missing; \
 	else \
-		.venv/bin/python -m pytest tests/ -q; \
+		$(PYTHON) -m pytest tests/ -q; \
 	fi
 
 neat-freak-ci:
