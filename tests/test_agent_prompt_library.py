@@ -48,6 +48,7 @@ def test_agent_prompt_wrapper_resolves_repo_when_invoked_via_symlink(tmp_path):
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, "PYTHON": PYTHON},
     )
 
     assert result.returncode == 0, result.stderr

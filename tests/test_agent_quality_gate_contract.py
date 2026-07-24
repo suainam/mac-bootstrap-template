@@ -51,6 +51,13 @@ def test_pytest_targets_honor_python_override_without_leaking_it():
     assert ".venv/bin/python -m pytest" not in pytest_targets
 
 
+def test_shared_test_helper_uses_active_interpreter():
+    content = read("tests/helpers.py")
+
+    assert "PYTHON = sys.executable" in content
+    assert 'PYTHON = os.path.join(TEMPLATE, ".venv", "bin", "python")' not in content
+
+
 def test_agent_configure_wires_codex_quality_gate_hooks():
     content = read("scripts/lib/agent-configure.sh")
 

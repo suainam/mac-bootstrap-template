@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ TEMPLATE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_HUB = Path(TEMPLATE) / "data-hub"
 AGENT_SKILLS = Path(TEMPLATE) / "agent-skills"
 DOCTOR_MANIFEST = os.path.join(TEMPLATE, "scripts", "doctor-manifest.json")
-PYTHON = os.path.join(TEMPLATE, ".venv", "bin", "python")
+PYTHON = sys.executable
 
 
 def run(cmd: str) -> tuple[str, str, int]:
