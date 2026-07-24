@@ -42,12 +42,12 @@ def test_repo_and_machine_checks_split_pytest_markers():
     assert "$(MAKE) pytest-machine" in machine_check
 
 
-def test_pytest_targets_honor_python_override():
+def test_pytest_targets_honor_python_override_without_leaking_it():
     content = read("Makefile")
     pytest_targets = content.split("pytest:", 1)[1].split("neat-freak-ci:", 1)[0]
 
     assert "$(PYTHON) -c 'import pytest_cov'" in pytest_targets
-    assert "$(PYTHON) -m pytest" in pytest_targets
+    assert "env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest" in pytest_targets
     assert ".venv/bin/python -m pytest" not in pytest_targets
 
 
