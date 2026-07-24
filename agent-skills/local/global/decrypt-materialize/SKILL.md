@@ -29,6 +29,21 @@ disable-model-invocation: true
 
 ## 分支 1: 工作簿物化
 
+### 环境要求
+
+脚本需要 `openpyxl` 依赖。**项目用 uv 时，在项目根目录运行**：
+
+```bash
+cd <project_root>
+uv add openpyxl
+<project_root>/.venv/bin/python ~/.claude/skills/decrypt-materialize/scripts/materialize.py <source> [options]
+```
+
+如果项目用其他包管理器：
+- **poetry**: `poetry add openpyxl && poetry run python ...`
+- **venv**: 激活虚拟环境后 `pip install openpyxl && python ...`
+- **系统 Python（不推荐）**: `python3 -m pip install --user openpyxl`
+
 ### 统一入口
 
 ```bash
@@ -36,6 +51,15 @@ python3 scripts/materialize.py <source> [--output-dir DIR] [--date-tag YYYYMMDD]
 ```
 
 脚本自动检测格式（.numbers / .xlsx / .xls / .ods）和加密状态。
+
+### 输出目录规则
+
+**不指定 `--output-dir` 时**，按优先级选择：
+1. `../02_working_data/`（存在则用）
+2. `./decrypted/`（存在则用）
+3. `.`（当前目录）
+
+**指定 `--output-dir` 时**，该目录必须已存在，否则报错。**脚本不会自动创建目录**。
 
 ### 执行流程
 

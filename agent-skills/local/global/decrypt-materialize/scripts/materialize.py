@@ -336,6 +336,28 @@ def parse_sheet_map(raw: str) -> dict[str, str]:
     return {str(key): str(value) for key, value in data.items()}
 
 
+def resolve_output_dir(explicit_dir: Path | None, source: Path) -> Path:
+    """按优先级解析输出目录：显式指定 > ../02_working_data/ > ./decrypted/ > 当前目录"""
+    if explicit_dir:
+        if not explicit_dir.exists():
+            print(f"ERROR: Specified output directory does not exist: {explicit_dir}", file=sys.stderr)
+            sys.exit(1)
+        return explicit_dir
+
+    # 优先级 1: ../02_working_data/
+    candidate = source.parent.parent / "02_working_data"
+    if candidate.exists():
+        return candidate
+
+    # 优先级 2: ./decrypted/
+    candidate = Path.cwd() / "decrypted"
+    if candidate.exists():
+        return candidate
+
+    # 优先级 3: 当前目录
+    return Path.cwd()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="统一的工作簿物化脚本：自动检测格式和加密状态"
@@ -344,7 +366,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        help="输出目录（默认：源文件所在目录）"
+        help="输出目录（显式指定则必须存在；否则按 ../02_working_data/ > ./decrypted/ > . 选择）"
     )
     parser.add_argument(
         "--date-tag",
@@ -362,9 +384,8 @@ def main() -> int:
         print(f"ERROR: File not found: {args.source}", file=sys.stderr)
         return 1
 
-    # 设置输出目录
-    output_dir = args.output_dir or args.source.parent
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # 解析输出目录
+    output_dir = resolve_output_dir(args.output_dir, args.source)
 
     # 设置日期标签
     date_tag = args.date_tag or datetime.now().strftime("%Y%m%d")

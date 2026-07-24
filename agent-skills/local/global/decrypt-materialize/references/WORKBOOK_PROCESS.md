@@ -103,10 +103,22 @@ except Exception as e:
 
 `xlsx`（openpyxl）和 `xls`（xlrd）两条导出路径都已实现此跳过逻辑；`numbers` 路径在选表阶段已通过 `_has_data_numbers` 过滤空表，天然不受影响。
 
+### 输出目录选择
+
+**不指定 `--output-dir` 时**，按优先级选择：
+1. `../02_working_data/`（存在则用）
+2. `./decrypted/`（存在则用）
+3. `.`（当前目录）
+
+**指定 `--output-dir` 时**，该目录必须已存在，否则报错。**脚本不会自动创建目录**。
+
 ### 执行
 
 ```bash
-# 统一入口（推荐）
+# 不指定输出目录（自动选择）
+python3 scripts/materialize.py source.xlsx --date-tag 20260713
+
+# 显式指定输出目录（目录必须存在）
 python3 scripts/materialize.py source.xlsx --output-dir ./staging/ --date-tag 20260713
 
 # 指定工作表映射
