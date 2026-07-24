@@ -39,7 +39,7 @@ def without_managed_block(text: str) -> str:
 def render(target: Path, rules: Path, rtk: Path) -> None:
     existing = target.read_text() if target.exists() else ""
     user_content = without_managed_block(existing)
-    content = "\n\n".join(part for part in (user_content, managed_block(rules, rtk)) if part)
+    content = "\n\n".join(part for part in (managed_block(rules, rtk), user_content) if part)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content.rstrip() + "\n")
 

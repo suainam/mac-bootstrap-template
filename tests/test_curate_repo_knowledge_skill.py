@@ -92,6 +92,8 @@ def test_skill_reuses_project_native_discovery_and_validation() -> None:
     assert "code graph" in text
     assert "language manifests" in text
     assert "fallback" in text
+    assert "python3 <skill-root>/scripts/audit_project.py" in text
+    assert "`python <skill-root>/scripts/audit_project.py" not in text
 
     discovery = text.index("project-native")
     branch = text.index("Select one branch")

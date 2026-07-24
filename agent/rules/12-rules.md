@@ -3,6 +3,12 @@
 These rules apply to every task in this project unless explicitly overridden.
 Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
 
+### Occam Gate — before design
+
+Choose the smallest existing path that satisfies the request. Reject extra
+agents, files, services, abstractions, and documentation unless evidence
+requires them. If a simpler solution works, use it.
+
 ### Rule 1 — Think Before Coding
 State assumptions explicitly. If uncertain, ask rather than guess.
 Present multiple interpretations when ambiguity exists.

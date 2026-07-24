@@ -11,7 +11,7 @@ Curate the smallest navigable knowledge surface. Keep each fact at one authority
 
 Read repository rules first and follow their project-native discovery and validation priority. Use the declared code graph for code discovery, Git's tracked/unignored set for document inventory, and existing language manifests, Make targets, and tests for stack facts. Use generic search only as a named fallback when the project supplies no suitable capability.
 
-Run the bundled `python <skill-root>/scripts/audit_project.py <project-root> --format json` for mechanical checks. Read [references/audit-report.md](references/audit-report.md) only when interpreting findings. Read the human entrypoint, routed authorities, and structured sources they name. Inspect candidates before accepting them.
+Run the bundled `python3 <skill-root>/scripts/audit_project.py <project-root> --format json` for mechanical checks. Read [references/audit-report.md](references/audit-report.md) only when interpreting findings. Read the human entrypoint, routed authorities, and structured sources they name. Inspect candidates before accepting them.
 
 Complete when every existing knowledge surface has an audience, authority, loading tier, and current evidence source, with no project-native capability silently bypassed.
 
