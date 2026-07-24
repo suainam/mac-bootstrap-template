@@ -136,6 +136,44 @@ def test_bypass_skips_execution_and_writes_audit_log(tmp_path, monkeypatch):
     assert record["repo_root"] == str(tmp_path)
 
 
+def test_bypass_fails_closed_when_audit_log_cannot_be_written(
+    tmp_path, monkeypatch, capsys
+):
+    manifest_path = tmp_path / "manifest.jsonc"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "bypass": {
+                    "env_var": "QUALITY_GATES_BYPASS",
+                    "log_file": str(tmp_path / "quality-gates-bypass.log"),
+                },
+                "events": {
+                    "pre-push": {
+                        "default_gates": ["classify", "make-check"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("QUALITY_GATES_BYPASS", "1")
+    monkeypatch.setattr(quality_gate, "_default_manifest_path", lambda: manifest_path)
+    monkeypatch.setattr(quality_gate, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(quality_gate, "collect_changed_paths", lambda event, root: ["CLAUDE.md"])
+
+    def fail_record(*args, **kwargs):
+        raise PermissionError("audit log is read-only")
+
+    def fail_execute(*args, **kwargs):
+        raise AssertionError("failed bypass audit must not execute quality gates")
+
+    monkeypatch.setattr(quality_gate, "record_bypass", fail_record)
+    monkeypatch.setattr(quality_gate, "execute_plan", fail_execute)
+
+    assert quality_gate.main(["pre-push"]) == 1
+    assert "failed to record quality gate bypass" in capsys.readouterr().err
+
+
 def test_select_repo_gate_scope_uses_template_for_docs_only_changes():
     scope = quality_gate.select_repo_gate_scope([
         "docs/superpowers/specs/2026-07-07-agent-quality-gates-design.md"

@@ -72,6 +72,40 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 - 远端 ref 实际更新；
 - bypass 未启用。
 
+## Githooks transport PoC 决策
+
+Template Issue #41 使用隔离 `HOME` 和临时 Git 仓库验证了 Githooks v3.0.6。
+PoC 只使用 manual install，没有修改真实用户的全局 `core.hooksPath`。可复现入口为：
+
+```bash
+python3 scripts/githooks_transport_poc.py \
+  --githooks-home /path/to/isolated-githooks-home \
+  --output /tmp/githooks-transport-poc.json
+```
+
+结论是：**不采用 Githooks 作为本项目的可信 hook transport，也不 fork 上游。**
+它能够完成逐仓 opt-in、固定 tag 的 shared hook、self hook 忽略、参数转发、
+checksum 变更检测、shared hook 缺失时 fail closed，以及父仓、submodule、独立 clone
+和 linked worktree 的运行；但以下边界不能同时满足：
+
+1. 默认 manual 模式通过 local `core.hooksPath` 运行共享 wrapper，已有 `.git/hooks`
+   legacy hook 不会执行。
+2. `--maintained-hooks pre-commit,pre-push` 可以备份并执行 legacy hook，但各 hook
+   直接共享同一个 stdin。legacy `pre-push` 先读取后，可信 shared gate 收到空 stdin。
+3. 子 hook 的非零退出码会被 runner 折叠为 `1`，不能完整保留原退出码。
+4. ignore 与 checksum 分别存放在当前 worktree Git dir；main checkout 的 self-hook
+   忽略和 trust 不会自动继承到 linked worktree，必须逐 worktree 初始化。
+5. 普通 `git hooks uninstall` 会留下 local `githooks.*`、ignore 和 checksum；v3.0.6
+   的 `git hooks uninstall --full` 不可用，无法作为可靠的完整回滚入口。
+
+PoC 同时证明：trusted hook 修改、shared hook 缺失、以及审计日志不可写时都能阻止
+操作；原位 wrapper 模式下 legacy hook 文件也能在卸载时恢复。Git LFS 未在该机器安装，
+因此该项没有单独实测，不能把 legacy hook 的结果外推为完整 LFS 证据。
+
+后续最小 dispatcher 必须补齐：缓存并按需重放 `pre-push` stdin、明确的 legacy/LFS
+inventory 与 chaining、稳定退出码、worktree/common-dir 语义、原子安装与完整回滚；同时
+继续禁止执行仓库 self hooks，并保留现有 profile-aware quality-gate engine。
+
 ## 经验与教训
 
 ### 先跑真实验收，再提交最终 PR
