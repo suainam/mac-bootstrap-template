@@ -25,6 +25,8 @@ def test_skill_is_lean_single_entry_with_two_branches() -> None:
     assert "TODO" not in text
     assert "bootstrap" in text
     assert "reconcile" in text
+    assert "before commit or push" in text
+    assert "After remote success" in text
 
 
 def test_skill_progressively_discloses_optional_references() -> None:

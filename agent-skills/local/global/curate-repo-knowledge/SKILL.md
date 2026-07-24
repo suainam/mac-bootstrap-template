@@ -18,8 +18,8 @@ Complete when every existing knowledge surface has an audience, authority, loadi
 ## 2. Select one branch
 
 - When durable Agent guidance or ownership routing is missing, read [references/bootstrap.md](references/bootstrap.md) and run **bootstrap**.
-- When a handbook exists or the request concerns cleanup, drift, synchronization, or a milestone, read [references/reconcile.md](references/reconcile.md) and run **reconcile**.
-- When reconcile covers a completed Issue/PR milestone or a parent/submodule publish, perform repository closeout as part of the same pass: verify hosted and local Issue, PR, branch, and worktree state, then follow the lifecycle rules in the project's issue-tracker authority. A merge alone is not a complete handoff.
+- When a handbook exists or the request concerns cleanup, drift, synchronization, or a milestone, read [references/reconcile.md](references/reconcile.md) and run **reconcile**. If current code, configuration, contracts, or authorities changed, finish this semantic alignment before commit or push.
+- After remote success for a completed Issue/PR milestone or parent/submodule publish, run repository closeout: verify hosted and local Issue, PR, branch, and worktree state, then follow the project's issue-tracker lifecycle. A merge alone is not a complete handoff.
 - When effectiveness must be proved, also read [references/evaluation.md](references/evaluation.md) before designing cases or claiming gains.
 - When supported Agent memory must be cleaned, also read [references/memory-reconcile.md](references/memory-reconcile.md).
 - When a verified change affects another project, also read [references/cross-project.md](references/cross-project.md).
