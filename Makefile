@@ -171,21 +171,21 @@ syntax-check:
 pytest:
 	mkdir -p "$(UV_CACHE_DIR)"
 	if $(PYTHON) -c 'import pytest_cov' >/dev/null 2>&1; then \
-		$(PYTHON) -m pytest tests/ -q -m 'not machine' --cov --cov-report=term-missing; \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m 'not machine' --cov --cov-report=term-missing; \
 	else \
-		$(PYTHON) -m pytest tests/ -q -m 'not machine'; \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m 'not machine'; \
 	fi
 
 pytest-machine:
 	mkdir -p "$(UV_CACHE_DIR)"
-	$(PYTHON) -m pytest tests/ -q -m machine
+	env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m machine
 
 pytest-all:
 	mkdir -p "$(UV_CACHE_DIR)"
 	if $(PYTHON) -c 'import pytest_cov' >/dev/null 2>&1; then \
-		$(PYTHON) -m pytest tests/ -q --cov --cov-report=term-missing; \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q --cov --cov-report=term-missing; \
 	else \
-		$(PYTHON) -m pytest tests/ -q; \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q; \
 	fi
 
 neat-freak-ci:

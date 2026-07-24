@@ -41,7 +41,8 @@ Closes #7
   调用方的 Git local environment。`repo-check` 只跑非 `machine` 测试；严格 doctor 与
   `machine` 标记测试由真实管理 checkout 的 `machine-check` 执行，不要求临时 worktree
   接管用户级 symlink、LaunchAgent 等机器状态。临时 worktree 未安装独立 venv 时，通过
-  `PYTHON=<管理 checkout 的 Python>` 复用已验证解释器。
+  `PYTHON=<管理 checkout 的 Python>` 复用已验证解释器；pytest 启动后不继续向测试子进程
+  传播该覆盖，避免污染测试构造的隔离 runtime。
 - 收尾同时核对远端与本地：删除已合并 PR 的远端 head branch，prune remote-tracking
   refs，并用 `git branch -d` 删除已验证合并的本地分支；只清理已不存在路径的
   worktree 元数据，不移除活动 worktree。
