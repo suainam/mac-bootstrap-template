@@ -32,6 +32,17 @@ issue 描述可验收结果，PR 描述交付变更和关联关系。
 Closes #7
 ```
 
+## 合并后收尾
+
+- 只有默认分支已包含合并提交、必要 checks 通过、验收证据已记录，才算进入收尾。
+- 父子仓按 child-first、pointer-second 完成：先合并子仓 PR，再合并父仓
+  submodule pointer；两边都合并后才清理两边的分支。
+- 收尾同时核对远端与本地：删除已合并 PR 的远端 head branch，prune remote-tracking
+  refs，并用 `git branch -d` 删除已验证合并的本地分支；只清理已不存在路径的
+  worktree 元数据，不移除活动 worktree。
+- 不删除 Issue 历史；已解决 Issue 保持 closed，仍有验收项、阻塞项或活动依赖的
+  Issue 保持 open。不得仅因 PR 合并就关闭它。
+
 ## 完成定义
 
 只有验收条件满足、必要 checks 通过、PR 已合并到默认分支并记录证据，
