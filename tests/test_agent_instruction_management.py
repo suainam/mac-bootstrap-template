@@ -66,6 +66,7 @@ ensure_codex_instructions
     assert content.count("canonical-rtk-sentinel") == 1
     assert "personal-default" in content
     assert "@/legacy/12-rules.md" not in content
+    assert content.index("canonical-rule-sentinel") < content.index("personal-default")
 
 
 def test_codex_instruction_generation_creates_missing_global_file(tmp_path: Path):
@@ -122,6 +123,7 @@ def test_common_rules_have_exactly_twelve_general_rules():
     headings = [line for line in content.splitlines() if line.startswith("### Rule ")]
 
     assert len(headings) == 12
+    assert "Occam Gate" in content
     assert "context-mode" not in content
     assert "Hammerspoon" not in content
 

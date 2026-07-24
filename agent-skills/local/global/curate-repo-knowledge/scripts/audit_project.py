@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import shlex
 import subprocess
@@ -74,6 +75,7 @@ def active_markdown_files(root: Path) -> list[Path]:
             [
                 "git",
                 "ls-files",
+                "-z",
                 "--cached",
                 "--others",
                 "--exclude-standard",
@@ -83,9 +85,12 @@ def active_markdown_files(root: Path) -> list[Path]:
             cwd=root,
             check=True,
             capture_output=True,
-            text=True,
         )
-        candidates = [root / line for line in listed.stdout.splitlines() if line]
+        candidates = [
+            root / os.fsdecode(raw_path)
+            for raw_path in listed.stdout.split(b"\0")
+            if raw_path
+        ]
     else:
         candidates = list(root.rglob("*.md"))
 

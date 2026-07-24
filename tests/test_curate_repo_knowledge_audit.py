@@ -188,6 +188,31 @@ def test_audit_respects_parent_gitignore_for_nested_project(tmp_path: Path) -> N
     assert set(report["measurements"]) == {"AGENTS.md"}
 
 
+def test_audit_handles_git_paths_without_quote_or_encoding_loss(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    paths = (
+        Path("AGENTS.md"),
+        Path("文档/主流程.md"),
+        Path("docs/with space.md"),
+        Path('docs/"quoted".md'),
+    )
+    for relative in paths:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# {relative.name}\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "--", "AGENTS.md", "文档/主流程.md"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    result = run_audit(tmp_path, "--strict")
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert set(report["measurements"]) == {path.as_posix() for path in paths}
+
+
 def test_audit_accepts_markdown_link_title(tmp_path: Path) -> None:
     (tmp_path / "AGENTS.md").write_text(
         '[guide](docs/guide.md "Guide")\n', encoding="utf-8"
