@@ -5,6 +5,7 @@ import fnmatch
 import json
 import os
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
@@ -121,6 +122,63 @@ def render_gate_plan(event: str, paths: list[str], manifest: Mapping[str, Any]) 
     }
 
 
+@dataclass(frozen=True)
+class GitContext:
+    repo_root: Path
+    git_dir: Path
+    git_common_dir: Path
+    superproject_root: Path | None
+    is_linked_worktree: bool
+    is_submodule: bool
+
+
+def _git_value(repo_root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"git {' '.join(args)} failed")
+    return result.stdout.strip()
+
+
+def resolve_git_context(repo_root: Path) -> GitContext:
+    resolved_root = Path(_git_value(repo_root, "rev-parse", "--show-toplevel")).resolve()
+    git_dir = Path(
+        _git_value(resolved_root, "rev-parse", "--absolute-git-dir")
+    ).resolve()
+    common_value = _git_value(resolved_root, "rev-parse", "--git-common-dir")
+    common_path = Path(common_value)
+    if not common_path.is_absolute():
+        common_path = resolved_root / common_path
+    git_common_dir = common_path.resolve()
+    superproject_value = _git_value(
+        resolved_root, "rev-parse", "--show-superproject-working-tree"
+    )
+    superproject_root = (
+        Path(superproject_value).resolve() if superproject_value else None
+    )
+    return GitContext(
+        repo_root=resolved_root,
+        git_dir=git_dir,
+        git_common_dir=git_common_dir,
+        superproject_root=superproject_root,
+        is_linked_worktree=git_dir != git_common_dir,
+        is_submodule=superproject_root is not None,
+    )
+
+
+def sanitized_git_env(repo_root: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    local_names = _git_value(repo_root, "rev-parse", "--local-env-vars").splitlines()
+    for name in local_names:
+        env.pop(name.strip(), None)
+    return env
+
+
 def _default_manifest_path() -> Path:
     return Path(__file__).resolve().parents[1] / "agent" / "quality-gates" / "manifest.jsonc"
 
@@ -133,12 +191,18 @@ def _template_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _run_command(command: list[str], *, cwd: Path | None = None, dry_run: bool = False) -> int:
+def _run_command(
+    command: list[str],
+    *,
+    cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
+    dry_run: bool = False,
+) -> int:
     printable = " ".join(command)
     print(f"+ {printable}")
     if dry_run:
         return 0
-    return subprocess.run(command, cwd=cwd, check=False).returncode
+    return subprocess.run(command, cwd=cwd, env=env, check=False).returncode
 
 
 def _git_output(command: list[str], repo_root: Path) -> list[str]:
@@ -332,6 +396,9 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
     del manifest
     repo_root = _repo_root()
     template_root = _template_root()
+    context = resolve_git_context(repo_root)
+    command_env = sanitized_git_env(repo_root)
+    repo_only = context.is_linked_worktree or context.is_submodule
     gates = list(plan.get("gates") or [])
     paths = list(plan.get("paths") or [])
     repo_gate_scope = select_repo_gate_scope(paths)
@@ -340,17 +407,45 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
         if gate == "classify":
             continue
         if gate == "docs-precheck":
-            rc = _run_command([str(template_root / "scripts" / "neat-freak-gate.sh"), "check", *paths], cwd=repo_root, dry_run=dry_run)
+            rc = _run_command(
+                [str(template_root / "scripts" / "neat-freak-gate.sh"), "check", *paths],
+                cwd=repo_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
         elif gate == "neat-freak-apply":
-            rc = _run_command([str(template_root / "scripts" / "neat-freak-gate.sh"), "apply", *paths], cwd=repo_root, dry_run=dry_run)
+            rc = _run_command(
+                [str(template_root / "scripts" / "neat-freak-gate.sh"), "apply", *paths],
+                cwd=repo_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
         elif gate == "make-check":
-            command = ["make", "check"] if repo_gate_scope == "parent" else ["make", "-C", "template", "check"]
-            rc = _run_command(command, cwd=repo_root, dry_run=dry_run)
+            target_root = repo_root if repo_gate_scope == "parent" else template_root
+            target = "repo-check" if repo_only else "check"
+            rc = _run_command(
+                ["make", target],
+                cwd=target_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
+        elif gate in {"make-doctor", "make-doctor-agent"} and repo_only:
+            continue
         elif gate == "make-doctor":
-            command = ["make", "doctor"] if repo_gate_scope == "parent" else ["make", "-C", "template", "doctor"]
-            rc = _run_command(command, cwd=repo_root, dry_run=dry_run)
+            target_root = repo_root if repo_gate_scope == "parent" else template_root
+            rc = _run_command(
+                ["make", "doctor"],
+                cwd=target_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
         elif gate == "make-doctor-agent":
-            rc = _run_command(["make", "doctor-agent"], cwd=repo_root, dry_run=dry_run)
+            rc = _run_command(
+                ["make", "doctor-agent"],
+                cwd=repo_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
         elif gate in {"python-fast-static", "python-heavy-static"}:
             python_paths = _python_paths(paths)
             if not python_paths:
@@ -362,6 +457,7 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
                     *python_paths,
                 ],
                 cwd=repo_root,
+                env=command_env,
                 dry_run=dry_run,
             )
         elif gate in {"python-focused-tests", "python-heavy-tests"}:
@@ -371,6 +467,7 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
             rc = _run_command(
                 [str(template_root / ".venv" / "bin" / "python"), "-m", "pytest", *pytest_paths, "-q"],
                 cwd=repo_root,
+                env=command_env,
                 dry_run=dry_run,
             )
         else:
@@ -385,7 +482,12 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
             command = [str(template_root / "scripts" / "knowledge-record-gate.sh"), "record-push", payload]
             if dry_run:
                 command.append("--dry-run")
-            rc = _run_command(command, cwd=repo_root, dry_run=dry_run)
+            rc = _run_command(
+                command,
+                cwd=repo_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
             if rc != 0:
                 return rc
         else:
@@ -396,6 +498,7 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
 
 def doctor_summary(manifest: Mapping[str, Any]) -> dict[str, Any]:
     template_root = _template_root()
+    context = resolve_git_context(_repo_root())
     bypass_cfg = manifest.get("bypass") or {}
     return {
         "manifest_path": str(_default_manifest_path()),
@@ -404,6 +507,21 @@ def doctor_summary(manifest: Mapping[str, Any]) -> dict[str, Any]:
         "knowledge_record_adapter": str(template_root / "scripts" / "knowledge-record-gate.sh"),
         "bypass_env_var": bypass_cfg.get("env_var", "QUALITY_GATES_BYPASS"),
         "bypass_enabled": is_bypass_enabled(str(bypass_cfg.get("env_var", "QUALITY_GATES_BYPASS"))),
+        "git_context": {
+            "repo_root": str(context.repo_root),
+            "git_dir": str(context.git_dir),
+            "git_common_dir": str(context.git_common_dir),
+            "superproject_root": (
+                str(context.superproject_root) if context.superproject_root else ""
+            ),
+            "is_linked_worktree": context.is_linked_worktree,
+            "is_submodule": context.is_submodule,
+        },
+        "doctor_mode": (
+            "repo-only"
+            if context.is_linked_worktree or context.is_submodule
+            else "repo+machine"
+        ),
         "python_typecheck_available": False,
     }
 
