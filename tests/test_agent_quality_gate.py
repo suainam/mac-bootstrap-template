@@ -23,6 +23,23 @@ def load_module(name: str, rel_path: str):
 quality_gate = load_module("agent_quality_gate", "scripts/agent_quality_gate.py")
 
 
+def run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def init_repo(repo: Path) -> None:
+    repo.mkdir()
+    run_git(repo, "init", "-q")
+    run_git(repo, "config", "user.email", "t@t")
+    run_git(repo, "config", "user.name", "t")
+
+
 def test_load_quality_gate_manifest_reads_jsonc(tmp_path):
     manifest = tmp_path / "manifest.jsonc"
     manifest.write_text(
@@ -135,6 +152,76 @@ def test_select_repo_gate_scope_uses_parent_for_parent_operational_changes():
     ])
 
     assert scope == "parent"
+
+
+def test_linked_worktree_runs_submodule_repo_check_in_child_git_context(
+    tmp_path, monkeypatch
+):
+    child = tmp_path / "child"
+    init_repo(child)
+    (child / "child.txt").write_text("child\n", encoding="utf-8")
+    (child / "Makefile").write_text(
+        """repo-check:
+\t@test \"$$(git ls-files | grep -c '^child.txt$$')\" -eq 1
+\t@test \"$$(git ls-files | grep -c '^parent.txt$$')\" -eq 0
+
+check doctor doctor-agent:
+\t@false
+""",
+        encoding="utf-8",
+    )
+    run_git(child, "add", ".")
+    run_git(child, "commit", "-q", "-m", "init child")
+
+    parent = tmp_path / "parent"
+    init_repo(parent)
+    (parent / "parent.txt").write_text("parent\n", encoding="utf-8")
+    run_git(parent, "add", "parent.txt")
+    run_git(parent, "commit", "-q", "-m", "init parent")
+    run_git(
+        parent,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        str(child),
+        "template",
+    )
+    run_git(parent, "commit", "-q", "-am", "add child")
+
+    linked = tmp_path / "parent-linked"
+    run_git(parent, "worktree", "add", "-q", "-b", "linked", str(linked))
+    run_git(
+        linked,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "update",
+        "--init",
+    )
+
+    main_context = quality_gate.resolve_git_context(parent)
+    context = quality_gate.resolve_git_context(linked)
+    child_context = quality_gate.resolve_git_context(linked / "template")
+    assert main_context.is_linked_worktree is False
+    assert main_context.is_submodule is False
+    assert context.is_linked_worktree is True
+    assert context.is_submodule is False
+    assert child_context.is_submodule is True
+    assert child_context.superproject_root == linked.resolve()
+
+    monkeypatch.setattr(quality_gate, "_repo_root", lambda: linked)
+    monkeypatch.setattr(quality_gate, "_template_root", lambda: linked / "template")
+    monkeypatch.setenv("GIT_DIR", str(context.git_dir))
+    monkeypatch.setenv("GIT_WORK_TREE", str(linked))
+
+    plan = {
+        "paths": ["template"],
+        "gates": ["make-check", "make-doctor", "make-doctor-agent"],
+        "post_success": [],
+    }
+
+    assert quality_gate.execute_plan(plan, {}) == 0
 
 
 def test_collect_push_commit_metadata_returns_subjects_and_diffstat(tmp_path):
