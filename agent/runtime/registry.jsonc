@@ -10,11 +10,16 @@
     "log_dir": "$HOME/.local/state/mac-bootstrap-agent-runtime"
   },
   "profiles": {
-    // The initial profile deliberately has no gates. Git context and isolated
-    // runtime state are available; later tickets add feedback gates and adapters.
+    // The public default remains inert until a trusted operator adds concrete
+    // formatter, parser, lint, typecheck, or focused-test commands here.
     "generic": {
       "gates": []
     }
   },
+  // Feedback gates are trusted user-level declarations. after.edit gates use
+  // stage=edit; after.batch gates use stage=batch. action=check is treated as
+  // read-only and target mutations are restored. action=safe-fix additionally
+  // requires capability=safe-fix plus safe_fix.operation_id and max_rounds.
+  // Repository content may only select a profile; it cannot add these commands.
   "gates": {}
 }

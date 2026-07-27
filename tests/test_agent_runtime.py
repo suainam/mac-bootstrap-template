@@ -170,11 +170,17 @@ def test_explain_is_deterministic_and_does_not_execute_gate(tmp_path: Path):
     assert explained["matched_gates"] == ["write-marker"]
     assert explained["matched_gate_details"] == [
         {
+            "action": "check",
             "capabilities": [],
             "failure_policy": "block",
             "gate_id": "write-marker",
             "mode": "sync",
             "output_policy": "silent",
+            "rule_revision": "1",
+            "safe_fix_max_rounds": 0,
+            "safe_fix_operation_id": None,
+            "severity": "error",
+            "stage": "edit",
             "timeout_seconds": 5.0,
         }
     ]

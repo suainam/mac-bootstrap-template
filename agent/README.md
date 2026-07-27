@@ -112,6 +112,9 @@ The script is intentionally split by responsibility:
 - Repository opt-in uses common-dir Git config: `agent.runtime.enabled` and `agent.runtime.profile`; linked worktrees share policy but not runtime state.
 - `dispatch` success and unopted repositories are silent; `dry-run`, `explain`, `explain-context`, and `doctor` are explicit inspection paths.
 - Resolver identities come from Git's absolute common dir and per-worktree git dir. Ledger, lock, cache, diagnostics, accumulator, and receipts are isolated by session + repository + worktree.
+- `after.edit` runs edit-stage checks or explicitly trusted safe-fixes, then accumulates final file hashes; `after.batch` consumes that batch for typecheck, focused tests, and cross-file checks.
+- Safe-fix uses a stable operation ID, per-file lock, content hashes, bounded convergence rounds, recursion metadata, and success receipts. Read-only checks that mutate targets are restored and diagnosed.
+- Diagnostics are fingerprinted by rule revision plus content hash, so unchanged failures are silent on repetition while changed content or rules can report again.
 - Cross-repository execution dynamically removes every variable reported by `git rev-parse --local-env-vars` before resolving or running a gate.
 - Repository content may select a trusted profile but cannot define shell commands or executable hooks.
 - Legacy Git policy source: `template/agent/quality-gates/manifest.jsonc`
