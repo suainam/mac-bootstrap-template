@@ -106,6 +106,51 @@ diagnostics 和 receipts 路径不同。
 完整 stdout/stderr 写入外置日志，成功、重复诊断和成功 safe-fix 均保持 stdout/stderr
 0 字节。
 
+## Claude Edit 曳光弹
+
+`scripts/agent_claude_edit_adapter.py` 是第一个宿主 adapter，但不是 Claude 专用 runtime。
+它只接受 Claude Code `PostToolUse` 的 `Edit|Write` payload，将 `session_id`、`cwd`、
+`tool_input.file_path` 和 `tool_use_id` 转换为标准 `after.edit`；不读取
+`transcript_path`，不复制 gate 规则，也不调用任何 LLM。非 `PostToolUse`、非
+`Edit|Write`、非法 cwd 或仓库外路径会确定性拒绝。
+
+第一枪使用 `claude-edit-smoke` profile，只包含一个 `python-syntax-smoke` gate。该 gate
+通过 `/usr/bin/python3` 的 `compile()` 检查 Python 源码，不生成 `__pycache__`，不修改
+目标文件，也不承担完整 lint/typecheck 职责。仓库 opt-in：
+
+```bash
+git config --local agent.runtime.enabled true
+git config --local agent.runtime.profile claude-edit-smoke
+```
+
+adapter 的 `settings` 动作输出一份只含单个 `PostToolUse` matcher 的 JSON，可直接作为
+Claude Code 的附加 settings；当前使用 command-string 形式以兼容已验证的 Claude Code
+2.1.212，不提前建立多版本 adapter framework：
+
+```bash
+CLAUDE_SETTINGS="$(
+  /absolute/python3 scripts/agent_claude_edit_adapter.py \
+    --registry agent/runtime/registry.jsonc \
+    settings --python /absolute/python3
+)"
+
+claude -p \
+  --setting-sources user \
+  --settings "$CLAUDE_SETTINGS" \
+  --tools 'Write,Edit' \
+  'Edit a Python file and fix any hook diagnostic.'
+```
+
+真实验收顺序固定为：Claude 先写入 Python 语法错误；adapter 将 runtime diagnostic 映射为
+Claude `decision=block` 与有界 `reason`；Claude 修复同一文件；成功 hook 输出 0 字节；
+随后同一临时仓库通过可信 Git dispatcher 完成真实 commit/push。首次试点已验证 Claude
+返回 `TRACER_OK`、最终文件可编译、bare remote SHA 与本地 SHA 相同、dispatcher doctor
+为 healthy，且全程未使用 bypass 或 `--no-verify`。
+
+完整 lifecycle、`PostToolBatch`、Stop、SessionStart、永久 installer 和第二宿主 adapter
+不属于第一枪。下一宿主只能新增自己的 payload 转换与结果映射，不能修改标准事件 schema、
+runtime gate 或诊断核心；由此用真实复用证明通用性，而不是预先设计 plugin framework。
+
 ## 可信 Git hook dispatcher
 
 `scripts/agent_git_hook_dispatcher.py` 提供独立的 inventory、install、uninstall、doctor
