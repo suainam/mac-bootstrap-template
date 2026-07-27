@@ -898,6 +898,28 @@
       }
     },
 
+    "herdr": {
+      "type": "external",
+      "fetcher": "manual",
+      "ref": "ogulcancelik/herdr",
+      "skills": {
+        "herdr": {
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-07-27",
+            "reason": "User-confirmed global distribution; upstream README installs with: npx skills add ogulcancelik/herdr --skill herdr -g"
+          }
+        }
+      }
+    },
+
     "local-global": {
       "type": "internal",
       "path": "agent-skills/local/global",
