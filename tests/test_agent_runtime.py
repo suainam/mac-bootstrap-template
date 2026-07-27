@@ -322,7 +322,8 @@ def test_default_registry_doctor_is_available_through_wrapper(tmp_path: Path):
     payload = json.loads(result.stdout)
     assert payload["registry_schema_version"] == 1
     assert payload["event_schema_version"] == 1
-    assert payload["known_profiles"] == ["generic"]
+    assert payload["known_profiles"] == ["generic", "claude-edit-smoke"]
+    assert payload["known_gates"] == ["python-syntax-smoke"]
     assert payload["enabled"] is False
 
 
