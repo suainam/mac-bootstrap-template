@@ -5,10 +5,11 @@
 ## 标准事件运行时骨架
 
 Agent Runtime 的受信入口是 `scripts/agent-runtime.sh`，实现位于
-`scripts/agent_runtime.py`，默认 registry 位于
+`scripts/agent_runtime.py`，Git context resolver 位于
+`scripts/agent_git_context.py`，默认 registry 位于
 `agent/runtime/registry.jsonc`。Git、Claude Code 和后续编辑器 adapter 只负责把宿主
-payload 转换为同一个版本化事件；gate 匹配、profile、timeout、失败策略和输出预算由
-受信 runtime 处理。
+payload 转换为同一个版本化事件；Git context、gate 匹配、profile、timeout、失败策略
+和输出预算由受信 runtime 处理。
 
 仓库必须通过 local Git config 显式启用并选择 profile：
 
@@ -37,40 +38,65 @@ profile，不能提交 shell 字符串、可执行 hook 或越界 cwd。registry
 }
 ```
 
-CLI 提供四个动作：
+CLI 提供五个公开动作：
 
 - `dispatch`：执行匹配 gate；成功和未启用路径输出 0 字节。
 - `dry-run`：输出计划但不执行。
-- `explain`：输出 effective profile、命中 gate 和跳过原因，不执行 gate。
-- `doctor`：输出 registry、schema、仓库 opt-in 和预算状态。
+- `explain`：输出 effective profile、Git context、命中 gate 和跳过原因，不执行 gate。
+- `explain-context`：不读取事件，只输出当前 Git context；可通过 `--session-id` 同时解释隔离后的运行状态路径。
+- `doctor`：输出 registry、schema、Git context、仓库 opt-in 和预算状态。
+
+独立 resolver 的 `resolve` 动作只校验 context，成功输出 0 字节；只有
+`explain-context` 才序列化 context：
+
+```bash
+scripts/agent_git_context.py resolve --cwd /path/to/repo
+scripts/agent-runtime.sh --cwd /path/to/repo --session-id session-001 explain-context
+```
 
 同步 gate 在当前进程中按声明顺序执行并受 timeout 限制；异步 gate 立即外置执行，
-stdout/stderr 写入 registry 指定日志目录，不污染热路径。失败默认最多 5 条诊断、约
-4 KB；完整日志外置。相同诊断的跨事件指纹去重属于后续编辑反馈 ticket，不在骨架中
-伪实现。
+stdout/stderr 写入 registry 指定基目录下的 repository/worktree/session diagnostics，
+不污染热路径。失败默认最多 5 条诊断、约 4 KB；完整日志外置。Git context 解析错误
+携带稳定指纹；跨事件诊断 accumulator 的实际写入与去重仍由后续编辑反馈 ticket 完成。
 
 当前 repo-managed `pre-commit` / `pre-push` 仍由旧 quality-gate runner 负责。只有
 commit/push dispatcher ticket 完成真实迁移与回滚验收后，才能移除旧入口；骨架阶段
 不得让两套 hook 竞争。
 
-## 核心模型
+## Git context identity 与状态隔离
 
-Git hook 在发起操作的仓库上下文中运行。父仓、submodule 和 linked worktree 是三个不同的 Git 上下文，不能通过目录位置推断它们共享 index、git dir 或工作树。
-
-运行前应由 Git 自身解析：
+Git hook 在发起操作的仓库上下文中运行。父仓、submodule、linked worktree、main
+checkout 和独立 clone 不能通过 cwd、安装目录或父目录形态推断。resolver 动态清理
+Git local environment 后，由 Git 自身解析：
 
 ```bash
 git rev-parse --show-toplevel
 git rev-parse --absolute-git-dir
-git rev-parse --git-common-dir
+git rev-parse --path-format=absolute --git-common-dir
 git rev-parse --show-superproject-working-tree
+git rev-parse --is-bare-repository
+git rev-parse --is-inside-work-tree
 ```
 
-判断规则：
+context schema version 为 `1`，稳定字段包括 repo root、absolute git dir、absolute git
+common dir、superproject、bare/worktree 状态，以及两个 identity：
 
-- `git dir != git common dir`：当前是 linked worktree。
-- `--show-superproject-working-tree` 非空：当前是 submodule checkout。
-- main checkout 才负责验证用户级 symlink、LaunchAgent、已安装应用等机器状态。
+- `repository_id` 由 canonical git common dir 派生；同一 repository 的 main checkout 与 linked worktree 共享。
+- `worktree_id` 由 canonical absolute git dir 派生；不同 linked worktree 必须不同。
+- `git dir != git common dir` 表示 linked worktree。
+- `--show-superproject-working-tree` 非空表示 submodule checkout；resolver 同时验证 superproject 是真实 Git top-level 且包含当前工作树。
+- bare repository 的 `repo_root` 为 `null`，但 git dir、common dir 和 identity 仍可解释；已 opt-in 的事件 dispatch 不允许从 bare repository 执行。
+
+仓库 opt-in 与 profile 固定从 `<git-common-dir>/config` 读取，不从 worktree-specific git
+dir 或 cwd 猜测。运行状态路径固定为：
+
+```text
+<state-root>/repositories/<repository-id>/worktrees/<worktree-id>/sessions/<session-id+hash>/
+```
+
+该目录下分别定义 changed-file ledger、lock、cache、diagnostics、accumulator 和 receipts。
+即使 session ID 相同，两个 worktree 也不会共享这些路径。main checkout 才负责验证用户级
+symlink、LaunchAgent、已安装应用等机器状态。
 
 ## 检查分层
 
@@ -86,15 +112,30 @@ linked worktree 或 submodule 的 pre-push 只运行 repository checks。临时 
 
 ## 跨仓执行
 
-父仓进入子仓执行命令前，必须清理调用方注入的 Git local environment variables：
+父仓进入子仓执行命令前，必须调用 `git rev-parse --local-env-vars`，根据 Git 当前
+版本返回的变量名动态清理环境；不要只硬编码 `GIT_DIR` 和 `GIT_WORK_TREE`。resolver
+和 gate 执行统一复用 `clean_git_local_environment` / `run_in_repository` helper，清理后
+再以目标仓库目录作为 `cwd` 解析 context 或执行命令。父仓注入完整 local environment
+时，子仓的 `git ls-files`、diff、index 和 object lookup 仍必须读取子仓自身状态。
 
-```bash
-git rev-parse --local-env-vars
-```
+清理失败、目标 `repository_id` / `worktree_id` 与调用方预期 scope 不一致时拒绝执行，
+不得静默回退到 cwd 猜测。
 
-根据该命令返回的变量名动态清理环境，不要只硬编码 `GIT_DIR` 和 `GIT_WORK_TREE`。否则子仓中的 `git ls-files`、diff、index 或 object lookup 可能错误读取父仓状态。
+## Context 失败语义
 
-清理后再以子仓目录作为 `cwd` 执行命令。父仓与子仓各自使用自己的 Git index 和工作树。
+resolver 对外返回稳定错误 code 和 `ctxerr-<hash>` 指纹：
+
+| Code | 含义 |
+|---|---|
+| `not-a-repository` | 路径不是 Git repository；由事件入口决定 silent no-op 或 block |
+| `broken-worktree` | `.git` gitfile 无效或 worktree git dir 丢失 |
+| `missing-common-dir` | linked worktree 的 commondir 无效、为空或目标丢失 |
+| `inconsistent-superproject` | Git 报告的 superproject 与真实 top-level/工作树关系冲突 |
+| `context-conflict` | 实际 repository/worktree identity 与调用方预期 scope 不一致 |
+| `environment-cleanup-failed` | 无法动态取得或验证 Git local environment 变量清单 |
+
+已 opt-in repository 发生 context 解析错误时，runtime fail closed。内部 `resolve` 成功
+保持 0 字节；显式 `explain-context` 才输出结构化 JSON。
 
 ## Python 与测试运行时
 

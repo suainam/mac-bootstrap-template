@@ -372,7 +372,7 @@ def test_async_gate_runs_outside_hot_path_and_logs_externally(tmp_path: Path):
     while time.monotonic() < deadline and not marker.exists():
         time.sleep(0.05)
     assert marker.read_text(encoding="utf-8") == "done"
-    assert list((tmp_path / "logs").glob("evt-001-async-marker-*.log"))
+    assert list((tmp_path / "logs").rglob("evt-001-async-marker-*.log"))
 
 
 def test_async_gate_timeout_is_recorded_in_external_log(tmp_path: Path):
@@ -404,7 +404,7 @@ def test_async_gate_timeout_is_recorded_in_external_log(tmp_path: Path):
     deadline = time.monotonic() + 3
     logs: list[Path] = []
     while time.monotonic() < deadline:
-        logs = list((tmp_path / "logs").glob("evt-001-slow-async-*.log"))
+        logs = list((tmp_path / "logs").rglob("evt-001-slow-async-*.log"))
         if logs and "timed out" in logs[0].read_text(encoding="utf-8"):
             break
         time.sleep(0.05)

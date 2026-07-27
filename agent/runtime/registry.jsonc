@@ -5,11 +5,13 @@
   "runtime": {
     "diagnostic_limit": 5,
     "diagnostic_bytes": 4096,
-    "log_dir": "$HOME/.local/state/mac-bootstrap-agent-runtime/logs"
+    // Trusted base directory. Runtime appends repository/worktree/session
+    // identities before writing jobs, diagnostics, ledgers, locks or receipts.
+    "log_dir": "$HOME/.local/state/mac-bootstrap-agent-runtime"
   },
   "profiles": {
-    // The initial profile deliberately has no gates. Later vertical tickets
-    // add Git context, edit feedback, commit/push gates, and host adapters.
+    // The initial profile deliberately has no gates. Git context and isolated
+    // runtime state are available; later tickets add feedback gates and adapters.
     "generic": {
       "gates": []
     }
