@@ -106,9 +106,91 @@ diagnostics 和 receipts 路径不同。
 完整 stdout/stderr 写入外置日志，成功、重复诊断和成功 safe-fix 均保持 stdout/stderr
 0 字节。
 
-当前 repo-managed `pre-commit` / `pre-push` 仍由旧 quality-gate runner 负责。只有
-commit/push dispatcher ticket 完成真实迁移与回滚验收后，才能移除旧入口；骨架阶段
-不得让两套 hook 竞争。
+## 可信 Git hook dispatcher
+
+`scripts/agent_git_hook_dispatcher.py` 提供独立的 inventory、install、uninstall、doctor
+和 hook dispatch 接口。它不会执行仓库提交的 hook 文件；install 将 dispatcher、runtime、
+registry 和显式批准的 legacy/LFS hook 复制到用户级受信目录，再把 repository common
+config 的 `core.hooksPath` 指向绝对的用户级 `current/hooks`。仓库仍只能通过 common
+config 选择受信 profile，不能修改安装后的命令、approved chain 或 digest。
+
+```bash
+make quality-gate-hook-inventory GIT_HOOK_REPO=/path/to/repo
+make quality-gate-hook-install \
+  GIT_HOOK_REPO=/path/to/repo \
+  GIT_HOOK_REGISTRY=/trusted/registry.jsonc \
+  GIT_HOOK_PYTHON=/opt/homebrew/bin/python3
+make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/repo
+make quality-gate-hook-uninstall GIT_HOOK_REPO=/path/to/repo
+```
+
+安装前先运行 inventory。结果明确列出当前 resolved hooks directory、事件、可执行状态、
+SHA-256 和分类：`repository-self-hook`、`git-lfs` 或 `legacy-hook`。unknown hook 默认不
+执行；tracked repository self hook 即使通过 `--approve-hook` 指定也会被拒绝。需要保留
+的 Git LFS 或 legacy hook 必须由用户显式批准，例如把以下参数放入
+`GIT_HOOK_APPROVALS`：
+
+```text
+--approve-hook pre-push=/absolute/path/to/approved-hook
+```
+
+dispatcher bundle 还固定一个绝对的 Python 3.10+ 入口。该解释器必须位于目标 Git
+worktree 之外；目标仓库自己的 `.venv`、仓库脚本或任意 repository-controlled 路径都会
+在安装阶段被拒绝。默认 `GIT_HOOK_PYTHON` 使用 shell 中的 `python3`，安装后 doctor 会
+持续检查其存在性和可执行位。
+
+批准顺序就是执行顺序。installer 将每个 hook 复制到 repository-scoped 受信状态区并
+固定 digest；运行前再次验证文件存在、可执行位和 digest。所有 approved hook 获得原始
+hook argv；pre-push stdin 先完整缓存，再向 runtime 和每个 approved hook 重放相同 bytes。
+unknown hook、tracked self hook 和未批准 LFS hook 永远不会被隐式链接或执行。
+
+dispatcher 当前映射以下标准事件：
+
+| Git hook | Standard event | 失败语义 |
+|---|---|---|
+| `pre-commit` | `before.commit` | blocking |
+| `commit-msg` | `before.commit-message` | blocking |
+| `post-commit` | `after.commit` | diagnostic only |
+| `post-checkout` | `after.checkout` | diagnostic only |
+| `post-merge` | `after.merge` | diagnostic only |
+| `post-rewrite` | `after.rewrite` | diagnostic only |
+| `pre-push` | `before.push` | blocking |
+
+`before.commit` 与 `before.commit-message` 的 target paths 来自 Git index。dispatcher 将
+staged blobs 物化到 event-scoped、mode 0600 的 snapshot 目录，并在 metadata 中提供
+staged tree、blob OID、mode 和 snapshot path；gate 不应把 unstaged working tree 当成
+提交内容。blocking gate 运行前后还会比较 index tree 与完整 worktree fingerprint；任何
+自动改写都会阻塞提交，要求用户检查并重新 stage。blocking Git 生命周期 gate 必须同步
+运行，async 配置在 registry 校验阶段直接拒绝。
+
+`before.push` 只使用 Git 传入的 pre-push stdin 计算范围，不猜 upstream。首次 push、
+无 upstream、多 ref push、删除和 force update 都按每条 local/remote OID 解析；metadata
+保留 refs、remote name/URL、force classification 和缓存文件路径。多个 runtime gate 与
+approved hook 会全部执行，失败按声明/批准顺序聚合；非 1 legacy exit code 保留为最终
+exit code，完整 stdout/stderr 外置，终端仍受最多 5 条、约 4 KB 预算约束。成功输出 0 字节。
+
+blocking hook 支持 break-glass：
+
+```bash
+QUALITY_GATES_BYPASS=1 \
+QUALITY_GATES_BYPASS_REASON='incident recovery' \
+git commit ...
+```
+
+reason 为空、审计文件不可写或 scope 无法解析时 fail closed。审计记录时间、事件、
+repository/worktree identity、profile、staged/push target paths、refs 和 reason。bypass
+会跳过 runtime 与 approved chains，但不会被静默接受。
+
+install 使用 versioned release、原子 `current` symlink、repository-scoped transaction 和
+common config rollback record。任何 state swap 或 `core.hooksPath` 更新失败都会恢复旧
+release、旧 trust record 和旧 hooksPath；uninstall 仅在当前 hooksPath 仍指向该受信安装时
+执行，并在恢复旧值后删除 approved copies、registry 与 installation record。doctor 验证
+hooksPath、bundle release、runtime、registry、7 个 hook shim 和所有 approved digest。
+
+本 ticket 只交付 dispatcher 能力和显式操作入口。当前 mac-bootstrap parent/template 的
+repo-managed `pre-commit` / `pre-push` 仍由旧 quality-gate runner 负责；真实迁移属于 #55。
+在迁移完成前不得同时激活旧路径和用户级 dispatcher，也不得由通用 bootstrap 自动改写
+现有 `core.hooksPath`。
 
 ## Git context identity 与状态隔离
 

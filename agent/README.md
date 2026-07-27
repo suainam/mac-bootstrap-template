@@ -117,9 +117,12 @@ The script is intentionally split by responsibility:
 - Diagnostics are fingerprinted by rule revision plus content hash, so unchanged failures are silent on repetition while changed content or rules can report again.
 - Cross-repository execution dynamically removes every variable reported by `git rev-parse --local-env-vars` before resolving or running a gate.
 - Repository content may select a trusted profile but cannot define shell commands or executable hooks.
+- Trusted Git hook dispatcher: `template/scripts/agent_git_hook_dispatcher.py`; explicit Make targets provide inventory, install, uninstall, and doctor without changing hooks during normal bootstrap.
+- The dispatcher installs an absolute user-level hooksPath, converts seven Git lifecycle hooks to standard events, materializes staged blobs, parses pre-push stdin ranges, and only chains copied/digest-pinned hooks explicitly approved by the user.
+- Blocking lifecycle gates are synchronous, aggregate failures within the global output budget, and fail closed when runtime, registry, audit, or trust state is unavailable. Bypass additionally requires `QUALITY_GATES_BYPASS_REASON` and durable scope audit.
 - Legacy Git policy source: `template/agent/quality-gates/manifest.jsonc`
 - Legacy Git runner source: `template/scripts/agent-quality-gate.sh`
-- Repo-managed git hooks remain authoritative for real `commit` / `push` events until the dedicated dispatcher migration is completed.
+- Repo-managed git hooks remain authoritative for the current parent/template checkouts until #55 performs the explicit dispatcher migration; do not activate both paths.
 - Codex `hooks.json` does not own quality gate execution and should not guess git intent from prompts.
 - Codex hook commands use `hooks.json` only; `config.toml` must not define a second hook representation.
 - `pre-commit` is fast and path-sensitive.
