@@ -45,6 +45,9 @@ MAX_METADATA_BYTES = 32768
 MAX_TARGET_PATHS = 256
 DEFAULT_TIMEOUT_SECONDS = 30.0
 MAX_TIMEOUT_SECONDS = 300.0
+BLOCKING_EVENT_TYPES = frozenset(
+    {"before.commit", "before.commit-message", "before.push"}
+)
 
 
 class EventError(ValueError):
@@ -392,6 +395,10 @@ def _parse_gate(gate_id: str, config: object) -> GateSpec:
     if mode == "async" and failure_policy == "block":
         raise ConfigurationError(
             f"gate {gate_id} async mode cannot use block failure_policy"
+        )
+    if mode == "async" and any(event in BLOCKING_EVENT_TYPES for event in events):
+        raise ConfigurationError(
+            f"gate {gate_id} blocking Git lifecycle events must run synchronously"
         )
     output_policy = config.get("output_policy", "silent")
     if output_policy not in {"silent", "diagnostic"}:
@@ -980,7 +987,6 @@ def dispatch(
         diagnostics.append(diagnostic)
         if gate.failure_policy == "block":
             blocked = True
-            break
 
     if (
         event.event_type == "after.edit"

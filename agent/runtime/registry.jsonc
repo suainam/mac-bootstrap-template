@@ -16,10 +16,11 @@
       "gates": []
     }
   },
-  // Feedback gates are trusted user-level declarations. after.edit gates use
-  // stage=edit; after.batch gates use stage=batch. action=check is treated as
-  // read-only and target mutations are restored. action=safe-fix additionally
-  // requires capability=safe-fix plus safe_fix.operation_id and max_rounds.
-  // Repository content may only select a profile; it cannot add these commands.
+  // Gates are trusted user-level declarations. after.edit uses stage=edit;
+  // after.batch uses stage=batch. action=check is read-only and target mutations
+  // are restored. action=safe-fix additionally requires capability=safe-fix plus
+  // a unique safe_fix.operation_id and bounded max_rounds. Blocking Git lifecycle
+  // events (before.commit, before.commit-message, before.push) must be synchronous.
+  // Repository content may only select a profile; it cannot add these commands or hooks.
   "gates": {}
 }

@@ -32,6 +32,22 @@ def test_makefiles_expose_quality_gate_targets():
             assert f"{target}:" in content
 
 
+def test_trusted_git_hook_dispatcher_targets_are_explicit_migration_actions():
+    template_makefile = read("Makefile")
+    for target in (
+        "quality-gate-hook-inventory",
+        "quality-gate-hook-install",
+        "quality-gate-hook-uninstall",
+        "quality-gate-hook-doctor",
+    ):
+        assert f"{target}:" in template_makefile
+    assert "scripts/agent_git_hook_dispatcher.py" in template_makefile
+
+    installer = read("scripts/install-agent-tooling.sh")
+    assert "agent_git_hook_dispatcher.py" not in installer
+    assert "template/agent/quality-gates/hooks" in installer
+
+
 def test_repo_and_machine_checks_split_pytest_markers():
     content = read("Makefile")
     repo_check = content.split("repo-check:", 1)[1].split("machine-check:", 1)[0]
@@ -75,6 +91,7 @@ def test_agent_doctor_verifies_quality_gate_assets():
     assert "knowledge-record-gate.sh" in content
     assert "neat-freak-gate.sh" in content
     assert "no legacy Codex quality gate prompt hooks" in content
+    assert Path(ROOT / "scripts" / "agent_git_hook_dispatcher.py").is_file()
 
 
 def test_repo_managed_git_hooks_delegate_to_quality_gate_runner():

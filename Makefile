@@ -2,6 +2,10 @@ SHELL := /usr/bin/env bash
 UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
 LUAC ?= luac
+GIT_HOOK_REPO ?= .
+GIT_HOOK_REGISTRY ?= agent/runtime/registry.jsonc
+GIT_HOOK_APPROVALS ?=
+GIT_HOOK_PYTHON ?= $(shell command -v python3)
 
 .PHONY: help bootstrap check repo-check machine-check ci syntax-check pytest pytest-machine pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
@@ -12,6 +16,7 @@ LUAC ?= luac
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
 	devspace-home-push devspace-home-pull \
 	quality-gate-pre-commit quality-gate-pre-push quality-gate-doctor \
+	quality-gate-hook-inventory quality-gate-hook-install quality-gate-hook-uninstall quality-gate-hook-doctor \
 	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
 	llm-wiki-install llm-wiki-build llm-wiki-mcp-build llm-wiki-doctor \
 	imgup-install imgup \
@@ -90,7 +95,11 @@ help:
 	@echo "  devspace-home-pull     Pull ~/.devspace files into private/agent mirror"
 	@echo "  quality-gate-pre-commit Run the fast quality gate plan"
 	@echo "  quality-gate-pre-push   Run the heavy quality gate plan"
-	@echo "  quality-gate-doctor     Print quality gate plan and health inputs"
+	@echo "  quality-gate-doctor     Print legacy quality gate plan and health inputs"
+	@echo "  quality-gate-hook-inventory Inventory existing Git/LFS/legacy hooks"
+	@echo "  quality-gate-hook-install Install trusted user-level dispatcher (explicit migration only)"
+	@echo "  quality-gate-hook-uninstall Restore the previous hooksPath atomically"
+	@echo "  quality-gate-hook-doctor Verify trusted dispatcher, registry, hooks, and approved chains"
 	@echo "  devspace-install-agent Install and start DevSpace LaunchAgents"
 	@echo "  devspace-unload-agent  Stop and remove DevSpace LaunchAgents"
 	@echo "  devspace-status        Show DevSpace LaunchAgent status and local health"
@@ -232,6 +241,18 @@ quality-gate-pre-push:
 
 quality-gate-doctor:
 	./scripts/agent-quality-gate.sh doctor
+
+quality-gate-hook-inventory:
+	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" inventory
+
+quality-gate-hook-install:
+	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" --python "$(GIT_HOOK_PYTHON)" install --registry "$(GIT_HOOK_REGISTRY)" $(GIT_HOOK_APPROVALS)
+
+quality-gate-hook-uninstall:
+	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" uninstall
+
+quality-gate-hook-doctor:
+	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" doctor
 
 devspace-install-agent:
 	./scripts/install-devspace-agents.sh install
