@@ -107,9 +107,12 @@ The script is intentionally split by responsibility:
 ## Agent Runtime 与 Quality Gates
 
 - Standard event CLI: `template/scripts/agent-runtime.sh`
+- Git context resolver: `template/scripts/agent_git_context.py`
 - Trusted runtime registry: `template/agent/runtime/registry.jsonc`
-- Repository opt-in uses local Git config: `agent.runtime.enabled` and `agent.runtime.profile`.
-- `dispatch` success and unopted repositories are silent; `dry-run`, `explain`, and `doctor` are explicit inspection paths.
+- Repository opt-in uses common-dir Git config: `agent.runtime.enabled` and `agent.runtime.profile`; linked worktrees share policy but not runtime state.
+- `dispatch` success and unopted repositories are silent; `dry-run`, `explain`, `explain-context`, and `doctor` are explicit inspection paths.
+- Resolver identities come from Git's absolute common dir and per-worktree git dir. Ledger, lock, cache, diagnostics, accumulator, and receipts are isolated by session + repository + worktree.
+- Cross-repository execution dynamically removes every variable reported by `git rev-parse --local-env-vars` before resolving or running a gate.
 - Repository content may select a trusted profile but cannot define shell commands or executable hooks.
 - Legacy Git policy source: `template/agent/quality-gates/manifest.jsonc`
 - Legacy Git runner source: `template/scripts/agent-quality-gate.sh`

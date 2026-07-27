@@ -14,6 +14,15 @@ import sys
 import time
 from typing import Any, Mapping, Sequence
 
+from agent_git_context import (
+    GitContext,
+    GitContextError,
+    RuntimeStatePaths,
+    clean_git_local_environment,
+    common_git_config,
+    resolve_git_context,
+)
+
 
 EVENT_SCHEMA_VERSION = 1
 REGISTRY_SCHEMA_VERSION = 1
@@ -46,7 +55,11 @@ class StandardEvent:
     session_id: str
     metadata: Mapping[str, Any]
 
-    def environment(self) -> dict[str, str]:
+    def environment(
+        self,
+        context: GitContext | None = None,
+        state_paths: RuntimeStatePaths | None = None,
+    ) -> dict[str, str]:
         payload = {
             "schema_version": self.schema_version,
             "event_type": self.event_type,
@@ -58,7 +71,7 @@ class StandardEvent:
             "session_id": self.session_id,
             "metadata": dict(self.metadata),
         }
-        return {
+        environment = {
             "AGENT_RUNTIME_EVENT_TYPE": self.event_type,
             "AGENT_RUNTIME_EVENT_ID": self.event_id,
             "AGENT_RUNTIME_SOURCE_ADAPTER": self.source_adapter,
@@ -67,13 +80,20 @@ class StandardEvent:
                 payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
             ),
         }
+        if context is not None:
+            environment.update(context.environment(state_paths))
+        return environment
 
 
 @dataclass(frozen=True)
 class RepositoryState:
-    repo_root: Path | None
+    context: GitContext | None
     enabled: bool
     profile: str | None
+
+    @property
+    def repo_root(self) -> Path | None:
+        return self.context.repo_root if self.context else None
 
 
 @dataclass(frozen=True)
@@ -152,49 +172,45 @@ def _read_event(stream: str) -> dict[str, Any]:
     return payload
 
 
-def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        check=False,
-        capture_output=True,
-        text=True,
+def _context_configuration_error(error: GitContextError) -> ConfigurationError:
+    return ConfigurationError(
+        f"{error.code} [{error.fingerprint}]: {error.message}"
     )
 
 
-def _resolve_repo_root(cwd: Path) -> Path | None:
-    result = _git(cwd, "rev-parse", "--show-toplevel")
-    if result.returncode != 0:
-        return None
-    return Path(result.stdout.strip()).resolve()
-
-
-def _git_config(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return _git(repo_root, "config", "--local", *args)
-
-
 def resolve_repository_state(cwd: Path) -> RepositoryState:
-    repo_root = _resolve_repo_root(cwd)
-    if repo_root is None:
-        return RepositoryState(repo_root=None, enabled=False, profile=None)
+    try:
+        context = resolve_git_context(cwd)
+    except GitContextError as exc:
+        if exc.code == "not-a-repository":
+            return RepositoryState(context=None, enabled=False, profile=None)
+        raise _context_configuration_error(exc) from exc
 
-    enabled_result = _git_config(repo_root, "--bool", "--get", "agent.runtime.enabled")
+    enabled_result = common_git_config(
+        context, "--bool", "--get", "agent.runtime.enabled"
+    )
     if enabled_result.returncode == 1:
-        return RepositoryState(repo_root=repo_root, enabled=False, profile=None)
+        return RepositoryState(context=context, enabled=False, profile=None)
     if enabled_result.returncode != 0:
         detail = enabled_result.stderr.strip() or "invalid agent.runtime.enabled"
         raise ConfigurationError(detail)
     enabled_value = enabled_result.stdout.strip().lower()
     if enabled_value != "true":
-        return RepositoryState(repo_root=repo_root, enabled=False, profile=None)
+        return RepositoryState(context=context, enabled=False, profile=None)
+    if context.repo_root is None:
+        raise ConfigurationError(
+            "agent runtime cannot dispatch from a bare or non-worktree repository"
+        )
 
-    profile_result = _git_config(repo_root, "--get", "agent.runtime.profile")
+    profile_result = common_git_config(
+        context, "--get", "agent.runtime.profile"
+    )
     if profile_result.returncode != 0 or not profile_result.stdout.strip():
         raise ConfigurationError(
             "agent.runtime.profile is required when agent.runtime.enabled=true"
         )
     return RepositoryState(
-        repo_root=repo_root,
+        context=context,
         enabled=True,
         profile=profile_result.stdout.strip(),
     )
@@ -426,17 +442,36 @@ def _path_matches(path: str, patterns: Sequence[str]) -> bool:
     )
 
 
+def _runtime_state_paths(
+    event: StandardEvent,
+    state: RepositoryState,
+    registry: RuntimeRegistry,
+) -> RuntimeStatePaths | None:
+    if state.context is None:
+        return None
+    return state.context.runtime_state_paths(event.session_id, registry.log_dir)
+
+
 def build_plan(
     event: StandardEvent,
     state: RepositoryState,
     registry: RuntimeRegistry,
 ) -> dict[str, Any]:
+    context_payload = (
+        state.context.to_dict(
+            session_id=event.session_id,
+            state_root=registry.log_dir,
+        )
+        if state.context
+        else None
+    )
     if not state.enabled:
         return {
             "schema_version": EVENT_SCHEMA_VERSION,
             "enabled": False,
             "repo_root": str(state.repo_root) if state.repo_root else None,
             "profile": None,
+            "git_context": context_payload,
             "matched_gates": [],
             "matched_gate_details": [],
             "skipped_gates": [],
@@ -474,6 +509,7 @@ def build_plan(
         "enabled": True,
         "repo_root": str(state.repo_root),
         "profile": state.profile,
+        "git_context": context_payload,
         "matched_gates": matched,
         "matched_gate_details": matched_details,
         "skipped_gates": skipped,
@@ -524,13 +560,18 @@ def _run_sync_gate(
     gate: GateSpec,
     event: StandardEvent,
     state: RepositoryState,
+    state_paths: RuntimeStatePaths | None,
 ) -> dict[str, str] | None:
-    env = os.environ.copy()
-    env.update(event.environment())
+    gate_cwd = _gate_cwd(gate, event, state)
+    try:
+        env = clean_git_local_environment(gate_cwd, os.environ.copy())
+    except GitContextError as exc:
+        return _diagnostic(gate.gate_id, f"Git environment cleanup failed: {exc.message}")
+    env.update(event.environment(state.context, state_paths))
     try:
         result = subprocess.run(
             list(gate.command),
-            cwd=_gate_cwd(gate, event, state),
+            cwd=gate_cwd,
             env=env,
             check=False,
             capture_output=True,
@@ -623,24 +664,32 @@ def _launch_async_gate(
     gate: GateSpec,
     event: StandardEvent,
     state: RepositoryState,
-    registry: RuntimeRegistry,
+    state_paths: RuntimeStatePaths | None,
 ) -> dict[str, str] | None:
-    env = os.environ.copy()
-    env.update(event.environment())
+    if state_paths is None:
+        return _diagnostic(gate.gate_id, "runtime state context is unavailable")
+    gate_cwd = _gate_cwd(gate, event, state)
+    try:
+        env = clean_git_local_environment(gate_cwd, os.environ.copy())
+    except GitContextError as exc:
+        return _diagnostic(gate.gate_id, f"Git environment cleanup failed: {exc.message}")
+    env.update(event.environment(state.context, state_paths))
     stem = (
         f"{_sanitize_filename(event.event_id)}-"
         f"{_sanitize_filename(gate.gate_id)}-{time.time_ns()}"
     )
-    job_path = registry.log_dir / f"{stem}.job.json"
-    log_path = registry.log_dir / f"{stem}.log"
+    job_dir = state_paths.session_dir / "jobs"
+    job_path = job_dir / f"{stem}.job.json"
+    log_path = state_paths.diagnostics_dir / f"{stem}.log"
     try:
-        registry.log_dir.mkdir(parents=True, exist_ok=True)
+        job_dir.mkdir(parents=True, exist_ok=True)
+        state_paths.diagnostics_dir.mkdir(parents=True, exist_ok=True)
         _write_private_json(
             job_path,
             {
                 "schema_version": 1,
                 "command": list(gate.command),
-                "cwd": str(_gate_cwd(gate, event, state)),
+                "cwd": str(gate_cwd),
                 "timeout_seconds": gate.timeout_seconds,
                 "log_path": str(log_path),
             },
@@ -667,12 +716,13 @@ def dispatch(
 ) -> int:
     diagnostics: list[dict[str, str]] = []
     blocked = False
+    state_paths = _runtime_state_paths(event, state, registry)
     for gate_id in plan.get("matched_gates", []):
         gate = registry.gates[str(gate_id)]
         diagnostic = (
-            _run_sync_gate(gate, event, state)
+            _run_sync_gate(gate, event, state, state_paths)
             if gate.mode == "sync"
-            else _launch_async_gate(gate, event, state, registry)
+            else _launch_async_gate(gate, event, state, state_paths)
         )
         if diagnostic is None:
             continue
@@ -699,10 +749,10 @@ def _print_json(payload: Mapping[str, Any]) -> None:
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2))
 
 
-def doctor(registry_path: Path) -> int:
+def doctor(registry_path: Path, cwd: Path | None = None) -> int:
     registry = load_registry(registry_path)
-    cwd = Path.cwd().resolve()
-    state = resolve_repository_state(cwd)
+    resolved_cwd = (cwd or Path.cwd()).expanduser().resolve()
+    state = resolve_repository_state(resolved_cwd)
     _print_json(
         {
             "registry_path": str(registry.path),
@@ -711,6 +761,7 @@ def doctor(registry_path: Path) -> int:
             "repo_root": str(state.repo_root) if state.repo_root else None,
             "enabled": state.enabled,
             "profile": state.profile,
+            "git_context": state.context.to_dict() if state.context else None,
             "known_profiles": list(registry.profiles),
             "known_gates": list(registry.gates),
             "diagnostic_limit": registry.diagnostic_limit,
@@ -724,7 +775,12 @@ def doctor(registry_path: Path) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-runtime")
     parser.add_argument("--registry", type=Path, default=default_registry_path())
-    parser.add_argument("command", choices=("dispatch", "dry-run", "explain", "doctor"))
+    parser.add_argument("--cwd", type=Path)
+    parser.add_argument("--session-id")
+    parser.add_argument(
+        "command",
+        choices=("dispatch", "dry-run", "explain", "doctor", "explain-context"),
+    )
     return parser
 
 
@@ -738,7 +794,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(raw_args)
     try:
         if args.command == "doctor":
-            return doctor(args.registry)
+            return doctor(args.registry, args.cwd)
+        if args.command == "explain-context":
+            registry = load_registry(args.registry)
+            context = resolve_git_context(args.cwd or Path.cwd())
+            _print_json(
+                context.to_dict(
+                    session_id=args.session_id,
+                    state_root=registry.log_dir,
+                )
+            )
+            return 0
 
         payload = _read_event(sys.stdin.read())
         event, state = parse_standard_event(payload)
@@ -759,6 +825,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ConfigurationError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
+    except GitContextError as exc:
+        print(
+            f"ERROR: {exc.code} [{exc.fingerprint}]: {exc.message}",
+            file=sys.stderr,
+        )
+        return 3 if exc.code == "not-a-repository" else 1
 
 
 if __name__ == "__main__":
