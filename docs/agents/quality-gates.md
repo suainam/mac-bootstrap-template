@@ -2,6 +2,57 @@
 
 本文是公开模板中 Agent quality gate 的运行与验收权威。Issue/PR 记录具体变更历史；本文只保留可跨任务复用的机制、边界和检查顺序。
 
+## 标准事件运行时骨架
+
+Agent Runtime 的受信入口是 `scripts/agent-runtime.sh`，实现位于
+`scripts/agent_runtime.py`，默认 registry 位于
+`agent/runtime/registry.jsonc`。Git、Claude Code 和后续编辑器 adapter 只负责把宿主
+payload 转换为同一个版本化事件；gate 匹配、profile、timeout、失败策略和输出预算由
+受信 runtime 处理。
+
+仓库必须通过 local Git config 显式启用并选择 profile：
+
+```bash
+git config --local agent.runtime.enabled true
+git config --local agent.runtime.profile generic
+```
+
+未启用仓库的 `dispatch` 快速成功且输出 0 字节。仓库只能选择 registry 中已有
+profile，不能提交 shell 字符串、可执行 hook 或越界 cwd。registry 中的 gate command
+必须是 argv 列表，首个可执行文件使用绝对路径；runtime 永不使用 `shell=True`。
+
+标准事件从 stdin 传入 JSON，当前 schema version 为 `1`，至少包含：
+
+```json
+{
+  "schema_version": 1,
+  "event_type": "after.edit",
+  "event_id": "evt-001",
+  "source_adapter": "claude-code",
+  "timestamp": "2026-07-27T00:00:00Z",
+  "cwd": "/path/to/repository",
+  "target_paths": ["scripts/example.py"],
+  "session_id": "session-001",
+  "metadata": {}
+}
+```
+
+CLI 提供四个动作：
+
+- `dispatch`：执行匹配 gate；成功和未启用路径输出 0 字节。
+- `dry-run`：输出计划但不执行。
+- `explain`：输出 effective profile、命中 gate 和跳过原因，不执行 gate。
+- `doctor`：输出 registry、schema、仓库 opt-in 和预算状态。
+
+同步 gate 在当前进程中按声明顺序执行并受 timeout 限制；异步 gate 立即外置执行，
+stdout/stderr 写入 registry 指定日志目录，不污染热路径。失败默认最多 5 条诊断、约
+4 KB；完整日志外置。相同诊断的跨事件指纹去重属于后续编辑反馈 ticket，不在骨架中
+伪实现。
+
+当前 repo-managed `pre-commit` / `pre-push` 仍由旧 quality-gate runner 负责。只有
+commit/push dispatcher ticket 完成真实迁移与回滚验收后，才能移除旧入口；骨架阶段
+不得让两套 hook 竞争。
+
 ## 核心模型
 
 Git hook 在发起操作的仓库上下文中运行。父仓、submodule 和 linked worktree 是三个不同的 Git 上下文，不能通过目录位置推断它们共享 index、git dir 或工作树。

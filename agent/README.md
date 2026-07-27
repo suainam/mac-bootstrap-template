@@ -104,11 +104,16 @@ The script is intentionally split by responsibility:
 
 - `scripts/install-agent-tooling.sh` — thin step runner / orchestration only
 
-## Agent Quality Gates
+## Agent Runtime 与 Quality Gates
 
-- Policy source: `template/agent/quality-gates/manifest.jsonc`
-- Runner source: `template/scripts/agent-quality-gate.sh`
-- Repo-managed git hooks are authoritative for real `commit` / `push` events.
+- Standard event CLI: `template/scripts/agent-runtime.sh`
+- Trusted runtime registry: `template/agent/runtime/registry.jsonc`
+- Repository opt-in uses local Git config: `agent.runtime.enabled` and `agent.runtime.profile`.
+- `dispatch` success and unopted repositories are silent; `dry-run`, `explain`, and `doctor` are explicit inspection paths.
+- Repository content may select a trusted profile but cannot define shell commands or executable hooks.
+- Legacy Git policy source: `template/agent/quality-gates/manifest.jsonc`
+- Legacy Git runner source: `template/scripts/agent-quality-gate.sh`
+- Repo-managed git hooks remain authoritative for real `commit` / `push` events until the dedicated dispatcher migration is completed.
 - Codex `hooks.json` does not own quality gate execution and should not guess git intent from prompts.
 - Codex hook commands use `hooks.json` only; `config.toml` must not define a second hook representation.
 - `pre-commit` is fast and path-sensitive.
