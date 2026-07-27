@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import fnmatch
 import json
 import os
@@ -14,6 +14,18 @@ import sys
 import time
 from typing import Any, Mapping, Sequence
 
+from agent_edit_feedback import (
+    FeedbackStateError,
+    MAX_SAFE_FIX_ROUNDS,
+    accumulated_paths,
+    clear_accumulator,
+    filter_new_diagnostics,
+    make_diagnostic,
+    record_changed_files,
+    run_guarded_check,
+    run_safe_fix,
+    target_content_hash,
+)
 from agent_git_context import (
     GitContext,
     GitContextError,
@@ -108,6 +120,12 @@ class GateSpec:
     failure_policy: str
     output_policy: str
     capabilities: tuple[str, ...]
+    stage: str
+    action: str
+    severity: str
+    rule_revision: str
+    safe_fix_operation_id: str | None
+    safe_fix_max_rounds: int
 
 
 @dataclass(frozen=True)
@@ -240,6 +258,8 @@ def parse_standard_event(payload: Mapping[str, Any]) -> tuple[StandardEvent, Rep
         raise EventError("target_paths must be a list of strings")
     if len(raw_paths) > MAX_TARGET_PATHS:
         raise EventError(f"target_paths exceeds {MAX_TARGET_PATHS} entries")
+    if event_type == "after.edit" and len(raw_paths) != 1:
+        raise EventError("after.edit requires exactly one target path")
 
     cwd = Path(_require_string(payload.get("cwd"), "cwd")).expanduser().resolve()
     if not cwd.is_dir():
@@ -310,6 +330,42 @@ def _parse_gate(gate_id: str, config: object) -> GateSpec:
             f"gate {gate_id} command executable must be an absolute path"
         )
 
+    events = _require_string_list(
+        config.get("events"), f"gate {gate_id} events", allow_empty=False
+    )
+    raw_stage = config.get("stage")
+    if raw_stage is None:
+        if set(events) == {"after.edit"}:
+            stage = "edit"
+        elif set(events) == {"after.batch"}:
+            stage = "batch"
+        else:
+            stage = "generic"
+    elif isinstance(raw_stage, str):
+        stage = raw_stage
+    else:
+        raise ConfigurationError(f"gate {gate_id} stage must be a string")
+    if stage not in {"generic", "edit", "batch"}:
+        raise ConfigurationError(
+            f"gate {gate_id} stage must be generic, edit, or batch"
+        )
+    if "after.edit" in events and stage != "edit":
+        raise ConfigurationError(
+            f"gate {gate_id} after.edit events require stage=edit"
+        )
+    if "after.batch" in events and stage != "batch":
+        raise ConfigurationError(
+            f"gate {gate_id} after.batch events require stage=batch"
+        )
+    if stage == "edit" and any(event != "after.edit" for event in events):
+        raise ConfigurationError(
+            f"gate {gate_id} edit stage may only handle after.edit"
+        )
+    if stage == "batch" and any(event != "after.batch" for event in events):
+        raise ConfigurationError(
+            f"gate {gate_id} batch stage may only handle after.batch"
+        )
+
     cwd = config.get("cwd", "repo")
     if cwd not in {"repo", "event"}:
         raise ConfigurationError(f"gate {gate_id} cwd must be repo or event")
@@ -326,7 +382,9 @@ def _parse_gate(gate_id: str, config: object) -> GateSpec:
         raise ConfigurationError(
             f"gate {gate_id} timeout_seconds must be between 0 and {MAX_TIMEOUT_SECONDS}"
         )
-    failure_policy = config.get("failure_policy", "block")
+    failure_policy = config.get(
+        "failure_policy", "diagnose" if stage == "edit" else "block"
+    )
     if failure_policy not in {"block", "diagnose"}:
         raise ConfigurationError(
             f"gate {gate_id} failure_policy must be block or diagnose"
@@ -340,23 +398,93 @@ def _parse_gate(gate_id: str, config: object) -> GateSpec:
         raise ConfigurationError(
             f"gate {gate_id} output_policy must be silent or diagnostic"
         )
+    capabilities = _require_string_list(
+        config.get("capabilities", []), f"gate {gate_id} capabilities"
+    )
+    action = config.get("action", "check")
+    if action not in {"check", "safe-fix"}:
+        raise ConfigurationError(
+            f"gate {gate_id} action must be check or safe-fix"
+        )
+    severity = config.get("severity", "error")
+    if severity not in {"notice", "warning", "error"}:
+        raise ConfigurationError(
+            f"gate {gate_id} severity must be notice, warning, or error"
+        )
+    if stage == "edit" and severity == "notice":
+        raise ConfigurationError(
+            f"gate {gate_id} edit-stage notices must be deferred to after.batch"
+        )
+    rule_revision = config.get("rule_revision", "1")
+    if not isinstance(rule_revision, str) or not rule_revision.strip():
+        raise ConfigurationError(
+            f"gate {gate_id} rule_revision must be a non-empty string"
+        )
+
+    safe_fix_operation_id: str | None = None
+    safe_fix_max_rounds = 0
+    safe_fix_config = config.get("safe_fix")
+    if action == "safe-fix":
+        if stage != "edit" or events != ("after.edit",):
+            raise ConfigurationError(
+                f"gate {gate_id} safe-fix must be a single after.edit gate"
+            )
+        if mode != "sync":
+            raise ConfigurationError(
+                f"gate {gate_id} safe-fix must run synchronously"
+            )
+        if "safe-fix" not in capabilities:
+            raise ConfigurationError(
+                f"gate {gate_id} safe-fix requires the safe-fix capability"
+            )
+        if not isinstance(safe_fix_config, dict):
+            raise ConfigurationError(
+                f"gate {gate_id} safe_fix must be an object"
+            )
+        operation_id = safe_fix_config.get("operation_id")
+        if not isinstance(operation_id, str) or not operation_id.strip():
+            raise ConfigurationError(
+                f"gate {gate_id} safe_fix.operation_id must be a non-empty string"
+            )
+        rounds = safe_fix_config.get("max_rounds", 2)
+        if (
+            not isinstance(rounds, int)
+            or isinstance(rounds, bool)
+            or rounds < 2
+            or rounds > MAX_SAFE_FIX_ROUNDS
+        ):
+            raise ConfigurationError(
+                f"gate {gate_id} safe_fix.max_rounds must be between 2 and {MAX_SAFE_FIX_ROUNDS}"
+            )
+        safe_fix_operation_id = operation_id
+        safe_fix_max_rounds = rounds
+    elif safe_fix_config is not None:
+        raise ConfigurationError(
+            f"gate {gate_id} check action cannot define safe_fix"
+        )
+
     return GateSpec(
         gate_id=gate_id,
-        events=_require_string_list(
-            config.get("events"), f"gate {gate_id} events", allow_empty=False
-        ),
+        events=events,
         path_globs=_require_string_list(
             config.get("path_globs", []), f"gate {gate_id} path_globs"
         ),
-        command=tuple(str(executable) if index == 0 else value for index, value in enumerate(command)),
+        command=tuple(
+            str(executable) if index == 0 else value
+            for index, value in enumerate(command)
+        ),
         cwd=cwd,
         mode=mode,
         timeout_seconds=float(timeout),
         failure_policy=failure_policy,
         output_policy=output_policy,
-        capabilities=_require_string_list(
-            config.get("capabilities", []), f"gate {gate_id} capabilities"
-        ),
+        capabilities=capabilities,
+        stage=stage,
+        action=action,
+        severity=severity,
+        rule_revision=rule_revision,
+        safe_fix_operation_id=safe_fix_operation_id,
+        safe_fix_max_rounds=safe_fix_max_rounds,
     )
 
 
@@ -385,6 +513,18 @@ def load_registry(path: Path) -> RuntimeRegistry:
     }
     if len(gates) != len(gates_raw):
         raise ConfigurationError("registry gate IDs must be non-empty strings")
+    operation_owners: dict[str, str] = {}
+    for gate in gates.values():
+        operation_id = gate.safe_fix_operation_id
+        if operation_id is None:
+            continue
+        existing_owner = operation_owners.get(operation_id)
+        if existing_owner is not None:
+            raise ConfigurationError(
+                f"safe-fix operation_id {operation_id!r} is shared by gates "
+                f"{existing_owner} and {gate.gate_id}"
+            )
+        operation_owners[operation_id] = gate.gate_id
 
     profiles_raw = raw.get("profiles")
     if not isinstance(profiles_raw, dict):
@@ -502,6 +642,12 @@ def build_plan(
                 "failure_policy": gate.failure_policy,
                 "output_policy": gate.output_policy,
                 "capabilities": list(gate.capabilities),
+                "stage": gate.stage,
+                "action": gate.action,
+                "severity": gate.severity,
+                "rule_revision": gate.rule_revision,
+                "safe_fix_operation_id": gate.safe_fix_operation_id,
+                "safe_fix_max_rounds": gate.safe_fix_max_rounds,
             }
         )
     return {
@@ -521,13 +667,34 @@ def _sanitize_filename(value: str) -> str:
     return sanitized or "event"
 
 
-def _diagnostic(gate_id: str, message: str) -> dict[str, str]:
-    return {"gate_id": gate_id, "message": " ".join(message.split())[:1024]}
+def _runtime_diagnostic(
+    gate: GateSpec | None,
+    event: StandardEvent,
+    state: RepositoryState,
+    message: str,
+    *,
+    action: str = "fix",
+) -> dict[str, object]:
+    repo_root = state.repo_root
+    content_hash = (
+        target_content_hash(repo_root, event.target_paths)
+        if repo_root is not None
+        else "missing-context"
+    )
+    return make_diagnostic(
+        gate_id=gate.gate_id if gate else "runtime",
+        severity=gate.severity if gate else "error",
+        action=action,
+        message=message,
+        content_hash=content_hash,
+        rule_revision=gate.rule_revision if gate else "runtime-v1",
+        evidence=event.target_paths,
+    )
 
 
 def emit_diagnostics(
     status: str,
-    diagnostics: Sequence[Mapping[str, str]],
+    diagnostics: Sequence[Mapping[str, object]],
     *,
     count_limit: int,
     byte_limit: int,
@@ -538,12 +705,15 @@ def emit_diagnostics(
     }
     rendered = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
     if len(rendered.encode("utf-8")) > byte_limit:
-        payload = {
-            "status": status,
-            "diagnostics": [
-                {"gate_id": "runtime", "message": "diagnostic output truncated"}
-            ],
-        }
+        fallback = make_diagnostic(
+            gate_id="runtime",
+            severity="error",
+            action="open-log",
+            message="diagnostic output truncated",
+            content_hash="unknown",
+            rule_revision="runtime-v1",
+        )
+        payload = {"status": status, "diagnostics": [fallback]}
         rendered = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
     sys.stderr.write(rendered)
 
@@ -556,43 +726,94 @@ def _gate_cwd(gate: GateSpec, event: StandardEvent, state: RepositoryState) -> P
     return cwd
 
 
+def _is_recursive_safe_fix(event: StandardEvent, operation_id: str) -> bool:
+    metadata = event.metadata.get("safe_fix")
+    if not isinstance(metadata, dict):
+        return False
+    depth = metadata.get("depth", 0)
+    return (
+        metadata.get("operation_id") == operation_id
+        and isinstance(depth, int)
+        and not isinstance(depth, bool)
+        and depth > 0
+    )
+
+
 def _run_sync_gate(
     gate: GateSpec,
     event: StandardEvent,
     state: RepositoryState,
     state_paths: RuntimeStatePaths | None,
-) -> dict[str, str] | None:
+) -> dict[str, object] | None:
     gate_cwd = _gate_cwd(gate, event, state)
     try:
         env = clean_git_local_environment(gate_cwd, os.environ.copy())
     except GitContextError as exc:
-        return _diagnostic(gate.gate_id, f"Git environment cleanup failed: {exc.message}")
+        return _runtime_diagnostic(
+            gate,
+            event,
+            state,
+            f"Git environment cleanup failed: {exc.message}",
+        )
     env.update(event.environment(state.context, state_paths))
-    try:
-        result = subprocess.run(
-            list(gate.command),
+
+    if gate.action == "safe-fix":
+        operation_id = gate.safe_fix_operation_id
+        if operation_id is None:
+            return _runtime_diagnostic(
+                gate, event, state, "safe-fix operation ID is unavailable", action="stop-safe-fix"
+            )
+        if _is_recursive_safe_fix(event, operation_id):
+            return None
+        if state_paths is None or state.repo_root is None:
+            return _runtime_diagnostic(
+                gate, event, state, "runtime state context is unavailable", action="stop-safe-fix"
+            )
+        if len(event.target_paths) != 1:
+            return _runtime_diagnostic(
+                gate,
+                event,
+                state,
+                "safe-fix requires exactly one target file",
+                action="stop-safe-fix",
+            )
+        result = run_safe_fix(
+            gate_id=gate.gate_id,
+            command=gate.command,
             cwd=gate_cwd,
             env=env,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=gate.timeout_seconds,
+            timeout_seconds=gate.timeout_seconds,
+            repo_root=state.repo_root,
+            target_path=event.target_paths[0],
+            state_paths=state_paths,
+            event_id=event.event_id,
+            operation_id=operation_id,
+            max_rounds=gate.safe_fix_max_rounds,
+            severity=gate.severity,
+            rule_revision=gate.rule_revision,
+            include_output=gate.output_policy == "diagnostic",
         )
-    except subprocess.TimeoutExpired:
-        return _diagnostic(
-            gate.gate_id, f"gate timed out after {gate.timeout_seconds:g}s"
+        return result.diagnostic
+
+    if state.repo_root is None:
+        return _runtime_diagnostic(
+            gate, event, state, "repository worktree is unavailable"
         )
-    except OSError as exc:
-        return _diagnostic(gate.gate_id, f"gate could not start: {exc}")
-    if result.returncode == 0:
-        return None
-    detail = ""
-    if gate.output_policy == "diagnostic":
-        detail = result.stderr.strip() or result.stdout.strip()
-    suffix = f": {detail}" if detail else ""
-    return _diagnostic(
-        gate.gate_id, f"gate failed with exit code {result.returncode}{suffix}"
+    result = run_guarded_check(
+        gate_id=gate.gate_id,
+        command=gate.command,
+        cwd=gate_cwd,
+        env=env,
+        timeout_seconds=gate.timeout_seconds,
+        repo_root=state.repo_root,
+        target_paths=event.target_paths,
+        state_paths=state_paths,
+        event_id=event.event_id,
+        severity=gate.severity,
+        rule_revision=gate.rule_revision,
+        include_output=gate.output_policy == "diagnostic",
     )
+    return result.diagnostic
 
 
 def _write_private_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -665,14 +886,21 @@ def _launch_async_gate(
     event: StandardEvent,
     state: RepositoryState,
     state_paths: RuntimeStatePaths | None,
-) -> dict[str, str] | None:
+) -> dict[str, object] | None:
     if state_paths is None:
-        return _diagnostic(gate.gate_id, "runtime state context is unavailable")
+        return _runtime_diagnostic(
+            gate, event, state, "runtime state context is unavailable"
+        )
     gate_cwd = _gate_cwd(gate, event, state)
     try:
         env = clean_git_local_environment(gate_cwd, os.environ.copy())
     except GitContextError as exc:
-        return _diagnostic(gate.gate_id, f"Git environment cleanup failed: {exc.message}")
+        return _runtime_diagnostic(
+            gate,
+            event,
+            state,
+            f"Git environment cleanup failed: {exc.message}",
+        )
     env.update(event.environment(state.context, state_paths))
     stem = (
         f"{_sanitize_filename(event.event_id)}-"
@@ -704,8 +932,31 @@ def _launch_async_gate(
         )
     except (OSError, ConfigurationError) as exc:
         job_path.unlink(missing_ok=True)
-        return _diagnostic(gate.gate_id, f"async gate could not start: {exc}")
+        return _runtime_diagnostic(
+            gate, event, state, f"async gate could not start: {exc}"
+        )
     return None
+
+
+def _prepare_feedback_event(
+    event: StandardEvent,
+    state: RepositoryState,
+    registry: RuntimeRegistry,
+) -> StandardEvent:
+    if event.event_type != "after.batch" or state.context is None:
+        return event
+    state_paths = _runtime_state_paths(event, state, registry)
+    if state_paths is None:
+        return event
+    try:
+        pending = accumulated_paths(
+            context=state.context,
+            state_paths=state_paths,
+        )
+    except FeedbackStateError as exc:
+        raise ConfigurationError(str(exc)) from exc
+    merged = tuple(sorted(set(event.target_paths).union(pending)))
+    return replace(event, target_paths=merged)
 
 
 def dispatch(
@@ -714,7 +965,7 @@ def dispatch(
     registry: RuntimeRegistry,
     plan: Mapping[str, Any],
 ) -> int:
-    diagnostics: list[dict[str, str]] = []
+    diagnostics: list[dict[str, object]] = []
     blocked = False
     state_paths = _runtime_state_paths(event, state, registry)
     for gate_id in plan.get("matched_gates", []):
@@ -731,10 +982,51 @@ def dispatch(
             blocked = True
             break
 
-    if diagnostics:
+    if (
+        event.event_type == "after.edit"
+        and state.context is not None
+        and state.repo_root is not None
+        and state_paths is not None
+    ):
+        try:
+            record_changed_files(
+                context=state.context,
+                state_paths=state_paths,
+                session_id=event.session_id,
+                repo_root=state.repo_root,
+                target_paths=event.target_paths,
+            )
+        except FeedbackStateError as exc:
+            diagnostics.append(
+                _runtime_diagnostic(
+                    None,
+                    event,
+                    state,
+                    str(exc),
+                    action="retry-batch-state",
+                )
+            )
+
+    if event.event_type == "after.batch" and state_paths is not None:
+        try:
+            clear_accumulator(state_paths)
+        except FeedbackStateError as exc:
+            diagnostics.append(
+                _runtime_diagnostic(
+                    None,
+                    event,
+                    state,
+                    str(exc),
+                    action="repair-runtime-state",
+                )
+            )
+            blocked = True
+
+    fresh = filter_new_diagnostics(diagnostics, state_paths)
+    if fresh:
         emit_diagnostics(
             "blocked" if blocked else "diagnosed",
-            diagnostics,
+            fresh,
             count_limit=registry.diagnostic_limit,
             byte_limit=registry.diagnostic_bytes,
         )
@@ -812,6 +1104,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         registry = load_registry(args.registry)
+        if args.command == "dispatch":
+            event = _prepare_feedback_event(event, state, registry)
         plan = build_plan(event, state, registry)
         if args.command in {"dry-run", "explain"}:
             result = dict(plan)

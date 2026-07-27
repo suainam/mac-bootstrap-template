@@ -56,8 +56,55 @@ scripts/agent-runtime.sh --cwd /path/to/repo --session-id session-001 explain-co
 
 同步 gate 在当前进程中按声明顺序执行并受 timeout 限制；异步 gate 立即外置执行，
 stdout/stderr 写入 registry 指定基目录下的 repository/worktree/session diagnostics，
-不污染热路径。失败默认最多 5 条诊断、约 4 KB；完整日志外置。Git context 解析错误
-携带稳定指纹；跨事件诊断 accumulator 的实际写入与去重仍由后续编辑反馈 ticket 完成。
+不污染热路径。失败默认最多 5 条诊断、约 4 KB；完整日志外置。
+
+## 编辑反馈漏斗
+
+`after.edit` 与 `after.batch` 是两个不同阶段，不允许用同一条 gate 混合声明：
+
+- `stage=edit` 只匹配 `after.edit`，用于单文件 formatter、parser 和轻量 lint；默认 failure policy 是 `diagnose`。
+- `stage=batch` 只匹配 `after.batch`，用于 typecheck、focused tests、生成物一致性和跨文件机械检查。
+- edit-stage 不允许 `notice` severity；非紧急提示必须延迟到 batch 聚合，避免每次编辑重复输出。
+- `action=check` 被视为只读操作。runtime 在进程前后比较全部目标文件；若命令修改目标，立即恢复原内容并报告 `restore-unapproved-mutation`。
+- `action=safe-fix` 只允许在 edit stage 使用，并必须同时声明 `safe-fix` capability、全 registry 唯一的 operation ID 和 2–5 次最大收敛轮数。
+
+受信 registry 中的 safe-fix 形状如下；仓库只能选择包含它的 profile，不能自行提交命令：
+
+```json
+{
+  "stage": "edit",
+  "action": "safe-fix",
+  "events": ["after.edit"],
+  "command": ["/absolute/path/to/formatter"],
+  "mode": "sync",
+  "capabilities": ["safe-fix"],
+  "rule_revision": "formatter-v1",
+  "safe_fix": {
+    "operation_id": "python-format",
+    "max_rounds": 2
+  }
+}
+```
+
+safe-fix 执行前必须确认 diagnostics、receipts 和 worktree lock 目录可写；否则拒绝
+自动修改。每个文件使用 worktree-scoped exclusive lock，不同 session 也不能并发修改
+同一文件。runtime 保存原始 bytes，逐轮运行 formatter，直到 content hash 不再变化；
+超过最大轮数、timeout、命令失败或状态写入失败时恢复原内容并停止。成功只留下 receipt，
+记录 operation ID、规则版本、输入/输出 hash、轮数和目标文件；成功日志会删除。重复事件
+若当前 hash 已等于同一 operation/规则的 receipt 输出 hash，直接 0 字节 no-op。adapter
+可在事件 `metadata.safe_fix` 中携带 operation ID 与 depth，runtime 据此阻止递归执行。
+
+每次 `after.edit` 完成后，runtime 将最终 target hash 合并到
+`session + repository + worktree` scoped accumulator。`after.batch` 在制定 gate plan 前将
+accumulator 与事件 target paths 合并，因此多个 Edit/Write 只触发一次跨文件检查；batch
+完成后无论通过或阻塞都清空该批次。不同 linked worktree 的 accumulator、file lock、
+diagnostics 和 receipts 路径不同。
+
+诊断 schema 固定包含 `severity`、`action`、`message`、`evidence`、`log_ref`、
+`content_hash`、`rule_revision` 和稳定 `fingerprint`。fingerprint 同时绑定规则版本与目标
+内容：相同规则、相同内容、相同问题只注入一次；内容或规则变化后允许重新报告。失败的
+完整 stdout/stderr 写入外置日志，成功、重复诊断和成功 safe-fix 均保持 stdout/stderr
+0 字节。
 
 当前 repo-managed `pre-commit` / `pre-push` 仍由旧 quality-gate runner 负责。只有
 commit/push dispatcher ticket 完成真实迁移与回滚验收后，才能移除旧入口；骨架阶段
