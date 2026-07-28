@@ -421,6 +421,47 @@ def test_real_push_caches_refs_handles_multi_delete_force_and_replays_approved_h
     assert list(state_root.rglob("pre-push-stdin.txt")) == []
 
 
+def test_new_branch_push_accepts_bounded_conservative_target_set(tmp_path: Path):
+    home = tmp_path / "home"
+    env = clean_env(home)
+    repo = tmp_path / "repo"
+    remote = tmp_path / "remote.git"
+    init_repo(repo, env)
+    bulk = repo / "bulk"
+    bulk.mkdir()
+    for index in range(300):
+        (bulk / f"file-{index:03d}.txt").write_text(f"{index}\n", encoding="utf-8")
+    git(repo, env, "add", "bulk")
+    git(repo, env, "commit", "-qm", "large baseline")
+    git(repo, env, "init", "--bare", "-q", str(remote))
+    git(repo, env, "remote", "add", "origin", str(remote))
+    git(repo, env, "push", "-u", "origin", "main")
+
+    opt_in(repo, env)
+    install_root, state_root, registry = paths(tmp_path)
+    marker = tmp_path / "push-paths.json"
+    capture = tmp_path / "capture_push_paths.py"
+    capture.write_text(
+        "import json, os, pathlib, sys\n"
+        "event = json.loads(os.environ['AGENT_RUNTIME_EVENT_JSON'])\n"
+        "pathlib.Path(sys.argv[1]).write_text(json.dumps(event['target_paths']))\n",
+        encoding="utf-8",
+    )
+    write_registry(registry, {"push": gate("before.push", capture, marker)})
+    install(repo, home, registry, install_root, state_root)
+
+    git(repo, env, "checkout", "-qb", "topic")
+    (repo / "topic.py").write_text("value = 1\n", encoding="utf-8")
+    git(repo, env, "add", "topic.py")
+    git(repo, env, "commit", "-qm", "topic")
+    pushed = git(repo, env, "push", "origin", "topic", check=False)
+
+    assert pushed.returncode == 0, pushed.stderr
+    target_paths = json.loads(marker.read_text(encoding="utf-8"))
+    assert len(target_paths) == 302
+    assert {"sample.txt", "bulk/file-000.txt", "topic.py"}.issubset(target_paths)
+
+
 def test_blocking_git_event_rejects_async_runtime_gate(tmp_path: Path):
     home = tmp_path / "home"
     env = clean_env(home)
