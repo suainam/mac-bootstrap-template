@@ -283,6 +283,27 @@ def test_event_rejects_target_path_outside_repository(tmp_path: Path):
     assert "outside repository" in result.stderr
 
 
+def test_event_rejects_more_than_4096_target_paths(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    opt_in(repo)
+    registry = write_registry(tmp_path / "registry.json")
+
+    result = run_runtime(
+        repo,
+        registry,
+        "dispatch",
+        event(
+            repo,
+            event_type="before.push",
+            target_paths=[f"p/{index:x}" for index in range(4097)],
+        ),
+    )
+
+    assert result.returncode == 2
+    assert "target_paths exceeds 4096 entries" in result.stderr
+
+
 def test_sync_gate_timeout_fails_closed(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo(repo)

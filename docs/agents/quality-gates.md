@@ -245,10 +245,15 @@ staged tree、blob OID、mode 和 snapshot path；gate 不应把 unstaged workin
 运行，async 配置在 registry 校验阶段直接拒绝。
 
 `before.push` 只使用 Git 传入的 pre-push stdin 计算范围，不猜 upstream。首次 push、
-无 upstream、多 ref push、删除和 force update 都按每条 local/remote OID 解析；metadata
-保留 refs、remote name/URL、force classification 和缓存文件路径。多个 runtime gate 与
-approved hook 会全部执行，失败按声明/批准顺序聚合；非 1 legacy exit code 保留为最终
-exit code，完整 stdout/stderr 外置，终端仍受最多 5 条、约 4 KB 预算约束。成功输出 0 字节。
+无 upstream、多 ref push、删除和 force update 都按每条 local/remote OID 解析。新建远端
+ref 的 `remote_oid` 为零，因此 dispatcher 保守地使用空树作为旧端；即使该分支来自已有
+remote main，target paths 也可能覆盖完整提交树。这避免依赖可能陈旧的 remote-tracking
+refs 而漏检。标准事件最多接受 4096 个 target paths；超限时 fail closed。该预算足以覆盖
+当前约 931 个 tracked paths 的 template 首次分支 push，同时仍限制异常大事件。
+metadata 保留 refs、remote name/URL、force classification 和缓存文件路径。多个 runtime
+gate 与 approved hook 会全部执行，失败按声明/批准顺序聚合；非 1 legacy exit code 保留为
+最终 exit code，完整 stdout/stderr 外置，终端仍受最多 5 条、约 4 KB 预算约束。成功输出
+0 字节。
 
 blocking hook 支持 break-glass：
 
