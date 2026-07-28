@@ -29,6 +29,15 @@
         "template-staged-python-syntax",
         "template-push-ref-integrity"
       ]
+    },
+    // First ordinary-repository tracer. It deliberately aliases the proven
+    // Python edit/commit/push gates without adding project paths or commands.
+    "python-repo-smoke": {
+      "gates": [
+        "python-syntax-smoke",
+        "template-staged-python-syntax",
+        "template-push-ref-integrity"
+      ]
     }
   },
   // Gates are trusted user-level declarations. after.edit uses stage=edit;

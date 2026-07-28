@@ -7,6 +7,8 @@ import subprocess
 import sys
 from typing import Mapping, Sequence
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DISPATCHER = ROOT / "scripts" / "agent_git_hook_dispatcher.py"
@@ -97,7 +99,14 @@ def dispatcher(
     )
 
 
-def test_template_profile_migrates_commit_push_and_rolls_back(tmp_path: Path):
+@pytest.mark.parametrize(
+    "profile",
+    ["mac-bootstrap-template", "python-repo-smoke"],
+)
+def test_python_repository_profile_migrates_commit_push_and_rolls_back(
+    tmp_path: Path,
+    profile: str,
+):
     home = tmp_path / "home"
     home.mkdir()
     env = clean_env(home)
@@ -110,7 +119,7 @@ def test_template_profile_migrates_commit_push_and_rolls_back(tmp_path: Path):
     git(repo, env, "remote", "add", "origin", str(remote))
     git(repo, env, "config", "core.hooksPath", "legacy-hooks")
     git(repo, env, "config", "agent.runtime.enabled", "true")
-    git(repo, env, "config", "agent.runtime.profile", "mac-bootstrap-template")
+    git(repo, env, "config", "agent.runtime.profile", profile)
 
     installed = dispatcher(
         repo,
