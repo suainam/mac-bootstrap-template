@@ -22,12 +22,14 @@
       "gates": ["python-syntax-smoke"]
     },
     // First repository migration tracer: reuse edit feedback, compile staged
-    // Python snapshots before commit, and validate dispatcher push ref metadata.
+    // Python snapshots before commit, validate push ref metadata, and run the
+    // repository-only Make target before push.
     "mac-bootstrap-template": {
       "gates": [
         "python-syntax-smoke",
         "template-staged-python-syntax",
-        "template-push-ref-integrity"
+        "template-push-ref-integrity",
+        "repository-check"
       ]
     },
     // First ordinary-repository tracer. It deliberately aliases the proven
@@ -47,7 +49,7 @@
         "template-staged-python-syntax",
         "parent-submodule-pointer-reachable",
         "template-push-ref-integrity",
-        "parent-repository-check",
+        "repository-check",
         "parent-machine-check"
       ]
     }
@@ -116,7 +118,7 @@
       "severity": "error",
       "rule_revision": "1"
     },
-    "parent-repository-check": {
+    "repository-check": {
       "events": ["before.push"],
       "path_globs": [],
       "command": [
