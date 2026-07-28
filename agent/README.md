@@ -114,7 +114,8 @@ The script is intentionally split by responsibility:
 - Resolver identities come from Git's absolute common dir and per-worktree git dir. Ledger, lock, cache, diagnostics, accumulator, and receipts are isolated by session + repository + worktree.
 - `after.edit` runs edit-stage checks or explicitly trusted safe-fixes, then accumulates final file hashes; `after.batch` consumes that batch for typecheck, focused tests, and cross-file checks.
 - First host tracer: `template/scripts/agent_claude_edit_adapter.py` maps only Claude Code `PostToolUse(Edit|Write)` to `after.edit`; `claude-edit-smoke` runs one read-only Python syntax check, returns bounded feedback on failure, and stays byte-silent on success.
-- The Claude adapter is a thin first driver, not the abstraction boundary. A second host must reuse the same event schema, profile, runtime, and diagnostic core without changing them.
+- Second host tracer: `template/scripts/agent_opencode_edit_adapter.py` maps OpenCode `tool.execute.after` for `write`, `edit`, and single-file `apply_patch` to the same `after.edit` event. It reuses the existing profile, runtime, gate, diagnostic fingerprint, and Git dispatcher without changing their contracts.
+- The host adapters are thin drivers, not the abstraction boundary; no generic adapter framework or plugin loader is introduced.
 - Safe-fix uses a stable operation ID, per-file lock, content hashes, bounded convergence rounds, recursion metadata, and success receipts. Read-only checks that mutate targets are restored and diagnosed.
 - Diagnostics are fingerprinted by rule revision plus content hash, so unchanged failures are silent on repetition while changed content or rules can report again.
 - Cross-repository execution dynamically removes every variable reported by `git rev-parse --local-env-vars` before resolving or running a gate.

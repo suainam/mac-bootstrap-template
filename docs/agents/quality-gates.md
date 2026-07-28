@@ -151,6 +151,42 @@ Claude `decision=block` 与有界 `reason`；Claude 修复同一文件；成功 
 不属于第一枪。下一宿主只能新增自己的 payload 转换与结果映射，不能修改标准事件 schema、
 runtime gate 或诊断核心；由此用真实复用证明通用性，而不是预先设计 plugin framework。
 
+## OpenCode Edit 曳光弹
+
+`scripts/agent_opencode_edit_adapter.py` 是第二个宿主 adapter。OpenCode 1.18.5 的项目插件
+通过 `.opencode/plugins/` 自动加载，并在 `tool.execute.after(input, output)` 中提供
+`tool`、`sessionID`、`callID`、`args`、`directory` 和可改写的 `output.output`。adapter
+只处理 `write`、`edit` 和单文件 `apply_patch`：前两者读取 `args.filePath`，后者从
+`args.patchText` 的 `*** Add File:` / `*** Update File:` 标记提取唯一目标；多文件 patch、
+非法目录和仓库外路径确定性拒绝。
+
+`plugin` 动作输出一个最小 JavaScript shim，可直接写入目标仓库的
+`.opencode/plugins/agent-runtime.js`。shim 仅把真实 hook payload 送入 Python adapter；
+runtime 成功时不修改原工具结果，失败时只把有界 `additionalContext` 前置到
+`output.output`，让 OpenCode 在下一轮看到并修复问题：
+
+```bash
+mkdir -p .opencode/plugins
+/absolute/python3 scripts/agent_opencode_edit_adapter.py \
+  --registry agent/runtime/registry.jsonc \
+  plugin --python /absolute/python3 \
+  > .opencode/plugins/agent-runtime.js
+```
+
+第二枪继续复用原有 `claude-edit-smoke` profile 和 `python-syntax-smoke` gate；该 profile
+名称是首枪留下的历史命名，不代表 runtime 或 gate 绑定 Claude。此次实现没有修改标准
+事件 schema、`agent_runtime.py`、registry 或诊断核心。
+
+真实验收中，OpenCode 先通过 `write` 写入 Python 语法错误，工具结果收到一次
+`python-syntax-smoke` 诊断；OpenCode 随即修复同一文件并返回 `TRACER_OK`，成功路径没有
+再次注入诊断。随后同一临时仓库通过可信 Git dispatcher 完成真实 commit/push，本地与
+bare remote SHA 相同，dispatcher doctor 为 healthy，且未使用 quality-gate bypass 或
+`--no-verify`。这证明宿主通用性来自两个薄 adapter 复用同一标准事件和 runtime，而不是
+来自预先建立的 adapter framework。
+
+完整 OpenCode lifecycle、session/batch 事件、全局插件安装器和通用插件加载框架仍不在
+当前范围内。
+
 ## 可信 Git hook dispatcher
 
 `scripts/agent_git_hook_dispatcher.py` 提供独立的 inventory、install、uninstall、doctor
