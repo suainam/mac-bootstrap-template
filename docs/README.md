@@ -17,6 +17,8 @@
 - `colima-local.md`：按需启动的本地 Docker runtime、代理与日志边界。
 - `clash-profile-flow.md`：Clash 源配置、profile 与运行态边界。
 - `agent-prompt-mcp.md`、`agent-subagents.md`：agent 协作与 prompt MCP。
+- `agents/quality-gates.md`：Agent Runtime、Git context、profile、门禁和回滚机制。
+- `agents/runtime-rollout.md`：逐仓推广经验、风险阶梯、验收 checklist 与停止条件。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。
 - `ci.md`：公共 CI 契约、GitHub Actions 边界与本地复现方式。
 - `data-hub-record-knowledge.md`：知识记录路径。

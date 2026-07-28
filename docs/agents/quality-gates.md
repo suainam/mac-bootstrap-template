@@ -1,6 +1,6 @@
 # Agent Quality Gates 与 Linked Worktree
 
-本文是公开模板中 Agent quality gate 的运行与验收权威。Issue/PR 记录具体变更历史；本文只保留可跨任务复用的机制、边界和检查顺序。
+本文是公开模板中 Agent quality gate 的运行与验收权威。Issue/PR 记录具体变更历史；本文只保留可跨任务复用的机制、边界和检查顺序。逐仓推广顺序、经验教训、迁移 checklist 与停止条件见 [`runtime-rollout.md`](runtime-rollout.md)。
 
 ## 标准事件运行时骨架
 
