@@ -15,11 +15,17 @@ class CheckScopeError(RuntimeError):
     pass
 
 
-def _required_path(name: str, *, directory: bool = False) -> Path:
+def _required_path(
+    name: str,
+    *,
+    directory: bool = False,
+    preserve_entrypoint: bool = False,
+) -> Path:
     raw = os.environ.get(name, "")
     if not raw:
         raise CheckScopeError(f"{name} is required")
-    path = Path(raw).resolve()
+    candidate = Path(raw).expanduser()
+    path = candidate.absolute() if preserve_entrypoint else candidate.resolve()
     if directory and not path.is_dir():
         raise CheckScopeError(f"{name} is not a directory: {path}")
     return path
@@ -59,10 +65,19 @@ def _is_primary_checkout() -> bool:
 
 
 def _run_make(repo_root: Path, target: str) -> int:
+    runtime_python = _required_path(
+        "AGENT_RUNTIME_PYTHON", preserve_entrypoint=True
+    )
+    if not runtime_python.is_file() or not os.access(runtime_python, os.X_OK):
+        raise CheckScopeError(
+            f"AGENT_RUNTIME_PYTHON is not an executable file: {runtime_python}"
+        )
+    env = os.environ.copy()
+    env["PYTHON"] = str(runtime_python)
     result = subprocess.run(
         [MAKE, target],
         cwd=repo_root,
-        env=os.environ.copy(),
+        env=env,
         check=False,
     )
     return result.returncode

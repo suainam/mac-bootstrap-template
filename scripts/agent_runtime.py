@@ -95,6 +95,9 @@ class StandardEvent:
                 payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
             ),
             "AGENT_RUNTIME_LIB_DIR": str(Path(__file__).resolve().parent),
+            "AGENT_RUNTIME_PYTHON": os.environ.get(
+                "AGENT_RUNTIME_TRUSTED_PYTHON", sys.executable
+            ),
         }
         if context is not None:
             environment.update(context.environment(state_paths))
@@ -1087,6 +1090,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--registry", type=Path, default=default_registry_path())
     parser.add_argument("--cwd", type=Path)
     parser.add_argument("--session-id")
+    parser.add_argument("--trusted-python", type=Path)
     parser.add_argument(
         "command",
         choices=("dispatch", "dry-run", "explain", "doctor", "explain-context"),
@@ -1103,6 +1107,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = build_parser().parse_args(raw_args)
     try:
+        os.environ.pop("AGENT_RUNTIME_TRUSTED_PYTHON", None)
+        if args.trusted_python is not None:
+            trusted_python = args.trusted_python.expanduser()
+            if (
+                not trusted_python.is_absolute()
+                or not trusted_python.is_file()
+                or not os.access(trusted_python, os.X_OK)
+            ):
+                raise ConfigurationError(
+                    f"trusted Python is not executable: {trusted_python}"
+                )
+            os.environ["AGENT_RUNTIME_TRUSTED_PYTHON"] = str(trusted_python)
         if args.command == "doctor":
             return doctor(args.registry, args.cwd)
         if args.command == "explain-context":

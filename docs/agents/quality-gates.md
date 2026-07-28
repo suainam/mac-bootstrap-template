@@ -344,6 +344,13 @@ repo-only。独立 clone 默认没有该标记，也只跑 repo-check。trusted 
 doctor 输出 `management_checkout`、`management_checkout_config_valid` 与
 `effective_check_scope`；无效布尔值会使 doctor unhealthy，并在 push 时 fail closed。
 
+repo/machine runner 不使用目标仓库自己的 `.venv`，也不继承调用者随意设置的 `PYTHON`。
+dispatcher 从安装记录读取已经验证的 trusted Python，以显式 `--trusted-python` 传给 runtime；
+runtime 再通过 `AGENT_RUNTIME_PYTHON` 强制覆盖 Make 的 `PYTHON`。venv 入口路径必须原样保留，
+不得解析为底层 base interpreter，否则会丢失其 site-packages。用于 parent repo-check 的解释器
+必须位于目标父仓之外，并已安装 pytest 等仓库检查依赖；本机试点使用 template 管理 checkout
+中的 `.venv/bin/python`，独立 clone 无需建立自己的虚拟环境。
+
 ## Git context identity 与状态隔离
 
 Git hook 在发起操作的仓库上下文中运行。父仓、submodule、linked worktree、main
