@@ -347,6 +347,7 @@ def test_default_registry_doctor_is_available_through_wrapper(tmp_path: Path):
         "generic",
         "claude-edit-smoke",
         "mac-bootstrap-template",
+        "python-repo-smoke",
     ]
     assert payload["known_gates"] == [
         "python-syntax-smoke",

@@ -305,6 +305,15 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 自动改写现有 `core.hooksPath`。父仓 pointer、machine/repository 分层和父仓迁移继续留在
 #55 的后续纵向切片。
 
+### 普通 Python 仓库曳光弹
+
+`python-repo-smoke` 是首个不绑定仓库名称的 profile。它只引用与
+`mac-bootstrap-template` 相同的三个已验证 gate，不增加项目路径、命令或 installer：
+编辑后检查单个 Python 文件，提交前编译 staged snapshot，push 前验证 ref/OID 元数据。
+它适合先验证普通 Python 仓库的机械闭环，但不代表已迁移该仓库的 unittest、lint、业务
+检查或 hosted CI。仓库仍需显式 opt-in、inventory、install、doctor，并在试点结束后用
+uninstall 验证原 hooksPath 可恢复。
+
 ## Git context identity 与状态隔离
 
 Git hook 在发起操作的仓库上下文中运行。父仓、submodule、linked worktree、main
