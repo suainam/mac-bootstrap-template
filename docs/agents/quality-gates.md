@@ -268,10 +268,37 @@ release、旧 trust record 和旧 hooksPath；uninstall 仅在当前 hooksPath �
 执行，并在恢复旧值后删除 approved copies、registry 与 installation record。doctor 验证
 hooksPath、bundle release、runtime、registry、7 个 hook shim 和所有 approved digest。
 
-本 ticket 只交付 dispatcher 能力和显式操作入口。当前 mac-bootstrap parent/template 的
-repo-managed `pre-commit` / `pre-push` 仍由旧 quality-gate runner 负责；真实迁移属于 #55。
-在迁移完成前不得同时激活旧路径和用户级 dispatcher，也不得由通用 bootstrap 自动改写
-现有 `core.hooksPath`。
+### mac-bootstrap-template 迁移曳光弹
+
+`mac-bootstrap-template` 是第一个仓库迁移 profile。它刻意只复用已经跑通的三段机械能力：
+
+- `after.edit` 继续使用 `python-syntax-smoke`；
+- `before.commit` 只编译 dispatcher 物化的 staged Python snapshot，不读取未暂存 working tree；
+- `before.push` 只验证 dispatcher 提供的 ref 列表与 40 位十六进制 OID 元数据完整性。
+
+该 profile 不等价于旧 `make repo-check`，也不提前加入 machine checks、父仓 pointer、文档
+审计或 Public CI 模拟。首枪的公开验收是在独立临时仓库安装 dispatcher：坏的 staged Python
+提交被阻止；已暂存有效代码而 working tree 另有无效实验时仍可提交；真实 push 到 bare
+remote 后本地与远端 SHA 相同；doctor 为 healthy；uninstall 恢复安装前的
+`core.hooksPath`。
+
+profile 合并后，真实 template common config 仍需显式设置：
+
+```bash
+git config --local agent.runtime.enabled true
+git config --local agent.runtime.profile mac-bootstrap-template
+make quality-gate-hook-inventory GIT_HOOK_REPO=/path/to/template
+make quality-gate-hook-install \
+  GIT_HOOK_REPO=/path/to/template \
+  GIT_HOOK_REGISTRY=/trusted/registry.jsonc \
+  GIT_HOOK_PYTHON=/trusted/python3
+make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
+```
+
+切换前记录旧 hooksPath；安装、真实 commit/push 或 doctor 任一步失败都执行 uninstall 回滚。
+不得同时保留旧 repo-managed hook 与新 dispatcher 作为竞争入口，也不得由通用 bootstrap
+自动改写现有 `core.hooksPath`。父仓 pointer、machine/repository 分层和父仓迁移继续留在
+#55 的后续纵向切片。
 
 ## Git context identity 与状态隔离
 
