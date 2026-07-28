@@ -94,6 +94,7 @@ class StandardEvent:
             "AGENT_RUNTIME_EVENT_JSON": json.dumps(
                 payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
             ),
+            "AGENT_RUNTIME_LIB_DIR": str(Path(__file__).resolve().parent),
         }
         if context is not None:
             environment.update(context.environment(state_paths))
@@ -806,6 +807,16 @@ def _run_sync_gate(
         return _runtime_diagnostic(
             gate, event, state, "repository worktree is unavailable"
         )
+    snapshot_paths = event.target_paths
+    # Blocking Git hooks also compare the complete index/worktree state in the
+    # dispatcher, so directory-like gitlinks do not need byte snapshots here.
+    if event.event_type in BLOCKING_EVENT_TYPES:
+        snapshot_paths = tuple(
+            path
+            for path in event.target_paths
+            if not (state.repo_root / path).exists()
+            or (state.repo_root / path).is_file()
+        )
     result = run_guarded_check(
         gate_id=gate.gate_id,
         command=gate.command,
@@ -814,6 +825,7 @@ def _run_sync_gate(
         timeout_seconds=gate.timeout_seconds,
         repo_root=state.repo_root,
         target_paths=event.target_paths,
+        snapshot_paths=snapshot_paths,
         state_paths=state_paths,
         event_id=event.event_id,
         severity=gate.severity,

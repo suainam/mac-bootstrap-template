@@ -127,6 +127,7 @@ The script is intentionally split by responsibility:
 - Legacy Git runner source: `template/scripts/agent-quality-gate.sh`
 - `mac-bootstrap-template` is the first repository migration profile: it reuses edit syntax feedback, compiles dispatcher-provided staged Python snapshots before commit, and validates push ref metadata. It deliberately does not yet replace the full legacy repo-check policy.
 - `python-repo-smoke` aliases those same proven gates for an ordinary Python repository without adding repository paths, commands, or installer behavior; repository-specific unittest, lint, and hosted CI remain outside the profile.
+- `mac-bootstrap-parent` adds one pointer gate: staged `template` gitlink OIDs must be fetchable from the staged `.gitmodules` remote before the parent commit can land. The checker ships inside the trusted dispatcher bundle and does not depend on a checkout path.
 - Repo-managed git hooks remain authoritative for real parent/template checkouts until #55 explicitly installs and validates the dispatcher; never activate both paths.
 - Codex `hooks.json` does not own quality gate execution and should not guess git intent from prompts.
 - Codex hook commands use `hooks.json` only; `config.toml` must not define a second hook representation.

@@ -38,6 +38,16 @@
         "template-staged-python-syntax",
         "template-push-ref-integrity"
       ]
+    },
+    // Parent-repository tracer: reuse the proven Python and push checks, then
+    // require the staged template gitlink OID to be fetchable from its remote.
+    "mac-bootstrap-parent": {
+      "gates": [
+        "python-syntax-smoke",
+        "template-staged-python-syntax",
+        "parent-submodule-pointer-reachable",
+        "template-push-ref-integrity"
+      ]
     }
   },
   // Gates are trusted user-level declarations. after.edit uses stage=edit;
@@ -80,6 +90,25 @@
       "failure_policy": "block",
       "output_policy": "diagnostic",
       "capabilities": ["read-only", "staged-snapshot"],
+      "stage": "generic",
+      "action": "check",
+      "severity": "error",
+      "rule_revision": "1"
+    },
+    "parent-submodule-pointer-reachable": {
+      "events": ["before.commit"],
+      "path_globs": ["template"],
+      "command": [
+        "/usr/bin/python3",
+        "-c",
+        "import os,runpy; runpy.run_path(os.path.join(os.environ['AGENT_RUNTIME_LIB_DIR'],'agent_submodule_pointer_gate.py'),run_name='__main__')"
+      ],
+      "cwd": "repo",
+      "mode": "sync",
+      "timeout_seconds": 30,
+      "failure_policy": "block",
+      "output_policy": "diagnostic",
+      "capabilities": ["read-only", "staged-snapshot", "network-read"],
       "stage": "generic",
       "action": "check",
       "severity": "error",

@@ -302,7 +302,7 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 
 切换前记录旧 hooksPath；安装、真实 commit/push 或 doctor 任一步失败都执行 uninstall 回滚。
 不得同时保留旧 repo-managed hook 与新 dispatcher 作为竞争入口，也不得由通用 bootstrap
-自动改写现有 `core.hooksPath`。父仓 pointer、machine/repository 分层和父仓迁移继续留在
+自动改写现有 `core.hooksPath`。machine/repository 分层和完整父仓迁移继续留在
 #55 的后续纵向切片。
 
 ### 普通 Python 仓库曳光弹
@@ -313,6 +313,22 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 它适合先验证普通 Python 仓库的机械闭环，但不代表已迁移该仓库的 unittest、lint、业务
 检查或 hosted CI。仓库仍需显式 opt-in、inventory、install、doctor，并在试点结束后用
 uninstall 验证原 hooksPath 可恢复。
+
+### mac-bootstrap 父仓 pointer 曳光弹
+
+`mac-bootstrap-parent` 在已验证的 Python staged syntax 与 push ref gate 之外，只新增
+`parent-submodule-pointer-reachable`。该 gate 只在 staged target 包含 `template` 时运行：
+从 index 读取 `.gitmodules`，取得 mode `160000` gitlink 的 staged OID，并在临时 bare repo
+中从配置远端按 OID fetch。仅存在于本地子仓 object database、尚未 push 的 commit 会阻止
+父仓提交；子仓先 push 后，同一个 pointer commit 才能通过。删除 gitlink不需要远端可达性
+检查。相对 URL 与 `ext::`/`fd::` helper 在该首枪中 fail closed。
+
+pointer checker 随 dispatcher 的可信 bundle 发布，runtime 通过内部
+`AGENT_RUNTIME_LIB_DIR` 指向当前 release 的 `lib/`，不引用父仓或 template checkout 路径。
+阻塞 Git 生命周期中，gitlink目录不按普通文件复制；普通文件仍由 edit-feedback snapshot
+保护，而 dispatcher 继续比较完整 index tree 与 worktree fingerprint，任何 gate 改写仍会
+阻止提交。真实验收必须遵守 child-first、pointer-second，并在结束后 uninstall 验证原
+hooksPath 可恢复。
 
 ## Git context identity 与状态隔离
 
