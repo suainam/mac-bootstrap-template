@@ -39,6 +39,7 @@ HOOK_EVENTS: dict[str, tuple[str, bool]] = {
     "pre-push": ("before.push", True),
 }
 BUNDLE_FILES = (
+    "agent_check_scope_gate.py",
     "agent_git_hook_dispatcher.py",
     "agent_git_context.py",
     "agent_edit_feedback.py",
@@ -789,7 +790,10 @@ def _event_payload(
         metadata["commit_oid"] = _git_text(context, "rev-parse", "HEAD")
     elif hook_name == "post-checkout":
         if len(hook_args) == 3:
-            target_paths = _diff_paths(context, hook_args[0], hook_args[1])
+            empty = _empty_tree(context)
+            old = empty if hook_args[0] == ZERO_OID else hook_args[0]
+            new = empty if hook_args[1] == ZERO_OID else hook_args[1]
+            target_paths = _diff_paths(context, old, new)
     elif hook_name == "post-merge":
         old = _git_text(context, "rev-parse", "ORIG_HEAD", allow_missing=True)
         if old:
@@ -1242,6 +1246,17 @@ def doctor(context: GitContext, *, install_root: Path, state_root: Path) -> dict
         }
         for hook_name in HOOK_EVENTS
     }
+    management_raw = (
+        _git_config_get(context, "agent.runtime.managementCheckout") or ""
+    ).lower()
+    management_config_valid = management_raw in {"", "true", "false"}
+    management_checkout = management_raw == "true"
+    primary_checkout = not context.is_linked_worktree and not context.is_submodule
+    effective_check_scope = (
+        "repo+machine"
+        if management_checkout and primary_checkout
+        else "repo-only"
+    )
     approved_health: list[dict[str, object]] = []
     if record:
         for hook_name, entries in (record.get("approved_hooks") or {}).items():
@@ -1271,6 +1286,7 @@ def doctor(context: GitContext, *, install_root: Path, state_root: Path) -> dict
         and registry_path is not None
         and registry_path.is_file()
         and all(item["executable"] for item in hook_health.values())
+        and management_config_valid
         and all(
             item["digest_matches"] and item["executable"]
             for item in approved_health
@@ -1282,6 +1298,9 @@ def doctor(context: GitContext, *, install_root: Path, state_root: Path) -> dict
         "worktree_id": context.worktree_id,
         "installed": record is not None,
         "healthy": healthy,
+        "management_checkout": management_checkout,
+        "management_checkout_config_valid": management_config_valid,
+        "effective_check_scope": effective_check_scope,
         "installation_record": str(record_path),
         "configured_hooks_path": configured,
         "expected_hooks_path": expected,

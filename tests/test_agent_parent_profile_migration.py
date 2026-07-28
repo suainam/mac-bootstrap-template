@@ -113,6 +113,11 @@ def test_parent_profile_blocks_unpublished_child_pointer_then_allows_push(
     git(child, env, "push", "-u", "origin", "main")
 
     init_repo(parent, env)
+    (parent / "Makefile").write_text(
+        "repo-check:\n\t@:\n\nmachine-check:\n\t@:\n",
+        encoding="utf-8",
+    )
+    git(parent, env, "add", "Makefile")
     git(parent, env, "init", "--bare", "-q", "-b", "main", str(parent_remote))
     git(parent, env, "remote", "add", "origin", str(parent_remote))
     git(
@@ -190,3 +195,89 @@ def test_parent_profile_blocks_unpublished_child_pointer_then_allows_push(
     removed = dispatcher(parent, home, install_root, state_root, "uninstall")
     assert json.loads(removed.stdout)["restored_hooks_path"] == "legacy-hooks"
     assert git(parent, env, "config", "--get", "core.hooksPath").stdout.strip() == "legacy-hooks"
+
+
+def test_parent_push_splits_repository_and_explicit_management_checks(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    env = clean_env(home)
+    repo_marker = tmp_path / "repo-checks.txt"
+    machine_marker = tmp_path / "machine-checks.txt"
+    env["AGENT_SCOPE_REPO_MARKER"] = str(repo_marker)
+    env["AGENT_SCOPE_MACHINE_MARKER"] = str(machine_marker)
+    parent = tmp_path / "parent"
+    linked = tmp_path / "linked"
+    remote = tmp_path / "parent.git"
+    install_root = tmp_path / "install"
+    state_root = tmp_path / "state"
+
+    init_repo(parent, env)
+    (parent / "Makefile").write_text(
+        "repo-check:\n"
+        "\t@printf 'repo:%s\\n' \"$$(git branch --show-current)\" >> \"$$AGENT_SCOPE_REPO_MARKER\"\n\n"
+        "machine-check:\n"
+        "\t@printf 'machine:%s\\n' \"$$(git branch --show-current)\" >> \"$$AGENT_SCOPE_MACHINE_MARKER\"\n",
+        encoding="utf-8",
+    )
+    (parent / "sample.txt").write_text("initial\n", encoding="utf-8")
+    git(parent, env, "add", "Makefile", "sample.txt")
+    git(parent, env, "commit", "-qm", "initial parent")
+    git(parent, env, "init", "--bare", "-q", "-b", "main", str(remote))
+    git(parent, env, "remote", "add", "origin", str(remote))
+    git(parent, env, "config", "agent.runtime.enabled", "true")
+    git(parent, env, "config", "agent.runtime.profile", "mac-bootstrap-parent")
+    dispatcher(
+        parent,
+        home,
+        install_root,
+        state_root,
+        "install",
+        "--registry",
+        str(REGISTRY),
+    )
+    initial_doctor = json.loads(
+        dispatcher(parent, home, install_root, state_root, "doctor").stdout
+    )
+    assert initial_doctor["management_checkout"] is False
+    assert initial_doctor["effective_check_scope"] == "repo-only"
+
+    first_push = git(parent, env, "push", "-u", "origin", "main")
+    assert first_push.returncode == 0
+    assert repo_marker.read_text(encoding="utf-8").splitlines() == ["repo:main"]
+    assert machine_marker.exists() is False
+
+    git(parent, env, "config", "agent.runtime.managementCheckout", "true")
+    management_doctor = json.loads(
+        dispatcher(parent, home, install_root, state_root, "doctor").stdout
+    )
+    assert management_doctor["management_checkout"] is True
+    assert management_doctor["effective_check_scope"] == "repo+machine"
+    (parent / "sample.txt").write_text("management\n", encoding="utf-8")
+    git(parent, env, "add", "sample.txt")
+    git(parent, env, "commit", "-qm", "management change")
+    git(parent, env, "push", "origin", "main")
+    assert repo_marker.read_text(encoding="utf-8").splitlines() == [
+        "repo:main",
+        "repo:main",
+    ]
+    assert machine_marker.read_text(encoding="utf-8").splitlines() == ["machine:main"]
+
+    git(parent, env, "worktree", "add", "-q", "-b", "linked", str(linked), "main")
+    git(linked, env, "config", "user.email", "parent-profile@example.com")
+    git(linked, env, "config", "user.name", "Parent Profile Test")
+    linked_doctor = json.loads(
+        dispatcher(linked, home, install_root, state_root, "doctor").stdout
+    )
+    assert linked_doctor["management_checkout"] is True
+    assert linked_doctor["effective_check_scope"] == "repo-only"
+    (linked / "sample.txt").write_text("linked\n", encoding="utf-8")
+    git(linked, env, "add", "sample.txt")
+    git(linked, env, "commit", "-qm", "linked change")
+    git(linked, env, "push", "-u", "origin", "linked")
+
+    assert repo_marker.read_text(encoding="utf-8").splitlines() == [
+        "repo:main",
+        "repo:main",
+        "repo:linked",
+    ]
+    assert machine_marker.read_text(encoding="utf-8").splitlines() == ["machine:main"]
