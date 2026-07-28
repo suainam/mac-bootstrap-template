@@ -307,14 +307,21 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 自动改写现有 `core.hooksPath`。template 始终是 repo-only；完整 machine checks 只属于显式
 标记的父仓管理 checkout。
 
-### 普通 Python 仓库曳光弹
+### 普通 Python 仓库 profiles
 
-`python-repo-smoke` 是首个不绑定仓库名称的 profile。它只引用与
-`mac-bootstrap-template` 相同的三个已验证 gate，不增加项目路径、命令或 installer：
-编辑后检查单个 Python 文件，提交前编译 staged snapshot，push 前验证 ref/OID 元数据。
-它适合先验证普通 Python 仓库的机械闭环，但不代表已迁移该仓库的 unittest、lint、业务
-检查或 hosted CI。仓库仍需显式 opt-in、inventory、install、doctor，并在试点结束后用
-uninstall 验证原 hooksPath 可恢复。
+`python-repo-smoke` 是首个不绑定仓库名称的机械曳光弹。它只包含编辑后 Python 语法、
+staged snapshot 编译和 push ref/OID 完整性，不运行项目检查，适合验证 dispatcher 的最小
+闭环。
+
+`python-repository` 在同一组机械 gate 之外复用通用 `repository-check`，push 前固定调用
+仓库自己的只读 `make repo-check`。全局 registry 不包含 pytest、uv、ruff 或项目路径；仓库
+拥有 compile、lint、typecheck、test 与 diff-check 的组合，runtime 只拥有可信调用、timeout、
+输出预算和 fail-closed 边界。项目依赖准备应在显式 bootstrap 或 CI 的 sync/install 阶段完成；
+`repo-check` 不应在 push 热路径隐式安装依赖、发布制品或产生真实外部副作用。
+
+两种 profile 都要求显式 opt-in、inventory、install 和 doctor。smoke 通过不代表完整仓库
+迁移完成；完整 profile 还必须经过失败注入、真实临时分支 push、hosted CI 和 uninstall
+回滚演练。
 
 ### mac-bootstrap 父仓 pointer 曳光弹
 

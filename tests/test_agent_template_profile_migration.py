@@ -100,12 +100,17 @@ def dispatcher(
 
 
 @pytest.mark.parametrize(
-    "profile",
-    ["mac-bootstrap-template", "python-repo-smoke"],
+    ("profile", "runs_repository_check"),
+    [
+        ("mac-bootstrap-template", True),
+        ("python-repo-smoke", False),
+        ("python-repository", True),
+    ],
 )
 def test_python_repository_profile_migrates_commit_push_and_rolls_back(
     tmp_path: Path,
     profile: str,
+    runs_repository_check: bool,
 ):
     home = tmp_path / "home"
     home.mkdir()
@@ -174,7 +179,7 @@ def test_python_repository_profile_migrates_commit_push_and_rolls_back(
         env=env,
     ).stdout.strip()
     assert local_sha == remote_sha
-    if profile == "mac-bootstrap-template":
+    if runs_repository_check:
         assert repo_marker.read_text(encoding="utf-8").splitlines() == [
             f"repo:{sys.executable}"
         ]
