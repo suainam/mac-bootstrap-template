@@ -46,7 +46,9 @@
         "python-syntax-smoke",
         "template-staged-python-syntax",
         "parent-submodule-pointer-reachable",
-        "template-push-ref-integrity"
+        "template-push-ref-integrity",
+        "parent-repository-check",
+        "parent-machine-check"
       ]
     }
   },
@@ -109,6 +111,44 @@
       "failure_policy": "block",
       "output_policy": "diagnostic",
       "capabilities": ["read-only", "staged-snapshot", "network-read"],
+      "stage": "generic",
+      "action": "check",
+      "severity": "error",
+      "rule_revision": "1"
+    },
+    "parent-repository-check": {
+      "events": ["before.push"],
+      "path_globs": [],
+      "command": [
+        "/usr/bin/python3",
+        "-c",
+        "import os,runpy,sys; sys.argv=['agent_check_scope_gate.py','repository']; runpy.run_path(os.path.join(os.environ['AGENT_RUNTIME_LIB_DIR'],'agent_check_scope_gate.py'),run_name='__main__')"
+      ],
+      "cwd": "repo",
+      "mode": "sync",
+      "timeout_seconds": 300,
+      "failure_policy": "block",
+      "output_policy": "diagnostic",
+      "capabilities": ["read-only", "repository-check"],
+      "stage": "generic",
+      "action": "check",
+      "severity": "error",
+      "rule_revision": "1"
+    },
+    "parent-machine-check": {
+      "events": ["before.push"],
+      "path_globs": [],
+      "command": [
+        "/usr/bin/python3",
+        "-c",
+        "import os,runpy,sys; sys.argv=['agent_check_scope_gate.py','machine']; runpy.run_path(os.path.join(os.environ['AGENT_RUNTIME_LIB_DIR'],'agent_check_scope_gate.py'),run_name='__main__')"
+      ],
+      "cwd": "repo",
+      "mode": "sync",
+      "timeout_seconds": 300,
+      "failure_policy": "block",
+      "output_policy": "diagnostic",
+      "capabilities": ["read-only", "machine-check"],
       "stage": "generic",
       "action": "check",
       "severity": "error",

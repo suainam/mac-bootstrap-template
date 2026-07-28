@@ -316,8 +316,8 @@ uninstall 验证原 hooksPath 可恢复。
 
 ### mac-bootstrap 父仓 pointer 曳光弹
 
-`mac-bootstrap-parent` 在已验证的 Python staged syntax 与 push ref gate 之外，只新增
-`parent-submodule-pointer-reachable`。该 gate 只在 staged target 包含 `template` 时运行：
+`mac-bootstrap-parent` 在已验证的 Python staged syntax 与 push ref gate 之外增加三段
+父仓能力。`parent-submodule-pointer-reachable` 只在 staged target 包含 `template` 时运行：
 从 index 读取 `.gitmodules`，取得 mode `160000` gitlink 的 staged OID，并在临时 bare repo
 中从配置远端按 OID fetch。仅存在于本地子仓 object database、尚未 push 的 commit 会阻止
 父仓提交；子仓先 push 后，同一个 pointer commit 才能通过。删除 gitlink不需要远端可达性
@@ -329,6 +329,20 @@ pointer checker 随 dispatcher 的可信 bundle 发布，runtime 通过内部
 保护，而 dispatcher 继续比较完整 index tree 与 worktree fingerprint，任何 gate 改写仍会
 阻止提交。真实验收必须遵守 child-first、pointer-second，并在结束后 uninstall 验证原
 hooksPath 可恢复。
+
+`before.push` 另外固定调用 `make repo-check`。`make machine-check` 不再根据“看起来像
+main checkout”自动运行，而必须由真实管理 checkout 显式声明：
+
+```bash
+git config --local agent.runtime.managementCheckout true
+```
+
+该值位于 git common config，因此 linked worktree 可以看到它；但 runner 同时要求当前
+`git dir == git common dir` 且不是 submodule，linked worktree 与 submodule 始终降级为
+repo-only。独立 clone 默认没有该标记，也只跑 repo-check。trusted bundle 只固定 target 名称
+`repo-check` / `machine-check`，仓库不能通过 profile 或 local config 注入任意命令。
+doctor 输出 `management_checkout`、`management_checkout_config_valid` 与
+`effective_check_scope`；无效布尔值会使 doctor unhealthy，并在 push 时 fail closed。
 
 ## Git context identity 与状态隔离
 
@@ -362,8 +376,9 @@ dir 或 cwd 猜测。运行状态路径固定为：
 ```
 
 该目录下分别定义 changed-file ledger、lock、cache、diagnostics、accumulator 和 receipts。
-即使 session ID 相同，两个 worktree 也不会共享这些路径。main checkout 才负责验证用户级
-symlink、LaunchAgent、已安装应用等机器状态。
+即使 session ID 相同，两个 worktree 也不会共享这些路径。只有显式标记的真实管理
+checkout 才负责验证用户级 symlink、LaunchAgent、已安装应用等机器状态。新建 linked
+worktree 时 `post-checkout` 可能传入全零 old OID；dispatcher 将其规范化为空树后再计算路径。
 
 ## 检查分层
 
@@ -371,11 +386,13 @@ symlink、LaunchAgent、已安装应用等机器状态。
 
 | Target | 职责 | 适用位置 |
 |---|---|---|
-| `make repo-check` | 语法、隐私、skill、非 `machine` 测试 | main checkout、linked worktree、submodule |
-| `make machine-check` | strict doctor 与 `machine` 标记测试 | 真实管理 checkout |
-| `make check` | `repo-check + machine-check` | 真实管理 checkout 的完整发布验证 |
+| `make repo-check` | 语法、隐私、skill、非 `machine` 测试 | 普通 clone、管理 checkout、linked worktree、submodule |
+| `make machine-check` | strict doctor 与 `machine` 标记测试 | 显式标记的真实管理 checkout |
+| `make check` | `repo-check + machine-check` | 显式标记的真实管理 checkout 的完整发布验证 |
 
-linked worktree 或 submodule 的 pre-push 只运行 repository checks。临时 worktree 不应接管或重写真实机器上的 managed symlink，也不应因它们仍指向管理 checkout 而失败。
+普通 clone、linked worktree 或 submodule 的 pre-push 只运行 repository checks。临时
+worktree 不应接管或重写真实机器上的 managed symlink，也不应因它们仍指向管理 checkout
+而失败。
 
 ## 跨仓执行
 

@@ -354,6 +354,8 @@ def test_default_registry_doctor_is_available_through_wrapper(tmp_path: Path):
         "python-syntax-smoke",
         "template-staged-python-syntax",
         "parent-submodule-pointer-reachable",
+        "parent-repository-check",
+        "parent-machine-check",
         "template-push-ref-integrity",
     ]
     assert payload["enabled"] is False
