@@ -428,6 +428,7 @@ def run_guarded_check(
     timeout_seconds: float,
     repo_root: Path,
     target_paths: Sequence[str],
+    snapshot_paths: Sequence[str] | None = None,
     state_paths: RuntimeStatePaths | None,
     event_id: str,
     severity: str,
@@ -435,8 +436,9 @@ def run_guarded_check(
     include_output: bool,
 ) -> GateExecutionResult:
     before_hash = target_content_hash(repo_root, target_paths)
+    protected_paths = target_paths if snapshot_paths is None else snapshot_paths
     try:
-        snapshots = snapshot_targets(repo_root, target_paths)
+        snapshots = snapshot_targets(repo_root, protected_paths)
     except (OSError, FeedbackStateError) as exc:
         return GateExecutionResult(
             diagnostic=make_diagnostic(

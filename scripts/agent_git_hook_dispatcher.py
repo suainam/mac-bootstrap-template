@@ -43,6 +43,7 @@ BUNDLE_FILES = (
     "agent_git_context.py",
     "agent_edit_feedback.py",
     "agent_runtime.py",
+    "agent_submodule_pointer_gate.py",
 )
 
 
