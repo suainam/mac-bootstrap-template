@@ -275,16 +275,18 @@ hooksPath、bundle release、runtime、registry、7 个 hook shim 和所有 appr
 
 ### mac-bootstrap-template 迁移曳光弹
 
-`mac-bootstrap-template` 是第一个仓库迁移 profile。它刻意只复用已经跑通的三段机械能力：
+`mac-bootstrap-template` 是第一个仓库迁移 profile。它复用已经跑通的机械门禁，并在
+`before.push` 运行完整 repository checks：
 
 - `after.edit` 继续使用 `python-syntax-smoke`；
 - `before.commit` 只编译 dispatcher 物化的 staged Python snapshot，不读取未暂存 working tree；
-- `before.push` 只验证 dispatcher 提供的 ref 列表与 40 位十六进制 OID 元数据完整性。
+- `before.push` 验证 dispatcher 提供的 ref 列表与 40 位十六进制 OID 元数据完整性；
+- `before.push` 通过通用 `repository-check` gate 固定执行 `make repo-check`。
 
-该 profile 不等价于旧 `make repo-check`，也不提前加入 machine checks、父仓 pointer、文档
-审计或 Public CI 模拟。首枪的公开验收是在独立临时仓库安装 dispatcher：坏的 staged Python
-提交被阻止；已暂存有效代码而 working tree 另有无效实验时仍可提交；真实 push 到 bare
-remote 后本地与远端 SHA 相同；doctor 为 healthy；uninstall 恢复安装前的
+该 profile 不运行 machine checks、父仓 pointer gate 或额外的 Public CI 模拟。公开验收在
+独立临时仓库安装 dispatcher：坏的 staged Python 提交被阻止；已暂存有效代码而 working
+tree 另有无效实验时仍可提交；真实 push 会调用一次 `repo-check`，使用安装时选择的 trusted
+Python，且不调用 `machine-check`；doctor 为 healthy；uninstall 恢复安装前的
 `core.hooksPath`。
 
 profile 合并后，真实 template common config 仍需显式设置：
@@ -302,8 +304,8 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 
 切换前记录旧 hooksPath；安装、真实 commit/push 或 doctor 任一步失败都执行 uninstall 回滚。
 不得同时保留旧 repo-managed hook 与新 dispatcher 作为竞争入口，也不得由通用 bootstrap
-自动改写现有 `core.hooksPath`。machine/repository 分层和完整父仓迁移继续留在
-#55 的后续纵向切片。
+自动改写现有 `core.hooksPath`。template 始终是 repo-only；完整 machine checks 只属于显式
+标记的父仓管理 checkout。
 
 ### 普通 Python 仓库曳光弹
 
@@ -330,8 +332,9 @@ pointer checker 随 dispatcher 的可信 bundle 发布，runtime 通过内部
 阻止提交。真实验收必须遵守 child-first、pointer-second，并在结束后 uninstall 验证原
 hooksPath 可恢复。
 
-`before.push` 另外固定调用 `make repo-check`。`make machine-check` 不再根据“看起来像
-main checkout”自动运行，而必须由真实管理 checkout 显式声明：
+`before.push` 复用与 template 相同的通用 `repository-check` gate，固定调用
+`make repo-check`。`make machine-check` 不再根据“看起来像 main checkout”自动运行，
+而必须由真实管理 checkout 显式声明：
 
 ```bash
 git config --local agent.runtime.managementCheckout true

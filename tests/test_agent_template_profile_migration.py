@@ -110,11 +110,24 @@ def test_python_repository_profile_migrates_commit_push_and_rolls_back(
     home = tmp_path / "home"
     home.mkdir()
     env = clean_env(home)
+    repo_marker = tmp_path / "repo-checks.txt"
+    machine_marker = tmp_path / "machine-checks.txt"
+    env["AGENT_TEMPLATE_REPO_MARKER"] = str(repo_marker)
+    env["AGENT_TEMPLATE_MACHINE_MARKER"] = str(machine_marker)
     repo = tmp_path / "standalone-template"
     remote = tmp_path / "remote.git"
     install_root = tmp_path / "install"
     state_root = tmp_path / "state"
     init_repo(repo, env)
+    (repo / "Makefile").write_text(
+        "repo-check:\n"
+        "\t@printf 'repo:%s\\n' \"$(PYTHON)\" >> \"$$AGENT_TEMPLATE_REPO_MARKER\"\n\n"
+        "machine-check:\n"
+        "\t@printf 'machine:%s\\n' \"$(PYTHON)\" >> \"$$AGENT_TEMPLATE_MACHINE_MARKER\"\n",
+        encoding="utf-8",
+    )
+    git(repo, env, "add", "Makefile")
+    git(repo, env, "commit", "-qm", "add repository checks")
     git(repo, env, "init", "--bare", "-q", str(remote))
     git(repo, env, "remote", "add", "origin", str(remote))
     git(repo, env, "config", "core.hooksPath", "legacy-hooks")
@@ -161,6 +174,13 @@ def test_python_repository_profile_migrates_commit_push_and_rolls_back(
         env=env,
     ).stdout.strip()
     assert local_sha == remote_sha
+    if profile == "mac-bootstrap-template":
+        assert repo_marker.read_text(encoding="utf-8").splitlines() == [
+            f"repo:{sys.executable}"
+        ]
+    else:
+        assert repo_marker.exists() is False
+    assert machine_marker.exists() is False
 
     doctor = dispatcher(repo, home, install_root, state_root, "doctor")
     doctor_payload = json.loads(doctor.stdout)
