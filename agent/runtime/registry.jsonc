@@ -20,6 +20,15 @@
     // general language profile.
     "claude-edit-smoke": {
       "gates": ["python-syntax-smoke"]
+    },
+    // First repository migration tracer: reuse edit feedback, compile staged
+    // Python snapshots before commit, and validate dispatcher push ref metadata.
+    "mac-bootstrap-template": {
+      "gates": [
+        "python-syntax-smoke",
+        "template-staged-python-syntax",
+        "template-push-ref-integrity"
+      ]
     }
   },
   // Gates are trusted user-level declarations. after.edit uses stage=edit;
@@ -44,6 +53,44 @@
       "output_policy": "diagnostic",
       "capabilities": ["read-only"],
       "stage": "edit",
+      "action": "check",
+      "severity": "error",
+      "rule_revision": "1"
+    },
+    "template-staged-python-syntax": {
+      "events": ["before.commit"],
+      "path_globs": ["*.py", "**/*.py"],
+      "command": [
+        "/usr/bin/python3",
+        "-c",
+        "import json,os,pathlib; event=json.loads(os.environ['AGENT_RUNTIME_EVENT_JSON']); entries=event['metadata'].get('staged_entries',[]); [compile(pathlib.Path(entry['snapshot_path']).read_text(encoding='utf-8'),entry['path'],'exec') for entry in entries if entry.get('snapshot_path') and entry['path'].endswith('.py')]"
+      ],
+      "cwd": "repo",
+      "mode": "sync",
+      "timeout_seconds": 10,
+      "failure_policy": "block",
+      "output_policy": "diagnostic",
+      "capabilities": ["read-only", "staged-snapshot"],
+      "stage": "generic",
+      "action": "check",
+      "severity": "error",
+      "rule_revision": "1"
+    },
+    "template-push-ref-integrity": {
+      "events": ["before.push"],
+      "path_globs": [],
+      "command": [
+        "/usr/bin/python3",
+        "-c",
+        "import json,os,string; event=json.loads(os.environ['AGENT_RUNTIME_EVENT_JSON']); refs=event['metadata'].get('refs'); assert isinstance(refs,list) and refs,'before.push requires at least one ref'; allowed=set(string.hexdigits); assert all(isinstance(ref.get('local_oid'),str) and len(ref['local_oid'])==40 and set(ref['local_oid'])<=allowed and isinstance(ref.get('remote_oid'),str) and len(ref['remote_oid'])==40 and set(ref['remote_oid'])<=allowed for ref in refs),'before.push ref OIDs must be 40 hexadecimal characters'"
+      ],
+      "cwd": "repo",
+      "mode": "sync",
+      "timeout_seconds": 5,
+      "failure_policy": "block",
+      "output_policy": "diagnostic",
+      "capabilities": ["read-only", "push-ref-metadata"],
+      "stage": "generic",
       "action": "check",
       "severity": "error",
       "rule_revision": "1"

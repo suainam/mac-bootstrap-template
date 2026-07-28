@@ -125,7 +125,8 @@ The script is intentionally split by responsibility:
 - Blocking lifecycle gates are synchronous, aggregate failures within the global output budget, and fail closed when runtime, registry, audit, or trust state is unavailable. Bypass additionally requires `QUALITY_GATES_BYPASS_REASON` and durable scope audit.
 - Legacy Git policy source: `template/agent/quality-gates/manifest.jsonc`
 - Legacy Git runner source: `template/scripts/agent-quality-gate.sh`
-- Repo-managed git hooks remain authoritative for the current parent/template checkouts until #55 performs the explicit dispatcher migration; do not activate both paths.
+- `mac-bootstrap-template` is the first repository migration profile: it reuses edit syntax feedback, compiles dispatcher-provided staged Python snapshots before commit, and validates push ref metadata. It deliberately does not yet replace the full legacy repo-check policy.
+- Repo-managed git hooks remain authoritative for real parent/template checkouts until #55 explicitly installs and validates the dispatcher; never activate both paths.
 - Codex `hooks.json` does not own quality gate execution and should not guess git intent from prompts.
 - Codex hook commands use `hooks.json` only; `config.toml` must not define a second hook representation.
 - `pre-commit` is fast and path-sensitive.
