@@ -214,9 +214,9 @@ def test_parent_push_splits_repository_and_explicit_management_checks(tmp_path: 
     init_repo(parent, env)
     (parent / "Makefile").write_text(
         "repo-check:\n"
-        "\t@printf 'repo:%s\\n' \"$$(git branch --show-current)\" >> \"$$AGENT_SCOPE_REPO_MARKER\"\n\n"
+        "\t@printf 'repo:%s:%s\\n' \"$$(git branch --show-current)\" \"$$PYTHON\" >> \"$$AGENT_SCOPE_REPO_MARKER\"\n\n"
         "machine-check:\n"
-        "\t@printf 'machine:%s\\n' \"$$(git branch --show-current)\" >> \"$$AGENT_SCOPE_MACHINE_MARKER\"\n",
+        "\t@printf 'machine:%s:%s\\n' \"$$(git branch --show-current)\" \"$$PYTHON\" >> \"$$AGENT_SCOPE_MACHINE_MARKER\"\n",
         encoding="utf-8",
     )
     (parent / "sample.txt").write_text("initial\n", encoding="utf-8")
@@ -243,7 +243,9 @@ def test_parent_push_splits_repository_and_explicit_management_checks(tmp_path: 
 
     first_push = git(parent, env, "push", "-u", "origin", "main")
     assert first_push.returncode == 0
-    assert repo_marker.read_text(encoding="utf-8").splitlines() == ["repo:main"]
+    assert repo_marker.read_text(encoding="utf-8").splitlines() == [
+        f"repo:main:{sys.executable}"
+    ]
     assert machine_marker.exists() is False
 
     git(parent, env, "config", "agent.runtime.managementCheckout", "true")
@@ -257,10 +259,12 @@ def test_parent_push_splits_repository_and_explicit_management_checks(tmp_path: 
     git(parent, env, "commit", "-qm", "management change")
     git(parent, env, "push", "origin", "main")
     assert repo_marker.read_text(encoding="utf-8").splitlines() == [
-        "repo:main",
-        "repo:main",
+        f"repo:main:{sys.executable}",
+        f"repo:main:{sys.executable}",
     ]
-    assert machine_marker.read_text(encoding="utf-8").splitlines() == ["machine:main"]
+    assert machine_marker.read_text(encoding="utf-8").splitlines() == [
+        f"machine:main:{sys.executable}"
+    ]
 
     git(parent, env, "worktree", "add", "-q", "-b", "linked", str(linked), "main")
     git(linked, env, "config", "user.email", "parent-profile@example.com")
@@ -276,8 +280,10 @@ def test_parent_push_splits_repository_and_explicit_management_checks(tmp_path: 
     git(linked, env, "push", "-u", "origin", "linked")
 
     assert repo_marker.read_text(encoding="utf-8").splitlines() == [
-        "repo:main",
-        "repo:main",
-        "repo:linked",
+        f"repo:main:{sys.executable}",
+        f"repo:main:{sys.executable}",
+        f"repo:linked:{sys.executable}",
     ]
-    assert machine_marker.read_text(encoding="utf-8").splitlines() == ["machine:main"]
+    assert machine_marker.read_text(encoding="utf-8").splitlines() == [
+        f"machine:main:{sys.executable}"
+    ]

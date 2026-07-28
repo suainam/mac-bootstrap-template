@@ -942,8 +942,30 @@ def _runtime_result(
                 log_ref=None,
             )
         ]
+    trusted_python = Path(str(record.get("trusted_python") or ""))
+    if (
+        not trusted_python.is_absolute()
+        or not trusted_python.is_file()
+        or not os.access(trusted_python, os.X_OK)
+    ):
+        return 1, [
+            _diagnostic(
+                source="runtime",
+                exit_code=1,
+                message="trusted Python from installation record is unavailable",
+                log_ref=None,
+            )
+        ]
     result = _run(
-        [sys.executable, str(runtime), "--registry", str(registry), "dispatch"],
+        [
+            str(trusted_python),
+            str(runtime),
+            "--registry",
+            str(registry),
+            "--trusted-python",
+            str(trusted_python),
+            "dispatch",
+        ],
         cwd=context.repo_root or context.cwd,
         input_bytes=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
     )
