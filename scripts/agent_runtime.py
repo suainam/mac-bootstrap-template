@@ -241,6 +241,20 @@ def resolve_repository_state(cwd: Path) -> RepositoryState:
     )
 
 
+def _normalize_target_path(raw_path: str, cwd: Path, repo_root: Path) -> str:
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = cwd / candidate
+    lexical = Path(os.path.abspath(candidate))
+    if not lexical.is_relative_to(repo_root):
+        raise EventError(f"target path is outside repository: {raw_path}")
+
+    resolved = lexical.resolve()
+    if not resolved.is_relative_to(repo_root) and not lexical.is_symlink():
+        raise EventError(f"target path is outside repository: {raw_path}")
+    return lexical.relative_to(repo_root).as_posix()
+
+
 def parse_standard_event(payload: Mapping[str, Any]) -> tuple[StandardEvent, RepositoryState]:
     schema_version = payload.get("schema_version")
     if schema_version != EVENT_SCHEMA_VERSION:
@@ -278,13 +292,9 @@ def parse_standard_event(payload: Mapping[str, Any]) -> tuple[StandardEvent, Rep
         normalized_paths = list(raw_paths)
     else:
         for raw_path in raw_paths:
-            candidate = Path(raw_path)
-            if not candidate.is_absolute():
-                candidate = cwd / candidate
-            candidate = candidate.resolve()
-            if not candidate.is_relative_to(state.repo_root):
-                raise EventError(f"target path is outside repository: {raw_path}")
-            normalized_paths.append(candidate.relative_to(state.repo_root).as_posix())
+            normalized_paths.append(
+                _normalize_target_path(raw_path, cwd, state.repo_root)
+            )
 
     return (
         StandardEvent(

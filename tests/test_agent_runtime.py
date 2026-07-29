@@ -283,6 +283,51 @@ def test_event_rejects_target_path_outside_repository(tmp_path: Path):
     assert "outside repository" in result.stderr
 
 
+def test_event_accepts_symlink_entry_inside_repository(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    opt_in(repo)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (repo / "linked-skill").symlink_to(outside, target_is_directory=True)
+    registry = write_registry(tmp_path / "registry.json")
+
+    result = run_runtime(
+        repo,
+        registry,
+        "dispatch",
+        event(
+            repo,
+            event_type="before.push",
+            target_paths=["linked-skill"],
+        ),
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+
+def test_event_rejects_path_through_symlink_outside_repository(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    opt_in(repo)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "sample.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (repo / "linked-skill").symlink_to(outside, target_is_directory=True)
+    registry = write_registry(tmp_path / "registry.json")
+
+    result = run_runtime(
+        repo,
+        registry,
+        "dispatch",
+        event(repo, target_paths=["linked-skill/sample.py"]),
+    )
+
+    assert result.returncode == 2
+    assert "outside repository" in result.stderr
+
+
 def test_event_rejects_more_than_4096_target_paths(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo(repo)
