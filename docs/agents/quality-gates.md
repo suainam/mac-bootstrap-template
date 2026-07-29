@@ -244,6 +244,11 @@ staged tree、blob OID、mode 和 snapshot path；gate 不应把 unstaged workin
 自动改写都会阻塞提交，要求用户检查并重新 stage。blocking Git 生命周期 gate 必须同步
 运行，async 配置在 registry 校验阶段直接拒绝。
 
+事件路径按仓库内的词法条目归一化，而不是无条件展开最终 symlink 目标。最终路径组件本身是
+仓库内 Git symlink 时，即使目标位于仓库外，也保留该仓库内条目；但通过 symlink 继续访问
+仓库外子路径仍视为越界并 fail closed。这样既允许仓库追踪本机 skill 路由等 symlink，又不
+允许 `linked-dir/secret.py` 绕过 repository boundary。
+
 `before.push` 只使用 Git 传入的 pre-push stdin 计算范围，不猜 upstream。首次 push、
 无 upstream、多 ref push、删除和 force update 都按每条 local/remote OID 解析。新建远端
 ref 的 `remote_oid` 为零，因此 dispatcher 保守地使用空树作为旧端；即使该分支来自已有

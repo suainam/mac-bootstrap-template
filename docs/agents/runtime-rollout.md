@@ -10,6 +10,7 @@
 - Git、Claude Code 和 OpenCode adapter 复用同一标准事件、profile 和诊断契约。
 - commit 检查 staged snapshot，不因未暂存实验代码误阻断。
 - push 前读取真实 ref stdin，首次 push 使用有界 target-path 预算。
+- 仓库内 Git symlink 条目可以指向仓库外；通过 symlink 穿透到仓库外子路径仍会被拒绝。
 - repository checks 与 machine checks 分层；linked worktree、submodule 和普通 clone 不误跑本机检查。
 - trusted Python 来自安装时批准的仓库外路径，并保留 venv 入口，不退化为 base interpreter。
 - 父仓 submodule pointer 只有在目标子仓 commit 可从远端获取时才放行。
@@ -31,6 +32,7 @@
 - 新 ref 会从空树计算完整 target paths；
 - `post-checkout` 的 old OID 可能是全零；
 - gitlink 不能按普通文件 snapshot；
+- target path 的仓库条目身份不能用最终 symlink 目标代替，否则合法的本机 skill 路由会被误判越界；
 - remote-tracking ref 可能陈旧，不能替代 pre-push stdin；
 - 独立 clone、linked worktree 和真实管理 checkout 的本机语义不同。
 
@@ -52,9 +54,11 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 
 全局 registry 不应硬编码某个项目的 pytest、npm、cargo 或业务脚本。可推广接口是只读、确定性的 `make repo-check`；仓库负责定义 compile、lint、typecheck、test 和 privacy 内容。runtime 只负责选择可信 profile、固定 target、trusted toolchain、timeout、输出预算和 fail-closed 语义。
 
-### 7. 本地门禁不能替代 CI
+### 7. 本地门禁不能替代发布仓库的 CI
 
-本地 runtime 用于提前反馈、机械阻塞和审计。hosted CI、branch protection 和代码评审仍是远端最终权威。推广验收必须同时包含本地真实 push 和 hosted CI；二者不一致时先解释差异，不得只挑通过的一边。
+本地 runtime 用于提前反馈、机械阻塞和审计。存在发布 remote 的仓库仍以 hosted CI、branch protection 和代码评审为最终权威，推广验收必须同时包含本地真实 push 和 hosted CI；二者不一致时先解释差异，不得只挑通过的一边。
+
+显式定义为 local-only、没有发布 remote 的仓库可以将 hosted CI 记为不适用，但仍必须使用临时本地 bare remote 验证真实 pre-push 输入、失败时 ref 不前进、成功时本地与远端 SHA 一致。未来一旦增加发布 remote，必须重新补齐 hosted CI 验收。
 
 ### 8. child-first、pointer-second 是可执行规则
 
@@ -77,8 +81,8 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 推广总票为 [#57](https://github.com/suainam/mac-bootstrap-template/issues/57)，父 spec 为 [#40](https://github.com/suainam/mac-bootstrap-template/issues/40)。当前执行顺序：
 
 1. [#74](https://github.com/suainam/mac-bootstrap-template/issues/74)：把 dailycheckin 从 smoke 升级为完整 `python-repository` profile。
-2. [#75](https://github.com/suainam/mac-bootstrap-template/issues/75)：用户批准并验证第二个独立 Python 仓库。
-3. [#76](https://github.com/suainam/mac-bootstrap-template/issues/76)：验证 playground 根仓的 gitlink、无 remote 和实验资产边界。
+2. [#75](https://github.com/suainam/mac-bootstrap-template/issues/75)：已在 local-only `product_strategy` 完成第二个独立 Python 仓库验收，包括真实 commit、临时 bare remote push、symlink 回归修复、doctor 和 uninstall/reinstall。
+3. [#76](https://github.com/suainam/mac-bootstrap-template/issues/76)：下一节点，验证 playground 根仓的 gitlink、无 remote 和实验资产边界。
 4. [#56](https://github.com/suainam/mac-bootstrap-template/issues/56) + [#77](https://github.com/suainam/mac-bootstrap-template/issues/77)：用可靠 push receipts 支撑低风险 Python 小批量推广和默认 policy。
 5. [#78](https://github.com/suainam/mac-bootstrap-template/issues/78)：定义非 Python repository profile 契约。
 6. [#79](https://github.com/suainam/mac-bootstrap-template/issues/79)：迁移首个用户批准的低风险非 Python 仓库。
@@ -127,7 +131,7 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 - 修复同一问题，不改变验收条件。
 - 完成真实 commit 和临时远端分支 push，不使用 bypass 或 `--no-verify`。
 - 核对本地 SHA、远端 SHA 和 push receipt。
-- 运行 hosted CI，并解释本地与 CI 的任何差异。
+- 有发布 remote 时运行 hosted CI，并解释本地与 CI 的任何差异；显式 local-only 仓库记录为不适用，并保留临时 bare remote 的 SHA 证据。
 - 成功时 runtime 自身输出 0 字节。
 
 ### 6. Closeout
@@ -137,7 +141,7 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 - 删除本轮隔离 worktree，不触碰无关 worktree。
 - 执行 uninstall 回滚演练，或明确记录为何保留正式安装。
 - 核对原工作区状态、hooksPath、opt-in、bypass audit 和未知 hook 均无意外变化。
-- 将证据回写子 Issue 和 #57；只在默认分支、CI、真实验收和清理全部完成后关闭 Issue。
+- 将证据回写子 Issue 和 #57；只在默认分支、适用的 CI、真实验收和清理全部完成后关闭 Issue。
 
 ## 指标与推广决策
 
