@@ -62,7 +62,7 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 
 ### 8. child-first、pointer-second 是可执行规则
 
-父仓 pointer gate 必须读取 index 中的 `.gitmodules` 和 gitlink OID，并按精确 OID 验证远端可达。只存在于本机 object database 的子仓 commit 必须阻止父仓提交；子仓先 push 后，同一个 pointer commit 才能通过。工作区中的未暂存 `.gitmodules` 不能改变 staged 语义。
+父仓 pointer gate 必须读取 index 中的 `.gitmodules` 和 gitlink OID，优先确认 OID 已由配置远端的 ref 公告，未公告时再回退精确 OID fetch。只存在于本机 object database 的子仓 commit 必须阻止父仓提交；子仓先 push 后，同一个 pointer commit 才能通过。工作区中的未暂存 `.gitmodules` 不能改变 staged 语义。
 
 ### 9. rollback 要在安装前设计
 

@@ -98,8 +98,28 @@ def _validate_remote_url(path: str, url: str) -> None:
         raise PointerGateError(f"submodule {path} uses a forbidden remote helper")
 
 
+def _advertised_oids(repo_root: Path, path: str, url: str) -> set[str]:
+    command = ["git"]
+    for value in ALLOWED_PROTOCOL_CONFIG:
+        command.extend(["-c", value])
+    command.extend(["ls-remote", "--refs", url])
+    advertised = _run(command, cwd=repo_root)
+    if advertised.returncode != 0:
+        raise PointerGateError(f"cannot list configured remote refs for submodule {path}")
+
+    oids: set[str] = set()
+    for line in advertised.stdout.splitlines():
+        fields = line.split()
+        if fields and OID_PATTERN.fullmatch(fields[0]):
+            oids.add(fields[0].lower())
+    return oids
+
+
 def _fetchable(repo_root: Path, path: str, url: str, oid: str) -> None:
     _validate_remote_url(path, url)
+    if oid in _advertised_oids(repo_root, path, url):
+        return
+
     with tempfile.TemporaryDirectory(prefix="agent-submodule-pointer-") as raw:
         bare = Path(raw) / "objects.git"
         initialized = _run(["git", "init", "--bare", "-q", str(bare)], cwd=repo_root)

@@ -332,9 +332,10 @@ staged snapshot 编译和 push ref/OID 完整性，不运行项目检查，适�
 
 `mac-bootstrap-parent` 在已验证的 Python staged syntax 与 push ref gate 之外增加三段
 父仓能力。`parent-submodule-pointer-reachable` 只在 staged target 包含 `template` 时运行：
-从 index 读取 `.gitmodules`，取得 mode `160000` gitlink 的 staged OID，并在临时 bare repo
-中从配置远端按 OID fetch。仅存在于本地子仓 object database、尚未 push 的 commit 会阻止
-父仓提交；子仓先 push 后，同一个 pointer commit 才能通过。删除 gitlink不需要远端可达性
+从 index 读取 `.gitmodules`，取得 mode `160000` gitlink 的 staged OID，先通过配置远端的
+公告 refs 验证该 OID；未公告时才在临时 bare repo 中回退按 OID fetch。仅存在于本地子仓
+object database、尚未 push 的 commit 会阻止父仓提交；子仓先 push 后，同一个 pointer
+commit 才能通过。删除 gitlink不需要远端可达性
 检查。相对 URL 与 `ext::`/`fd::` helper 在该首枪中 fail closed。
 
 pointer checker 随 dispatcher 的可信 bundle 发布，runtime 通过内部
