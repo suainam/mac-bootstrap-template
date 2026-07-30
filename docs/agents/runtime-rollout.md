@@ -74,7 +74,7 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 
 ### 11. 工具回传失败不等于 Git 操作失败
 
-长时间检查可能导致调用通道先断开。此时不能盲目重试 push；应核对远端 ref、本地 SHA、进程状态、runtime diagnostics 和 doctor。远端已更新时重复 push 可能改变验收语义。最终 `push.success` 应由显式 wrapper 在 Git 真正成功后记录，而不是从 pre-push 或工具返回推断。
+长时间检查可能导致调用通道先断开。此时不能盲目重试原生 `git push`；应优先使用 Runtime 安装产物中的 `agent-git-push`，再通过 `--receipt <operation-id>` 或 `--receipt latest` 查询远端成功证据。wrapper 只在 Git 返回 0 且远端 refs 与目标 OID 一致后记录 `push.success`；pre-push 通过、工具回传或本地 SHA 都不能替代 receipt。远端已更新但 receipt 阶段失败时，使用同一 operation ID 恢复，不重复 push。
 
 ## 推广风险阶梯
 
@@ -82,11 +82,12 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 
 1. [#74](https://github.com/suainam/mac-bootstrap-template/issues/74)：把 dailycheckin 从 smoke 升级为完整 `python-repository` profile。
 2. [#75](https://github.com/suainam/mac-bootstrap-template/issues/75)：已在 local-only `product_strategy` 完成第二个独立 Python 仓库验收，包括真实 commit、临时 bare remote push、symlink 回归修复、doctor 和 uninstall/reinstall。
-3. [#76](https://github.com/suainam/mac-bootstrap-template/issues/76)：下一节点，验证 playground 根仓的 gitlink、无 remote 和实验资产边界。
-4. [#56](https://github.com/suainam/mac-bootstrap-template/issues/56) + [#77](https://github.com/suainam/mac-bootstrap-template/issues/77)：用可靠 push receipts 支撑低风险 Python 小批量推广和默认 policy。
-5. [#78](https://github.com/suainam/mac-bootstrap-template/issues/78)：定义非 Python repository profile 契约。
-6. [#79](https://github.com/suainam/mac-bootstrap-template/issues/79)：迁移首个用户批准的低风险非 Python 仓库。
-7. [#80](https://github.com/suainam/mac-bootstrap-template/issues/80)：只读评估 www 就绪度，默认不启用。
+3. [#56](https://github.com/suainam/mac-bootstrap-template/issues/56)：提供显式 `push.success` wrapper 和可查询 receipt，解除后续推广对远端成功推断的依赖。
+4. [#76](https://github.com/suainam/mac-bootstrap-template/issues/76)：在新 wrapper 安装并 doctor 后，验证 playground 根仓的 gitlink、无 remote 和实验资产边界。
+5. [#77](https://github.com/suainam/mac-bootstrap-template/issues/77)：用可靠 push receipts 支撑低风险 Python 小批量推广和默认 policy。
+6. [#78](https://github.com/suainam/mac-bootstrap-template/issues/78)：定义非 Python repository profile 契约。
+7. [#79](https://github.com/suainam/mac-bootstrap-template/issues/79)：迁移首个用户批准的低风险非 Python 仓库。
+8. [#80](https://github.com/suainam/mac-bootstrap-template/issues/80)：只读评估 www 就绪度，默认不启用。
 
 只有当前节点完成、证据回写并解除后继阻塞后，才给下一个节点添加 `ready-for-agent`。
 
@@ -129,8 +130,8 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 ### 5. 成功验收
 
 - 修复同一问题，不改变验收条件。
-- 完成真实 commit 和临时远端分支 push，不使用 bypass 或 `--no-verify`。
-- 核对本地 SHA、远端 SHA 和 push receipt。
+- 完成真实 commit，并使用 `agent-git-push --operation-id <id> ...` 推送临时远端分支；不使用 bypass 或 `--no-verify`。
+- 使用 wrapper 的 `--receipt <id>` 核对本地 SHA、远端 SHA、repository/worktree identity 和 refs before/after OID。
 - 有发布 remote 时运行 hosted CI，并解释本地与 CI 的任何差异；显式 local-only 仓库记录为不适用，并保留临时 bare remote 的 SHA 证据。
 - 成功时 runtime 自身输出 0 字节。
 
@@ -145,7 +146,7 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 
 ## 指标与推广决策
 
-前几轮可以在没有 `push.success` wrapper 时完成安全迁移，但最终扩大决策应等待 [#56](https://github.com/suainam/mac-bootstrap-template/issues/56)，避免把 pre-push 通过当作远端成功。每仓至少记录：
+扩大决策必须使用 `agent-git-push` receipt，不能把 pre-push 通过、Git 命令已启动或工具通道返回当作远端成功。每仓至少记录：
 
 - after.edit、commit、repo-check 和 push 的 p50/p95 延迟；
 - 成功新增输出字节和失败反馈字节；

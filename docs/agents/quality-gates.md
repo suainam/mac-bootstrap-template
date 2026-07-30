@@ -258,7 +258,44 @@ refs 而漏检。标准事件最多接受 4096 个 target paths；超限时 fail
 metadata 保留 refs、remote name/URL、force classification 和缓存文件路径。多个 runtime
 gate 与 approved hook 会全部执行，失败按声明/批准顺序聚合；非 1 legacy exit code 保留为
 最终 exit code，完整 stdout/stderr 外置，终端仍受最多 5 条、约 4 KB 预算约束。成功输出
-0 字节。
+0 字节。Git 对无更新 push 可能调用空 stdin 的 `pre-push`；dispatcher 将其视为 no-op，
+不会伪造 refs 或运行 repository gate。
+
+### 显式 `push.success` wrapper
+
+install 同时发布稳定入口：
+
+```text
+~/.local/share/mac-bootstrap-agent-runtime/git-hooks/current/bin/agent-git-push
+```
+
+它只包装用户明确发起的 push，Git 参数从 wrapper 参数末尾开始原样传递：
+
+```bash
+agent-git-push --operation-id release-20260730 origin main
+agent-git-push --receipt release-20260730
+agent-git-push --receipt latest
+agent-git-push --explain
+```
+
+wrapper 不解析或猜测 refspec。它为本次操作注入 operation/session ID，真实 `pre-push`
+仍从 Git stdin 取得精确 refs，并在所有 blocking gate 通过后写入 worktree-scoped pending
+plan。wrapper 继承原生 Git 的 cwd、stdin/TTY、stdout/stderr 和退出码；只有 Git 返回 0、
+且远端 refs 经 `git ls-remote --refs` 验证与目标 OID 一致后，才派发逻辑
+`push.success` 事件并原子写入 receipt。首次、多 ref、删除和 force update 都记录远端更新
+前后 OID；linked worktree 的 pending、receipt 和 operation ID 彼此隔离。
+
+以下情况不产生成功 receipt：dry-run、无更新 push、pre-push 门禁失败、认证/网络失败、
+non-fast-forward 或远端 hook 拒绝。wrapper 明确拒绝 `--no-verify`，因为缺少受信 pre-push
+plan 时不能证明远端成功。成功路径除 Git 自身输出外增加 0 字节；查询和 explain 才输出
+JSON。operation ID 重试是幂等的；若远端已更新但 event/receipt 阶段失败，终端返回有界的
+“remote may already be updated”诊断，同一 operation ID 可从 pending plan 恢复而不重复
+push。
+
+receipt 包含 repository/worktree identity、profile、runtime release、remote name/URL、
+原始 Git argv、开始/完成时间、每个 ref 的 before/after OID、force/delete 分类、操作日志和
+Git Trace2 日志引用。Runtime 自建 Trace2 文件在写入后收紧为 mode 0600；用户已有
+`GIT_TRACE2_EVENT` 时保留其设置，不覆盖现有 trace 目标。
 
 blocking hook 支持 break-glass：
 
@@ -276,7 +313,8 @@ install 使用 versioned release、原子 `current` symlink、repository-scoped 
 common config rollback record。任何 state swap 或 `core.hooksPath` 更新失败都会恢复旧
 release、旧 trust record 和旧 hooksPath；uninstall 仅在当前 hooksPath 仍指向该受信安装时
 执行，并在恢复旧值后删除 approved copies、registry 与 installation record。doctor 验证
-hooksPath、bundle release、runtime、registry、7 个 hook shim 和所有 approved digest。
+hooksPath、bundle release、runtime、registry、7 个 hook shim、`agent-git-push` wrapper
+和所有 approved digest；install 与 doctor 输出都提供 wrapper 的绝对路径。
 
 ### mac-bootstrap-template 迁移曳光弹
 

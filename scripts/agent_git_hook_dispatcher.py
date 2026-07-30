@@ -7,9 +7,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -29,6 +29,8 @@ EVENT_SCHEMA_VERSION = 1
 DIAGNOSTIC_LIMIT = 5
 DIAGNOSTIC_BYTES = 4096
 ZERO_OID = "0" * 40
+PUSH_RECEIPT_SCHEMA_VERSION = 1
+PUSH_OPERATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 HOOK_EVENTS: dict[str, tuple[str, bool]] = {
     "pre-commit": ("before.commit", True),
     "commit-msg": ("before.commit-message", True),
@@ -41,6 +43,7 @@ HOOK_EVENTS: dict[str, tuple[str, bool]] = {
 BUNDLE_FILES = (
     "agent_check_scope_gate.py",
     "agent_git_hook_dispatcher.py",
+    "agent_git_push.py",
     "agent_git_context.py",
     "agent_edit_feedback.py",
     "agent_runtime.py",
@@ -271,6 +274,21 @@ def _hook_script(
     )
 
 
+def _push_script(
+    state_root: Path,
+    trusted_python: Path,
+) -> str:
+    python = shlex.quote(str(trusted_python))
+    state = shlex.quote(str(state_root.expanduser().resolve(strict=False)))
+    return (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"\n'
+        f"exec {python} \"$BIN_DIR/../lib/agent_git_push.py\" "
+        f"--repo \"$PWD\" --state-root {state} \"$@\"\n"
+    )
+
+
 def _bundle_metadata(
     state_root: Path,
     trusted_python: Path,
@@ -322,8 +340,10 @@ def _prepare_release(
         try:
             lib = temporary / "lib"
             hooks = temporary / "hooks"
+            bin_dir = temporary / "bin"
             lib.mkdir(parents=True)
             hooks.mkdir(parents=True)
+            bin_dir.mkdir(parents=True)
             for name in BUNDLE_FILES:
                 shutil.copy2(_source_directory() / name, lib / name)
             for hook_name in HOOK_EVENTS:
@@ -337,6 +357,12 @@ def _prepare_release(
                     encoding="utf-8",
                 )
                 path.chmod(0o700)
+            push_path = bin_dir / "agent-git-push"
+            push_path.write_text(
+                _push_script(resolved_state_root, trusted_python),
+                encoding="utf-8",
+            )
+            push_path.chmod(0o700)
             _atomic_write_json(
                 temporary / "bundle.json",
                 _bundle_metadata(resolved_state_root, trusted_python),
@@ -553,6 +579,12 @@ def install(
             "state_root": str(state_root.expanduser().resolve(strict=False)),
             "trusted_python": str(trusted_python),
             "release": str(release),
+            "push_wrapper": str(
+                install_root.expanduser().resolve(strict=False)
+                / "current"
+                / "bin"
+                / "agent-git-push"
+            ),
             "registry_path": str(installation_dir / "registry.jsonc"),
             "approved_hooks": approved_payload,
             "bypass_audit_path": str(audit_path),
@@ -571,6 +603,7 @@ def install(
             "status": "installed",
             "repository_id": context.repository_id,
             "hooks_path": str(hooks_path),
+            "push_wrapper": record["push_wrapper"],
             "installation_record": str(installation_dir / "installation.json"),
             "approved_hook_count": sum(len(items) for items in approved_payload.values()),
             "previous_hooks_path": previous_hooks_path,
@@ -628,6 +661,76 @@ def _event_state_dir(record: Mapping[str, Any], context: GitContext, event_id: s
     )
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     return path
+
+
+def _validate_push_operation_id(value: str) -> str:
+    if not PUSH_OPERATION_ID_PATTERN.fullmatch(value):
+        raise HookDispatcherError(
+            "push operation ID must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}"
+        )
+    return value
+
+
+def _push_state_paths(
+    record: Mapping[str, Any],
+    context: GitContext,
+    session_id: str,
+    operation_id: str,
+) -> tuple[Path, Path, Path]:
+    operation_id = _validate_push_operation_id(operation_id)
+    state_paths = context.runtime_state_paths(
+        session_id,
+        Path(str(record["state_root"])),
+    )
+    push_dir = state_paths.session_dir / "push"
+    pending = push_dir / "pending" / f"{operation_id}.json"
+    receipt = state_paths.receipts_dir / f"push-success-{operation_id}.json"
+    log = push_dir / "logs" / f"{operation_id}.json"
+    return pending, receipt, log
+
+
+def _write_pending_push_plan(
+    context: GitContext,
+    record: Mapping[str, Any],
+    payload: Mapping[str, object],
+) -> None:
+    operation_id = os.environ.get("AGENT_RUNTIME_PUSH_OPERATION_ID", "").strip()
+    if not operation_id:
+        return
+    session_id = str(payload["session_id"])
+    pending, _, _ = _push_state_paths(
+        record,
+        context,
+        session_id,
+        operation_id,
+    )
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, Mapping):
+        raise HookDispatcherError("before.push metadata is unavailable")
+    raw_args = os.environ.get("AGENT_RUNTIME_PUSH_ARGV_JSON", "[]")
+    try:
+        git_args = json.loads(raw_args)
+    except json.JSONDecodeError as exc:
+        raise HookDispatcherError("push wrapper argv metadata is invalid") from exc
+    if not isinstance(git_args, list) or any(not isinstance(item, str) for item in git_args):
+        raise HookDispatcherError("push wrapper argv metadata must be a string list")
+    plan = {
+        "schema_version": PUSH_RECEIPT_SCHEMA_VERSION,
+        "operation_id": operation_id,
+        "session_id": session_id,
+        "event_id": payload["event_id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "repository_id": context.repository_id,
+        "worktree_id": context.worktree_id,
+        "repo_root": str(context.repo_root or context.cwd),
+        "profile": _profile(context)[1],
+        "runtime_release": record.get("release"),
+        "remote_name": metadata.get("remote_name", ""),
+        "remote_url": metadata.get("remote_url", ""),
+        "refs": metadata.get("refs", []),
+        "git_args": git_args,
+    }
+    _atomic_write_json(pending, plan)
 
 
 def _nul_paths(result: subprocess.CompletedProcess[bytes]) -> tuple[str, ...]:
@@ -1216,11 +1319,13 @@ def dispatch(
     configured = _git_config_get(context, "core.hooksPath")
     if configured != record.get("hooks_path"):
         raise HookDispatcherError("core.hooksPath does not match trusted installation")
+    if hook_name == "pre-push" and not stdin_bytes.strip():
+        return 0
     payload, event_dir, index_before, worktree_before = _event_payload(
         hook_name, hook_args, stdin_bytes, context, record
     )
     try:
-        return _dispatch_prepared_event(
+        result = _dispatch_prepared_event(
             context,
             record=record,
             hook_name=hook_name,
@@ -1231,6 +1336,9 @@ def dispatch(
             index_before=index_before,
             worktree_before=worktree_before,
         )
+        if result == 0 and hook_name == "pre-push":
+            _write_pending_push_plan(context, record, payload)
+        return result
     finally:
         _cleanup_ephemeral_event_state(event_dir)
 
@@ -1267,6 +1375,11 @@ def doctor(context: GitContext, *, install_root: Path, state_root: Path) -> dict
             and os.access(current / "hooks" / hook_name, os.X_OK),
         }
         for hook_name in HOOK_EVENTS
+    }
+    push_wrapper = current / "bin" / "agent-git-push"
+    push_wrapper_health = {
+        "path": str(push_wrapper),
+        "executable": push_wrapper.is_file() and os.access(push_wrapper, os.X_OK),
     }
     management_raw = (
         _git_config_get(context, "agent.runtime.managementCheckout") or ""
@@ -1308,6 +1421,7 @@ def doctor(context: GitContext, *, install_root: Path, state_root: Path) -> dict
         and registry_path is not None
         and registry_path.is_file()
         and all(item["executable"] for item in hook_health.values())
+        and push_wrapper_health["executable"]
         and management_config_valid
         and all(
             item["digest_matches"] and item["executable"]
@@ -1348,6 +1462,7 @@ def doctor(context: GitContext, *, install_root: Path, state_root: Path) -> dict
         "registry_available": registry_path.is_file() if registry_path else False,
         "bypass_audit_path": record.get("bypass_audit_path") if record else None,
         "hooks": hook_health,
+        "push_wrapper": push_wrapper_health,
         "approved_hooks": approved_health,
     }
 

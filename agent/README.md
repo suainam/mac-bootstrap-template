@@ -122,6 +122,7 @@ The script is intentionally split by responsibility:
 - Repository content may select a trusted profile but cannot define shell commands or executable hooks.
 - Trusted Git hook dispatcher: `template/scripts/agent_git_hook_dispatcher.py`; explicit Make targets provide inventory, install, uninstall, and doctor without changing hooks during normal bootstrap.
 - The dispatcher installs an absolute user-level hooksPath, converts seven Git lifecycle hooks to standard events, materializes staged blobs, parses pre-push stdin ranges, and only chains copied/digest-pinned hooks explicitly approved by the user.
+- The trusted release also installs `current/bin/agent-git-push`. It preserves native Git argv, cwd, TTY/output, and exit status; successful remote refs are verified before a worktree-scoped `push.success` receipt is written. Use `--operation-id`, `--receipt ID|latest`, or `--explain`; dry-run, no-op, rejected, and failed pushes never create success receipts, and `--no-verify` is rejected.
 - Blocking lifecycle gates are synchronous, aggregate failures within the global output budget, and fail closed when runtime, registry, audit, or trust state is unavailable. Bypass additionally requires `QUALITY_GATES_BYPASS_REASON` and durable scope audit.
 - Legacy Git policy source: `template/agent/quality-gates/manifest.jsonc`
 - Legacy Git runner source: `template/scripts/agent-quality-gate.sh`
