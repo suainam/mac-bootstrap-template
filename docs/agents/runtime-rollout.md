@@ -16,6 +16,7 @@
 - 父仓 submodule pointer 只有在目标子仓 commit 可从远端获取时才放行。
 - 成功路径新增输出为 0 字节；失败反馈有诊断条数和字节预算，完整日志外置。
 - install、doctor、uninstall 和旧 hooksPath 恢复均有真实验收。
+- local-only playground 根仓已验证无 permanent remote、脏管理 checkout、未初始化 gitlink、嵌套独立仓库和追加式实验资产边界；repository check 只读取 Git index，rollback 后既有软链与未跟踪仓库零变化。
 
 这些证据说明 runtime 已具备逐仓推广条件，但不等于可以未经 inventory 和批准批量启用。
 
@@ -80,11 +81,11 @@ venv 入口是信任和依赖边界的一部分。若对可执行路径调用 `r
 
 推广总票为 [#57](https://github.com/suainam/mac-bootstrap-template/issues/57)，父 spec 为 [#40](https://github.com/suainam/mac-bootstrap-template/issues/40)。当前执行顺序：
 
-1. [#74](https://github.com/suainam/mac-bootstrap-template/issues/74)：把 dailycheckin 从 smoke 升级为完整 `python-repository` profile。
+1. [#74](https://github.com/suainam/mac-bootstrap-template/issues/74)：已把 dailycheckin 从 smoke 升级为完整 `python-repository` profile。
 2. [#75](https://github.com/suainam/mac-bootstrap-template/issues/75)：已在 local-only `product_strategy` 完成第二个独立 Python 仓库验收，包括真实 commit、临时 bare remote push、symlink 回归修复、doctor 和 uninstall/reinstall。
-3. [#56](https://github.com/suainam/mac-bootstrap-template/issues/56)：提供显式 `push.success` wrapper 和可查询 receipt，解除后续推广对远端成功推断的依赖。
-4. [#76](https://github.com/suainam/mac-bootstrap-template/issues/76)：在新 wrapper 安装并 doctor 后，验证 playground 根仓的 gitlink、无 remote 和实验资产边界。
-5. [#77](https://github.com/suainam/mac-bootstrap-template/issues/77)：用可靠 push receipts 支撑低风险 Python 小批量推广和默认 policy。
+3. [#56](https://github.com/suainam/mac-bootstrap-template/issues/56)：已提供显式 `push.success` wrapper 和可查询 receipt，解除后续推广对远端成功推断的依赖。
+4. [#76](https://github.com/suainam/mac-bootstrap-template/issues/76)：已完成 playground 根仓的 gitlink、无 remote、嵌套仓库和实验资产边界验收；本地恢复 bundle 指向 `464845d`。
+5. [#77](https://github.com/suainam/mac-bootstrap-template/issues/77)：下一节点，用可靠 push receipts 支撑低风险 Python 小批量推广和默认 policy。
 6. [#78](https://github.com/suainam/mac-bootstrap-template/issues/78)：定义非 Python repository profile 契约。
 7. [#79](https://github.com/suainam/mac-bootstrap-template/issues/79)：迁移首个用户批准的低风险非 Python 仓库。
 8. [#80](https://github.com/suainam/mac-bootstrap-template/issues/80)：只读评估 www 就绪度，默认不启用。
