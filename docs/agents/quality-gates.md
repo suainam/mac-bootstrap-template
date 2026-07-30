@@ -515,6 +515,10 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 
 临时 Git 仓库测试能验证核心上下文，但不能覆盖真实项目中 venv、test helper、文档门禁和 post-success side effect。最终 PR 前应先完成一次真实 linked-worktree push，避免用多个 follow-up PR 修补同一闭环。
 
+### 交接任务先核对状态
+
+交接已给出子仓提交、验证和目标远端时，先核对 child、parent 与 remote state；只有证据矛盾才重新诊断。创建 PR 前，使用最终 hook/runtime 做一次确定性预检，并先查询是否已有同一 head PR，避免重复 push、重复 CI 和无效轮询。
+
 ### 每个 operational PR 都要携带当前文档变更
 
 `neat-freak` 按当前 PR diff 判断。即使上一张 PR 已更新文档，下一张修改 Makefile、hook 或 runtime contract 的 follow-up PR 仍需在同一 PR 中同步对应权威说明。
