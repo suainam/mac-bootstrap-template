@@ -91,6 +91,9 @@ quality gate; report that distinction.
 
 ## Contract Rules
 
+For runtime-layer, legacy migration, latest, or page-context tests, first read the data and AI
+sections of `merchandise/docs/dashboard-development-contract.md`.
+
 - Use a real `tmp_path` when patching `DATA_DIR`; do not replace filesystem behavior with a
   `MagicMock`.
 - Producer tests must create every registered serve output and assert required columns,
@@ -103,6 +106,12 @@ quality gate; report that distinction.
 - Align invalid shared keys across every source before building filters.
 - Test ETL task registration, one-task execution, `all` ordering, workflow allowlists, and
   producer argument wiring.
+- Prove `raw -> agg -> serve` with source provenance, aggregate grain, Serve schema,
+  dataset-local `latest`/`as_of`, and explicit stale or empty behavior.
+- Use producer-shaped Serve fixtures as consumer proof; treat helper-only and filename checks as
+  supplemental evidence.
+- Make the contract gate fail when a notebook gains a root legacy consumer or page context carries
+  a DataFrame, arbitrary file path, or unbounded dataset reference.
 
 ## Runtime Diagnosis
 
