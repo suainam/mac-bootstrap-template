@@ -73,7 +73,12 @@ def _run_make(repo_root: Path, target: str) -> int:
             f"AGENT_RUNTIME_PYTHON is not an executable file: {runtime_python}"
         )
     env = os.environ.copy()
-    env["PYTHON"] = str(runtime_python)
+    project_python = repo_root / ".venv" / "bin" / "python"
+    env["PYTHON"] = str(
+        project_python if project_python.is_file() else runtime_python
+    )
+    env.pop("PYTHON_BIN", None)
+    env["PATH"] = f"{runtime_python.parent}:{env.get('PATH', '')}"
     result = subprocess.run(
         [MAKE, target],
         cwd=repo_root,
