@@ -103,6 +103,37 @@ def active_markdown_files(root: Path) -> list[Path]:
     return sorted(files, key=lambda item: item.relative_to(root).as_posix())
 
 
+def uninitialized_submodule_paths(root: Path) -> list[Path]:
+    """Return tracked gitlinks whose working-tree directories are unavailable."""
+    listed = subprocess.run(
+        ["git", "ls-files", "--stage", "-z"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+    )
+    if listed.returncode != 0:
+        return []
+
+    paths: list[Path] = []
+    for record in listed.stdout.split(b"\0"):
+        metadata, separator, raw_path = record.partition(b"\t")
+        if not separator or not metadata.startswith(b"160000 "):
+            continue
+        path = root / os.fsdecode(raw_path)
+        worktree = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if (
+            worktree.returncode != 0
+            or Path(worktree.stdout.strip()).resolve() != path.resolve()
+        ):
+            paths.append(path)
+    return paths
+
+
 def agent_source(root: Path) -> dict[str, Any]:
     present = [
         root / name
@@ -181,7 +212,11 @@ def budget_findings(
     return results
 
 
-def local_link_findings(root: Path, paths: list[Path]) -> list[dict[str, Any]]:
+def local_link_findings(
+    root: Path,
+    paths: list[Path],
+    uninitialized_submodules: list[Path],
+) -> list[dict[str, Any]]:
     results = []
     for path in paths:
         if path.is_symlink():
@@ -211,6 +246,8 @@ def local_link_findings(root: Path, paths: list[Path]) -> list[dict[str, Any]]:
                         "review-required",
                     )
                 )
+                continue
+            if any(candidate.is_relative_to(submodule) for submodule in uninitialized_submodules):
                 continue
             if not candidate.exists():
                 results.append(
@@ -281,6 +318,7 @@ def duplicate_candidates(root: Path, paths: list[Path]) -> list[dict[str, Any]]:
 def audit(root: Path) -> dict[str, Any]:
     root = root.resolve()
     markdown = active_markdown_files(root)
+    uninitialized_submodules = uninitialized_submodule_paths(root)
     measurements = {
         path.relative_to(root).as_posix(): measurement(path)
         for path in markdown
@@ -311,7 +349,7 @@ def audit(root: Path) -> dict[str, Any]:
                 budget_findings(relative, measurements[relative], ROUTING_BUDGET)
             )
 
-    findings.extend(local_link_findings(root, markdown))
+    findings.extend(local_link_findings(root, markdown, uninitialized_submodules))
     findings.extend(duplicate_candidates(root, markdown))
     findings.sort(key=lambda item: (item["severity"], item["code"], item["path"]))
 
@@ -323,6 +361,12 @@ def audit(root: Path) -> dict[str, Any]:
             "routing": ROUTING_BUDGET,
         },
         "agent_source": source,
+        "submodules": {
+            "uninitialized": [
+                path.relative_to(root).as_posix()
+                for path in uninitialized_submodules
+            ]
+        },
         "measurements": measurements,
         "findings": findings,
         "summary": {
