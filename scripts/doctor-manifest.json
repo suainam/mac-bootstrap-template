@@ -1,7 +1,6 @@
 {
   "formula_command_overrides": {
-    "ripgrep": "rg",
-    "pi-coding-agent": "pi"
+    "ripgrep": "rg"
   },
   "standalone_clis": [
     {

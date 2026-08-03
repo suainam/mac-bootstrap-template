@@ -140,11 +140,12 @@ syntax and auto-attach checks, and keeps the workflow closer to a normal new
 terminal session.
 
 AI coding CLIs are managed from this Brewfile where possible: `claude-code` and
-`pi-coding-agent` are Homebrew packages, while Reasonix is installed as a global
+`omp` are Homebrew packages, while Reasonix is installed as a global
 npm package through Homebrew Bundle's `npm` support. Token/context helpers are
 split the same way: RTK and `codex-threadripper` are installed from Homebrew
 taps, and `context-mode` is installed as a global npm package. Antigravity CLI
 follows the official Google installer instead of Homebrew cask packaging.
+OMP is the current default Agent CLI; Pi runtime wiring remains a compatibility layer and does not imply Pi remains installed on this machine.
 
 Machine-level npm globals are tracked in `template/agent/npm-global-packages.txt`.
 Use `make npm-packages` to install missing entries, `make npm-packages-upgrade`
@@ -451,9 +452,9 @@ make skill-update SOURCE=mattpocock-skills
 
 This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
 - Symlinks canonical config files from `agent/rules/` to agent home dirs
-- RTK global hook, Codex config, OpenCode plugin, Pi extension
+- RTK global hook, Codex config, OpenCode plugin, legacy Pi extension
 - Context Mode Claude plugin + OpenCode plugin
-- Caveman with **ultra** mode for Claude, Codex, OpenCode, and Pi
+- Caveman with **ultra** mode for Claude, Codex, OpenCode, and legacy Pi
 - Agent quality gate policy + runner wiring
 - Codebase Memory MCP installer with auto_index config
 - 12 operating rules embedded in all agent system prompts

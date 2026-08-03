@@ -151,9 +151,11 @@ Remote OAuth authorization is runtime readiness, not desired-state drift.
 
 ---
 
+Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用跨工具发现层，不由本模板的 Pi manifest、installer 或 `pi-packages` 接管。
+
 ## Agent Config Matrix
 
-| Tool | Claude Code | Codex CLI | OpenCode | Pi | Reasonix | Antigravity |
+| Tool | Claude Code | Codex CLI | OpenCode | Pi (legacy) | Reasonix | Antigravity |
 |------|:-----------:|:---------:|:--------:|:--:|:--------:|:------------:|
 | **RTK** | ✅ hook+RTK.md | ✅ RTK.md+AGENTS.md | ✅ plugin | ✅ extension + settings.json | ❌ | ❌ |
 | **Caveman** | ✅ plugin+ultra | ✅ skills+hooks | ✅ plugin+ultra | ✅ skill file | ✅ skill file |
@@ -285,11 +287,9 @@ Reasonix uses:
 
 ---
 
-## Pi Terminal Agent
+## Pi Terminal Agent (Legacy Compatibility)
 
-**Status**: Installed (`/opt/homebrew/bin/pi` v0.77.0). RTK extension registered,
-`pi-mcp-extension` installed, local OpenAI-compatible provider wired, CBM +
-context7 configured as MCP servers, skills installed, AGENTS.md wired.
+**Status**: Optional legacy integration. `omp` is current default CLI; this section applies only when `pi` is installed.
 
 Pi uses:
 - Config: `~/.pi/agent/settings.json` (global), `.pi/settings.json` (project)

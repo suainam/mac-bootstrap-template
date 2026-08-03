@@ -1,6 +1,7 @@
 # ========== Tap ==========
 tap "rtk-ai/tap"
 tap "wangnov/tap"
+tap "can1357/tap"
 
 # ========== CLI 核心 ==========
 brew "git"
@@ -30,7 +31,8 @@ brew "uv"
 
 # ========== Agent 工具链 ==========
 brew "opencode"
-brew "pi-coding-agent"
+brew "omp"
+# brew "pi-coding-agent"  # 2026-08-03 起改用 omp（pi 的分发版，命令为 omp）
 brew "rtk"
 brew "codex-threadripper"
 brew "gh"

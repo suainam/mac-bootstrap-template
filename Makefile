@@ -139,7 +139,7 @@ help:
 	@echo "  publish-public         Publish public template"
 	@echo ""
 	@echo "── Other ──"
-	@echo "  pi-packages            Install Pi packages"
+	@echo "  pi-packages (legacy)  Install legacy Pi packages"
 	@echo "  pm-detect              Detect package manager"
 	@echo "  pm-set                 Set global package manager"
 	@echo "  mcp-profiles           Setup MCP profiles"
