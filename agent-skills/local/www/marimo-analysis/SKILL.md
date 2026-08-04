@@ -35,6 +35,16 @@ When analysis changes a serve output, update the registry with its `granularity`
 - Consumer tests load producer-shaped fixtures and prove filters, metrics, and display data.
 - Cross-source tests prove snapshot and shared-key consistency.
 
+For changes involving runtime layers or assistant context, read the data and AI sections of
+`merchandise/docs/dashboard-development-contract.md`. Complete the analysis change only when:
+
+- transformations land at the documented layer and the notebook consumes registered Serve data;
+- `latest` follows each dataset's declared snapshot rule, while `as_of` records the Serve
+  artifact's UTC observation time;
+- rendered metrics propagate bounded catalog `dataset_refs`, page/component snapshot, and typed
+  filters without serializing the analysis frame;
+- cross-source and producer-shaped consumer tests prove the selected snapshots and grain.
+
 Bind those real pytest node IDs in the page registry. Do not use a filename text match as the
 only producer/consumer proof.
 
