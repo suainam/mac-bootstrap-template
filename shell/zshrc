@@ -22,7 +22,9 @@ case ":$PATH:" in
   *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
 
-if [[ ! -o interactive || ( -z "${TMUX:-}" && ! -t 0 ) ]]; then
+# Interactive UI plugins require both interactive zsh and a real TTY.
+# Keep non-TTY probes and restored/headless shells side-effect free.
+if [[ ! -o interactive || ! -t 0 ]]; then
   return 0
 fi
 

@@ -1,13 +1,14 @@
 SHELL := /usr/bin/env bash
 UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
+PYTEST_PARALLEL_ARGS ?= -n auto --dist loadfile
 LUAC ?= luac
 GIT_HOOK_REPO ?= .
 GIT_HOOK_REGISTRY ?= agent/runtime/registry.jsonc
 GIT_HOOK_APPROVALS ?=
 GIT_HOOK_PYTHON ?= $(shell command -v python3)
 
-.PHONY: help bootstrap check repo-check machine-check ci syntax-check pytest pytest-machine pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
+.PHONY: help bootstrap check check-parallel repo-check repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
@@ -30,6 +31,7 @@ help:
 	@echo "── Common ──"
 	@echo "  bootstrap              Full bootstrap on this machine"
 	@echo "  check                  Repository checks + strict machine doctor"
+	@echo "  check-parallel         Repository + machine checks with grouped xdist"
 	@echo "  repo-check             Repository-only syntax, privacy, skills, and tests"
 	@echo "  machine-check          Strict machine health check"
 	@echo "  ci                     Public CI: syntax + pytest + privacy + skill + docs gates"
@@ -167,6 +169,12 @@ machine-check:
 
 check: repo-check machine-check
 
+check-parallel:
+	+$(MAKE) -j2 repo-check-parallel machine-check
+
+repo-check-parallel:
+	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
+
 ci:
 	$(MAKE) syntax-check
 	$(MAKE) pytest
@@ -188,6 +196,14 @@ pytest:
 pytest-machine:
 	mkdir -p "$(UV_CACHE_DIR)"
 	env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m machine
+
+pytest-parallel:
+	mkdir -p "$(UV_CACHE_DIR)"
+	if $(PYTHON) -c 'import pytest_cov' >/dev/null 2>&1; then \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m 'not machine' --cov --cov-report=term-missing $(PYTEST_PARALLEL_ARGS); \
+	else \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m 'not machine' $(PYTEST_PARALLEL_ARGS); \
+	fi
 
 pytest-all:
 	mkdir -p "$(UV_CACHE_DIR)"

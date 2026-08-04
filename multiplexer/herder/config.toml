@@ -1,3 +1,4 @@
+onboarding = false
 # Herdr Configuration File
 # Ported some settings from tmux
 
@@ -14,6 +15,7 @@ split_horizontal = "prefix+minus"
 # Herdr's UI is generally opinionated for agents, but you can configure theme/layout here if needed later.
 
 agent_panel_sort = "spaces"
+show_agent_labels_on_pane_borders = true
 [ui.toast]
 # Best Practice: 让 Herdr 调用 macOS 系统通知，当后台 Agent 跑完长任务时弹窗提醒你
 delivery = "system"
@@ -21,3 +23,7 @@ delivery = "system"
 [experimental]
 pane_history = true
 switch_ascii_input_source_in_prefix = true
+
+[theme]
+name = "catppuccin"
+auto_switch = false
