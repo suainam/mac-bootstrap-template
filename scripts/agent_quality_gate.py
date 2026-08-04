@@ -420,9 +420,12 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
                 env=command_env,
                 dry_run=dry_run,
             )
-        elif gate == "make-check":
+        elif gate in {"make-check", "make-check-parallel"}:
             target_root = repo_root if repo_gate_scope == "parent" else template_root
-            target = "repo-check" if repo_only else "check"
+            if repo_only:
+                target = "repo-check-parallel" if gate == "make-check-parallel" else "repo-check"
+            else:
+                target = "check-parallel" if gate == "make-check-parallel" else "check"
             rc = _run_command(
                 ["make", target],
                 cwd=target_root,

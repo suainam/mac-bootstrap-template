@@ -379,11 +379,14 @@ template pytest suite from `template/.venv`. If `pytest-cov` is installed in the
 local venv, the check also emits coverage for the extracted Python helper
 scripts.
 
-`make check-parallel` is an opt-in local speed path. It runs repository tests
-with pytest-xdist grouped by test file (`--dist loadfile`) while machine checks
-run in a separate make job. Keep one full check invocation at a time; live
-daemon and tmux fixtures can collide when independent invocations overlap.
-`make check` remains serial for the default and pre-push path.
+`make check-parallel` is the grouped validation path. It runs repository tests
+with pytest-xdist grouped by test file (`--dist loadfile`) using four workers by
+default, while machine checks run in a separate make job. Override
+`PYTEST_PARALLEL_WORKERS` when the host has different resource constraints. The
+managed pre-push hook uses this target for the real checkout and
+`repo-check-parallel` for linked worktrees and submodules. Keep one full check
+invocation at a time; live daemon and tmux fixtures can collide when independent
+invocations overlap. `make check` remains the serial reference path.
 
 `make doctor` prints diagnostics without failing.
 `make doctor-agent` verifies managed symlinks against the current template

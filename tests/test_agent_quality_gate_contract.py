@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -31,6 +32,15 @@ def test_makefiles_expose_quality_gate_targets():
         ):
             assert f"{target}:" in content
 
+def test_pre_push_uses_grouped_full_check_without_duplicate_doctor():
+    manifest = json.loads(read("agent/quality-gates/manifest.jsonc"))
+    assert manifest["events"]["pre-push"]["default_gates"] == [
+        "classify",
+        "neat-freak-apply",
+        "make-check-parallel",
+        "make-doctor-agent",
+    ]
+
 
 def test_trusted_git_hook_dispatcher_targets_are_explicit_migration_actions():
     template_makefile = read("Makefile")
@@ -46,6 +56,12 @@ def test_trusted_git_hook_dispatcher_targets_are_explicit_migration_actions():
     installer = read("scripts/install-agent-tooling.sh")
     assert "agent_git_hook_dispatcher.py" not in installer
     assert "template/agent/quality-gates/hooks" in installer
+
+
+def test_parallel_pytest_uses_bounded_default_worker_count():
+    content = read("Makefile")
+    assert "PYTEST_PARALLEL_WORKERS ?= 4" in content
+    assert "PYTEST_PARALLEL_ARGS ?= -n $(PYTEST_PARALLEL_WORKERS) --dist loadfile" in content
 
 
 def test_repo_and_machine_checks_split_pytest_markers():

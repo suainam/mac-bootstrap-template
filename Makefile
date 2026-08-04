@@ -1,7 +1,8 @@
 SHELL := /usr/bin/env bash
 UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
-PYTEST_PARALLEL_ARGS ?= -n auto --dist loadfile
+PYTEST_PARALLEL_WORKERS ?= 4
+PYTEST_PARALLEL_ARGS ?= -n $(PYTEST_PARALLEL_WORKERS) --dist loadfile
 LUAC ?= luac
 GIT_HOOK_REPO ?= .
 GIT_HOOK_REGISTRY ?= agent/runtime/registry.jsonc

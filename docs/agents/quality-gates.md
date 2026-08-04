@@ -448,12 +448,14 @@ worktree 时 `post-checkout` 可能传入全零 old OID；dispatcher 将其规�
 | Target | 职责 | 适用位置 |
 |---|---|---|
 | `make repo-check` | 语法、隐私、skill、非 `machine` 测试 | 普通 clone、管理 checkout、linked worktree、submodule |
+| `make repo-check-parallel` | `repo-check` 的 grouped pytest-xdist 版本 | pre-push 的 linked worktree、submodule |
 | `make machine-check` | strict doctor 与 `machine` 标记测试 | 显式标记的真实管理 checkout |
-| `make check` | `repo-check + machine-check` | 显式标记的真实管理 checkout 的完整发布验证 |
+| `make check` | `repo-check + machine-check` 的串行参考路径 | 手动完整验收 |
+| `make check-parallel` | `repo-check-parallel + machine-check` 的 grouped 路径 | pre-push 的真实管理 checkout |
 
-普通 clone、linked worktree 或 submodule 的 pre-push 只运行 repository checks。临时
-worktree 不应接管或重写真实机器上的 managed symlink，也不应因它们仍指向管理 checkout
-而失败。
+普通 clone、linked worktree 或 submodule 的 pre-push 只运行
+`repo-check-parallel`。临时 worktree 不应接管或重写真实机器上的 managed symlink，
+也不应因它们仍指向管理 checkout 而失败。
 
 ## 跨仓执行
 
@@ -496,10 +498,10 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 不要只依赖 mock 或 dry-run。按以下顺序验证：
 
 1. **聚焦集成测试**：临时创建真实父仓、submodule 和 linked worktree，注入父仓 Git 环境，证明子仓仍读取自己的 tracked files。
-2. **Repository checks**：使用外部 `PYTHON` 运行完整 `make repo-check`，确认 worktree 无本地 venv 也可完成非机器检查。
+2. **Repository checks**：使用外部 `PYTHON` 运行 `make repo-check-parallel`，确认 worktree 无本地 venv 也可完成非机器检查。
 3. **真实本地 push**：创建临时 bare remote，从 linked worktree 执行真实 `git push`；不得使用 bypass 或 `--no-verify`。
 4. **远端 CI**：子仓 Public CI 通过后合并。
-5. **管理 checkout push**：父仓 main checkout 真实 push，确认 repository checks、machine checks、doctor 和 post-success 记录全部完成。
+5. **管理 checkout push**：父仓 main checkout 真实 push，确认 `make check-parallel`、doctor-agent 和 post-success 记录全部完成。
 
 真实 push 验收必须同时证明：
 
@@ -543,8 +545,9 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 
 - [ ] Git 上下文由 `git rev-parse` 解析，而非目录猜测。
 - [ ] 跨仓命令动态清理 Git local environment variables。
-- [ ] linked worktree 和 submodule 只跑 `repo-check`。
-- [ ] 管理 checkout 跑 `make check`，包括 machine checks。
+- [ ] linked worktree 和 submodule 只跑 `repo-check-parallel`。
+- [ ] 管理 checkout 的 pre-push 跑 `make check-parallel`，包括 machine checks。
+- [ ] `make check` 仍可作为串行参考验收路径。
 - [ ] pytest 可复用外部解释器，但子进程不继承 `PYTHON/PYTHON_BIN`。
 - [ ] test helper 使用 `sys.executable`。
 - [ ] 子仓 commit 在父仓 pointer 验收前已远端可达。

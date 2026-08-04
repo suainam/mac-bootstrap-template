@@ -93,6 +93,38 @@ def test_select_gates_for_pre_push_includes_post_success_record():
     assert plan["post_success"] == ["knowledge-record"]
 
 
+def test_parallel_make_check_uses_management_target(monkeypatch, tmp_path):
+    root = tmp_path
+    template = root / "template"
+    context = quality_gate.GitContext(
+        repo_root=root,
+        git_dir=root / ".git",
+        git_common_dir=root / ".git",
+        superproject_root=None,
+        is_linked_worktree=False,
+        is_submodule=False,
+    )
+    commands = []
+    monkeypatch.setattr(quality_gate, "_repo_root", lambda: root)
+    monkeypatch.setattr(quality_gate, "_template_root", lambda: template)
+    monkeypatch.setattr(quality_gate, "resolve_git_context", lambda _: context)
+    monkeypatch.setattr(quality_gate, "sanitized_git_env", lambda _: {})
+    monkeypatch.setattr(
+        quality_gate,
+        "_run_command",
+        lambda command, **kwargs: commands.append((command, kwargs["cwd"])) or 0,
+    )
+
+    plan = {
+        "paths": ["private/config.yml"],
+        "gates": ["make-check-parallel"],
+        "post_success": [],
+    }
+
+    assert quality_gate.execute_plan(plan, {}) == 0
+    assert commands == [(["make", "check-parallel"], root)]
+
+
 def test_bypass_state_is_detected_from_env(monkeypatch):
     monkeypatch.setenv("QUALITY_GATES_BYPASS", "1")
 
@@ -165,6 +197,10 @@ def test_linked_worktree_runs_submodule_repo_check_in_child_git_context(
 \t@test \"$$(git ls-files | grep -c '^child.txt$$')\" -eq 1
 \t@test \"$$(git ls-files | grep -c '^parent.txt$$')\" -eq 0
 
+repo-check-parallel:
+\t@test \"$$(git ls-files | grep -c '^child.txt$$')\" -eq 1
+\t@test \"$$(git ls-files | grep -c '^parent.txt$$')\" -eq 0
+
 check doctor doctor-agent:
 \t@false
 """,
@@ -217,7 +253,7 @@ check doctor doctor-agent:
 
     plan = {
         "paths": ["template"],
-        "gates": ["make-check", "make-doctor", "make-doctor-agent"],
+        "gates": ["make-check-parallel", "make-doctor", "make-doctor-agent"],
         "post_success": [],
     }
 
