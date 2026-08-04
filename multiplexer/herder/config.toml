@@ -25,5 +25,6 @@ pane_history = true
 switch_ascii_input_source_in_prefix = true
 
 [theme]
+# Herdr's built-in catppuccin theme is Catppuccin Mocha, matching Ghostty.
 name = "catppuccin"
 auto_switch = false

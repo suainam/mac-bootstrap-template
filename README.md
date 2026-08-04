@@ -84,6 +84,15 @@ to Ghostty, repair the existing install without adding a new font:
 ```bash
 make ghostty-font-repair
 ```
+Herdr is installed from `multiplexer/herder/install.sh` and links the tracked
+`config.toml` into `~/.config/herdr/`. Its built-in `catppuccin` theme is
+Catppuccin Mocha, matching the Ghostty theme; keep `auto_switch = false` for a
+deterministic palette. Verify the rendered configuration with:
+
+```bash
+herdr config check
+```
+
 
 Reusable Obsidian vault config lives in `editors/obsidian/`. Install it into a
 vault explicitly:
