@@ -127,6 +127,18 @@ def test_zshrc_defers_host_aliases_to_private_overrides():
 
 
 @pytest.mark.machine
+def test_zshrc_skips_ui_plugins_without_tty_even_in_herdr():
+    out, err, rc = run("env HERDR_ENV=1 zsh -lic 'printf ZSH_OK'")
+    combined = f"{out}\n{err}"
+
+    assert rc == 0
+    assert "ZSH_OK" in out
+    assert "gitstatus failed to initialize" not in combined
+    assert "cannot bind to an empty key sequence" not in combined
+    assert "can't change option: zle" not in combined
+
+
+@pytest.mark.machine
 def test_zshrc_defines_fzf_file_and_dir_launchers():
     content = open(os.path.expanduser("~/.zshrc")).read()
     assert "ff()" in content

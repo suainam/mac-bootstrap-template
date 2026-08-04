@@ -22,12 +22,10 @@ case ":$PATH:" in
   *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
 
-# Herdr panes are non-interactive but should load the full config.
-# Only apply the guard when not in a Herdr-managed environment.
-if [[ -z "${HERDR_ENV:-}" ]]; then
-  if [[ ! -o interactive || ( -z "${TMUX:-}" && ! -t 0 ) ]]; then
-    return 0
-  fi
+# Interactive UI plugins require both interactive zsh and a real TTY.
+# Keep non-TTY probes and restored/headless shells side-effect free.
+if [[ ! -o interactive || ! -t 0 ]]; then
+  return 0
 fi
 
 # ---------- Zinit ----------
