@@ -362,6 +362,7 @@ make doctor-agent    # Verify all configs (contains AgentShield scan)
 
 ```bash
 make check
+make check-parallel
 make ci
 make doctor
 make doctor-agent    # Agent health check (symlinks, config files)
@@ -377,6 +378,13 @@ local applications, GUI state, accounts, or generated agent runtime state.
 template pytest suite from `template/.venv`. If `pytest-cov` is installed in the
 local venv, the check also emits coverage for the extracted Python helper
 scripts.
+
+`make check-parallel` is an opt-in local speed path. It runs repository tests
+with pytest-xdist grouped by test file (`--dist loadfile`) while machine checks
+run in a separate make job. Keep one full check invocation at a time; live
+daemon and tmux fixtures can collide when independent invocations overlap.
+`make check` remains serial for the default and pre-push path.
+
 `make doctor` prints diagnostics without failing.
 `make doctor-agent` verifies managed symlinks against the current template
 targets, so directory refactors surface as stale-link failures instead of
@@ -527,6 +535,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make system-upgrade` | Interactive Homebrew update/upgrade followed by safe skill refresh |
 | `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
 | `make check` | Syntax + tool validation |
+| `make check-parallel` | Faster local validation with grouped pytest-xdist workers |
 | `make ci` | Public CI contract: syntax, pytest, privacy, skill, and docs gates |
 | `make doctor` | Machine health check |
 | `make doctor-agent` | Agent health check |
