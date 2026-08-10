@@ -159,22 +159,23 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 repo-check:
-	$(MAKE) syntax-check
-	$(MAKE) skill-check
-	./scripts/privacy-audit.sh
-	$(MAKE) pytest
+	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
 
 machine-check:
 	./scripts/doctor.sh --strict
 	$(MAKE) pytest-machine
 
-check: repo-check machine-check
+check: check-parallel
 
 check-parallel:
-	+$(MAKE) -j2 repo-check-parallel machine-check
+	+$(MAKE) -j2 repo-check machine-check
 
-repo-check-parallel:
-	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
+check-serial:
+	$(MAKE) syntax-check
+	$(MAKE) skill-check
+	./scripts/privacy-audit.sh
+	$(MAKE) pytest
+	$(MAKE) machine-check
 
 ci:
 	$(MAKE) syntax-check
