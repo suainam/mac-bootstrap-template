@@ -282,15 +282,13 @@ ServerAliveCountMax 10    # drop after 10 missed replies (~10 min of silence)
 
 Clash profile flow:
 
-- `template/proxy/clash/Merge.yaml` is the checked-in public working default.
-- `template/proxy/clash/Merge.yaml.template` is the lower-level fallback seed.
 - `private/clash/work-mac.yaml` is the private machine-specific source of truth
   for this Mac.
+- `make render-configs` syncs `work-mac.yaml` to the active Clash Verge local
+  profile and restarts the app to force a mihomo reload.
 - Runtime profiles under `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/` are generated state.
-- Refreshing a Clash subscription does not rewrite `proxy/clash/Merge.yaml`; it only
+- Refreshing a Clash subscription does not rewrite `work-mac.yaml`; it only
   updates app-managed runtime state.
-- `make render-configs` no longer copies `private/clash/work-mac.yaml` back into
-  `template/proxy/clash/Merge.yaml`; private overrides sync only to the runtime profile.
 - Full notes: [`docs/clash-profile-flow.md`](docs/clash-profile-flow.md)
 
 Use `make export-public DEST=/path/to/mac-bootstrap-public` to produce a

@@ -142,31 +142,98 @@ render_config() {
 }
 
 sync_clash_verge_profile() {
-  local rel="proxy/clash/Merge.yaml"
+  local rel="clash/work-mac.yaml"
   local source
-  local runtime_target="$HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/Merge.yaml"
 
-  if ! source="$(resolve_config "$rel")"; then
+  # resolve_config strips the first path segment (proxy/clash/ -> clash/),
+  # but "clash/work-mac.yaml" would become "work-mac.yaml" which is wrong.
+  # Check private paths directly with the full relative path.
+  local stripped="$rel"
+
+  # Priority 1: external private overlay
+  if [ -n "$EXTERNAL_PRIVATE_DIR" ] && [ -f "$EXTERNAL_PRIVATE_DIR/$stripped" ]; then
+    source="$EXTERNAL_PRIVATE_DIR/$stripped"
+  # Priority 2: private parent layout
+  elif [ -f "$PARENT_DIR/private/$stripped" ]; then
+    source="$PARENT_DIR/private/$stripped"
+  # Priority 3: local private overlay
+  elif [ -f "$DIR/private/$stripped" ]; then
+    source="$DIR/private/$stripped"
+  else
     echo "  WARN: no Clash profile source found for $rel"
     return 0
   fi
 
-  if grep -q '{{[A-Z_]' "$source" 2>/dev/null; then
-    echo "  WARN: Clash profile source still has {{ placeholders }}: $(label_path "$source")"
-    return 0
-  fi
 
-  if [ ! -d "$(dirname "$runtime_target")" ]; then
+  # Runtime directory
+  local clash_dir="$HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev"
+  local profiles_dir="$clash_dir/profiles"
+
+  if [ ! -d "$profiles_dir" ]; then
     echo "  Clash Verge Profile: skipped (runtime directory missing)"
     return 0
   fi
 
-  run cp "$source" "$runtime_target"
-  echo "  Clash Verge Profile <- $(label_path "$source")"
+  # Determine active local profile from profiles.yaml
+  local profiles_yaml="$clash_dir/profiles.yaml"
+  local current_uid=""
+  if [ -f "$profiles_yaml" ]; then
+    current_uid=$(awk '/^current:/ {print $2; exit}' "$profiles_yaml" 2>/dev/null)
+  fi
+
+  local target=""
+  if [ -n "$current_uid" ]; then
+    target="$profiles_dir/${current_uid}.yaml"
+  fi
+
+  if [ -z "$target" ] || [ ! -f "$target" ]; then
+    echo "  Clash Verge Profile: skipped (active local profile not found: ${current_uid:-none})"
+    return 0
+  fi
+
+  run cp "$source" "$target"
+  # Bump updated timestamp to trigger Clash Verge reload
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import re, time, sys
+p = sys.argv[1]
+uid = sys.argv[2]
+with open(p) as f:
+    content = f.read()
+now = str(int(time.time()))
+lines = content.split('\n')
+in_target = False
+updated = False
+for i, line in enumerate(lines):
+    if 'uid: ' + uid in line:
+        in_target = True
+        continue
+    if in_target and re.match(r'^  updated:\s', line):
+        lines[i] = '  updated: ' + now
+        updated = True
+        break
+if updated:
+    with open(p, 'w') as f:
+        f.write('\n'.join(lines))
+" "$profiles_yaml" "$current_uid" 2>/dev/null || true
+  fi
+  echo "  Clash Verge Profile <- $(label_path "$source") (active: $current_uid)"
+
+  # Restart Clash Verge to force mihomo reload
+  local clash_pid
+  clash_pid=$(pgrep -f 'Clash Verge.app/Contents/MacOS/clash-verge' 2>/dev/null || true)
+  if [ -n "$clash_pid" ]; then
+    kill "$clash_pid" 2>/dev/null || true
+    sleep 2
+    open -a "Clash Verge" 2>/dev/null || true
+    echo "  Clash Verge restarted (pid was $clash_pid)"
+  else
+    echo "  Clash Verge not running; profile will load on next launch"
+  fi
 }
 
 echo "=== Rendered configs ==="
-echo "  proxy/clash/Merge.yaml: keep checked-in public default; private overrides sync only to runtime"
+echo "  clash/work-mac.yaml: sync to active Clash Verge profile"
 render_config "infra/python/odps_config.py"
 echo "=== Runtime sync ==="
 sync_clash_verge_profile

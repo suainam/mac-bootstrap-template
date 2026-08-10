@@ -28,7 +28,6 @@ include = [
     "scripts/sync-codex-mcp-config.py",
 ]
 omit = [
-    "scripts/render-clash-merge.py",
     "scripts/ssh-connect-proxy.py",
     "tests/*",
 ]

@@ -54,9 +54,9 @@ public Neovim config.
 4. local ignored `<path>`
 5. public `<path>.template`
 
-For Clash specifically, private `private/clash/work-mac.yaml` is synced directly to
-the local Clash runtime profile. It is not copied back into
-`proxy/clash/Merge.yaml`.
+For Clash specifically, `private/clash/work-mac.yaml` is synced directly to
+the active Clash Verge local profile and the app is restarted to force a
+mihomo reload.
 
 For remote code-server deployment, `infra/code-server/install.sh` first looks
 for `private/infra/code-server/env.sh` (or the same path under
