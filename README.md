@@ -381,19 +381,18 @@ Actions. It runs syntax checks, pytest, the privacy audit, the skill registry
 check, and the neat-freak documentation-alignment gate. It does not inspect
 local applications, GUI state, accounts, or generated agent runtime state.
 
-`make check` validates shell syntax, data-driven doctor checks, and runs the
-template pytest suite from `template/.venv`. If `pytest-cov` is installed in the
-local venv, the check also emits coverage for the extracted Python helper
-scripts.
-
-`make check-parallel` is the grouped validation path. It runs repository tests
+`make check` is the default grouped validation path. It runs repository tests
 with pytest-xdist grouped by test file (`--dist loadfile`) using four workers by
 default, while machine checks run in a separate make job. Override
-`PYTEST_PARALLEL_WORKERS` when the host has different resource constraints. The
+`PYTEST_PARALLEL_WORKERS` when the host has different resource constraints.
+
+`make check-parallel` is the explicit form of the grouped validation path. The
 managed pre-push hook uses this target for the real checkout and
-`repo-check-parallel` for linked worktrees and submodules. Keep one full check
-invocation at a time; live daemon and tmux fixtures can collide when independent
-invocations overlap. `make check` remains the serial reference path.
+`repo-check-parallel` for linked worktrees and submodules.
+
+`make check-serial` runs `repo-check` and `machine-check` sequentially for
+debugging test interference. Keep one full check invocation at a time; live
+daemon and tmux fixtures can collide when independent invocations overlap.
 
 `make doctor` prints diagnostics without failing.
 `make doctor-agent` verifies managed symlinks against the current template
@@ -544,9 +543,9 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make skill-update SOURCE=mattpocock-skills` | Fetch and safely promote an external bundle |
 | `make system-upgrade` | Interactive Homebrew update/upgrade followed by safe skill refresh |
 | `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
-| `make check` | Syntax + tool validation |
-| `make check-parallel` | Faster local validation with grouped pytest-xdist workers |
-| `make ci` | Public CI contract: syntax, pytest, privacy, skill, and docs gates |
+| `make check` | Default grouped repository + machine validation |
+| `make check-serial` | Serial repository + machine validation |
+| `make check-parallel` | Explicit grouped pytest-xdist validation |
 | `make doctor` | Machine health check |
 | `make doctor-agent` | Agent health check |
 | `make security-scan` | AgentShield audit |

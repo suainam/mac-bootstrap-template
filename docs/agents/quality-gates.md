@@ -447,10 +447,11 @@ worktree 时 `post-checkout` 可能传入全零 old OID；dispatcher 将其规�
 
 | Target | 职责 | 适用位置 |
 |---|---|---|
-| `make repo-check` | 语法、隐私、skill、非 `machine` 测试 | 普通 clone、管理 checkout、linked worktree、submodule |
+| `make repo-check` | 语法、隐私、skill、非 `machine` 测试的串行路径 | 普通 clone、管理 checkout、linked worktree、submodule |
 | `make repo-check-parallel` | `repo-check` 的 grouped pytest-xdist 版本 | pre-push 的 linked worktree、submodule |
 | `make machine-check` | strict doctor 与 `machine` 标记测试 | 显式标记的真实管理 checkout |
-| `make check` | `repo-check + machine-check` 的串行参考路径 | 手动完整验收 |
+| `make check` | `check-parallel` 的默认 grouped 路径 | 手动完整验收 |
+| `make check-serial` | `repo-check + machine-check` 的串行参考路径 | 调试测试干扰 |
 | `make check-parallel` | `repo-check-parallel + machine-check` 的 grouped 路径 | pre-push 的真实管理 checkout |
 
 普通 clone、linked worktree 或 submodule 的 pre-push 只运行
@@ -547,7 +548,7 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 - [ ] 跨仓命令动态清理 Git local environment variables。
 - [ ] linked worktree 和 submodule 只跑 `repo-check-parallel`。
 - [ ] 管理 checkout 的 pre-push 跑 `make check-parallel`，包括 machine checks。
-- [ ] `make check` 仍可作为串行参考验收路径。
+- [ ] `make check-serial` 可作为串行参考验收路径。
 - [ ] pytest 可复用外部解释器，但子进程不继承 `PYTHON/PYTHON_BIN`。
 - [ ] test helper 使用 `sys.executable`。
 - [ ] 子仓 commit 在父仓 pointer 验收前已远端可达。
