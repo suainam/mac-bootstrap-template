@@ -69,11 +69,13 @@ def test_repo_and_machine_checks_split_pytest_markers():
     repo_check = content.split("repo-check:", 1)[1].split("machine-check:", 1)[0]
     machine_check = content.split("machine-check:", 1)[1].split("ci:", 1)[0]
 
-    assert "$(MAKE) pytest\n" in repo_check
+    assert "pytest-parallel" in repo_check
     assert "pytest-all" not in repo_check
     assert "$(MAKE) pytest-machine" in machine_check
+    repo_check_serial = content.split("repo-check-serial:", 1)[1].split("repo-check-parallel:", 1)[0]
+    assert "$(MAKE) pytest\n" in repo_check_serial
     repo_check_parallel = content.split("repo-check-parallel:", 1)[1].split("machine-check:", 1)[0]
-    assert "pytest-parallel" in repo_check_parallel
+    assert "repo-check" in repo_check_parallel
 
 
 def test_pytest_targets_honor_python_override_without_leaking_it():

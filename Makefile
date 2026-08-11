@@ -9,7 +9,7 @@ GIT_HOOK_REGISTRY ?= agent/runtime/registry.jsonc
 GIT_HOOK_APPROVALS ?=
 GIT_HOOK_PYTHON ?= $(shell command -v python3)
 
-.PHONY: help bootstrap check check-parallel repo-check repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
+.PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
@@ -33,7 +33,8 @@ help:
 	@echo "  bootstrap              Full bootstrap on this machine"
 	@echo "  check                  Repository checks + strict machine doctor"
 	@echo "  check-parallel         Repository + machine checks with grouped xdist"
-	@echo "  repo-check             Repository-only syntax, privacy, skills, and tests"
+	@echo "  repo-check             Repository-only grouped syntax, privacy, skills, and tests"
+	@echo "  repo-check-serial      Repository-only serial checks for debugging"
 	@echo "  machine-check          Strict machine health check"
 	@echo "  ci                     Public CI: syntax + pytest + privacy + skill + docs gates"
 	@echo "  syntax-check          Shell, Python, and Lua syntax checks"
@@ -159,13 +160,15 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 repo-check:
+	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
+
+repo-check-serial:
 	$(MAKE) syntax-check
 	$(MAKE) skill-check
 	./scripts/privacy-audit.sh
 	$(MAKE) pytest
 
-repo-check-parallel:
-	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
+repo-check-parallel: repo-check
 
 machine-check:
 	./scripts/doctor.sh --strict
@@ -177,7 +180,7 @@ check-parallel:
 	+$(MAKE) -j2 repo-check-parallel machine-check
 
 check-serial:
-	$(MAKE) repo-check
+	$(MAKE) repo-check-serial
 	$(MAKE) machine-check
 
 ci:

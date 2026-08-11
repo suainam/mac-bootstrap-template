@@ -546,8 +546,9 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make check` | Default grouped repository + machine validation |
 | `make check-serial` | Serial repository + machine validation |
 | `make check-parallel` | Explicit grouped pytest-xdist validation |
+| `make repo-check` | Default grouped repository-only validation |
+| `make repo-check-serial` | Serial repository-only validation |
 | `make doctor` | Machine health check |
-| `make doctor-agent` | Agent health check |
 | `make security-scan` | AgentShield audit |
 | `make privacy-audit` | Redacted current-tree privacy scan |
 | `make privacy-audit-history` | Redacted git-history privacy scan |
