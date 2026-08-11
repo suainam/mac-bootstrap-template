@@ -11,6 +11,7 @@
 1. **第三方工具失败** - `codex-threadripper` 报错 "stream did not contain valid UTF-8"
 2. **系统工具失败** - `cat/vim` 显示乱码,`sqlite3` 报错 "file is not a database"
 3. **文件头异常** - `xxd` 显示 `%TSD-Header-###%`,但应用能正常打开
+4. **容器工具失败** — `.zip` 被 `file` 显示为 `data`，`unzip` 报 `End-of-central-directory signature not found`
 
 ### 确认方法（Agent 必读）
 
@@ -48,6 +49,23 @@ def is_tsd_encrypted(path):
 - Unix 上应以参数数组直接执行**非 Python 工具**读取磁盘字节，不经过 shell
 - Windows 或缺少 `dd` 时回退到文件 API，并以测试覆盖平台行为
 
+### 实战经验：不要用透明读取判断是否加密
+
+- `dd` / `xxd` 等系统工具看到的是原始磁盘字节；Python `open()` / `Path.read_bytes()` 可能触发 TSD 透明解密。
+- 因此 Python 可能显示标准 PNG/SQLite 头，但原始文件仍以 `%TSD-Header-###%` 开头。
+- Unix 先用 `dd if=<file> bs=16 count=1` 或 `xxd -l 16 <file>` 判定；Windows/无 `dd` 时使用项目已验证的原始字节读取回退。
+
+### 实战经验：任意扩展名保真解密
+
+对 `.png`、`.zip` 等不在透明扩展名列表中的文件：
+
+1. 源文件保持不动，用系统 `cp` 复制密文为 `.sql` staging 文件。
+2. 用 Python 读取 staging 文件；该读取触发透明解密。
+3. 用 `write_bytes()` 将完整明文字节写入保留原扩展名的新输出文件。
+4. 不重编码、不删除 metadata/chunk、不改写容器内容；保留完整明文字节流。
+5. 用格式专属工具验证输出魔数和容器结构；确认源文件未改变后删除 staging 文件。
+
+
 ---
 
 ## TSD 透明层机制
@@ -56,8 +74,8 @@ def is_tsd_encrypted(path):
 
 | 维度 | 透明 | 不透明 |
 |------|------|--------|
-| **文件类型** | `.sqlite`, `.db`, `.sql`, `.xls`, `.jsonl`, `.toml` | `.md`, 其他文本 |
-| **应用层** | Python `open()`, `sqlite3.connect()` | `cat`, `vim`, `xxd`, `strings` |
+| 文件类型 | `.sqlite`, `.db`, `.sql`, `.xls`, `.jsonl`, `.toml` | 不透明扩展名（如 `.md`, `.png`, `.zip` 等） |
+| 应用层 | Python `open()`, `sqlite3.connect()` | `cat`, `vim`, `xxd`, `strings` |
 | **路径** | 任意位置(包括 `/tmp`) | - |
 
 **关键特征**:
@@ -120,9 +138,60 @@ with open('decrypted.sql', 'wb') as f_out:
     f_out.write(data)
 ```
 
+### 方法 1b: 二进制文件保真解密
+
+对 `.png`、`.zip` 等不透明扩展名，优先使用可复用入口：
+
+```bash
+python3 scripts/decrypt_tsd_binary.py encrypted.png
+# 默认生成 encrypted.decrypted.png
+```
+
+脚本自动完成原始头检测、`.sql` 暂存、透明读取、原扩展名输出和暂存清理；PNG 额外做 CRC/尺寸校验。使用 `--output PATH` 指定输出，使用 `--force` 才允许覆盖已有输出。
+
+需要诊断透明层时，可使用以下低层流程：
+
+```bash
+# 原始磁盘检测必须绕过 Python 透明层
+dd if=encrypted.png bs=16 count=1 status=none | od -An -tc
+
+# 系统工具复制原始密文；.sql 扩展名激活透明层
+cp encrypted.png encrypted.stage.sql
+
+python3 - <<'PY'
+from pathlib import Path
+
+stage = Path("encrypted.stage.sql")
+output = Path("decrypted.png")
+output.write_bytes(stage.read_bytes())
+stage.unlink()
+PY
+```
+
+### ZIP 等容器
+
+`.zip` 的 TSD 外层不是 ZIP central directory；先去除 TSD 包装，再判断 ZIP 内容。首轮 `file` 显示 `data` 或 `unzip` 找不到 central directory，不等于容器损坏。
+
+1. **原始判定**：macOS/Linux 用 `dd` / `xxd` 读取前 16 字节；确认源文件以 `%TSD-Header-###%` 开头。Windows 使用平台原始字节读取方式。
+2. **保真解密**：
+   ```bash
+   python3 scripts/decrypt_tsd_binary.py source.zip --json
+   ```
+   默认生成 `source.decrypted.zip`；指定 `--output` 时，已有文件必须显式传 `--force`。源文件始终保留。
+3. **格式验证**：
+   ```bash
+   dd if="source.zip" bs=1 count=16 status=none | xxd -g 1
+   dd if="source.decrypted.zip" bs=1 count=16 status=none | xxd -g 1
+   unzip -t "source.decrypted.zip"
+   ```
+   预期源文件仍是 TSD 头，输出以 ZIP `PK` 头开头，ZIP 检查无错误；Windows 使用等价的 ZIP 完整性检查器。
+4. **边界**：解密与解压分开。只有用户明确要求“解压”时才展开到另行指定的目录。
+
+**完成标准**：解密输出是标准 ZIP；格式检查通过；源文件仍保留 TSD 头且未被覆盖；解密输出保留完整 ZIP 数据。
+
 ### 方法 2: 重命名激活透明层
 
-**适用**: 不透明类型(如 `.md`)
+**适用**: 不透明扩展名（如 `.md`、`.png` 等）
 
 ```bash
 # .md 文件 Python 读取不透明
