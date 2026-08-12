@@ -64,6 +64,7 @@ cask "iterm2"
 cask "hammerspoon"
 # cask "mos"  # 2026-06-15: 卸载 — 罗技G304鼠标卡顿，Mos拦截鼠标输入导致延迟
 cask "shottr"
+cask "maccy"
 cask "cc-switch"
 
 # ========== 网络 & 安全 ==========

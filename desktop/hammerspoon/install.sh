@@ -35,7 +35,6 @@ for file in "$DIR"/*.lua; do
 done
 
 echo "=== Installing official Spoons ==="
-install_spoon "ClipboardTool"
 install_spoon "HSKeybindings"
 
 
