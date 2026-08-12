@@ -920,6 +920,29 @@
       }
     },
 
+    "jeffallan-claude-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/jeffallan/claude-skills",
+      "skills": {
+        "typescript-pro": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-08-12",
+            "approved_hash": "sha256:22eb8c500e6029fede1b430a0657f1aa7ca69afb73f9a552def55ee0b3ad64fd",
+            "reason": "User-approved TypeScript engineering skill; manually reviewed SKILL.md and all five reference files"
+          },
+          "reason": "User-approved global TypeScript engineering skill; ponytail remains the default simplicity guard"
+        }
+      }
+    },
+
     "local-global": {
       "type": "internal",
       "path": "agent-skills/local/global",
