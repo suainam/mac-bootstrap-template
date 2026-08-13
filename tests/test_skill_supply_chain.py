@@ -20,6 +20,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     BundleCatalogEntry,
     RegistryError,
     _assert_safe_apply_root,
+    apply_distribution_actions,
     build_distribution_actions,
     build_distribution_snapshot,
     build_reconcile_actions,
@@ -41,6 +42,7 @@ from scripts.skill_supply_chain import (  # noqa: E402
     snapshot_output_path,
     strip_jsonc_comments,
     validate_registry_sources,
+    validate_registry_targets,
     validate_skill_dir,
     write_run_log,
 )
@@ -356,6 +358,40 @@ def test_validate_skill_dir_requires_matching_name(tmp_path: Path):
     assert any("frontmatter name mismatch" in error for error in errors)
 
 
+@pytest.mark.parametrize("name", ["Uppercase", "under_score", "dot.name", "double--dash"])
+def test_validate_skill_dir_requires_agent_skills_standard_name(
+    tmp_path: Path,
+    name: str,
+) -> None:
+    skill_dir = tmp_path / "agent-skills/local/test/example-skill"
+    skill_dir.mkdir(parents=True)
+    skill_dir.joinpath("SKILL.md").write_text(
+        f"---\nname: {name}\ndescription: Example\n---\n",
+        encoding="utf-8",
+    )
+
+    errors = validate_skill_dir(skill_dir, name)
+
+    assert any("invalid frontmatter name" in error for error in errors)
+
+
+@pytest.mark.parametrize("description", ["", "x" * 1025])
+def test_validate_skill_dir_requires_standard_description_length(
+    tmp_path: Path,
+    description: str,
+) -> None:
+    skill_dir = tmp_path / "agent-skills/local/test/example-skill"
+    skill_dir.mkdir(parents=True)
+    skill_dir.joinpath("SKILL.md").write_text(
+        f"---\nname: example-skill\ndescription: {description}\n---\n",
+        encoding="utf-8",
+    )
+
+    errors = validate_skill_dir(skill_dir, "example-skill")
+
+    assert any("frontmatter description" in error for error in errors)
+
+
 def test_validate_skill_dir_reports_missing_markdown_reference(tmp_path: Path) -> None:
     skill_dir = tmp_path / "agent-skills/local/mac-bootstrap/example-skill"
     skill_dir.mkdir(parents=True)
@@ -417,6 +453,46 @@ def test_validate_registry_sources_requires_enabled_dependency_agent_coverage(
         "unmanaged internal skill source: agent-skills/local/test/prototype",
         "skill dependency not enabled: test/wayfinder -> prototype",
     ]
+
+
+def test_validate_registry_sources_rejects_overlapping_enabled_skill_names():
+    registry = load_registry(DEFAULT_REGISTRY)
+    original = registry.skills[("local-global", "knowledge-lifecycle-manager")]
+    duplicate = replace(original, source_id="duplicate-source")
+    registry.skills[(duplicate.source_id, duplicate.name)] = duplicate
+
+    errors = validate_registry_sources(registry, ROOT)
+
+    assert any(
+        "duplicate enabled skill target" in error
+        and "knowledge-lifecycle-manager" in error
+        for error in errors
+    )
+
+
+def test_validate_registry_sources_rejects_approved_external_without_bound_hash():
+    registry = load_registry(DEFAULT_REGISTRY)
+    key = ("herdr", "herdr")
+    herdr = registry.skills[key]
+    registry.skills[key] = replace(
+        herdr,
+        distribution_state="enabled",
+        gate=replace(herdr.gate, approved=True, approved_hash=None),
+    )
+
+    errors = validate_registry_sources(registry, ROOT)
+
+    assert any("approved external skill missing approved_hash: herdr/herdr" in error for error in errors)
+
+
+def test_validate_registry_targets_rejects_missing_global_agent_target():
+    registry = load_registry(DEFAULT_REGISTRY)
+    targets = load_targets(DEFAULT_TARGETS)
+    targets.pop("codex")
+
+    errors = validate_registry_targets(registry, targets)
+
+    assert errors == ["enabled global skill agents missing targets: codex"]
 
 
 def test_find_unmanaged_skill_dirs_reports_nested_unregistered_source(tmp_path: Path) -> None:
@@ -776,18 +852,20 @@ def test_bundle_distribution_resolves_catalog_relative_path(tmp_path: Path):
     assert to_spec[0].source == nested
 
 
-def test_project_internal_skill_distributes_only_to_project_view():
+def test_project_internal_skill_distributes_to_agents_and_claude_project_views():
     registry = load_registry(DEFAULT_REGISTRY)
     targets = load_targets(DEFAULT_TARGETS)
 
     actions = build_distribution_actions(registry, targets, ROOT)
 
     project_actions = [action for action in actions if action.skill_name == "python-data-analysis"]
-    assert len(project_actions) == 1
-    assert project_actions[0].target_agent is None
-    assert project_actions[0].target_path.as_posix().endswith(
-        "/work/projects/product_strategy/.agents/skills/python-data-analysis"
-    )
+    assert len(project_actions) == 2
+    assert all(action.target_agent is None for action in project_actions)
+    assert {action.target_path.as_posix() for action in project_actions} == {
+        f"{Path.home()}/work/projects/product_strategy/.agents/skills/python-data-analysis",
+        f"{Path.home()}/work/projects/product_strategy/.claude/skills/python-data-analysis",
+    }
+    assert len({action.source for action in project_actions}) == 1
 
 
 def test_project_external_shadow_skill_distributes_from_checked_in_shadow():
@@ -797,11 +875,80 @@ def test_project_external_shadow_skill_distributes_from_checked_in_shadow():
     actions = build_distribution_actions(registry, targets, ROOT)
 
     baoyu = [action for action in actions if action.skill_name == "baoyu-diagram"]
-    assert len(baoyu) == 1
-    assert baoyu[0].target_agent is None
-    assert baoyu[0].source == ROOT / "agent-skills/local/shadows/baoyu/baoyu-diagram"
-    assert baoyu[0].target_path.as_posix().endswith(
-        "/work/projects/product_strategy/.agents/skills/baoyu-diagram"
+    assert len(baoyu) == 2
+    assert all(action.target_agent is None for action in baoyu)
+    assert {action.source for action in baoyu} == {
+        ROOT / "agent-skills/local/shadows/baoyu/baoyu-diagram"
+    }
+    assert {action.target_path.as_posix() for action in baoyu} == {
+        f"{Path.home()}/work/projects/product_strategy/.agents/skills/baoyu-diagram",
+        f"{Path.home()}/work/projects/product_strategy/.claude/skills/baoyu-diagram",
+    }
+
+
+def test_project_views_link_to_the_same_canonical_skill_source(tmp_path: Path):
+    registry = load_registry(DEFAULT_REGISTRY)
+    registry = replace(
+        registry,
+        projects={
+            **registry.projects,
+            "product_strategy": {
+                "skills_dir": str(tmp_path / ".agents/skills"),
+                "compatibility_skills_dirs": {
+                    "claude": str(tmp_path / ".claude/skills"),
+                },
+            },
+        },
+    )
+    actions = [
+        action
+        for action in build_distribution_actions(
+            registry,
+            load_targets(DEFAULT_TARGETS),
+            ROOT,
+        )
+        if action.skill_name == "python-data-analysis"
+    ]
+
+    apply_distribution_actions(actions)
+
+    assert len(actions) == 2
+    assert all(action.target_path.is_symlink() for action in actions)
+    assert {action.target_path.resolve() for action in actions} == {actions[0].source}
+
+
+def test_reconcile_covers_project_compatibility_views(tmp_path: Path):
+    registry = load_registry(DEFAULT_REGISTRY)
+    product_skills = {
+        key: skill
+        for key, skill in registry.skills.items()
+        if "product_strategy" in skill.projects
+    }
+    registry = replace(
+        registry,
+        projects={
+            "product_strategy": {
+                "skills_dir": str(tmp_path / ".agents/skills"),
+                "compatibility_skills_dirs": {
+                    "claude": str(tmp_path / ".claude/skills"),
+                },
+            }
+        },
+        skills=product_skills,
+    )
+    claude_root = tmp_path / ".claude/skills"
+    claude_root.mkdir(parents=True)
+    (claude_root / "stale-skill").symlink_to(
+        ROOT / "agent-skills/local/product-strategy/python-data-analysis"
+    )
+
+    actions = build_reconcile_actions(registry, {}, ROOT)
+
+    assert any(
+        action.target_name == "product_strategy:claude"
+        and action.skill_name == "stale-skill"
+        and action.action == "remove-symlink"
+        for action in actions
     )
 
 
@@ -949,6 +1096,7 @@ def test_snapshot_captures_global_and_project_targets():
     assert snapshot["schema_version"] == 1
     assert "claude" in snapshot["global_targets"]
     assert "mac-bootstrap" in snapshot["project_targets"]
+    assert "mac-bootstrap:claude" in snapshot["project_targets"]
     assert snapshot["global_targets"]["reasonix"]["format"] == "directory"
     assert "global_total_entries" in snapshot["counts"]
     assert "project_total_entries" in snapshot["counts"]

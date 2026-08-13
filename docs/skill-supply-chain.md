@@ -18,7 +18,8 @@ Generated/runtime outputs are not authoritative:
 - `.agent-state/skill-bundles/`
 - `.agent-state/skill-candidates/`
 - `~/.claude/skills`, `~/.codex/skills`, `~/.config/opencode/skills`, `~/.pi/agent/skills`, `~/.reasonix/skills`, `~/.gemini/antigravity-cli/skills`, `~/.agents/skills`
-- project `.agents/skills/` directories
+- project `.agents/skills/` and declared compatibility directories such as
+  `.claude/skills/`
 
 Implementation is split by responsibility under `scripts/`:
 
@@ -34,7 +35,8 @@ Each skill has a source record:
 - `type: external` for skills fetched through skills.sh or tracked as external/manual references.
 - `type: internal` for first-party skills stored inside this repository.
 - `scope: global` for user-level agent distribution.
-- `scope: project` for project-local `.agents/skills` distribution.
+- `scope: project` for project-local `.agents/skills` distribution plus the
+  compatibility views declared by the project registry entry.
 - `distribution_state: enabled | staged | disabled | merged`.
 - `dependencies`: optional hard Skill dependencies by registered Skill name.
 
@@ -136,6 +138,21 @@ python3 scripts/skill_supply_chain.py distribute \
 `--agent` scopes a global target. It is especially important for target-format
 migrations: it prevents an unrelated target from being rewired while a single
 runtime is being verified.
+
+Project entries use `skills_dir` for the primary `.agents/skills` view and may
+declare `compatibility_skills_dirs`. The current Claude compatibility view is:
+
+```json
+{
+  "skills_dir": "${HOME}/work/projects/example/.agents/skills",
+  "compatibility_skills_dirs": {
+    "claude": "${HOME}/work/projects/example/.claude/skills"
+  }
+}
+```
+
+Distribution, reconcile, and snapshots cover every declared project view. They
+must point each same-name projection at the same canonical source directory.
 
 Do not run a real distribution apply from a DevSpace worktree. It would create user-level symlinks pointing at the temporary worktree path. The distributor refuses this by default; dry-run and snapshots are still safe in worktrees.
 
@@ -264,6 +281,10 @@ Global scope means a reusable policy, not automatic compatibility with every
 runtime. Record intentional target exclusions in the registry `reason`. A Skill
 that requires a host capability such as parent-level parallel agents must not be
 distributed to a runtime that cannot provide it.
+
+`skill-check` also rejects overlapping enabled source records, invalid Agent
+Skills names/descriptions, approved external records without a bound hash, and
+enabled global agent labels that have no configured target.
 
 ## Data Hub policy
 

@@ -51,19 +51,34 @@
 
   "projects": {
     "franchise_store": {
-      "skills_dir": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.claude/skills"
+      }
     },
     "mac-bootstrap": {
-      "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills"
+      "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/config/mac-bootstrap/.claude/skills"
+      }
     },
     "playground": {
-      "skills_dir": "${HOME}/work/projects/playground/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/playground/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/playground/.claude/skills"
+      }
     },
     "product_strategy": {
-      "skills_dir": "${HOME}/work/projects/product_strategy/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/product_strategy/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/product_strategy/.claude/skills"
+      }
     },
     "www": {
-      "skills_dir": "${HOME}/work/projects/www/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/www/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/www/.claude/skills"
+      }
     }
   },
 
@@ -904,7 +919,7 @@
       "ref": "ogulcancelik/herdr",
       "skills": {
         "herdr": {
-          "distribution_state": "enabled",
+          "distribution_state": "staged",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
@@ -914,8 +929,9 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-27",
-            "reason": "User-confirmed global distribution; upstream README installs with: npx skills add ogulcancelik/herdr --skill herdr -g"
-          }
+            "reason": "Historical user approval predates hash-bound gates; re-audit and bind approved_hash before redistribution"
+          },
+          "reason": "Staged until the historical approval is bound to the reviewed content hash"
         }
       }
     },

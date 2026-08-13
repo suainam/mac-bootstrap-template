@@ -44,6 +44,18 @@ def expand_target_path(path: Path, root: Path = ROOT) -> Path:
     return Path(raw).expanduser()
 
 
+def _project_targets(
+    registry: Registry,
+    project_name: str,
+    root: Path,
+) -> tuple[tuple[str, Path], ...]:
+    project = registry.projects[project_name]
+    return tuple(
+        (target_name, expand_target_path(path, root))
+        for target_name, path in project_skill_dirs(project_name, project)
+    )
+
+
 def _bundle_skill_source(registry: Registry, skill: SkillRef, root: Path) -> Path | None:
     if skill.bundle_id is None:
         return None
@@ -107,17 +119,16 @@ def build_distribution_actions(
             continue
         if skill.scope == "project":
             for project_name in skill.projects:
-                project = registry.projects[project_name]
-                target_path = expand_target_path(Path(project["skills_dir"]), root) / skill.name
-                actions.append(
-                    DistributionAction(
-                        skill_name=skill.name,
-                        source=source,
-                        target_agent=None,
-                        target_path=target_path,
-                        action="link-dir",
+                for _, base in _project_targets(registry, project_name, root):
+                    actions.append(
+                        DistributionAction(
+                            skill_name=skill.name,
+                            source=source,
+                            target_agent=None,
+                            target_path=base / skill.name,
+                            action="link-dir",
+                        )
                     )
-                )
             continue
         for agent in skill.agents:
             target = targets[agent]
@@ -155,7 +166,8 @@ def _enabled_distribution_specs(
             continue
         if skill.scope == "project":
             for project_name in skill.projects:
-                specs.add(("project", project_name, skill.name))
+                for target_name, _ in _project_targets(registry, project_name, root):
+                    specs.add(("project", target_name, skill.name))
             continue
         for agent in skill.agents:
             if agent in targets:
@@ -278,32 +290,32 @@ def build_reconcile_actions(
                 )
             )
 
-    for project_name, project in sorted(registry.projects.items()):
-        base = expand_target_path(Path(project["skills_dir"]), root)
-        if not base.exists():
-            continue
-        for child in sorted(base.iterdir()):
-            if child.name.startswith("."):
+    for project_name in sorted(registry.projects):
+        for target_name, base in _project_targets(registry, project_name, root):
+            if not base.exists():
                 continue
-            if not (child.is_dir() or child.is_symlink()):
-                continue
-            skill_name = child.name
-            if ("project", project_name, skill_name) in desired:
-                continue
-            action = "remove-symlink" if child.is_symlink() else "skip-real-path"
-            reason = "not enabled for this project in skills-sources.jsonc"
-            if action == "skip-real-path":
-                reason += "; real directory is left untouched"
-            actions.append(
-                ReconcileAction(
-                    surface="project",
-                    target_name=project_name,
-                    skill_name=skill_name,
-                    target_path=child,
-                    action=action,  # type: ignore[arg-type]
-                    reason=reason,
+            for child in sorted(base.iterdir()):
+                if child.name.startswith("."):
+                    continue
+                if not (child.is_dir() or child.is_symlink()):
+                    continue
+                skill_name = child.name
+                if ("project", target_name, skill_name) in desired:
+                    continue
+                action = "remove-symlink" if child.is_symlink() else "skip-real-path"
+                reason = "not enabled for this project view in skills-sources.jsonc"
+                if action == "skip-real-path":
+                    reason += "; real directory is left untouched"
+                actions.append(
+                    ReconcileAction(
+                        surface="project",
+                        target_name=target_name,
+                        skill_name=skill_name,
+                        target_path=child,
+                        action=action,  # type: ignore[arg-type]
+                        reason=reason,
+                    )
                 )
-            )
     return actions
 
 
@@ -475,16 +487,16 @@ def build_distribution_snapshot(
 
     project_targets = snapshot["project_targets"]
     assert isinstance(project_targets, dict)
-    for project_name, project in sorted(registry.projects.items()):
-        base = expand_target_path(Path(project["skills_dir"]), root)
-        skills = _snapshot_skill_dir(base, flat_md=False)
-        project_targets[project_name] = {
-            "path": str(base),
-            "format": "directory",
-            "count": len(skills),
-            "skills": skills,
-        }
-        counts["project_total_entries"] += len(skills)
+    for project_name in sorted(registry.projects):
+        for target_name, base in _project_targets(registry, project_name, root):
+            skills = _snapshot_skill_dir(base, flat_md=False)
+            project_targets[target_name] = {
+                "path": str(base),
+                "format": "directory",
+                "count": len(skills),
+                "skills": skills,
+            }
+            counts["project_total_entries"] += len(skills)
     return snapshot
 
 
