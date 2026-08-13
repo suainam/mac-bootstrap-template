@@ -48,6 +48,9 @@ Don't blend conflicting patterns.
 ### Rule 8 — Read before you write
 Before adding code, read exports, immediate callers, shared utilities.
 "Looks orthogonal" is dangerous. If unsure why code is structured a way, ask.
+When the user names a skill that is absent from the exposed catalog, check the
+exact installed paths under `~/.codex/skills`, `~/.agents/skills`, and
+`~/.claude/skills`, following symlinks, before declaring it unavailable.
 
 ### Rule 9 — Tests verify intent, not just behavior
 Tests must encode WHY behavior matters, not just WHAT it does.
