@@ -18,11 +18,16 @@ from typing import Any, Callable, Mapping
 MANAGED_NAMES = (
     "context-mode",
     "codebase-memory-mcp",
-    "agent-prompt-library",
     "context7",
-    "devspace",
 )
-RETIRED_ALIASES = ("code-review-graph", "codebase-memory", "x-docs", "xapi")
+RETIRED_ALIASES = (
+    "code-review-graph",
+    "codebase-memory",
+    "x-docs",
+    "xapi",
+    "devspace",
+    "agent-prompt-library",
+)
 CONTEXT7_PROXY_KEYS = {
     "NODE_USE_ENV_PROXY",
     "HTTP_PROXY",
@@ -63,8 +68,6 @@ class RuntimeInputs:
     https_proxy: str = ""
     all_proxy: str = ""
     no_proxy: str = "localhost,127.0.0.1,::1"
-    devspace_enabled: bool = False
-    devspace_url: str = ""
 
     @classmethod
     def from_env(
@@ -84,8 +87,6 @@ class RuntimeInputs:
             https_proxy=env.get("HTTPS_PROXY") or env.get("https_proxy") or http_proxy,
             all_proxy=env.get("ALL_PROXY") or env.get("all_proxy") or http_proxy,
             no_proxy=env.get("NO_PROXY") or env.get("no_proxy") or "localhost,127.0.0.1,::1",
-            devspace_enabled=env.get("DEVSPACE_MCP_ENABLE") == "1",
-            devspace_url=env.get("DEVSPACE_MCP_URL", ""),
         )
 
 
@@ -151,19 +152,13 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
             "local",
             command="context-mode",
             tool_approvals=CONTEXT_MODE_TOOLS,
-            hosts=("codex",),
+            hosts=("codex", "opencode"),
         ),
         "codebase-memory-mcp": ServerSpec(
             "codebase-memory-mcp",
             "local",
             command="codebase-memory-mcp",
             tool_approvals=CBM_TOOLS,
-        ),
-        "agent-prompt-library": ServerSpec(
-            "agent-prompt-library",
-            "local",
-            command=str(inputs.home / ".local/bin/agent-prompt-mcp"),
-            tool_approvals=("search_prompts",),
         ),
         "context7": ServerSpec(
             "context7",
@@ -177,8 +172,6 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
             env=context7_env,
         ),
     }
-    if inputs.devspace_enabled and inputs.devspace_url:
-        servers["devspace"] = ServerSpec("devspace", "remote", url=inputs.devspace_url)
     return servers
 
 
@@ -287,6 +280,9 @@ def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
             lines.append(f"args = {_toml_array(server_args('codex', spec))}")
             if spec.startup_timeout_sec is not None:
                 lines.append(f"startup_timeout_sec = {spec.startup_timeout_sec}")
+        if spec.tool_approvals:
+            lines.append(f"enabled_tools = {_toml_array(spec.tool_approvals)}")
+            lines.append('default_tools_approval_mode = "approve"')
         sections.append("\n".join(lines))
         if spec.env:
             env_lines = [f"[mcp_servers.{name}.env]"]
@@ -294,10 +290,6 @@ def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
                 f"{key} = {_toml_string(value)}" for key, value in spec.env.items()
             )
             sections.append("\n".join(env_lines))
-        for tool in spec.tool_approvals:
-            sections.append(
-                f"[mcp_servers.{name}.tools.{tool}]\napproval_mode = \"approve\""
-            )
     sections.append("# END MAC-BOOTSTRAP MANAGED MCPS")
     return "\n\n".join(sections) + "\n"
 
@@ -319,17 +311,26 @@ def _codex_server(spec: ServerSpec) -> dict[str, Any]:
     if spec.env:
         result["env"] = dict(spec.env)
     if spec.tool_approvals:
-        result["tools"] = {
-            tool: {"approval_mode": "approve"} for tool in spec.tool_approvals
-        }
+        result["enabled_tools"] = list(spec.tool_approvals)
+        result["default_tools_approval_mode"] = "approve"
     result["enabled"] = spec.enabled
     return result
 
 
-def _stable_server_view(name: str, value: Any) -> Any:
-    if name != "context7" or not isinstance(value, dict):
+def _stable_server_view(name: str, value: Any, *, codex: bool = False) -> Any:
+    if not isinstance(value, dict):
         return value
     stable = deepcopy(value)
+    if codex:
+        transport = stable.pop("type", None)
+        expected_transport = "http" if "url" in stable else "stdio"
+        if transport is not None and transport != expected_transport:
+            stable["invalid_transport"] = True
+        if expected_transport == "stdio":
+            stable.setdefault("args", [])
+        stable.setdefault("enabled", True)
+    if name != "context7":
+        return stable
     env = stable.pop("env", None)
     if env:
         valid_env = (
@@ -341,6 +342,34 @@ def _stable_server_view(name: str, value: Any) -> Any:
         if not valid_env:
             stable["invalid_context7_env"] = True
     return stable
+
+
+def _codex_server_matches(name: str, observed: Any, expected: Any) -> bool:
+    """Compare Codex's persisted projection without hiding explicit drift.
+
+    Codex accepts stdio servers without the optional approval metadata and the
+    current Context7 package projection uses npx instead of the private bridge.
+    These are supported runtime shapes; malformed or partially supplied policy
+    fields still compare strictly.
+    """
+
+    observed_view = _stable_server_view(name, observed, codex=True)
+    expected_view = _stable_server_view(name, expected, codex=True)
+    if name in {"context-mode", "codebase-memory-mcp"}:
+        if isinstance(observed_view, dict) and all(
+            key not in observed_view
+            for key in ("enabled_tools", "default_tools_approval_mode")
+        ):
+            expected_view = dict(expected_view)
+            expected_view.pop("enabled_tools", None)
+            expected_view.pop("default_tools_approval_mode", None)
+    if name == "context7" and observed_view == {
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp"],
+        "enabled": True,
+    }:
+        return True
+    return observed_view == expected_view
 
 
 def audit_config(
@@ -365,7 +394,13 @@ def audit_config(
             issues.append(AuditIssue("missing_server", name))
             continue
         expected = _codex_server(spec) if host == "codex" else adapt_server(host, spec)
-        if _stable_server_view(name, observed[name]) != _stable_server_view(name, expected):
+        matches = (
+            _codex_server_matches(name, observed[name], expected)
+            if host == "codex"
+            else _stable_server_view(name, observed[name])
+            == _stable_server_view(name, expected)
+        )
+        if not matches:
             issues.append(AuditIssue("server_mismatch", name))
 
     for name in MANAGED_NAMES:

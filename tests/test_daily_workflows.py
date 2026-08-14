@@ -402,13 +402,17 @@ def test_durable_runner_marks_degraded_stage_and_run(tmp_path: Path, monkeypatch
     def fake_command_runner(command, cwd, capture_output, text):
         return subprocess.CompletedProcess(command, 0, stdout="SUMMARY_STATUS=degraded", stderr="")
 
-    runner = knowledge_workflows.WorkflowRunner(command_runner=fake_command_runner, runs_dir=tmp_path / "runs")
-    results = runner.run(
-        "custom",
-        "2026-07-04",
-        knowledge_workflows.build_workflow_steps("build_daily_summary", "2026-07-04"),
-        run_id="run_degraded",
-    )
+    with knowledge_workflows.WorkflowRunner(
+        command_runner=fake_command_runner, runs_dir=tmp_path / "runs"
+    ) as runner:
+        results = runner.run(
+            "custom",
+            "2026-07-04",
+            knowledge_workflows.build_workflow_steps(
+                "build_daily_summary", "2026-07-04"
+            ),
+            run_id="run_degraded",
+        )
 
     assert results[0]["status"] == "degraded"
     assert "SUMMARY_STATUS=degraded" in results[0]["error_message"]

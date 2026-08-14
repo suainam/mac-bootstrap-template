@@ -4,25 +4,22 @@ import os
 
 import pytest
 
-from helpers import TEMPLATE, run
+from helpers import TEMPLATE, declared_brew_formulas, run
 
 
 pytestmark = pytest.mark.machine
 
 
-# ── CLI tools ─────────────────────────────────────────────────────────
+# ── Brewfile formula inventory ───────────────────────────────────────
 
-CLI_TOOLS = [
-    "git", "curl", "jq", "tree", "rg", "fzf", "tmux", "lua",
-    "direnv", "zoxide", "eza", "bat", "yazi", "node", "uv", "pi", "gh",
-    "fd", "nvim", "lazygit", "tree-sitter", "ast-grep",
-]
+def test_declared_brew_formulas_are_installed():
+    """The active Brewfile declarations are the machine's required formula set."""
+    out, err, rc = run("brew list --formula")
+    assert rc == 0, f"brew formula inventory failed: {err}"
 
-
-@pytest.mark.parametrize("tool", CLI_TOOLS)
-def test_cli_tool_available(tool):
-    _, _, rc = run(f"command -v {tool}")
-    assert rc == 0, f"{tool} not found in PATH"
+    installed = set(out.splitlines())
+    missing = sorted(declared_brew_formulas() - installed)
+    assert not missing, f"Brewfile formulae not installed: {', '.join(missing)}"
 
 
 # ── GUI apps ──────────────────────────────────────────────────────────

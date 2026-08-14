@@ -1,8 +1,8 @@
 # DevSpace Local
 
-Run DevSpace locally against `~/work/config/mac-bootstrap` as an MCP sidecar.
-The same runtime config supports foreground debugging and user-level launchd
-background services.
+Run DevSpace locally against `~/work/config/mac-bootstrap` as a web-facing MCP
+service. The same runtime config supports foreground debugging and user-level
+launchd background services.
 
 ## Files
 
@@ -163,18 +163,12 @@ the upstream walkthrough for the browser-side flow:
 
 Use that page together with this local runbook:
 
-- This repo owns the local server, Cloudflare Tunnel, LaunchAgents, and MCP URL
-  distribution.
+- This repo owns the local server, Cloudflare Tunnel, LaunchAgents, and public
+  URL used by the browser integration.
 - The Gitee page is the reference for browser-side app creation and approval
   flow inside ChatGPT.
-- For Codex CLI specifically, keep DevSpace disabled in normal sessions. Run
-  `codex-mcp devspace mcp login devspace` once to authorize, then use
-  `codex-mcp devspace` for on-demand sessions.
-- Managed Claude remote MCP entries must include both `type: http` and the
-  server `url`; `make agent-tools` renders this host-specific shape.
-- If Claude or OpenCode reports `needs authentication`, run
-  `claude mcp login devspace` or `opencode mcp auth devspace` respectively.
-  OAuth credentials are client-local state, not managed configuration drift.
+- DevSpace is not distributed as a Codex, Claude, OpenCode, Pi, Reasonix, or
+  Antigravity MCP. The browser integration connects to the public URL directly.
 - The DevSpace approval page asks for the Owner password, which is the
   `ownerToken` stored in `~/.devspace/auth.json`.
 
@@ -182,10 +176,7 @@ When troubleshooting, check the layers in this order:
 
 1. `make devspace-status`
 2. `curl -sS -o /dev/null -w '%{http_code}\n' https://devspace.suainam.eu.org/mcp`
-3. run `codex-mcp devspace mcp login devspace` for Codex, or the equivalent
-   login flow in another MCP client
-4. start a new `codex-mcp devspace` session after approval
-5. compare the browser-side steps with the Gitee walkthrough above
+3. complete the browser-side approval flow in the Gitee walkthrough above
 
 ## Local Verification
 

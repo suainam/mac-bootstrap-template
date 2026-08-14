@@ -29,6 +29,24 @@ def make_conn(tmp_path: Path) -> sqlite3.Connection:
     return conn
 
 
+@pytest.fixture
+def db_conn(tmp_path: Path):
+    conn = make_conn(tmp_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+@pytest.fixture
+def legacy_conn(tmp_path: Path):
+    conn = sqlite3.connect(str(tmp_path / "legacy.db"))
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
 def make_args(**kwargs) -> argparse.Namespace:
     base = {
         "type": "adr",
@@ -210,8 +228,8 @@ class TestBuildRecord:
 
 
 class TestInsertRecord:
-    def test_insert_and_retrieve(self, tmp_path):
-        conn = make_conn(tmp_path)
+    def test_insert_and_retrieve(self, db_conn):
+        conn = db_conn
         args = make_args()
         record = record_knowledge.build_record(args)
         record_id = record_knowledge.insert_record(conn, record)
@@ -237,8 +255,8 @@ class TestInsertRecord:
         assert contract["authority"] == "trusted_agent"
         assert contract["source_kind"] == "live_agent"
 
-    def test_idempotent_insert(self, tmp_path):
-        conn = make_conn(tmp_path)
+    def test_idempotent_insert(self, db_conn):
+        conn = db_conn
         args = make_args()
         record = record_knowledge.build_record(args)
 
@@ -251,8 +269,8 @@ class TestInsertRecord:
         ).fetchone()
         assert rows["cnt"] == 1
 
-    def test_multiple_types(self, tmp_path):
-        conn = make_conn(tmp_path)
+    def test_multiple_types(self, db_conn):
+        conn = db_conn
         fixtures = [
             make_args(type="adr", title="架构决策记录"),
             make_args(
@@ -280,8 +298,8 @@ class TestInsertRecord:
         assert len(rows) == 3
         assert rows[0]["record_type"] == "adr"
 
-    def test_full_field_set(self, tmp_path):
-        conn = make_conn(tmp_path)
+    def test_full_field_set(self, db_conn):
+        conn = db_conn
         args = make_args(
             type="card",
             title="完整字段测试",
@@ -315,8 +333,8 @@ class TestInsertRecord:
         assert row["session_id"] == "sess-123"
         assert row["message_id"] == 42
 
-    def test_schema_migration_does_not_upgrade_old_records(self, tmp_path):
-        conn = sqlite3.connect(str(tmp_path / "legacy.db"))
+    def test_schema_migration_does_not_upgrade_old_records(self, legacy_conn):
+        conn = legacy_conn
         conn.row_factory = sqlite3.Row
         conn.execute(
             """

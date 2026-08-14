@@ -10,7 +10,6 @@ BOOTSTRAP="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
 PYTHON_BIN="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
 source "$BOOTSTRAP/scripts/lib/agent-shared.sh"
-load_devspace_mcp_private_env
 
 manifest_get() {
   local key="$1"
@@ -120,14 +119,6 @@ check_contains() {
 
 audit_mcp_config() {
   local host="$1" path="$2" context7_command="npx" output
-  local -a audit_args=(
-    "$BOOTSTRAP/scripts/agent_mcp_runtime.py"
-    audit
-    --host "$host"
-    --path "$path"
-    --bootstrap "$BOOTSTRAP"
-    --context7-command "$context7_command"
-  )
   shift 2
   if [ ! -f "$path" ]; then
     echo "  MISS $host MCP config"
@@ -136,6 +127,14 @@ audit_mcp_config() {
   if command -v context7-mcp >/dev/null 2>&1; then
     context7_command="$(command -v context7-mcp)"
   fi
+  local -a audit_args=(
+    "$BOOTSTRAP/scripts/agent_mcp_runtime.py"
+    audit
+    --host "$host"
+    --path "$path"
+    --bootstrap "$BOOTSTRAP"
+    --context7-command "$context7_command"
+  )
   if [ "$host" = "codex" ]; then
     audit_args+=(--policy "$BOOTSTRAP/agent/mcp-policy.json")
   fi
@@ -182,17 +181,69 @@ check_first_line() {
   fi
 }
 
+find_agentshield_baseline() {
+  local candidate
+  for candidate in \
+    "$BOOTSTRAP/../private/agent/agentshield.baseline.json" \
+    "$BOOTSTRAP/../../private/agent/agentshield.baseline.json" \
+    "$BOOTSTRAP/../../../private/agent/agentshield.baseline.json"
+  do
+    if [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+scan_agentshield() {
+  local baseline scan_dir scan_baseline scan_result scan_rc=0 verify_rc=0
+  baseline="$(find_agentshield_baseline || true)"
+  if [ -z "$baseline" ]; then
+    echo "  WARN AgentShield baseline missing: private/agent/agentshield.baseline.json"
+    return 0
+  fi
+
+  scan_dir="$(mktemp -d)"
+  trap 'rm -rf -- "$scan_dir"; trap - RETURN INT TERM HUP' RETURN
+  trap 'rm -rf -- "$scan_dir"; exit 130' INT TERM HUP
+  scan_baseline="$scan_dir/baseline.json"
+  local -a scan_args=(
+    --no-install ecc-agentshield scan
+    --path "$HOME/.claude"
+    --format json
+    --min-severity high
+    --save-baseline "$scan_baseline"
+  )
+  if [ "$FIX" -eq 1 ]; then
+    scan_args+=(--fix)
+  fi
+  npx "${scan_args[@]}" >/dev/null 2>/dev/null || scan_rc=$?
+
+  if [ ! -s "$scan_baseline" ] || { [ "$scan_rc" -ne 0 ] && [ "$scan_rc" -ne 2 ]; }; then
+    echo "  WARN AgentShield scan failed (exit $scan_rc)"
+    return 0
+  fi
+
+  scan_result="$("$PYTHON_BIN" "$BOOTSTRAP/scripts/verify-agentshield-baseline.py" "$scan_baseline" "$baseline" 2>&1)" || verify_rc=$?
+  if [ "$verify_rc" -eq 0 ]; then
+    echo "  INFO AgentShield acknowledged findings unchanged (${scan_result#acknowledged=})"
+  elif [ "$verify_rc" -eq 1 ]; then
+    echo "  WARN AgentShield new or changed findings"
+    while IFS= read -r line; do
+      [ -n "$line" ] && echo "       $line"
+    done <<EOF
+$scan_result
+EOF
+  else
+    echo "  WARN AgentShield baseline verification failed"
+    [ -n "$scan_result" ] && echo "       $scan_result"
+  fi
+}
+
 echo "=== Agent Security Scan ==="
 if command -v npx &>/dev/null; then
-  AGENTSHIELD_RC=0
-  if [ "$FIX" -eq 1 ]; then
-    run npx ecc-agentshield scan --fix || AGENTSHIELD_RC=$?
-  else
-    run npx ecc-agentshield scan || AGENTSHIELD_RC=$?
-  fi
-  if [ "$AGENTSHIELD_RC" -ne 0 ]; then
-    echo "  WARN AgentShield exited $AGENTSHIELD_RC; continuing configuration health checks"
-  fi
+  scan_agentshield
 else
   echo "  SKIP: npx not available for agentshield"
   echo "  Install: npm install -g npx"
@@ -422,11 +473,6 @@ if [ -x "$HOME/.local/bin/agent-prompt" ]; then
 else
   echo "  MISS agent-prompt helper (run: make agent-tools)"
 fi
-if [ -x "$HOME/.local/bin/agent-prompt-mcp" ]; then
-  echo "  OK   agent-prompt-mcp helper"
-else
-  echo "  MISS agent-prompt-mcp helper (run: make agent-tools)"
-fi
 if [ -f "$PROMPT_LIBRARY/index.json" ]; then
   PROMPT_COUNT=$(grep -c '"id":' "$PROMPT_LIBRARY/index.json" 2>/dev/null || true)
   echo "  OK   prompt index: $PROMPT_COUNT records"
@@ -512,6 +558,7 @@ def as_bool(value):
 
 enabled = as_bool(config.get("enabled", False))
 api_base = str(config.get("api_base", "http://127.0.0.1:19828")).rstrip("/")
+bundle_path = os.path.expanduser(os.path.expandvars(str(config.get("bundle_path", "/Applications/LLM Wiki.app"))))
 project_root = str(config.get("project_root", ""))
 token_env = str(config.get("token_env", "LLM_WIKI_TOKEN"))
 token = str(config.get("token", "")) or os.environ.get(token_env, "")
@@ -522,6 +569,7 @@ def emit(name, value):
 
 emit("enabled", str(enabled).lower())
 emit("api_base", api_base)
+emit("bundle_path", bundle_path)
 emit("project_root", project_root)
 emit("token_env", token_env)
 emit("token_configured", str(bool(token)).lower())
@@ -549,8 +597,8 @@ PY
         401|403)
           echo "  WARN llm_wiki API reachable but protected ($api_status); configure $token_env for authenticated data-hub access if needed"
           ;;
-        "")
-          echo "  WARN llm_wiki API not reachable at $api_base; start LLM Wiki.app if data-hub needs live API context"
+        000|"")
+          echo "  INFO llm_wiki API offline at $api_base; start $bundle_path if data-hub needs live API context"
           ;;
         *)
           echo "  WARN llm_wiki API returned HTTP $api_status at $api_base"
@@ -560,15 +608,15 @@ PY
       echo "  WARN curl missing; cannot probe llm_wiki API"
     fi
 
-    if [ -d "/Applications/LLM Wiki.app" ]; then
-      echo "  OK   LLM Wiki.app installed"
-      if [ -f "/Applications/LLM Wiki.app/Contents/Resources/mcp-server/dist/src/index.js" ]; then
+    if [ -d "$bundle_path" ]; then
+      echo "  OK   LLM Wiki.app installed ($bundle_path)"
+      if [ -f "$bundle_path/Contents/Resources/mcp-server/dist/src/index.js" ]; then
         echo "  INFO LLM Wiki.app bundled MCP server present (optional)"
       fi
     fi
 
     if [ "${mcp_enabled:-false}" = "true" ]; then
-      if [ -f "/Applications/LLM Wiki.app/Contents/Resources/mcp-server/dist/src/index.js" ]; then
+      if [ -f "$bundle_path/Contents/Resources/mcp-server/dist/src/index.js" ]; then
         echo "  OK   llm_wiki MCP server from app bundle"
       elif [ -f "${LLM_WIKI_DIR:-$HOME/work/llm_wiki}/mcp-server/dist/index.js" ]; then
         echo "  OK   llm_wiki MCP build artifact"

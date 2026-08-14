@@ -73,9 +73,8 @@ wire_upstream_skills_step() {
 configure_prompt_library_step() {
   run mkdir -p "$PROMPT_LIBRARY_ROOT" "$HOME/.local/bin"
   run ln -sf "$BOOTSTRAP/scripts/agent-prompt.sh" "$HOME/.local/bin/agent-prompt"
-  run ln -sf "$BOOTSTRAP/scripts/agent-prompt-mcp.sh" "$HOME/.local/bin/agent-prompt-mcp"
+  run rm -f "$HOME/.local/bin/agent-prompt-mcp"
   echo "  LINK  $HOME/.local/bin/agent-prompt -> $BOOTSTRAP/scripts/agent-prompt.sh"
-  echo "  LINK  $HOME/.local/bin/agent-prompt-mcp -> $BOOTSTRAP/scripts/agent-prompt-mcp.sh"
 
   if [ -f "$PROMPT_LIBRARY_ROOT/index.json" ]; then
     echo "  OK    prompt index present: $PROMPT_LIBRARY_ROOT/index.json"

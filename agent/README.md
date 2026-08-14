@@ -14,7 +14,7 @@ make agent-tools # Configure RTK, caveman, CBM, context7 + wire skills for all a
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Validate and distribute landed registry sources only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
-make prompt-mcp  # Run prompt-library MCP stdio server
+make prompt-mcp  # Run the optional local prompt-library MCP server
 make doctor-agent # Verify all configs
 make security-scan  # AgentShield security audit
 ```
@@ -33,14 +33,13 @@ Keep server connection definitions in `scripts/agent_mcp_runtime.py`; use the
 policy file only for default enablement and named profiles. Run `make
 agent-tools` after changing either source.
 
-The base Codex session starts core MCPs plus Context7. Other optional MCPs are
-enabled per session through generated profiles:
+The base Codex session starts context-mode, codebase-memory-mcp, and Context7.
+The only retained profile is a compatibility override for Context7. DevSpace is
+intentionally not in this list: it is a browser-facing local service, not an
+agent MCP. The prompt-library MCP is local-only and is not distributed to hosts.
 
 ```bash
 codex-mcp docs       # context7 profile override
-codex-mcp prompts    # agent-prompt-library
-codex-mcp devspace   # authenticated remote DevSpace
-codex-mcp full       # all optional managed MCPs
 ```
 
 The generated `~/.local/bin/codex-mcp` launcher converts the selected profile
@@ -200,11 +199,12 @@ Decision rule:
 - Keep `index.json` as the agent/MCP lookup contract.
 - Add SQLite later only as a generated FTS/cache layer, not as canonical data.
 
-`agent-prompt-mcp` reads `agent/prompts/sources.json` and
+The optional local `agent-prompt-mcp` reads `agent/prompts/sources.json` and
 `~/.agent/prompts/index.json`, then loads content by source file and line range
-or Fabric pattern directory on demand. See
-[`docs/agent-prompt-mcp.md`](../docs/agent-prompt-mcp.md) for the MCP contract,
-Codex config shape, smoke test, and troubleshooting steps.
+or Fabric pattern directory on demand. It is not included in generated host
+MCP configurations. See
+[`docs/agent-prompt-mcp.md`](../docs/agent-prompt-mcp.md) for the optional local
+MCP contract, smoke test, and troubleshooting steps.
 
 ---
 

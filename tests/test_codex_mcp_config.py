@@ -72,34 +72,32 @@ def test_render_codex_mcp_block_emits_proxy_variants():
     ) in result.stdout
     assert 'all_proxy = "http://127.0.0.1:7897"' in result.stdout
     assert 'NO_PROXY = "localhost,127.0.0.1,::1"' in result.stdout
-    assert '[mcp_servers.agent-prompt-library]' in result.stdout
-    assert '[mcp_servers.agent-prompt-library]\nenabled = false' in result.stdout
-    assert str(Path.home() / ".local/bin/agent-prompt-mcp") in result.stdout
-    assert '[mcp_servers.agent-prompt-library.tools.search_prompts]' in result.stdout
+    assert '[mcp_servers.agent-prompt-library]' not in result.stdout
+    assert str(Path.home() / ".local/bin/agent-prompt-mcp") not in result.stdout
+    assert 'default_tools_approval_mode = "approve"' in result.stdout
     assert '[mcp_servers.context7]\nenabled = true' in result.stdout
 
 
-def test_render_codex_mcp_block_includes_devspace_url():
+def test_render_codex_mcp_block_excludes_web_only_devspace():
     script = os.path.join(TEMPLATE, "scripts", "render-codex-mcp-block.py")
     result = subprocess.run(
-        [PYTHON, script, "--context7-command", "npx", "--devspace-url", "https://devspace.suainam.eu.org/mcp"],
+        [PYTHON, script, "--context7-command", "npx"],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, result.stderr
-    assert "[mcp_servers.devspace]" in result.stdout
-    assert 'url = "https://devspace.suainam.eu.org/mcp"' in result.stdout
+    assert "[mcp_servers.devspace]" not in result.stdout
 
 
 def test_agent_mcp_uses_project_python_for_codex_helpers():
-    content = open(os.path.join(TEMPLATE, "scripts", "lib", "agent-mcp.sh")).read()
+    content = (Path(TEMPLATE) / "scripts/lib/agent-mcp.sh").read_text()
     assert 'local python_bin="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"' in content
     assert '"$python_bin" "$BOOTSTRAP/scripts/render-codex-mcp-block.py"' in content
     assert '"$python_bin" "$BOOTSTRAP/scripts/sync-codex-mcp-config.py"' in content
 
 
 def test_agent_mcp_configures_prompt_library_for_json_agents():
-    content = open(os.path.join(TEMPLATE, "scripts", "lib", "agent-mcp.sh")).read()
+    content = (Path(TEMPLATE) / "scripts/lib/agent-mcp.sh").read_text()
     assert 'write_mcp_config claude "$CLAUDE_MCP_JSON"' in content
     assert 'write_mcp_config opencode "$OPENCODE_CONFIG"' in content
     assert 'write_mcp_config pi "$PI_MCP_JSON"' in content

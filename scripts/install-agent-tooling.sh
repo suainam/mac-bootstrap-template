@@ -14,8 +14,6 @@ PYTHON_BIN="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
 . "$BOOTSTRAP/scripts/lib/agent-mcp.sh"
 . "$BOOTSTRAP/scripts/lib/agent-configure.sh"
 
-load_devspace_mcp_private_env
-
 usage() {
   cat <<'EOF'
 Usage: scripts/install-agent-tooling.sh [options]
@@ -38,7 +36,7 @@ Configuration performed with --configure:
   - Caveman ultra mode (default)
   - codebase-memory-mcp MCP
   - context7 docs MCP (for library documentation queries)
-  - agent-prompt helper for local prompt-library lookup
+  - agent-prompt helper for local prompt-library lookup (MCP remains opt-in)
   - Pi RTK extension
   - AgentShield security scan integration
   - Instinct/continuous learning skeleton

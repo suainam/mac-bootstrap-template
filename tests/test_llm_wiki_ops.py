@@ -26,3 +26,13 @@ def test_makefile_and_doctor_expose_llm_wiki_ops_surface():
     assert "npm run mcp:build" in install_script
     assert "llm_wiki" in doctor
     assert "llm-wiki-mcp-build" in doctor
+
+
+def test_doctor_treats_an_offline_desktop_api_as_state_not_http_failure():
+    doctor = read("scripts", "agent-doctor.sh")
+
+    assert '000|"")' in doctor
+    assert "INFO llm_wiki API offline" in doctor
+    assert 'config.get("bundle_path"' in doctor
+    assert 'if [ -d "$bundle_path" ]' in doctor
+    assert 'if [ -d "/Applications/LLM Wiki.app" ]' not in doctor

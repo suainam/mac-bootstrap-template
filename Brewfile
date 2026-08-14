@@ -17,7 +17,7 @@ brew "tree-sitter-cli"
 # ========== Shell 增强 ==========
 brew "fzf"
 brew "pngpaste"
-brew "tmux"
+# brew "tmux"  # Optional; install manually when using the tmux workspace.
 brew "lua"
 brew "direnv"
 brew "zoxide"

@@ -82,6 +82,7 @@ def test_tmux_has_cross_window_swap():
 
 @pytest.mark.machine
 def test_tmux_pane_titles():
+    require_tmux_live_socket()
     workspace_script = open(os.path.join(TEMPLATE, "scripts", "tmux-workspace.sh")).read()
     assert 'ANALYSIS_WINDOW="${TMUX_ANALYSIS_WINDOW:-analysis}"' in workspace_script
     assert 'create_analysis_window()' in workspace_script
@@ -91,7 +92,6 @@ def test_tmux_pane_titles():
     assert '"notes"' in workspace_script
     assert '"daemon"' in workspace_script
 
-    require_tmux_live_socket()
     out, _, _ = run("tmux list-panes -F '#{pane_title}' 2>/dev/null")
     titles = [title for title in out.strip().split('\n') if title]
     assert titles, "Expected tmux panes to expose non-empty titles"
@@ -107,12 +107,14 @@ def test_tmux_pane_border_format_shows_title():
 
 @pytest.mark.machine
 def test_tmux_theme_exists():
+    require_tmux_live_socket()
     path = os.path.expanduser("~/.tmux/theme.conf")
     assert os.path.exists(path)
 
 
 @pytest.mark.machine
 def test_tmux_config_resets_append_only_options_before_readding():
+    require_tmux_live_socket()
     config = os.path.expanduser("~/.tmux.conf")
     content = open(config).read()
     assert "set -gu terminal-features" in content

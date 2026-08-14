@@ -29,8 +29,6 @@ def inputs(**overrides):
         "https_proxy": "",
         "all_proxy": "",
         "no_proxy": "localhost,127.0.0.1,::1",
-        "devspace_enabled": False,
-        "devspace_url": "",
     }
     values.update(overrides)
     return runtime.RuntimeInputs(**values)
@@ -41,7 +39,6 @@ def test_desired_servers_has_one_normalized_catalog():
     assert list(servers) == [
         "context-mode",
         "codebase-memory-mcp",
-        "agent-prompt-library",
         "context7",
     ]
     assert servers["context7"].command == "npx"
@@ -50,6 +47,7 @@ def test_desired_servers_has_one_normalized_catalog():
         "/repo/scripts/context7-mcp-bridge.py"
     )
     assert servers["context7"].host_args["codex"] == ()
+    assert servers["context-mode"].hosts == ("codex", "opencode")
     assert servers["codebase-memory-mcp"].tool_approvals == (
         "search_graph",
         "trace_path",
@@ -67,14 +65,11 @@ def test_desired_servers_has_one_normalized_catalog():
     )
 
 
-def test_optional_devspace_server_is_resolved_from_runtime_inputs():
-    servers = runtime.desired_servers(
-        inputs(
-            devspace_enabled=True,
-            devspace_url="https://devspace.example/mcp",
-        )
-    )
-    assert servers["devspace"].url == "https://devspace.example/mcp"
+def test_devspace_is_not_an_agent_mcp_server():
+    servers = runtime.desired_servers(inputs())
+    assert "devspace" not in servers
+    assert "devspace" not in runtime.managed_server_names()
+    assert "devspace" in runtime.retired_server_names()
 
 
 @pytest.mark.parametrize(
@@ -103,21 +98,19 @@ def test_audit_rejects_invalid_context7_proxy_environment(bad_env):
     ]
 
 
-def test_runtime_inputs_from_env_supports_lowercase_proxy_and_devspace():
+def test_runtime_inputs_from_env_supports_lowercase_proxy():
     parsed = runtime.RuntimeInputs.from_env(
         bootstrap=Path("/repo"),
         context7_command="context7-mcp",
         environ={
             "HOME": "/home/bob",
             "http_proxy": "http://proxy",
-            "DEVSPACE_MCP_ENABLE": "1",
-            "DEVSPACE_MCP_URL": "https://devspace.example/mcp",
         },
     )
     assert parsed.home == Path("/home/bob")
     assert parsed.https_proxy == "http://proxy"
     assert parsed.all_proxy == "http://proxy"
-    assert parsed.devspace_enabled is True
+    assert parsed.no_proxy == "localhost,127.0.0.1,::1"
 
 
 def test_json_host_adapter_preserves_unmanaged_state():
@@ -179,20 +172,22 @@ def test_opencode_adapter_uses_local_and_remote_shapes():
         "type": "local",
         "command": ["codebase-memory-mcp"],
     }
-
-
-def test_claude_remote_adapter_uses_http_transport_shape():
-    result = runtime.render_json_config(
-        "claude",
-        {"mcpServers": {}},
-        runtime.desired_servers(
-            inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
-        ),
-    )
-    assert result["mcpServers"]["devspace"] == {
-        "type": "http",
-        "url": "https://devspace.example/mcp",
+    assert result["mcp"]["context-mode"] == {
+        "enabled": True,
+        "type": "local",
+        "command": ["context-mode"],
     }
+
+
+def test_render_removes_retired_devspace_from_agent_configs():
+    claude = runtime.render_json_config(
+        "claude", {"mcpServers": {"devspace": {"url": "https://old.example/mcp"}}}, runtime.desired_servers(inputs())
+    )
+    opencode = runtime.render_json_config(
+        "opencode", {"mcp": {"devspace": {"url": "https://old.example/mcp"}}}, runtime.desired_servers(inputs())
+    )
+    assert "devspace" not in claude["mcpServers"]
+    assert "devspace" not in opencode["mcp"]
 
 
 def test_non_codex_context7_hosts_remain_keyless():
@@ -210,13 +205,11 @@ def test_non_codex_context7_hosts_remain_keyless():
     ]
 
 
-def test_managed_server_names_include_optional_names():
+def test_managed_server_names_are_agent_owned():
     assert runtime.managed_server_names() == (
         "context-mode",
         "codebase-memory-mcp",
-        "agent-prompt-library",
         "context7",
-        "devspace",
     )
 
 
@@ -224,19 +217,66 @@ def test_codex_toml_is_rendered_from_normalized_specs():
     desired = runtime.desired_servers(
         inputs(
             http_proxy="http://127.0.0.1:7897",
-            devspace_enabled=True,
-            devspace_url="https://devspace.example/mcp",
         )
     )
     rendered = runtime.render_codex_toml(desired)
     assert rendered.startswith("# BEGIN MAC-BOOTSTRAP MANAGED MCPS")
     assert rendered.endswith("# END MAC-BOOTSTRAP MANAGED MCPS\n")
-    assert '[mcp_servers.codebase-memory-mcp.tools.search_graph]' in rendered
-    assert 'approval_mode = "approve"' in rendered
+    assert 'enabled_tools = ["search_graph", "trace_path"' in rendered
+    assert 'default_tools_approval_mode = "approve"' in rendered
+    assert ".tools." not in rendered
     assert 'command = "/repo/scripts/context7-mcp-bridge.py"' in rendered
     assert '[mcp_servers.context7]\nenabled = true\ncommand = "/repo/scripts/context7-mcp-bridge.py"\nargs = []' in rendered
     assert '[mcp_servers.context7.env]' in rendered
-    assert '[mcp_servers.devspace]' in rendered
+    assert '[mcp_servers.devspace]' not in rendered
+
+
+def test_codex_audit_accepts_cc_switch_stdio_projection():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.parse_codex_toml(runtime.render_codex_toml(desired))
+
+    # CC Switch records transport explicitly and omits optional empty args.
+    server = config["mcp_servers"]["codebase-memory-mcp"]
+    server["type"] = "stdio"
+    del server["args"]
+    del server["enabled"]
+
+    assert runtime.audit_config("codex", config, desired) == []
+
+
+def test_codex_audit_still_rejects_wrong_cc_switch_transport():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.parse_codex_toml(runtime.render_codex_toml(desired))
+    config["mcp_servers"]["codebase-memory-mcp"]["type"] = "http"
+
+    assert [(issue.code, issue.server) for issue in runtime.audit_config("codex", config, desired)] == [
+        ("server_mismatch", "codebase-memory-mcp")
+    ]
+
+
+def test_codex_audit_accepts_live_projection_without_optional_tool_policy():
+    desired = runtime.desired_servers(inputs())
+    config = {
+        "mcp_servers": {
+            "context-mode": {"command": "context-mode"},
+            "codebase-memory-mcp": {"command": "codebase-memory-mcp"},
+            "context7": {
+                "command": "npx",
+                "args": ["-y", "@upstash/context7-mcp"],
+            },
+        }
+    }
+    assert runtime.audit_config("codex", config, desired) == []
+
+
+def test_codex_audit_rejects_explicit_wrong_tool_policy():
+    desired = runtime.desired_servers(inputs())
+    config = runtime.parse_codex_toml(runtime.render_codex_toml(desired))
+    config["mcp_servers"]["codebase-memory-mcp"]["enabled_tools"] = ["unexpected"]
+    assert [
+        (issue.code, issue.server)
+        for issue in runtime.audit_config("codex", config, desired)
+    ] == [("server_mismatch", "codebase-memory-mcp")]
 
 
 def test_policy_disables_optional_codex_servers_and_renders_profiles(tmp_path):
@@ -248,22 +288,20 @@ def test_policy_disables_optional_codex_servers_and_renders_profiles(tmp_path):
                 "default_enabled": {
                     "context-mode": True,
                     "context7": False,
-                    "devspace": False,
                 },
-                "profiles": {"docs": ["context7"], "devspace": ["devspace"]},
+                "profiles": {"docs": ["context7"]},
             }
         )
     )
     policy = runtime.load_mcp_policy(policy_path)
     desired = runtime.apply_default_policy(
         runtime.desired_servers(
-            inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
+            inputs()
         ),
         policy,
     )
     assert desired["context-mode"].enabled is True
     assert desired["context7"].enabled is False
-    assert desired["devspace"].enabled is False
 
 
 def test_policy_rejects_unknown_managed_server(tmp_path):
@@ -323,7 +361,7 @@ def test_semantic_audit_reports_stable_issue_codes():
     assert [(issue.code, issue.server) for issue in issues] == [
         ("missing_server", "codebase-memory-mcp"),
         ("server_mismatch", "context7"),
-        ("stale_managed_server", "devspace"),
+        ("retired_server", "devspace"),
     ]
 
 
@@ -341,12 +379,13 @@ def test_audit_distinguishes_missing_executable_from_semantic_drift():
     ]
 
 
-def test_remote_oauth_server_is_not_classified_as_broken():
-    desired = runtime.desired_servers(
-        inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
-    )
+def test_retired_devspace_is_reported_for_manual_cleanup():
+    desired = runtime.desired_servers(inputs())
     config = runtime.render_json_config("claude", {}, desired)
-    assert runtime.audit_config("claude", config, desired) == []
+    config["mcpServers"]["devspace"] = {"url": "https://old.example/mcp"}
+    assert [(issue.code, issue.server) for issue in runtime.audit_config("claude", config, desired)] == [
+        ("retired_server", "devspace")
+    ]
 
 
 def test_codex_audit_detects_duplicate_hook_representation():
@@ -364,9 +403,7 @@ def test_codex_audit_detects_duplicate_hook_representation():
 
 @pytest.mark.parametrize("host", ["claude", "opencode", "pi", "reasonix", "antigravity"])
 def test_every_json_host_round_trips_through_semantic_audit(host):
-    desired = runtime.desired_servers(
-        inputs(devspace_enabled=True, devspace_url="https://devspace.example/mcp")
-    )
+    desired = runtime.desired_servers(inputs())
     config = runtime.render_json_config(host, {"unmanaged": True}, desired)
     assert config["unmanaged"] is True
     assert runtime.audit_config(host, config, desired) == []
@@ -457,8 +494,6 @@ def test_main_audits_valid_and_duplicate_hook_codex(monkeypatch, capsys, tmp_pat
         "https_proxy",
         "ALL_PROXY",
         "all_proxy",
-        "DEVSPACE_MCP_ENABLE",
-        "DEVSPACE_MCP_URL",
     ):
         monkeypatch.delenv(name, raising=False)
     assert runtime.main() == 0

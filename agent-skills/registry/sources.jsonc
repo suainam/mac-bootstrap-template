@@ -916,22 +916,21 @@
     "herdr": {
       "type": "external",
       "fetcher": "manual",
-      "ref": "ogulcancelik/herdr",
+      "ref": "https://github.com/herdrdev/herdr/tree/master/skills/herdr",
       "skills": {
         "herdr": {
-          "distribution_state": "staged",
+          "distribution_state": "enabled",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "audit": {
-            "allow_unaudited": true
-          },
+          "local_shadow_path": "agent-skills/local/shadows/herdr/herdr",
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-27",
-            "reason": "Historical user approval predates hash-bound gates; re-audit and bind approved_hash before redistribution"
+            "approved_at": "2026-08-13",
+            "approved_hash": "sha256:3409da24ca6e315c9723130553d4f130f5d9146dfdfa211866d6c2eac0b9716e",
+            "reason": "User-approved reviewed local shadow based on herdrdev/herdr blob fafea549c0c46b87bac6c7ae4ad22ef7ac635a5e with explicit local authorization and data-handling policy"
           },
-          "reason": "Staged until the historical approval is bound to the reviewed content hash"
+          "reason": "Reviewed local shadow retains official Herdr workflow and adds local authorization and sensitive-output boundaries"
         }
       }
     },
@@ -957,6 +956,7 @@
           "reason": "User-approved global TypeScript engineering skill; ponytail remains the default simplicity guard"
         }
       }
+    },
     "archify": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -980,7 +980,9 @@
           },
           "reason": "User-requested global architecture diagram skill; supports Codex, Claude Code, OpenCode, and cross-agent targets"
         }
+      }
     },
+
 
     "local-global": {
       "type": "internal",

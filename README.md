@@ -162,10 +162,11 @@ to refresh them in place, and `make doctor-agent` to verify the current machine
 against that manifest. The manifest intentionally stores bare package names, and
 `make doctor-agent` reports a missing prerequisite if `node`/`npm` is absent.
 
-DevSpace is also wired in as the remote MCP sidecar for browser and CLI agents.
-Use [`docs/devspace-local.md`](docs/devspace-local.md) for the local server,
-Cloudflare Tunnel, LaunchAgent workflow, and web-UI troubleshooting links
-including the ChatGPT-side DevSpace app creation walkthrough.
+DevSpace is a local web-facing MCP service for browser integrations; it is not
+distributed into agent MCP configurations. Use
+[`docs/devspace-local.md`](docs/devspace-local.md) for the local server,
+Cloudflare Tunnel, LaunchAgent workflow, and ChatGPT-side DevSpace app creation
+walkthrough.
 
 `~/work` is the umbrella workspace, not a single repo. Keep each real project as
 its own git repository under `~/work/projects`, with its own `.envrc`, `.env`,
@@ -518,8 +519,8 @@ Prompt libraries follow the same generated-state split as skills:
 - Treat upstream prompt repos under `~/.agent/upstream/` as synced external material
 - Treat `~/.agent/prompts/index.json` as generated lookup state for agents and MCPs
 - Keep SQLite/vector indexes as generated caches only, if needed later
-- Use [`docs/agent-prompt-mcp.md`](docs/agent-prompt-mcp.md) for Codex MCP
-  setup, JSON-RPC smoke tests, and troubleshooting
+- Use [`docs/agent-prompt-mcp.md`](docs/agent-prompt-mcp.md) for the optional
+  local prompt MCP smoke test and troubleshooting
 
 ## Architecture
 

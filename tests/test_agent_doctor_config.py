@@ -7,6 +7,10 @@ from pathlib import Path
 from helpers import PYTHON, TEMPLATE, run
 
 
+def read_template(*parts: str) -> str:
+    return Path(TEMPLATE, *parts).read_text()
+
+
 def test_check_python_syntax_parses_files():
     script = os.path.join(TEMPLATE, "scripts", "check-python-syntax.py")
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -18,7 +22,7 @@ def test_check_python_syntax_parses_files():
 
 
 def test_doctor_uses_capability_checks():
-    content = open(os.path.join(TEMPLATE, "scripts", "doctor.sh")).read()
+    content = read_template("scripts", "doctor.sh")
     assert 'PYTHON="${PYTHON:-$DIR/.venv/bin/python}"' in content
     assert '"$PYTHON" "$DIR/scripts/run-doctor-checks.py"' in content
     assert 'run-doctor-checks.py' in content
@@ -26,13 +30,13 @@ def test_doctor_uses_capability_checks():
 
 
 def test_agent_doctor_checks_prompt_mcp_helper():
-    content = open(os.path.join(TEMPLATE, "scripts", "agent-doctor.sh")).read()
+    content = read_template("scripts", "agent-doctor.sh")
     assert 'agent-prompt helper' in content
-    assert 'agent-prompt-mcp helper' in content
+    assert 'agent-prompt-mcp helper' not in content
 
 
 def test_agent_doctor_delegates_mcp_validation_to_runtime_audit():
-    content = open(os.path.join(TEMPLATE, "scripts", "agent-doctor.sh")).read()
+    content = read_template("scripts", "agent-doctor.sh")
     assert "audit_mcp_config()" in content
     assert 'agent_mcp_runtime.py"' in content
     assert "\n    audit\n" in content
@@ -43,7 +47,7 @@ def test_agent_doctor_delegates_mcp_validation_to_runtime_audit():
 
 
 def test_agent_doctor_avoids_empty_array_expansion_under_nounset():
-    content = open(os.path.join(TEMPLATE, "scripts", "agent-doctor.sh")).read()
+    content = read_template("scripts", "agent-doctor.sh")
     assert "curl_args=(-fsS" in content
     assert 'curl "${curl_args[@]}"' in content
     assert '"${auth_header[@]}"' not in content
@@ -51,36 +55,49 @@ def test_agent_doctor_avoids_empty_array_expansion_under_nounset():
     assert '"${policy_args[@]}"' not in content
 
 
+def test_agent_doctor_resolves_context7_before_freezing_audit_arguments():
+    content = read_template("scripts", "agent-doctor.sh")
+    function = content[content.index("audit_mcp_config()") : content.index("check_max_lines()")]
+
+    assert function.index("command -v context7-mcp") < function.index("local -a audit_args=(")
+
+
 def test_agent_doctor_continues_after_agentshield_findings():
-    content = open(os.path.join(TEMPLATE, "scripts", "agent-doctor.sh")).read()
-    assert 'run npx ecc-agentshield scan || AGENTSHIELD_RC=$?' in content
-    assert 'continuing configuration health checks' in content
-    assert content.index('continuing configuration health checks') < content.index('=== Configuration Health ===')
+    content = read_template("scripts", "agent-doctor.sh")
+    assert 'scan_agentshield()' in content
+    assert '--save-baseline "$scan_baseline"' in content
+    assert '"$HOME/.claude"' in content
+    assert 'private/agent/agentshield.baseline.json' in content
+    assert 'AgentShield acknowledged findings unchanged' in content
+    assert 'AgentShield new or changed findings' in content
+    assert 'AgentShield baseline verification failed' in content
+    assert 'npx "${scan_args[@]}" >/dev/null 2>/dev/null' in content
+    assert 'trap \'rm -rf -- "$scan_dir"' in content
+    assert 'scan_report' not in content
 
 
 def test_doctor_manifest_captures_overrides():
-    content = open(os.path.join(TEMPLATE, "scripts", "doctor-manifest.json")).read()
+    content = read_template("scripts", "doctor-manifest.json")
     assert '"ripgrep": "rg"' in content
     assert '"claude-code"' in content
     assert '"cc-switch"' in content
 
 
 def test_run_doctor_checks_parses_manifest():
-    content = open(os.path.join(TEMPLATE, "scripts", "run-doctor-checks.py")).read()
+    content = read_template("scripts", "run-doctor-checks.py")
     assert 'formula_command_overrides' in content
     assert 'cask_overrides' in content
     assert 'standalone_clis' in content
 
 
-def test_agent_shared_loads_devspace_mcp_from_private_runtime():
-    content = open(os.path.join(TEMPLATE, "scripts", "lib", "agent-shared.sh")).read()
-    assert "load_devspace_mcp_private_env()" in content
-    assert 'DEVSPACE_MCP_URL={base_url}/mcp' in content
-    assert 'DEVSPACE_MCP_ENABLE=1' in content
+def test_agent_shared_does_not_load_web_only_devspace_mcp():
+    content = read_template("scripts", "lib", "agent-shared.sh")
+    assert "load_devspace_mcp_private_env" not in content
+    assert "DEVSPACE_MCP_URL" not in content
 
 
 def test_makefile_exposes_devspace_targets_and_checks_script():
-    content = open(os.path.join(TEMPLATE, "Makefile")).read()
+    content = read_template("Makefile")
     assert "devspace-check:" in content
     assert "devspace-run:" in content
     assert "devspace-doctor:" in content

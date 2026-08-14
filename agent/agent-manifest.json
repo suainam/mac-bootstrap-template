@@ -43,19 +43,6 @@
         "ingest_traces"
       ]
     },
-    "agent-prompt-library": {
-      "command": "agent-prompt-mcp",
-      "args": [],
-      "approved_tools": [
-        "search_prompts"
-      ],
-      "capabilities": [
-        "prompts/list",
-        "prompts/get",
-        "tools/list",
-        "tools/call"
-      ]
-    },
     "context7": {
       "command": "npx",
       "args": [

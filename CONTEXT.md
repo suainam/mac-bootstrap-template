@@ -43,7 +43,7 @@
 
 - `scripts/install-agent-tooling.sh` 是顶层 orchestrator；可复用 shell 逻辑在 `scripts/lib/`，skill 分发由 `scripts/skill_supply_chain.py` 负责。
 - `agent/agent-manifest.json` 描述受管 agent 路径；OMP 是 Brewfile 默认 CLI，使用自身发现层，不由该 manifest 接管。
-- `scripts/agent_mcp_runtime.py` 是受管 MCP server desired-state 权威；安装与 doctor 必须消费同一状态，不能各自维护 server 清单。
+- `scripts/agent_mcp_runtime.py` 是受管 agent MCP server desired-state 权威；安装与 doctor 必须消费同一状态，不能各自维护 server 清单。DevSpace 是网页访问的本地服务，不属于 agent MCP；遗留配置应被清理。
 - `agent/mcp-policy.json` 只管理 Codex 默认启用状态与按需 profile；Codex hook 只写 `~/.codex/hooks.json`，`config.toml` 不重复定义 hook。
 - Codex managed-section rewrite 只保留用户 TOML；`codex-mcp` launcher 将 profile 转成单会话 `-c` 覆盖。
 - Data Hub 与 Agent Runtime、Skill supply chain 并列；knowledge Skills 调用它，但不属于 `agent/` runtime 配置。

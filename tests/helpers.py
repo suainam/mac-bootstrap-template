@@ -22,7 +22,20 @@ def run(cmd: str) -> tuple[str, str, int]:
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
+def declared_brew_formulas() -> set[str]:
+    """Return active formula declarations; commented Brewfile lines are optional."""
+    formulas: set[str] = set()
+    for raw in (Path(TEMPLATE) / "Brewfile").read_text().splitlines():
+        line = raw.strip()
+        if line.startswith('brew "') and line.endswith('"'):
+            formulas.add(line[len('brew "'):-1])
+    return formulas
+
+
 def require_tmux_live_socket() -> None:
+    if "tmux" not in declared_brew_formulas():
+        pytest.skip("tmux is optional and not declared in template/Brewfile")
+
     _, err, rc = run("tmux show-option -g prefix")
     if rc == 0:
         return
@@ -40,5 +53,5 @@ def require_tmux_live_socket() -> None:
 
 
 def managed_symlinks() -> dict[str, str]:
-    manifest = json.loads(open(DOCTOR_MANIFEST).read())
+    manifest = json.loads(Path(DOCTOR_MANIFEST).read_text())
     return manifest["managed_symlinks"]

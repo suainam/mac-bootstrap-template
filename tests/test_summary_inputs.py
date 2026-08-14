@@ -18,12 +18,20 @@ def _daily_document():
     return SummaryDocument.from_dict({"contract_version":"summary-v1","taxonomy_version":"dimensions-v1","policy_version":"summary-policy-v1","level":"daily","period":"2026-07-10","headline":"done","items":[{"item_type":"outcome","title":"done","conclusion":"done","value":"done","dimensions":["专业知识"],"evidence_group_ids":["evg_a"],"confidence":1.0}]})
 
 
+@pytest.fixture
+def conn(tmp_path):
+    connection = get_db_connection(tmp_path / "db.sqlite")
+    try:
+        yield connection
+    finally:
+        connection.close()
+
+
 def test_previous_level_mapping():
     assert previous_level("weekly") == "daily"
 
 
-def test_resolve_lower_revisions_never_reads_markdown_body(tmp_path, monkeypatch):
-    conn = get_db_connection(tmp_path / "db.sqlite")
+def test_resolve_lower_revisions_never_reads_markdown_body(tmp_path, monkeypatch, conn):
     artifact = tmp_path / "daily.md"
     artifact.write_text("summary", encoding="utf-8")
     summary_id = ensure_logical_summary(conn, "daily", "2026-07-10")
@@ -37,9 +45,7 @@ def test_resolve_lower_revisions_never_reads_markdown_body(tmp_path, monkeypatch
     assert [row.revision_id for row in result] == [revision.revision_id]
 
 
-def test_resolve_lower_revisions_rejects_missing_workday_coverage(tmp_path):
-    conn = get_db_connection(tmp_path / "missing.sqlite")
-
+def test_resolve_lower_revisions_rejects_missing_workday_coverage(conn):
     with pytest.raises(MissingLowerCoverageError, match="2026-07-09"):
         resolve_lower_revisions(
             conn=conn,
@@ -51,8 +57,7 @@ def test_resolve_lower_revisions_rejects_missing_workday_coverage(tmp_path):
         )
 
 
-def test_boundary_replay_selects_exact_historical_lower_revision(tmp_path):
-    conn = get_db_connection(tmp_path / "boundary.sqlite")
+def test_boundary_replay_selects_exact_historical_lower_revision(tmp_path, conn):
     summary_id = ensure_logical_summary(conn, "weekly", "2026-W31")
     document = _daily_document()
     document_dict = document.to_dict()

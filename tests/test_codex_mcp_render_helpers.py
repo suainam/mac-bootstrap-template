@@ -40,15 +40,7 @@ def test_renderer_uses_normalized_proxy_without_api_key_argument():
     assert 'HTTPS_PROXY = "http://127.0.0.1:7898"' in result.stdout
 
 
-def test_renderer_includes_optional_servers_only_when_requested():
+def test_renderer_excludes_web_only_devspace():
     default = run_renderer()
     assert default.returncode == 0, default.stderr
     assert "[mcp_servers.devspace]" not in default.stdout
-
-    enabled = run_renderer(
-        "--devspace-url",
-        "https://devspace.example/mcp",
-    )
-    assert enabled.returncode == 0, enabled.stderr
-    assert "[mcp_servers.devspace]" in enabled.stdout
-    assert 'url = "https://devspace.example/mcp"' in enabled.stdout

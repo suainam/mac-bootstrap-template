@@ -3,14 +3,9 @@
   "default_enabled": {
     "context-mode": true,
     "codebase-memory-mcp": true,
-    "agent-prompt-library": false,
-    "context7": true,
-    "devspace": false
+    "context7": true
   },
   "profiles": {
-    "docs": ["context7"],
-    "prompts": ["agent-prompt-library"],
-    "devspace": ["devspace"],
-    "full": ["agent-prompt-library", "context7", "devspace"]
+    "docs": ["context7"]
   }
 }

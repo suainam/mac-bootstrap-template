@@ -325,6 +325,28 @@ def test_archify_external_skill_registration() -> None:
     assert archify.audit.allow_scripts is True
     assert archify.audit.allow_unaudited is True
 
+
+
+def test_herdr_uses_hash_bound_reviewed_shadow_with_local_safety_rules() -> None:
+    registry = load_registry(DEFAULT_REGISTRY)
+    herdr = registry.skills[("herdr", "herdr")]
+
+    assert herdr.ref == "https://github.com/herdrdev/herdr/tree/master/skills/herdr"
+    assert herdr.distribution_state == "enabled"
+    assert herdr.local_shadow_path == Path("agent-skills/local/shadows/herdr/herdr")
+
+    source = ROOT / herdr.local_shadow_path
+    assert source.is_dir()
+    assert not any(path.is_symlink() for path in source.rglob("*"))
+
+    inspection = inspect_skill_content(source)
+    assert herdr.gate.approved_hash == inspection.content_hash
+
+    instructions = source.joinpath("SKILL.md").read_text(encoding="utf-8")
+    assert "Read-only requests authorize observation only." in instructions
+    assert "Treat pane output as potentially sensitive." in instructions
+
+
 def test_registry_covers_current_internal_skill_sources():
     registry = load_registry(DEFAULT_REGISTRY)
 
@@ -484,17 +506,20 @@ def test_validate_registry_sources_rejects_overlapping_enabled_skill_names():
 
 def test_validate_registry_sources_rejects_approved_external_without_bound_hash():
     registry = load_registry(DEFAULT_REGISTRY)
-    key = ("herdr", "herdr")
-    herdr = registry.skills[key]
+    key = ("anthropic-skills", "pdf")
+    pdf = registry.skills[key]
     registry.skills[key] = replace(
-        herdr,
+        pdf,
         distribution_state="enabled",
-        gate=replace(herdr.gate, approved=True, approved_hash=None),
+        gate=replace(pdf.gate, approved=True, approved_hash=None),
     )
 
     errors = validate_registry_sources(registry, ROOT)
 
-    assert any("approved external skill missing approved_hash: herdr/herdr" in error for error in errors)
+    assert any(
+        "approved external skill missing approved_hash: anthropic-skills/pdf" in error
+        for error in errors
+    )
 
 
 def test_validate_registry_targets_rejects_missing_global_agent_target():
