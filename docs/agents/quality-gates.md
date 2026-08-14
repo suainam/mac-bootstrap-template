@@ -350,19 +350,23 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 自动改写现有 `core.hooksPath`。template 始终是 repo-only；完整 machine checks 只属于显式
 标记的父仓管理 checkout。
 
-### 普通 Python 仓库 profiles
+### 普通仓库与 Python profiles
 
-`python-repo-smoke` 是首个不绑定仓库名称的机械曳光弹。它只包含编辑后 Python 语法、
-staged snapshot 编译和 push ref/OID 完整性，不运行项目检查，适合验证 dispatcher 的最小
-闭环。
-
-`python-repository` 在同一组机械 gate 之外复用通用 `repository-check`，push 前固定调用
-仓库自己的只读 `make repo-check`。全局 registry 不包含 pytest、uv、ruff 或项目路径；仓库
-拥有 compile、lint、typecheck、test 与 diff-check 的组合，runtime 只拥有可信调用、timeout、
-输出预算和 fail-closed 边界。项目依赖准备应在显式 bootstrap 或 CI 的 sync/install 阶段完成；
+`repository` 是语言无关的最小完整仓库 profile。它只验证 push ref/OID 完整性，并在
+`before.push` 复用通用 `repository-check`，固定调用仓库自己的只读 `make repo-check`。
+全局 registry 不知道 npm、pnpm、pytest、uv、ruff 或任何项目路径；仓库拥有 lint、typecheck、
+test、build/dry-run 与 diff-check 的具体组合，runtime 只拥有可信调用、timeout、输出预算和
+fail-closed 边界。项目依赖准备应在显式 bootstrap 或 CI 的 sync/install 阶段完成；
 `repo-check` 不应在 push 热路径隐式安装依赖、发布制品或产生真实外部副作用。
 
-两种 profile 都要求显式 opt-in、inventory、install 和 doctor。smoke 通过不代表完整仓库
+`python-repo-smoke` 是首个不绑定仓库名称的 Python 机械曳光弹。它只包含编辑后 Python
+语法、staged snapshot 编译和 push ref/OID 完整性，不运行项目检查，适合验证 dispatcher
+的最小闭环。
+
+`python-repository` 在上述 Python 机械 gate 之外同样复用 `repository-check`；适用于希望在
+commit 前额外阻断 Python 语法错误的仓库。
+
+这些 profile 都要求显式 opt-in、inventory、install 和 doctor。smoke 通过不代表完整仓库
 迁移完成；完整 profile 还必须经过失败注入、真实临时分支 push、hosted CI 和 uninstall
 回滚演练。
 

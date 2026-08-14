@@ -15,6 +15,11 @@
     "generic": {
       "gates": []
     },
+    // Language-agnostic repository profile. The repository owns the read-only
+    // `make repo-check` contract; the trusted runtime owns push-time execution.
+    "repository": {
+      "gates": ["template-push-ref-integrity", "repository-check"]
+    },
     // First tracer-bullet profile: one real, fast, read-only Python syntax check
     // after Claude Code Edit/Write. It is deliberately narrow and is not a
     // general language profile.

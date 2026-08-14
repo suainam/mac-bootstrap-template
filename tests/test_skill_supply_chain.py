@@ -173,8 +173,8 @@ def test_distribute_apply_rejects_devspace_worktree_by_default():
         _assert_safe_apply_root(Path.home() / ".devspace" / "worktrees" / "template-example")
 
 
-def test_distribute_apply_allows_real_checkout_paths():
-    _assert_safe_apply_root(ROOT)
+def test_distribute_apply_allows_real_checkout_paths(tmp_path: Path):
+    _assert_safe_apply_root(tmp_path / "real-checkout")
 
 
 def test_distribute_filters_actions_by_surface_and_skill(capsys):

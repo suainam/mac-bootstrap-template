@@ -27,6 +27,8 @@ esac
 if [[ ! -o interactive || ! -t 0 ]]; then
   return 0
 fi
+export CONDA_AUTO_ACTIVATE_BASE=false
+
 
 # ---------- Zinit ----------
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
