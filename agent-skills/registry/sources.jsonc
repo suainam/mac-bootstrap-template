@@ -957,6 +957,29 @@
           "reason": "User-approved global TypeScript engineering skill; ponytail remains the default simplicity guard"
         }
       }
+    "archify": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/tt-a1i/archify",
+      "skills": {
+        "archify": {
+          "distribution_state": "enabled",
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-08-13",
+            "approved_hash": "sha256:dca2a6db872b7a453569a57d89b3d5e64440d75771118d0f6ffe0c016f777e60",
+            "reason": "User-approved after manual review of SKILL.md, bundled Node CLI, local git/Chrome/open subprocesses, output writes, and no network fetch path"
+          },
+          "reason": "User-requested global architecture diagram skill; supports Codex, Claude Code, OpenCode, and cross-agent targets"
+        }
     },
 
     "local-global": {

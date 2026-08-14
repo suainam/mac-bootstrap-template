@@ -63,6 +63,20 @@ Official discovery references, verified 2026-08-13:
 - [OpenCode Agent Skills](https://opencode.ai/docs/skills/)
 - [OMP Skills](https://github.com/can1357/oh-my-pi/blob/main/docs/skills.md)
 
+## Reviewed architecture diagram skill
+
+`archify` is registered as a hash-bound external Skill from
+[`tt-a1i/archify`](https://github.com/tt-a1i/archify). It generates validated,
+self-contained architecture, workflow, sequence, data-flow, and lifecycle HTML
+artifacts. It is globally distributed to Claude Code, Codex, OpenCode, and the
+cross-agent view; invoke it explicitly as `$archify`.
+
+The bundled Node CLI requires Node 18 or newer. It writes only requested
+artifacts and temporary preview/visual-check files, and its optional subprocess
+paths are local Node, Git repository evidence, Chrome capture, and macOS
+`open`. The approved source hash and script allowance remain in
+`registry/sources.jsonc`.
+
 ## Operations
 
 ```bash

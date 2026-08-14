@@ -312,6 +312,18 @@ def test_registry_contains_external_and_internal_examples():
         "agent-skills/local/shadows/qiaomu/qiaomu-goal-meta-skill"
     )
 
+def test_archify_external_skill_registration() -> None:
+    registry = load_registry(DEFAULT_REGISTRY)
+    archify = registry.skills[("archify", "archify")]
+
+    assert archify.source_type == "external"
+    assert archify.fetcher == "skills.sh"
+    assert archify.ref == "https://github.com/tt-a1i/archify"
+    assert archify.distribution_state == "enabled"
+    assert archify.gate.approved is True
+    assert archify.gate.approved_hash == "sha256:dca2a6db872b7a453569a57d89b3d5e64440d75771118d0f6ffe0c016f777e60"
+    assert archify.audit.allow_scripts is True
+    assert archify.audit.allow_unaudited is True
 
 def test_registry_covers_current_internal_skill_sources():
     registry = load_registry(DEFAULT_REGISTRY)
