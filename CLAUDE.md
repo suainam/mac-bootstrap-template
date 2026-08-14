@@ -8,6 +8,16 @@
 - 公共发布前运行 `make privacy-audit`。
 - `README.md` 是人类入口；本文件仅保留执行约束。
 
+## Default development workflow
+
+For non-trivial implementation, bug-fix, or security-sensitive work:
+- Start from a spec or ticket; shape missing acceptance criteria with `/to-spec` and pin the review base.
+- Run `/implement` through implementation and focused checks; stop before its commit step. If it cannot pause, follow its steps manually. Apply `/tdd` when a test seam exists.
+- Finish with `/code-review` on the complete pinned change; it launches parallel Spec and Standards subagents.
+- For security-sensitive changes, launch the host's supported `security-reviewer` subagent independently on that same change, including tracked and untracked files; unavailable is a blocker.
+- Require a `## Security` report with scope, evidence, severity (`blocker|critical|high|major|medium|minor|low`), and disposition (`fixed|accepted`); `none` is valid. Missing or unknown fields block.
+- Complete with smoke-test evidence; block commit on blocker/critical/high/major findings, require owner and rationale for accepted lower findings, and reconfirm the reviewed change is unchanged.
+
 ## Agent skills
 
 ### Issue tracker
