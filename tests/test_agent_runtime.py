@@ -390,6 +390,7 @@ def test_default_registry_doctor_is_available_through_wrapper(tmp_path: Path):
     assert payload["event_schema_version"] == 1
     assert payload["known_profiles"] == [
         "generic",
+        "repository",
         "claude-edit-smoke",
         "mac-bootstrap-template",
         "python-repo-smoke",
