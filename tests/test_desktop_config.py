@@ -24,8 +24,7 @@ def test_hammerspoon_has_iterm2_binding():
 
 def test_hammerspoon_loads_paperwm():
     content = open(os.path.expanduser("~/.hammerspoon/init.lua")).read()
-    assert 'require("paperwm")' in content or "require('paperwm')" in content
-
+    assert 'require("paperwm_config")' in content or "require('paperwm_config')" in content
 
 # ── Hammerspoon Spoons ────────────────────────────────────────────────
 
@@ -37,5 +36,5 @@ def test_spoons_installed():
 
 
 def test_paperwm_lua_config_exists():
-    template_paperwm = os.path.join(TEMPLATE, "desktop", "hammerspoon", "paperwm.lua")
+    template_paperwm = os.path.join(TEMPLATE, "desktop", "hammerspoon", "paperwm_config.lua")
     assert os.path.isfile(template_paperwm)

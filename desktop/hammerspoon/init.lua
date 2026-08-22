@@ -19,8 +19,7 @@ end
 hs.grid.setGrid("3x2")
 
 require("wuying")
-require("paperwm")
-
+require("paperwm_config")
 local keybindings_tool = hs.loadSpoon("HSKeybindings")
 local keybindings_visible = false
 
