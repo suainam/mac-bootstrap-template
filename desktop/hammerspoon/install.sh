@@ -37,6 +37,16 @@ done
 echo "=== Installing official Spoons ==="
 install_spoon "HSKeybindings"
 
-
+echo "=== Installing PaperWM Spoon ==="
+install_paperwm() {
+  local dest="$SPOONS/PaperWM.spoon"
+  if [[ -d "$dest" ]]; then
+    echo "  PaperWM.spoon already installed"
+    return
+  fi
+  echo "  cloning PaperWM.spoon from GitHub"
+  git clone --depth 1 https://github.com/mogenson/PaperWM.spoon "$dest"
+}
+install_paperwm
 
 echo "Done. Reload with: killall Hammerspoon && open -a Hammerspoon"
