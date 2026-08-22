@@ -29,11 +29,11 @@ install_spoon() {
 
 echo "=== Linking Hammerspoon config ==="
 mkdir -p "$TARGET"
+rm -f "$TARGET/paperwm.lua"
 for file in "$DIR"/*.lua; do
   ln -sf "$file" "$TARGET/$(basename "$file")"
   echo "  $TARGET/$(basename "$file") -> hammerspoon/$(basename "$file")"
 done
-
 echo "=== Installing official Spoons ==="
 install_spoon "HSKeybindings"
 
