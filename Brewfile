@@ -24,6 +24,7 @@ brew "zoxide"
 brew "eza"
 brew "bat"
 brew "yazi"
+brew "topgrade"
 
 # ========== 语言 & 运行时 ==========
 brew "node"
@@ -96,6 +97,7 @@ npm "reasonix"
 npm "context-mode"
 npm "codebase-memory-mcp"
 npm "@waishnav/devspace"
+npm "playwriter"
 
 # ========== Python 分析库（通过 pip/uv 安装，不作为 brew 依赖） ==========
 # 见 python/requirements-common.txt

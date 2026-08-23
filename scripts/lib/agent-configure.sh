@@ -26,6 +26,10 @@ link_canonical_symlinks() {
   run mkdir -p "$(dirname "$CLAUDE_RULES_12")"
   run ln -sf "$RULES_FILE" "$CLAUDE_RULES_12"
   echo "  LINK  $CLAUDE_RULES_12 → $RULES_FILE"
+  if [ -n "$CLAUDE_RULES_ADVERSARIAL_REVIEW" ] && [ -f "$ADVERSARIAL_REVIEW_SRC" ]; then
+    run ln -sf "$ADVERSARIAL_REVIEW_SRC" "$CLAUDE_RULES_ADVERSARIAL_REVIEW"
+    echo "  LINK  $CLAUDE_RULES_ADVERSARIAL_REVIEW → $ADVERSARIAL_REVIEW_SRC"
+  fi
 
   local pair src dst
   for pair in \
@@ -54,8 +58,17 @@ ensure_agent_dirs() {
 }
 
 generate_workspace_context_files() {
-  write_reference_file "$WORK_AGENTS" "@$CLAUDE_RULES_12" "@$CODEX_RTK"
-  echo "  Workspace AGENTS.md refs ensured"
+  if [ ! -f "$WORK_AGENTS" ]; then
+    cat > "$WORK_AGENTS" <<'EOF'
+# Work Root Directives
+
+- `projects/`: Standalone project repositories and application workspaces.
+- `config/`: System and bootstrap configurations (`config/mac-bootstrap`).
+- `knowledge/`: Central knowledge base, summaries, and periodic notes.
+- Rule Hierarchy: Global operating rules load from `~/.codex/` / `~/.claude/`; project-specific constraints load from each project's own `AGENTS.md` / `CLAUDE.md`.
+EOF
+  fi
+  echo "  Workspace AGENTS.md directives ensured"
 
   RTK_SOURCE="$(pick_rtk_source)"
   write_markdown_file "$WORK_GEMINI" "$(render_runtime_rules_doc "Global Antigravity Workspace Rules" "$RTK_SOURCE")"
@@ -86,9 +99,9 @@ configure_prompt_library_step() {
 configure_rtk_step() {
   if have rtk; then
     try_run rtk init --global --auto-patch
-    have codex && try_run rtk init --global --codex
-    have opencode && try_run rtk init --global --opencode --auto-patch
-    have pi && try_run rtk init --global --agent pi
+    if have codex; then try_run rtk init --global --codex; fi
+    if have opencode; then try_run rtk init --global --opencode --auto-patch; fi
+    if have pi; then try_run rtk init --global --agent pi; fi
   else
     echo "  SKIP: rtk not installed"
   fi
@@ -395,6 +408,10 @@ Think before coding. Prefer the simplest working change. Read before write.
 Touch only what is necessary. Match local conventions. Verify with tests.
 Checkpoint progress. Fail loud on uncertainty or skipped work.
 
+## Adversarial Review Gate
+
+Solidify all review findings into automated regression tests or audit gates. Never declare fixed on chat output alone without executable check evidence.
+
 ## RTK
 
 Use \`rtk\` for shell commands when available.
@@ -407,6 +424,7 @@ Use grep only for literals, configs, or when MCP coverage is insufficient.
 
 Canonical sources:
 - \`$RULES_FILE\`
+- \`$ADVERSARIAL_REVIEW_SRC\`
 - \`$RTK_SOURCE\`
 AGENTSMD
   fi
@@ -414,16 +432,23 @@ AGENTSMD
 }
 
 ensure_claude_instructions() {
-  write_reference_file "$CLAUDE_MD" "@12-rules.md" "@RTK.md"
-  echo "  CLAUDE.md ordered: 12-rules first, RTK second"
+  write_reference_file "$CLAUDE_MD" "@12-rules.md" "@adversarial-review-gate.md" "@RTK.md"
+  echo "  CLAUDE.md ordered: 12-rules first, adversarial-review-gate second, RTK third"
 }
 
 ensure_codex_instructions() {
+  local adv_arg=()
+  local adv_src="${ADVERSARIAL_REVIEW_SRC:-$BOOTSTRAP/agent/rules/adversarial-review-gate.md}"
+  if [ -n "$adv_src" ] && [ -f "$adv_src" ]; then
+    adv_arg=(--adversarial-review "$adv_src")
+  fi
+
   if [ "${DRY_RUN:-0}" -eq 1 ]; then
     echo "DRY-RUN: render canonical rules into $CODEX_AGENTS"
   else
     python3 "$BOOTSTRAP/scripts/agent-instructions.py" render \
-      --target "$CODEX_AGENTS" --rules "$RULES_FILE" --rtk "$CODEX_RTK"
+      --target "$CODEX_AGENTS" --rules "$RULES_FILE" --rtk "$CODEX_RTK" \
+      "${adv_arg[@]}"
   fi
   echo "  Codex canonical rules embedded"
 
@@ -449,15 +474,18 @@ Prefer MCP graph tools before grep/glob/file-search for code discovery.
 ## When to fall back to grep/glob
 - Searching for string literals, error messages, config values
 - Searching non-code files (Dockerfiles, shell scripts, configs)
-- When MCP tools return insufficient results
 <!-- codebase-memory-mcp:end -->'
   replace_managed_block "$CODEX_AGENTS" '<!-- codebase-memory-mcp:start -->' '<!-- codebase-memory-mcp:end -->' "$codex_crg_block"
-  echo "  Codex AGENTS.md graph guidance aligned with codebase-memory-mcp"
 }
 
 configure_pi_step() {
+  if [ -d "$(dirname "$PI_AGENTS_MD")" ]; then
+    write_markdown_file "$PI_AGENTS_MD" "$(render_runtime_rules_doc "Global Pi Coding Agent Rules" "$RTK_SOURCE")"
+    echo "  Pi: AGENTS.md generated"
+  fi
+
   if ! have pi; then
-    echo "  Pi not installed — skipping"
+    echo "  Pi binary not installed — skipping package installation"
     return 0
   fi
 

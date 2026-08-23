@@ -16,6 +16,7 @@ make skill-refresh # Validate and distribute landed registry sources only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
 make prompt-mcp  # Run the optional local prompt-library MCP server
 make doctor-agent # Verify all configs
+make agent-rules-audit # Scan all global & workspace AGENTS.md / CLAUDE.md for prompt drift
 make security-scan  # AgentShield security audit
 ```
 

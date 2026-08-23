@@ -132,6 +132,9 @@ render_runtime_rules_doc() {
 Think before coding. Prefer the simplest change. Touch only what is needed.
 Read before write. Match local conventions. Verify intent with tests.
 Checkpoint after meaningful steps. Fail loud on uncertainty or skipped work.
+## Adversarial Review Gate
+
+Solidify all review findings into automated regression tests or audit gates. Never declare fixed on chat output alone without executable check evidence.
 
 ## RTK
 
@@ -144,8 +147,8 @@ Prefer \`codebase-memory-mcp\` and \`context7\` before grep for code discovery.
 
 Canonical rules:
 - \`$RULES_FILE\`
+- \`$ADVERSARIAL_REVIEW_SRC\`
 - \`$rtk_ref\`
-
 Official docs:
 - Claude: https://code.claude.com/docs/en/configuration
 - Codex: https://developers.openai.com/learn/docs-mcp

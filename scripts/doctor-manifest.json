@@ -29,6 +29,7 @@
     "~/.tmux.conf": "multiplexer/tmux/tmux.conf",
     "~/.tmux/theme.conf": "multiplexer/tmux/themes/catppuccin-mocha.conf",
     "~/.config/ghostty/config": "terminals/ghostty/config",
+    "~/.config/topgrade.toml": "system/topgrade/topgrade.toml",
     "~/.local/bin/tmux-workspace.sh": "scripts/tmux-workspace.sh",
     "~/.local/bin/switch-terminal-theme.sh": "scripts/switch-terminal-theme.sh",
     "~/.local/bin/tmux-open-yazi.sh": "scripts/tmux-open-yazi.sh",

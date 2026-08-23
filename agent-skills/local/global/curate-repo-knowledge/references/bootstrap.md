@@ -13,18 +13,14 @@ Use this branch when the project lacks durable Agent guidance or knowledge routi
 
 Use only when existing project rules do not define an owner.
 
-| Knowledge | Default authority |
-| --- | --- |
-| Human purpose and quick start | `README.md` |
-| Agent red lines, commands, routing | one of `AGENTS.md` or `CLAUDE.md` |
-| Compatibility Agent filename | relative symlink to the Agent authority |
-| Stable vocabulary and distinctions | `CONTEXT.md` |
-| Accepted decisions and rationale | ADR collection |
-| Current operations | runbook or wiki collection |
-| Temporary work | plans, specs, or issue tracker |
-| Structured facts | catalog, schema, config, code, or tests |
-| Generated prose | replaceable projection pointing to its source |
-
+| Knowledge Surface | Default Authority | Strict Responsibility | Anti-Mixing Redlines (严禁混写红线) |
+|---|---|---|---|
+| Human Purpose & Quickstart | `README.md` | Human onboarding, 5-min quickstart, layout overview. Keep thin (< 100 lines). | 严禁堆砌长篇业务协议、Agent 内部 Prompt、或详细运维 Runbook。 |
+| System Architecture (SSOT) | `CONTEXT.md` | Single source of truth for mental model, domain vocabulary, data flow, authority ownership. | 严禁写日常流水账、逐步操作教程或临时任务计划。 |
+| Agent Action Policy & Redlines | `AGENTS.md` / `CLAUDE.md` | Negative boundaries, critical check commands, validation gates, routing. Keep tight (< 80 lines). Sibling parity mandatory. | 严禁抄录系统架构描述、代码细节或冗长操作手册；严禁跨层级重复导入全局规则。 |
+| Deep Knowledge & Runbooks | `docs/` | Step-by-step runbooks, troubleshooting guides, API contracts, ADR collection. | 严禁 Agent 顶层全量常驻加载；必须按需检索读取。严禁在 `docs/` 外设立并行的 `wiki/` 沼泽。 |
+| Temporary Work & Specs | Issue tracker / PRD | Ephemeral task plans, tickets, acceptance criteria. | 临时计划完成后及时归档/清理，不沉淀为伪长期文档。 |
+| Structured Facts | Config, schema, code | Machine-readable schemas, type contracts, test fixtures. | 结构化事实以代码和 schema 为准，文档只做引用。 |
 Use Markdown links between explanatory documents. Use filesystem symlinks only for compatibility files that must be byte-identical.
 
 ## Loading budgets
