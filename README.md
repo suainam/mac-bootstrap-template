@@ -172,6 +172,41 @@ walkthrough.
 its own git repository under `~/work/projects`, with its own `.envrc`, `.env`,
 and runtime state.
 
+## 全生态统一升级 (Topgrade & System Upgrade)
+
+系统将多渠道包管理器与工具链聚合收敛至 `topgrade` 进行一键联动更新，配置真源维护在 `template/system/topgrade/topgrade.toml` 并自动软链至 `~/.config/topgrade.toml`。
+
+```mermaid
+flowchart TD
+    All[已安装工具与应用] --> PKG[标准包管理 - Topgrade 原生接管]
+    All --> Sparkle[自带更新引擎 - 打开自动静默更新]
+    All --> Enterprise[企业与系统托管]
+    All --> Manual[独立孤立安装 - 手动或自更新]
+
+    PKG --> P1[Homebrew: Formula + Cask]
+    PKG --> P2[NPM Global: context-mode 等]
+    PKG --> P3[Bun Global: opencode2 等]
+    PKG --> P4[pipx: ansible 等 CLI]
+    PKG --> P5[uv tool: ruff, basedpyright 等]
+    PKG --> P6[mas: Mac App Store 应用]
+
+    Sparkle --> S1[Ghostty, Hammerspoon, Maccy, OBS 等]
+    Enterprise --> E1[企业 MDM 与配套 CLI: 随应用升级]
+    Manual --> M1[独立下载应用: 自带更新或手动替换]
+```
+
+- **真源路径**: `template/system/topgrade/topgrade.toml`
+- **动态探测机制**: Topgrade 在运行时动态查询已安装列表（如 `brew outdated`、`npm list -g`、`bun pm ls -g`），**已卸载的软件绝对不会被重新下载或自动升级**。
+- **编排与分工**:
+  - **`make system-upgrade`（推荐日常唯一入口）**: 权威入口，统一调度 `topgrade`（全包管理更新） $\rightarrow$ `make patch-chrome-gemini`（Chrome Gemini 补丁） $\rightarrow$ Agent 技能供应链刷新与分发。
+  - **`topgrade`（底层多包引擎）**: 单独运行仅执行包管理器与插件更新。
+- **使用方式**:
+  ```bash
+  make system-upgrade   # 推荐：全生态升级 + Chrome 补丁 + 技能供应链分发
+  topgrade --dry-run    # 演练查看待更新项
+  topgrade              # 仅更新多包管理器与运行时插件
+  ```
+
 ## Public template + private overlay
 
 This template repo should stay public-safe. It can be published directly, so do

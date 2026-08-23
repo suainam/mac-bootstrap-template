@@ -201,6 +201,11 @@ echo "=== Configure iTerm2 ==="
 echo "=== Configure tmux ==="
 "$DIR/multiplexer/tmux/install.sh"
 
+echo "=== Configure Topgrade ==="
+mkdir -p "$HOME/.config"
+ln -sf "$DIR/system/topgrade/topgrade.toml" "$HOME/.config/topgrade.toml"
+echo "  ~/.config/topgrade.toml -> system/topgrade/topgrade.toml"
+
 echo "=== Setup SSH config ==="
 "$DIR/scripts/ssh-manage.sh" install
 "$DIR/scripts/ssh-manage.sh" verify

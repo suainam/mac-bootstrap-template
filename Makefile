@@ -11,7 +11,7 @@ GIT_HOOK_PYTHON ?= $(shell command -v python3)
 
 .PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
-	install-antigravity-cli install agent-sync agent-tools agent-refresh \
+	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
@@ -43,6 +43,7 @@ help:
 	@echo "  neat-freak-ci         Check changed operational files have public docs"
 	@echo "  doctor                 Machine health check"
 	@echo "  doctor-agent           Agent tooling health check"
+	@echo "  agent-rules-audit      Scan all AGENTS.md / CLAUDE.md for duplicate imports & drift"
 	@echo "  privacy-audit          Redacted privacy scan"
 	@echo "  proxy-on               Configure npm + git to use the shell proxy values"
 	@echo "  proxy-off              Clear npm + git proxy settings"
@@ -320,6 +321,9 @@ ssh-key-import-stdin:
 
 doctor-agent:
 	./scripts/agent-doctor.sh
+
+agent-rules-audit:
+	@"$(PYTHON)" ./scripts/audit-agent-rules.py || python3 ./scripts/audit-agent-rules.py
 
 security-scan:
 	./scripts/agent-doctor.sh --fix

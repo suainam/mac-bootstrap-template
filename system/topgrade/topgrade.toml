@@ -1,0 +1,33 @@
+# Topgrade Configuration - mac-bootstrap Single Source of Truth
+# Managed by template/system/topgrade/topgrade.toml -> ~/.config/topgrade.toml
+
+[misc]
+assume_yes = false
+cleanup = true
+notify_end = "on_failure"
+show_skipped = false
+
+# Disable steps that shouldn't run unconditionally
+disable = [
+    "containers",   # Colima/Docker daemon may be offline
+    "git_repos"     # Do not indiscriminately git pull local dev repositories
+]
+
+# Steps that shouldn't block the entire upgrade run if they fail
+ignore_failures = [
+    "containers",
+    "system",
+    "gem"
+]
+
+[brew]
+# Set greedy_cask = false to avoid unexpectedly breaking GUI apps with internal updaters
+greedy_cask = false
+autoremove = true
+
+[npm]
+use_sudo = false
+
+[commands]
+# Keep uv global tools updated (ruff, basedpyright, trafilatura, etc.)
+"UV Tools Upgrade" = "uv tool upgrade --all"
