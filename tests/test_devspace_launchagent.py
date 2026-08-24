@@ -93,3 +93,11 @@ def test_makefiles_expose_devspace_agent_targets():
             assert f"{target}:" in content
 
     assert "$(MAKE) syntax-check" in template_makefile
+
+
+def test_tunnel_run_forces_http2_protocol():
+    """cloudflared must pin --protocol http2: through a local TUN proxy the
+    default QUIC transport flaps (edge dials time out / TLS EOF) and the
+    public URL returns 530. Regression guard for 2026-08-24 outage."""
+    content = read("scripts/devspace_local.py")
+    assert '"--protocol", "http2"' in content
