@@ -31,6 +31,11 @@ enabled Codex Context7 server; generated configs and other agent hosts remain
 keyless. Missing or placeholder keys use the anonymous service. Validate the
 overlay and managed configs with `stat -f '%Sp' private/agent/context7.runtime.jsonc`
 and `make doctor-agent`.
+The Aliyun DataWorks credentials live in `private/agent/dataworks.runtime.jsonc`
+with mode `0600`; only `scripts/dataworks-mcp-bridge.py` reads it, injecting
+`ALIBABA_CLOUD_ACCESS_KEY_ID` / `ALIBABA_CLOUD_ACCESS_KEY_SECRET` / `REGION`
+into the child MCP server environment. Validate with
+`python3 scripts/dataworks-mcp-bridge.py --validate-private-config`.
 
 Note: Private paths stay as `private/clash/`, `private/infra/`, and `private/python/` (not the new
 public paths `proxy/clash/` or `infra/python/`) to avoid breaking existing
