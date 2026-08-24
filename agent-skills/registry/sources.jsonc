@@ -1012,6 +1012,11 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "reason": "基于 Playwright 和 Chrome 扩展的实时浏览器自动化与无头网页交互技能"
+        },
+        "public-api-index": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "免认证公共 REST API 目录与即时查询工具（天气、地理/IP、加密汇率、DNS网络、知识检索）"
         }
       }
     },
