@@ -55,6 +55,29 @@ issue 才能关闭。跨仓依赖必须写完整 URL，并在原 issue 留下目
 使用 task list 拆分父任务，使用 milestone 表示交付批次。不要用多个标题
 近似、边界重叠的 issue 表示同一结果。
 
+## Wayfinding operations
+
+本节定义 wayfinder / to-spec / to-tickets 技能族在本仓 tracker 上的落法。
+GitHub Issues 没有原生父子与阻塞关系，用以下约定表达。技能读取的标签
+使用其规范字面量（冒号形式），不套用本仓 type//area/ 前缀词汇：
+
+- **Map**：一个 issue 打 `wayfinder:map` 标签，作为索引不存内容：
+  只列已做决策的 gist 与对应 ticket 链接；决策细节只活在它的 ticket 里。
+- **Ticket**：map 的子工单为普通 issue，打 `wayfinder:<type>` 标签
+  （`research`、`prototype`、`grilling`、`task` 四类之一），
+  正文首行声明 `Map: #<N>` 关联父地图。
+- **阻塞边**：ticket 正文用 `Blocked by: #<A>, #<B>` 声明（to-tickets 产出）；
+  解除后更新该行或删除。`status/blocked` 仅表示被外部因素卡住，
+  不用于工单间依赖。
+- **Frontier 查询**：当前可做的 ticket =
+  `is:open label:wayfinder:task` 且正文无未解除的 `Blocked by`；
+  map issue 的评论只记录决策里程碑，不做讨论串。
+- **Spec 工单**（to-spec 产出）：打 `ready-for-agent` 标签表示
+  可直接进入 implement，无需额外 triage；triage 词汇
+  （needs-triage / needs-info / ready-for-human / wontfix）按技能规范原样使用。
+- **收尾**：路线清晰后 map 保持 open 直到最后一个 ticket 关闭再关闭；
+  决策历史随 ticket 保留，不迁移、不删注释。
+
 ## 推荐标签
 
 当前标签以 GitHub live tracker 为准，创建前先确认是否已有同义标签。目标
@@ -64,6 +87,8 @@ issue 才能关闭。跨仓依赖必须写完整 URL，并在原 issue 留下目
 - 范围：`area/dev-env`、`area/agent-runtime`、`area/docs`
 - 状态：`status/ready`、`status/in-progress`、`status/blocked`
 - 优先级：`priority/p0`、`priority/p1`、`priority/p2`
-
+- 技能工作流（字面量，供 mattpocock 技能族识别）：`wayfinder:map`、
+  `wayfinder:research`、`wayfinder:prototype`、`wayfinder:grilling`、
+  `wayfinder:task`、`ready-for-agent`
 一个 issue 通常使用一个 type、一个 area、一个 status 和一个 priority。
 标签迁移应一次性完成，期间不得同时使用新旧同义标签。
