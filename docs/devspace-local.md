@@ -81,6 +81,12 @@ default QUIC transport intermittently fails to dial the edge
 (`no recent network activity`) and the public URL returns HTTP 530. The TCP
 based `http2` transport survives that environment.
 
+The tunnel supervisor also probes the public `/mcp` endpoint every
+`TUNNEL_CHECK_INTERVAL_SECONDS` (default 60s). After `TUNNEL_MAX_FAILURES`
+(default 5) consecutive unhealthy probes it exits so launchd restarts
+cloudflared with fresh state — a stuck cloudflared can retry a dead edge for
+hours even after the network path recovers.
+
 Install missing dependencies without starting the service:
 
 ```bash

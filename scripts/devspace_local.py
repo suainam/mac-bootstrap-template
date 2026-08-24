@@ -512,6 +512,16 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_public_url(args: argparse.Namespace) -> int:
+    config = load_devspace_config(repo_root=args.repo_root, config_path=args.config)
+    errors = ensure_valid_config(config)
+    if errors:
+        print_errors(errors)
+        return 1
+    print(config.public_base_url.rstrip("/") + "/mcp")
+    return 0
+
+
 def cmd_tunnel_run(args: argparse.Namespace) -> int:
     config = load_devspace_config(repo_root=args.repo_root, config_path=args.config)
     errors = ensure_valid_config(config)
@@ -589,6 +599,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("doctor").set_defaults(func=cmd_doctor)
     sub.add_parser("tunnel-run").set_defaults(func=cmd_tunnel_run)
     sub.add_parser("home-push").set_defaults(func=cmd_home_push)
+    sub.add_parser("public-url").set_defaults(func=cmd_public_url)
     sub.add_parser("home-pull").set_defaults(func=cmd_home_pull)
     return parser
 
