@@ -18,10 +18,7 @@ log() {
 
 terminate() {
   log "terminating devspace supervisor"
-  if [[ -n "$child_pid" ]] && kill -0 "$child_pid" >/dev/null 2>&1; then
-    kill "$child_pid" >/dev/null 2>&1 || true
-    wait "$child_pid" >/dev/null 2>&1 || true
-  fi
+  stop_child
   exit 0
 }
 
@@ -57,21 +54,52 @@ wait_for_startup() {
   return 1
 }
 
+cleanup_stale_port_holders() {
+  local port_pids
+  port_pids="$(lsof -ti tcp:7676 2>/dev/null || true)"
+  if [[ -n "$port_pids" ]]; then
+    log "cleaning up stale processes occupying port 7676: $port_pids"
+    echo "$port_pids" | xargs kill -TERM 2>/dev/null || true
+    sleep 1
+    # 强制清理未响应 TERM 的僵死残留
+    local remaining
+    remaining="$(lsof -ti tcp:7676 2>/dev/null || true)"
+    if [[ -n "$remaining" ]]; then
+      echo "$remaining" | xargs kill -9 2>/dev/null || true
+    fi
+  fi
+}
+
 start_child() {
   cd "$REPO_ROOT"
   ./scripts/devspace-local.sh check
+  cleanup_stale_port_holders
   log "starting devspace"
   ./scripts/devspace-local.sh run &
   child_pid="$!"
 }
 
 stop_child() {
-  if [[ -n "$child_pid" ]] && kill -0 "$child_pid" >/dev/null 2>&1; then
-    log "stopping devspace child pid $child_pid"
-    kill "$child_pid" >/dev/null 2>&1 || true
-    wait "$child_pid" >/dev/null 2>&1 || true
+  if [[ -n "$child_pid" ]]; then
+    log "stopping devspace process tree for pid $child_pid"
+    # 向负 PID 广播信号，确保子进程树（devspace_local.py 与 node serve）一同接收退出信号
+    kill -TERM -"$child_pid" 2>/dev/null || kill -TERM "$child_pid" 2>/dev/null || true
+    
+    # 优雅等待最多 5 秒
+    local count=0
+    while kill -0 "$child_pid" 2>/dev/null && (( count < 5 )); do
+      sleep 1
+      count=$((count + 1))
+    done
+    
+    # 仍未退出的强制杀灭
+    if kill -0 "$child_pid" 2>/dev/null; then
+      kill -9 -"$child_pid" 2>/dev/null || kill -9 "$child_pid" 2>/dev/null || true
+    fi
+    wait "$child_pid" 2>/dev/null || true
   fi
   child_pid=""
+  cleanup_stale_port_holders
 }
 
 main() {
