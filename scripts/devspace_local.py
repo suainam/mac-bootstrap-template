@@ -521,8 +521,8 @@ def cmd_tunnel_run(args: argparse.Namespace) -> int:
     if not config.cloudflare_tunnel_token:
         print("ERROR: exposure.cloudflare_tunnel_token is missing", file=sys.stderr)
         return 1
-    command = ["cloudflared", "tunnel", "run", "--token", config.cloudflare_tunnel_token]
-    print("+ cloudflared tunnel run --token <redacted>", flush=True)
+    command = ["cloudflared", "tunnel", "run", "--protocol", "http2", "--token", config.cloudflare_tunnel_token]
+    print("+ cloudflared tunnel run --protocol http2 --token <redacted>", flush=True)
     if args.dry_run:
         return 0
     return subprocess.run(command, check=False).returncode

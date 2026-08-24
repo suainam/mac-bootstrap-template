@@ -75,6 +75,12 @@ URL. Do not include `/mcp`. For a hosted Cloudflare domain, point a named tunnel
 at `http://127.0.0.1:7676`, then set `exposure.public_base_url` in
 `private/agent/devspace.runtime.jsonc`.
 
+The repo-managed tunnel runs `cloudflared tunnel run --protocol http2`.
+`http2` is intentional: with a local TUN proxy in fake-ip mode, cloudflared's
+default QUIC transport intermittently fails to dial the edge
+(`no recent network activity`) and the public URL returns HTTP 530. The TCP
+based `http2` transport survives that environment.
+
 Install missing dependencies without starting the service:
 
 ```bash
