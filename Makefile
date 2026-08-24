@@ -24,7 +24,7 @@ GIT_HOOK_PYTHON ?= $(shell command -v python3)
 	imgup-install imgup \
 	colima-start colima-stop colima-status colima-doctor \
 	claude-daemon-install claude-daemon-status claude-daemon-logs claude-daemon-unload \
-	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall
+	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall cleanup-services
 
 help:
 	@echo "Usage: make <target>"
@@ -44,6 +44,7 @@ help:
 	@echo "  doctor                 Machine health check"
 	@echo "  doctor-agent           Agent tooling health check"
 	@echo "  agent-rules-audit      Scan all AGENTS.md / CLAUDE.md for duplicate imports & drift"
+	@echo "  cleanup-services       Audit & clean obsolete LaunchAgents and zombie daemon processes"
 	@echo "  privacy-audit          Redacted privacy scan"
 	@echo "  proxy-on               Configure npm + git to use the shell proxy values"
 	@echo "  proxy-off              Clear npm + git proxy settings"
@@ -527,6 +528,10 @@ maxfiles-limit-uninstall:
 	sudo launchctl bootout system/io.local.mac-bootstrap.maxfiles 2>/dev/null || true
 	sudo rm -f /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	@echo "=== maxfiles daemon uninstalled ==="
+
+# ── Daemon & LaunchAgent Maintenance ──────────────────────────────
+cleanup-services:
+	./scripts/cleanup-daemon-services.sh
 
 # ── Tmux Workspace ───────────────────────────────────────────────
 tmux-workspace:
