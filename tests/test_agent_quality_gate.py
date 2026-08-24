@@ -170,7 +170,7 @@ def test_bypass_skips_execution_and_writes_audit_log(tmp_path, monkeypatch):
 
 def test_select_repo_gate_scope_uses_template_for_docs_only_changes():
     scope = quality_gate.select_repo_gate_scope([
-        "docs/superpowers/specs/2026-07-07-agent-quality-gates-design.md"
+        "docs/omp-migration-report.md"
     ])
 
     assert scope == "template"
