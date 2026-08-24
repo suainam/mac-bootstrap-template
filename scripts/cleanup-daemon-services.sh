@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # cleanup-daemon-services.sh
-# 审计并清理失效的 LaunchAgents 与堆积的僵死常驻进程
+# 审计并清理失效的 LaunchAgents 与脱离 Supervisor 的孤儿僵死进程
 
 set -euo pipefail
 
@@ -35,13 +35,33 @@ for label in "${DEPRECATED_LABELS[@]}"; do
   fi
 done
 
-echo "🧹 [2/3] 回收孤儿与僵死常驻进程 (DevSpace/Supervisor)..."
-ZOMBIE_PIDS=$(pgrep -f "scripts/devspace_local.py" || true)
-if [[ -n "$ZOMBIE_PIDS" ]]; then
-  echo "  - 正在回收僵死 devspace_local 进程: $ZOMBIE_PIDS"
-  echo "$ZOMBIE_PIDS" | xargs kill -9 2>/dev/null || true
+echo "🧹 [2/3] 审计脱离 Supervisor 监管的孤儿僵死进程..."
+# 获取当前正常受 supervisor 监管的活动进程树 PID
+ACTIVE_SUPERVISOR_PIDS="$(pgrep -f "scripts/devspace-supervisor.sh|scripts/devspace-tunnel-supervisor.sh" || true)"
+
+ORPHAN_PIDS=""
+while IFS= read -r pid; do
+  [[ -z "$pid" ]] && continue
+  ppid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
+  # 如果父进程为 1（init/launchd 孤儿）或不在活动 supervisor 列表中，则判定为僵死孤儿
+  is_legit=0
+  for spid in $ACTIVE_SUPERVISOR_PIDS; do
+    if [[ "$ppid" == "$spid" ]]; then
+      is_legit=1
+      break
+    fi
+  done
+  if [[ "$is_legit" -eq 0 ]]; then
+    ORPHAN_PIDS="${ORPHAN_PIDS} ${pid}"
+  fi
+done < <(pgrep -f "scripts/devspace_local.py" || true)
+
+ORPHAN_PIDS="$(echo "$ORPHAN_PIDS" | xargs)"
+if [[ -n "$ORPHAN_PIDS" ]]; then
+  echo "  - 正在回收孤儿僵死进程: $ORPHAN_PIDS"
+  echo "$ORPHAN_PIDS" | xargs kill -9 2>/dev/null || true
 else
-  echo "  - 未发现僵死 devspace_local 进程"
+  echo "  - 未发现脱离监管的孤儿进程（DevSpace 进程受 Supervisor 正常监管中）"
 fi
 
 echo "🧹 [3/3] 验证活动 LaunchAgent 服务状态..."
