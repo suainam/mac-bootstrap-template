@@ -1027,6 +1027,11 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "reason": "基于 Herdr + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构"
+        },
+        "luvus-nvim-qa-workspace": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "基于 Luvus + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构（Herdr 技能的 Luvus 移植版，无 Kitty Graphics 直通，terminal-browser 需改走 Playwriter/CDP）"
         }
       }
     },
