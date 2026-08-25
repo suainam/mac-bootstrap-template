@@ -1022,6 +1022,11 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "reason": "免认证公共 REST API 目录与即时查询工具（天气、地理/IP、加密汇率、DNS网络、知识检索）"
+        },
+        "herdr-nvim-qa-workspace": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "基于 Herdr + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构"
         }
       }
     },

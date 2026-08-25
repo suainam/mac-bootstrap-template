@@ -11,6 +11,17 @@ reload_config = "prefix+r"
 split_vertical = "prefix+\\"
 split_horizontal = "prefix+minus"
 
+[[keys.command]]
+key = "prefix+e"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.toggle"
+description = "nvim sidebar"
+
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.pick-file"
+description = "open file from agent output"
 [ui]
 # Herdr's UI is generally opinionated for agents, but you can configure theme/layout here if needed later.
 
@@ -21,6 +32,7 @@ show_agent_labels_on_pane_borders = true
 delivery = "system"
 
 [experimental]
+kitty_graphics = true
 pane_history = true
 switch_ascii_input_source_in_prefix = true
 

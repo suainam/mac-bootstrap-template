@@ -21,7 +21,7 @@ disable-model-invocation: true
 - `references/WORKBOOK_PROCESS.md` — 工作簿物化详细流程
 - `references/SMUDGED_TEXT.md` — Smudged 文本处理
 - `references/CODEX_TSD.md` — Codex TSD 解密流程
-- `references/OUTPUT_CONTRACT.md` — 输出规范
+- `references/TSD_ATTRIBUTION.md` — TSD 加密来源归因（天锐 OCular DLP）与复发监控
 - `references/EXAMPLES.md` — 使用示例
 - `references/TESTING.md` — 测试和验证
 
@@ -96,6 +96,7 @@ python3 scripts/materialize.py <source> [--output-dir DIR] [--date-tag YYYYMMDD]
 - 按扩展名激活（`.sqlite` / `.sql` / `.xls` / `.jsonl` / `.toml` 等），不限路径
 - 不透明扩展名（如 `.md`、`.png`、`.zip` 等）需先复制为支持的 `.sql` 扩展名；Python 读取 staging 文件时自动解密
 - Python / `pathlib` 读取可能已经看到明文；判断是否加密必须用 `dd` / `xxd` 读取原始磁盘字节
+- 归因与行为模型（谁在加密、何时触发、为何时有时无）见 `references/TSD_ATTRIBUTION.md`
 - 批量脚本默认扫描 `~/.codex`（macOS/Linux）或 `%USERPROFILE%\.codex`（Windows），但单文件解密不受路径限制
 
 **先判定原始磁盘字节（必须）**：
