@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import json
+import sys
 import subprocess
 from pathlib import Path
 import yaml
@@ -8,39 +10,56 @@ CONFIG_PATH = Path.home() / ".omp" / "agent" / "config.yml"
 SESSIONS_ROOT = Path.home() / ".omp" / "agent" / "sessions"
 
 
+def _pretty(provider: str, model: str) -> str:
+    name = model.split("/")[-1].split(":")[0]
+    name = name.replace("-contributor-free", "").replace("-free", "")
+    aliases = {
+        "muse-spark-1.2": "Muse Spark 1.2 Free",
+        "nemotron-3.5-lightning": "Nemotron 3.5 Free",
+        "openrouter": "OpenRouter free",
+        "gemini-3.7-flash": "Gemini 3.7 Flash",
+        "ox-alpha": "Stealth Ox Alpha Free",
+        "x-preview-f": "X Preview F Free",
+    }
+    for k, v in aliases.items():
+        if k in name:
+            name = v
+            break
+    return f"󰚩 {provider} · {name}"
+
+
 def _live_model_from_sessions() -> str | None:
-    """Read the most recent assistant message's provider/model from latest jsonl."""
+    """Read the user's selected model from the latest session jsonl.
+
+    Authoritative signal: last `model_change` event (user's /model switch).
+    Fallback: last assistant message's provider/model.
+    """
     try:
         candidates = list(SESSIONS_ROOT.glob("*/20*.jsonl")) + list(SESSIONS_ROOT.glob("20*.jsonl"))
         if not candidates:
             return None
         latest = max(candidates, key=lambda p: p.stat().st_mtime)
         lines = latest.read_text(errors="ignore").splitlines()
+        for line in reversed(lines[-200:]):
+            if '"model_change"' not in line or '"model"' not in line:
+                continue
+            try:
+                d = json.loads(line)
+                model = d.get("model")
+                if model and "/" in model:
+                    provider, bare = model.split("/", 1)
+                    return _pretty(provider, bare)
+            except Exception:
+                continue
+        # fallback: last assistant entry carrying provider/model
         for line in reversed(lines[-80:]):
             if '"provider"' not in line or '"model"' not in line:
                 continue
             try:
-                d = json.loads(line)
-                msg = d.get("message", {})
-                provider = msg.get("provider")
-                model = msg.get("model")
+                msg = json.loads(line).get("message", {})
+                provider, model = msg.get("provider"), msg.get("model")
                 if provider and model:
-                    name = model
-                    if "/" in name:
-                        name = name.split("/")[-1]
-                    name = name.split(":")[0].replace("-contributor-free", "").replace("-free", "")
-                    aliases = {
-                        "muse-spark-1.2": "Muse Spark 1.2 Free",
-                        "nemotron-3.5-lightning": "Nemotron 3.5 Free",
-                        "openrouter": "OpenRouter free",
-                        "gemini-3.7-flash": "Gemini 3.7 Flash",
-                    }
-                    for k, v in aliases.items():
-                        if k in name:
-                            name = v
-                            break
-                    # Include provider for disambiguation (user-requested)
-                    return f"󰚩 {provider} · {name}"
+                    return _pretty(provider, model)
             except Exception:
                 continue
     except Exception:
@@ -79,7 +98,15 @@ def push_bar() -> None:
 
 
 def main() -> None:
-    push_bar()
+    import time
+
+    if len(sys.argv) > 1 and sys.argv[1] == "start":
+        while True:
+            push_bar()
+            time.sleep(5)
+    else:
+        # no arg / "refresh": single push
+        push_bar()
 
 
 if __name__ == "__main__":
