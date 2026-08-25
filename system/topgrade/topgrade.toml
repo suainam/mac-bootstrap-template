@@ -10,7 +10,9 @@ show_skipped = false
 # Disable steps that shouldn't run unconditionally
 disable = [
     "containers",   # Colima/Docker daemon may be offline
-    "git_repos"     # Do not indiscriminately git pull local dev repositories
+    "git_repos",    # Do not indiscriminately git pull local dev repositories
+    "vim",          # System vim plugin update fails headless; Neovim is updated separately
+    "pnpm"          # Global pnpm bin is not in PATH; Bun/npm/uv manage global tools
 ]
 
 # Steps that shouldn't block the entire upgrade run if they fail
@@ -28,6 +30,3 @@ autoremove = true
 [npm]
 use_sudo = false
 
-[commands]
-# Keep uv global tools updated (ruff, basedpyright, trafilatura, etc.)
-"UV Tools Upgrade" = "uv tool upgrade --all"
