@@ -104,3 +104,18 @@ git branch -a       # main only
 git worktree list   # repository root only
 git status --short  # clean working tree
 ```
+
+## 6. Worktree Parity & Secret Carryover (.worktreeinclude)
+Every created worktree MUST carry the required local secrets and configuration defined in `.worktreeinclude`. A missing `.env` or broken local configuration in a worktree is a review-blocking defect.
+
+- **Assert First**: Write a regression test verifying that newly added worktrees inherit all entries listed in `.worktreeinclude`.
+- **Implement**: Create worktrees using `scripts/git-worktree-add.sh` (or `git wt`), which reads `.worktreeinclude` (e.g. `.env`, `.env.local`, `config/secrets.json`) and synchronizes them into the target worktree.
+- **Codify**: Ensure worktree creation parity is tested via `pytest tests/test_worktree_parity.py`.
+- **Document**: Keep `adversarial-review-gate.md` and repository guidelines in sync.
+
+Example:
+```bash
+# In repo root with .worktreeinclude containing .env and config/secrets.json
+scripts/git-worktree-add.sh .worktrees/feat-auth -b feat/auth
+# .worktrees/feat-auth/.env automatically synchronized from main worktree
+```
