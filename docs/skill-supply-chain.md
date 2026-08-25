@@ -21,6 +21,8 @@ Generated/runtime outputs are not authoritative:
 - project `.agents/skills/` and declared compatibility directories such as
   `.claude/skills/`
 
+Runtime output directories are managed projections, never edit locations. They must only contain symlinks resolving to authoritative source `realpath`s. Never leave `.bak`, `.old`, or manual copy directories inside runtime skill paths, as agent discovery scanners (e.g. Codex) load every subdirectory containing a `SKILL.md` regardless of directory name, causing duplicate and conflicting definitions.
+
 Implementation is split by responsibility under `scripts/`:
 
 - `skill_registry.py` — registry models, JSONC parsing, and validation.

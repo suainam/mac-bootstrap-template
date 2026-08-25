@@ -18,7 +18,10 @@ from scripts.skill_supply_chain import (  # noqa: E402
     DEFAULT_REGISTRY,
     DEFAULT_TARGETS,
     BundleCatalogEntry,
+    SkillTarget,
+    DistributionAction,
     RegistryError,
+    validate_runtime_hygiene,
     _assert_safe_apply_root,
     apply_distribution_actions,
     build_distribution_actions,
@@ -888,6 +891,145 @@ def test_bundle_distribution_resolves_catalog_relative_path(tmp_path: Path):
     assert to_spec
     assert to_spec[0].source == nested
 
+
+def test_apply_distribution_actions_replaces_existing_directory_without_bak_residue(tmp_path: Path):
+    source = tmp_path / "source/demo-skill"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text("---\nname: demo-skill\ndescription: demo\n---\n", encoding="utf-8")
+
+    target = tmp_path / "runtime-target/demo-skill"
+    target.mkdir(parents=True)
+    (target / "SKILL.md").write_text("---\nname: demo-skill\ndescription: old\n---\n", encoding="utf-8")
+
+    action = DistributionAction(
+        skill_name="demo-skill",
+        source=source,
+        target_agent="codex",
+        target_path=target,
+        action="link-dir",
+    )
+    apply_distribution_actions([action])
+
+    assert target.is_symlink()
+    assert target.resolve() == source.resolve()
+    assert not (tmp_path / "runtime-target/demo-skill.bak").exists()
+    assert list(tmp_path.glob("runtime-target/*.bak")) == []
+
+
+def test_apply_distribution_actions_rejects_relative_target(tmp_path: Path):
+    source = tmp_path / "source/demo-skill"
+    source.mkdir(parents=True)
+    action = DistributionAction(
+        skill_name="demo-skill",
+        source=source,
+        target_agent="codex",
+        target_path=Path("relative/demo-skill"),
+        action="link-dir",
+    )
+    with pytest.raises(RegistryError, match="non-absolute target path"):
+        apply_distribution_actions([action])
+
+
+def test_apply_distribution_actions_rejects_home_target(tmp_path: Path):
+    source = tmp_path / "source/demo-skill"
+    source.mkdir(parents=True)
+    action = DistributionAction(
+        skill_name="demo-skill",
+        source=source,
+        target_agent="codex",
+        target_path=Path.home(),
+        action="link-dir",
+    )
+    with pytest.raises(RegistryError, match="unsafe root/home target path"):
+        apply_distribution_actions([action])
+
+
+def test_apply_distribution_actions_rejects_home_ancestor_target(tmp_path: Path):
+    source = tmp_path / "source/demo-skill"
+    source.mkdir(parents=True)
+    for unsafe in (Path.home().parent, Path("/etc")):
+        action = DistributionAction(
+            skill_name="demo-skill",
+            source=source,
+            target_agent="codex",
+            target_path=unsafe,
+            action="link-dir",
+        )
+        with pytest.raises(RegistryError, match="unsafe root/home target path"):
+            apply_distribution_actions([action])
+
+
+def write_hygiene_registry(tmp_path: Path) -> Path:
+    registry_path = tmp_path / "sources.jsonc"
+    registry_path.write_text(
+        f'''{{
+          "version": 2,
+          "paths": {{"local_root": "agent-skills/local", "quarantine_root": "agent-skills/external/quarantine", "lockfile": ".agent-state/skills-lock.json", "run_log_root": ".agent-state/skill-sync-runs", "snapshot_root": ".agent-state/skill-snapshots"}},
+          "defaults": {{
+            "external": {{"scope": "global", "agents": ["codex"], "audit": {{"required": true, "allow_unaudited": false, "allow_scripts": false}}, "gate": {{"manual_approval": true, "approved": false}}}},
+            "internal": {{"scope": "project", "audit": {{"required": false}}, "gate": {{"approved": true}}}}
+          }},
+          "projects": {{"hygiene-demo": {{"skills_dir": "{tmp_path}/proj-skills"}}}},
+          "sources": {{"external": {{"type": "external", "fetcher": "skills.sh", "ref": "owner/repo", "skills": {{"safe": {{}}}}}}}}
+        }}''',
+        encoding="utf-8",
+    )
+    return registry_path
+
+
+def test_validate_runtime_hygiene_detects_bak_residue_and_divergent_realpaths(tmp_path: Path):
+    agent_a = tmp_path / "agentA"
+    agent_b = tmp_path / "agentB"
+    (agent_a / "demo").mkdir(parents=True)
+    (agent_a / "demo" / "SKILL.md").write_text(
+        "---\nname: demo\ndescription: a\n---\n", encoding="utf-8"
+    )
+    (agent_a / "stale.bak").mkdir()
+    (agent_b / "other-real").mkdir(parents=True)
+    (agent_b / "demo").symlink_to(agent_b / "other-real")
+
+    targets = {
+        "codex": SkillTarget(agent="codex", path=agent_a, format="directory", strategy="symlink"),
+        "cross-agent": SkillTarget(agent="cross-agent", path=agent_b, format="directory", strategy="symlink"),
+    }
+    errors = validate_runtime_hygiene(load_registry(write_hygiene_registry(tmp_path)), targets, root=tmp_path)
+
+    assert any("stale.bak" in err and "backup residue" in err for err in errors), errors
+    divergent = [err for err in errors if "divergent realpaths" in err and "'demo'" in err]
+    assert len(divergent) == 1, errors
+
+
+def test_validate_runtime_hygiene_passes_when_realpaths_match(tmp_path: Path):
+    agent_a = tmp_path / "agentA"
+    agent_b = tmp_path / "agentB"
+    canonical = tmp_path / "canonical" / "demo"
+    canonical.mkdir(parents=True)
+    (canonical / "SKILL.md").write_text("---\nname: demo\ndescription: c\n---\n", encoding="utf-8")
+    agent_a.mkdir(parents=True)
+    agent_b.mkdir(parents=True)
+    (agent_a / "demo").symlink_to(canonical)
+    (agent_b / "demo").symlink_to(canonical)
+
+    targets = {
+        "codex": SkillTarget(agent="codex", path=agent_a, format="directory", strategy="symlink"),
+        "cross-agent": SkillTarget(agent="cross-agent", path=agent_b, format="directory", strategy="symlink"),
+    }
+    errors = validate_runtime_hygiene(load_registry(write_hygiene_registry(tmp_path)), targets, root=tmp_path)
+
+    assert errors == []
+
+
+def test_validate_runtime_hygiene_flags_residue_in_project_skills_dir(tmp_path: Path):
+    proj_skills = tmp_path / "proj-skills"
+    (proj_skills / "legacy.bak").mkdir(parents=True)
+
+    errors = validate_runtime_hygiene(
+        load_registry(write_hygiene_registry(tmp_path)),
+        targets={},
+        root=tmp_path,
+    )
+
+    assert any("legacy.bak" in err and "backup residue" in err for err in errors), errors
 
 def test_project_internal_skill_distributes_to_agents_and_claude_project_views():
     registry = load_registry(DEFAULT_REGISTRY)

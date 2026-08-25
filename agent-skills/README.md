@@ -31,9 +31,15 @@ installing every stage.
 
 ## Implemented distribution contract
 
-The registry owns one source tree per Skill. Distribution creates directory
+The registry owns one source tree per Skill (single source of truth). Distribution creates directory
 symlinks only; every projection of the same Skill must resolve to that same
 source realpath.
+
+### Invariants
+
+- **Single Source of Truth (唯一真源)**: Each Skill must have exactly one authoritative source directory (`local/`, `external/quarantine/`, or explicit registry entry). Projections across all managed runtime views (`~/.claude/skills`, `~/.agents/skills`, `~/.codex/skills`, etc.) MUST be directory symlinks pointing to that exact same source `realpath`. Never point different target views of the same Skill name to divergent paths.
+- **Zero Backup / Shadow Directory Residue (严禁备份与影子目录残留)**: Runtime skill directories (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`, project `.agents/skills`, etc.) must NEVER contain `.bak`, `.old`, `.tmp`, or manual copy directories containing `SKILL.md`. Runtimes such as Codex discover all subdirectories declaring `SKILL.md` regardless of directory naming, registering duplicate and conflicting definitions that pollute model context. Backup, versioning, and state management belong in Git or `.agent-state/` snapshots (`make skill-snapshot`), never in runtime discovery paths.
+- **Canonical De-duplication**: Multi-runtime discovery engines de-duplicate by `(name, realpath)`. Divergent realpaths for the same name prevent de-duplication and cause duplicate registration.
 
 | Scope | Managed view | Consumers |
 |---|---|---|
