@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+# 隧道入口(cloudflared/CF)会附加 X-Forwarded-For；不信任它时 express-rate-limit
+# 校验会直接抛 ERR_ERL_UNEXPECTED_X_FORWARDED_FOR 杀死进程，故必须开启
+export DEVSPACE_TRUST_PROXY=true
 HEALTHY_CODES="200 400 401 405"
 STARTUP_TIMEOUT_SECONDS=180
 CHECK_INTERVAL_SECONDS=30
