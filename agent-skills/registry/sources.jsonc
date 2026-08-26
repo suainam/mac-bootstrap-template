@@ -1112,6 +1112,11 @@
           "projects": ["product_strategy"],
           "reason": "product_strategy data-analysis project skill"
         },
+        "odps-table-ingest": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "MaxCompute/ODPS 表上传、字段对齐、分区写入与双向聚合 SQL 举证"
+        },
         "sql-analysis": {
           "scope": "project",
           "projects": ["product_strategy"]
