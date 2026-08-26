@@ -301,6 +301,23 @@ for db in ['memories_1', 'goals_1', 'logs_2', 'state_5']:
 cp ~/.codex/backups/memories_1.sqlite.backup_* ~/.codex/memories_1.sqlite
 ```
 
+### 透明层未激活（批量脚本报 file is not a database）
+**症状**：`decrypt_codex_crossplatform.py` 对所有加密文件报 `file is not a database`；
+`.sql` 暂存副本经 Python 读取仍是 `%TSD-Header-###%`。
+**根因**：天锐 OCular 企业 DLP 的透明解密按进程授权，当前会话未被授权
+（未登录 / 策略过期 / 服务端不可达）。内核 EFS 驱动 `LSDEfs2600_arm` 仍在加密落盘，
+但无人能读明文。归因见 `TSD_ATTRIBUTION.md`。
+**解决**：
+1. 完成 OCular 客户端扫码登录（ScanCodeLogin 弹窗；服务器如 `ipguardum.dslyy.com`），
+   连入企业网等待策略下发；必要时重启 OCular 用户态守护或整机。
+2. 登录生效后重跑脚本——脚本已内置透明层预检（exit code 2 + 恢复指引），
+   不再产生误导性的 sqlite 报错。
+3. 长期方案：请企业 IT 将 `~/.codex` 目录或相关进程加入加密排除/可信列表。
+**快速探测**：
+```bash
+cp ~/.codex/goals_1.sqlite /tmp/probe.sql && python3 -c "print(open('/tmp/probe.sql','rb').read(16))" && rm /tmp/probe.sql
+# 输出 b'SQLite format 3\x00' = 透明层已激活；b'%TSD-Header-###%' = 未激活
+```
 ---
 
 ## 完成标准

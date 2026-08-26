@@ -131,7 +131,9 @@ def _stream_decrypted(stage: Path, temporary_output: Path) -> tuple[int, str, by
         raise MaterializeError("透明读取得到空文件，拒绝生成输出")
     if TSD_MARKER in first_bytes:
         raise MaterializeError(
-            "暂存文件仍返回 TSD 包装头；透明层未生效，未生成输出"
+            "暂存文件仍返回 TSD 包装头；透明层未生效，未生成输出。"
+            "加密来源为天锐 OCular 企业 DLP：请完成 OCular 客户端扫码登录并连入企业网等待策略下发后重试；"
+            "长期方案是请企业 IT 将该目录加入加密排除列表（见 references/TSD_ATTRIBUTION.md）"
         )
     return total, digest.hexdigest(), bytes(first_bytes)
 
