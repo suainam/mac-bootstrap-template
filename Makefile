@@ -24,7 +24,8 @@ GIT_HOOK_PYTHON ?= $(shell command -v python3)
 	imgup-install imgup \
 	colima-start colima-stop colima-status colima-doctor \
 	claude-daemon-install claude-daemon-status claude-daemon-logs claude-daemon-unload \
-	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall cleanup-services
+	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall cleanup-services \
+	net-tune net-tune-apply net-tune-save net-tune-auto net-tune-list net-tune-status net-tune-restore
 
 help:
 	@echo "Usage: make <target>"
@@ -56,6 +57,10 @@ help:
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
 	@echo "  obsidian-kit           Install reusable Obsidian vault kit: VAULT=/path/to/vault"
 	@echo "  ghostty-font-repair    Re-register existing Liga SFMono Nerd Font files"
+	@echo "  net-tune               Adaptive network probe & macOS TCP window optimization"
+	@echo "  net-tune-apply         Apply dynamic macOS TCP window tuning (requires sudo)"
+	@echo "  net-tune-status        Show current macOS TCP socket parameters"
+	@echo "  net-tune-restore       Restore macOS stock TCP socket defaults"
 	@echo ""
 	@echo "── Bootstrap ──"
 	@echo "  install / bootstrap    Full install (Homebrew + shell + agent tooling)"
@@ -559,3 +564,25 @@ cold-start:
 	./scripts/install-clash.sh
 cold-start-dry:
 	./scripts/install-clash.sh --dry-run
+
+# ── Network Tuning & Dynamic BDP (macOS Client) ──────────────────────
+net-tune:
+	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) $(if $(APPLY),--apply,)
+
+net-tune-apply:
+	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) --apply
+
+net-tune-save:
+	./scripts/net-tune-macos.sh save $(if $(PROFILE),$(PROFILE),home)
+
+net-tune-auto:
+	./scripts/net-tune-macos.sh auto
+
+net-tune-list:
+	./scripts/net-tune-macos.sh list
+
+net-tune-status:
+	./scripts/net-tune-macos.sh status
+
+net-tune-restore:
+	./scripts/net-tune-macos.sh restore
