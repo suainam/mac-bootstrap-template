@@ -1,79 +1,31 @@
-# 经典实战案例：粤东退货剩余库存导入
-
-本案例记录了一次完整的 Excel 源数据探查、字段模糊对齐、用户确认、分区写入与事后 ODPS SQL 闭环举证全流程。
+# ODPS 表导入典型实战案例 (Case Studies)
 
 ---
 
-## 1. 业务背景与源数据
-- **源文件**：`topics/non_catalogue_clear/01_source_data/粤东退货剩余退货-260825.xlsx`
-- **文件状态**：带有 `%TSD-Header-###%` 加密头，但 macOS 下 Python/openpyxl 可透明读取明文。
-- **本地物化**：通过 Python 导出为 `02_working_data/粤东退货剩余退货-260825_Sheet1_20260826.csv`，源文件 SHA-256 保持不变。
+## 案例 1：退货剩余库存全量导入（全量直接导入模式）
+
+### 1. 业务背景与源数据
+- **源文件**：`<topic_dir>/01_source_data/退货剩余清单-260825.xlsx`
+- **文件状态**：带有 `%TSD-Header-###%` 加密头，macOS 下通过 Python/openpyxl 透明读取明文。
+- **本地物化**：导出为 `02_working_data/退货剩余清单-260825_Sheet1_20260826.csv`，源文件 SHA-256 保持不变。
 - **源数据画像**：
   - 总行数：39,289 行（无空行）
   - 覆盖范围：533 家门店、1,218 个商品
   - 核心指标：批号库存数量合计 `82,467`，批号库存金额合计 `3,204,540.08` 元
   - 主键唯一性：`store_code + item_code + lot` 39,289 唯一无重复
 
----
+### 2. 线上探查与字段对齐
+- **目标表**：`<project>.analysis_reduction_store_unsalable_high_inventory_returns_df`
+- **目标分区**：`stat_date=20260826`
+- **对齐映射**：
+  - `store_code` (STRING 10位补零) ← `门店编码`
+  - `item_code` (BIGINT) ← `商品编码`
+  - `lot` (STRING) ← `批号`
+  - `st_qty` (DOUBLE) ← `批号库存数量`
+  - `store_item_lot_merge` (STRING) ← `店品批`
+  - `st_amt` (DOUBLE) ← `批号库存金额`
 
-## 2. 线上 MaxCompute 表真实元数据探查
-
-### 执行探查
-```python
-from odps import ODPS
-o = ODPS(access_id, secret_key, project="dsl_analysis", endpoint=endpoint)
-t = o.get_table("anslysis_reduction_store_unsalable_high_inventory_returns_df")
-```
-
-### 探查发现
-1. **表名真实拼写**：线上表名为 `dsl_analysis.anslysis_reduction_store_unsalable_high_inventory_returns_df`（存在历史拼写 `anslysis_`，而不是 `analysis_`）。
-2. **表结构与分区**：
-   - `store_code`: STRING（门店编码（10位数））
-   - `item_code`: BIGINT（商品编码）
-   - `lot`: STRING（批号(文本格式)）
-   - `st_qty`: DOUBLE（数量）
-   - `store_item_lot_merge`: STRING（拼接）
-   - `st_amt`: DOUBLE（收货金额）
-   - 分区键：`stat_date` BIGINT（格式 `yyyyMMdd`，历史已有 `20260528`, `20260724`, `20260812` 等分区）
-
----
-
-## 3. 字段映射方案与用户确认
-
-### 呈现给用户的对齐方案
-| ODPS 目标字段 | 类型 | 注释 | Excel 来源列 | 处理与转换规则 | 样例值 |
-|---|---|---|---|---|---|
-| `store_code` | `STRING` | 门店编码（10位数） | `门店编码` (第1列) | 转 10 位文本 | `'1012011421'` |
-| `item_code` | `BIGINT` | 商品编码 | `商品编码` (第2列) | 转 BIGINT 整数 | `8207529` |
-| `lot` | `STRING` | 批号(文本格式) | `批号` (第3列) | 转文本格式 | `'A002283'` |
-| `st_qty` | `DOUBLE` | 数量 | `批号库存数量` (第4列) | 转 DOUBLE 数值 | `3.0` |
-| `store_item_lot_merge` | `STRING` | 拼接 | `店品批` (第7列) | 取原值（校验与三键拼接一致） | `'10120114218207529A002283'` |
-| `st_amt` | `DOUBLE` | 收货金额 | `批号库存金额` (第5列) | 转 DOUBLE 数值 | `542.151489` |
-| **`stat_date` (分区)** | `BIGINT` | 日期分区 (yyyyMMdd) | 系统生成 | 写入分区 `20260826` | `20260826` |
-
-**Excel 中丢弃不入库的冗余列**：
-- `品批` (第6列)
-- `Unnamed_7` (第8列)
-- `Unnamed_8` (第9列，行序号 1~39289)
-- `更新库存` (第10列，全空)
-
-**用户确认指令**：“确认”
-
----
-
-## 4. 入库执行与分区写入
-```python
-part_spec = "stat_date=20260826"
-t.create_partition(part_spec, if_not_exists=True)
-with t.open_writer(partition=part_spec, create_partition=True) as writer:
-    writer.write(records_to_upload)
-```
-
----
-
-## 5. 事后 ODPS SQL 聚合举证闭环
-
-### 执行线上验证 SQL
+### 3. 事后 ODPS 聚合 SQL 举证
 ```sql
 SELECT 
     COUNT(1) AS row_cnt,
@@ -82,16 +34,60 @@ SELECT
     COUNT(DISTINCT store_code) AS store_cnt,
     COUNT(DISTINCT item_code) AS item_cnt,
     COUNT(DISTINCT store_item_lot_merge) AS merge_cnt
-FROM dsl_analysis.anslysis_reduction_store_unsalable_high_inventory_returns_df
+FROM <project>.analysis_reduction_store_unsalable_high_inventory_returns_df
 WHERE stat_date = 20260826;
 ```
+* **对比结果**：行数 (39,289)、数量 (82,467.0)、金额 (3,204,540.08)、门店 (533)、商品 (1,218)、店品批 (39,289) **全部 100% 吻合**。
 
-### 举证对比结果
-| 指标项 | 本地物化源数据 | MaxCompute 线上查询结果 | 对齐结论 |
-|---|---|---|---|
-| 总行数 (`row_cnt`) | 39,289 | 39,289 | ✅ 100% 一致 |
-| 数量总和 (`sum_qty`) | 82,467.0 | 82,467.0 | ✅ 100% 一致 |
-| 金额总和 (`sum_amt`) | 3,204,540.08 | 3,204,540.08 | ✅ 100% 一致 |
-| 门店去重数 (`store_cnt`) | 533 | 533 | ✅ 100% 一致 |
-| 商品去重数 (`item_cnt`) | 1,218 | 1,218 | ✅ 100% 一致 |
-| 主键去重数 (`merge_cnt`) | 39,289 | 39,289 | ✅ 100% 一致 |
+---
+
+## 案例 2：缩铺批次清单导入与历史 Typo 表 RENAME 无损继承（Join 清单模式）
+
+### 1. 业务背景与源数据
+- **源文件**：`<topic_dir>/01_source_data/某区域缩铺0820第一批.xlsx`
+- **业务定位**：某区域第一批下发的缩铺退货清单（供下游主流程按店品批 `INNER JOIN` 过滤第一批真实执行范围）。
+- **本地物化画像**：
+  - 总行数：`25,700` 行
+  - 覆盖范围：`1,125` 家门店、`183` 个商品
+  - 核心指标：批号库存数量合计 `49,233.00` 个，批号库存金额合计 `3,024,599.54` 元（302.46 万元）
+  - 主键唯一性：`store_code + item_code + lot` 25,700 唯一无重复
+
+### 2. 线上元数据探查与 Typo 表 RENAME 决策
+- **发现**：线上历史表名为 `<project>.anslysis_reduction_store_unsalable_high_inventory_returns_df`（存在 `anslysis_` typo），且已包含 8 个历史生产分区。
+- **决策树执行**：
+  1. 严禁直接新建空表，否则历史 8 个分区会沦为孤立废弃资产；
+  2. 执行 `ALTER TABLE <project>.anslysis_reduction_store_unsalable_high_inventory_returns_df RENAME TO analysis_reduction_store_unsalable_high_inventory_returns_df;`；
+  3. 执行 `SHOW PARTITIONS` 确认历史 8 个分区全部在新表名下无损继承；
+  4. 将本次 25,700 条数据写入新表名下的 `stat_date=20260822` 分区（使表总分区数达到 9 个）。
+
+### 3. 事后 ODPS 聚合 SQL 举证
+```sql
+SELECT 
+    stat_date,
+    COUNT(1) AS row_cnt,
+    SUM(st_qty) AS sum_qty,
+    ROUND(SUM(st_amt), 2) AS sum_amt,
+    COUNT(DISTINCT store_code) AS store_cnt,
+    COUNT(DISTINCT item_code) AS item_cnt,
+    COUNT(DISTINCT store_item_lot_merge) AS merge_cnt
+FROM <project>.analysis_reduction_store_unsalable_high_inventory_returns_df
+WHERE stat_date = 20260822
+GROUP BY stat_date;
+```
+* **MaxCompute 返回结果**：`[20260822, 25700, 49233.0, 3024599.54, 1125, 183, 25700]`，与本地 6 项画像指标 **100% 绝对一致**。
+
+### 4. 下游 INNER JOIN 与逐日异动走势印证
+- **下游关联 SQL 范式**：
+  ```sql
+  SELECT t0.*
+  FROM <project>.analysis_store_item_lot_reduction_store_item_lot_rlt_detail_df t0
+  INNER JOIN (
+      SELECT DISTINCT cast(store_code as bigint) as store_code, cast(item_code as string) as item_code, lot
+      FROM <project>.analysis_reduction_store_unsalable_high_inventory_returns_df
+      WHERE stat_date = 20260822
+  ) f ON t0.store_code = f.store_code AND t0.item_code = f.item_code AND t0.lot = f.lot
+  WHERE t0.stat_date = 20260818 AND t0.prov_zone_man_nm = '<target_zone>';
+  ```
+- **异动走势释疑**：
+  - 该批次 1,125 店在基线当天匹配率达 **99.99%**；
+  - 任务下发后，在周末产生集中退仓出库，与「推广计划」排期完全吻合。

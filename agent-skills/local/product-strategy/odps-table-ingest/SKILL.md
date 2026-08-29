@@ -1,103 +1,113 @@
 ---
 name: odps-table-ingest
-description: 将本地 Excel/CSV 上传至 MaxCompute/ODPS 分区表或全量表。执行线上元数据探查、字段模糊对齐方案确认、类型定型入库及聚合 SQL 双向核验举证。
+description: Ingest local Excel/CSV files into MaxCompute (ODPS) partitioned tables with strict 5-phase verification: profile, introspect (with typo/rename handling), reconcile & gate, cast & write, and prove via aggregate SQL.
 ---
 
 # odps-table-ingest
 
-将本地数据文件（Excel / CSV）安全、准确地导入 MaxCompute (ODPS) 表。以**线上探查 (Introspect)**、**对齐确认 (Reconcile & Gate)**、**类型定型 (Cast)** 与**事后举证 (Prove)** 为核心流程。
+将本地数据文件（Excel / CSV）安全、定型、准确地导入 MaxCompute (ODPS) 表。以**数据画像 (Profile)**、**线上探查与重命名决策 (Introspect)**、**对齐确认门禁 (Reconcile & Gate)**、**类型定型写入 (Cast & Write)** 与**双向聚合 SQL 举证 (Prove)** 为核心闭环。
 
-## 适用场景
-- 用户需要将本地 `.xlsx` / `.xls` / `.csv` 上传至指定的 MaxCompute / ODPS 表（如分区表或明细表）。
-- 源数据字段与线上表字段数量或名称不完全一致，需智能模糊对齐。
-- 需要将数据写入指定日期分区（如今日 `stat_date=YYYYMMDD`）并做线上数据一致性核验。
-
-## 工具体系与参考
-### 核心确定性工具 (Core)
-- `scripts/introspect_table.py` — 表结构、注释、分区定义与历史数据样本探查。
-- `scripts/upload_and_verify.py` — 显式列序数据写入与事后聚合 SQL 双向举证。
-- `references/CASE_STUDY.md` — 粤东退货剩余库存导入经典案例（含历史表名容错与指标举证）。
-
-### 可选辅助工具 (Optional)
-- `scripts/fuzzy_align.py` — （可选）字段模糊匹配与 Markdown 对齐草案生成器。
-- `references/ALIGNMENT_RULES.md` — （可选）常见零售/供应链业务字段别名词典与类型定型规范。
 ---
 
 ## 执行步骤与完成标准 (Information Hierarchy)
 
 ### Step 1: 本地物化与数据画像 (Stage & Profile)
-1. 检查源数据文件格式与加密状态（TSD 包装文件需保持原文件 Hash 不变，通过 Python/openpyxl 透明读取）。
-2. 将数据暂存为可读 CSV（如 `02_working_data/<name>_<sheet>_<date>.csv`）。
-3. 提取本地数据画像：总行数、字段列表、非空行数、主键唯一性、核心数值指标汇总（总数量、总金额、去重门店数、去重商品数等）。
 
-**完成标准**：本地物化完成，产出明确的行数、字段清单及本地基准指标统计值。
+1. **源文件读取**：
+   - 检查加密与包装状态（TSD 包装文件需保持原文件 Hash 不变，通过 Python/openpyxl 透明读取明文）。
+2. **物化落盘**：
+   - 导出为标准 CSV 暂存于 `02_working_data/<topic_or_wh>_<batch>_<date>.csv`。
+3. **数据画像基准提取**：
+   - 必须提取 6 大本地基准指标：总行数 (`row_cnt`)、去重门店数 (`store_cnt`)、去重商品数 (`item_cnt`)、去重主键数 (`merge_cnt`，如 `store_code + item_code + lot`)、库存数量总和 (`sum_qty`)、库存金额总和 (`sum_amt`，元/万元)。
+   - 核验主键唯一性，确认重复行为 0（若有重复需在对齐方案中单独披露处理规则）。
+
+**完成标准**：本地数据完成物化落盘，产出明确的 6 项本地基准指标与零空值/唯一性检查结论。
+
+---
+
+### Step 2: 线上真实表元数据探查与重命名决策 (Introspect)
+
+1. **元数据探查**：
+   - 通过 PyODPS 查询线上目标表的字段名、数据类型、注释、分区定义（如 `stat_date BIGINT (yyyyMMdd)`）及已有分区列表。
+2. **历史表名 Typo 与 RENAME 继承决策树**：
+   - 当遇到历史表名拼写错误（如 `anslysis_...` 对比 `analysis_...`）时：
+     - 若旧表已承载历史生产分区，**严禁直接新建空表**（会造成历史分区丢失或资产孤立）；
+     - **必须执行 `ALTER TABLE <old_typo_table> RENAME TO <correct_table>;`**，确保历史分区 100% 完整继承至正名表名下；
+     - 重命名后立即运行 `SHOW PARTITIONS` 验证历史分区数与名称全部在册。
+3. **下游 Join 语义识别**：
+   - 明确待导入数据在下游工作流中的角色：是全量数据直传，还是作为下游主流程按店品批 `INNER JOIN` 过滤特定批次的清单表。
+
+**完成标准**：目标物理表名确立（含重命名继承证明）、字段类型与分区 Schema 锁定、已有分区列表清晰。
 
 ---
 
-### Step 2: 线上真实表元数据探查 (Introspect)
-1. 使用 PyODPS 或 `scripts/introspect_table.py` 查询线上真实表元数据：
-   ```bash
-   python3 scripts/introspect_table.py <project>.<table_name> [--env-file <path>]
-   ```
-2. 验证表是否存在，**核验真实表名拼写**（容忍历史 typo，如 `anslysis_` 对比 `analysis_`，以线上真实存在的表为准）。
-3. 获取目标表的字段名、数据类型、字段注释，以及**分区定义**（是否为分区表、分区键名称与类型）。
-4. 读取线上最新分区列表及近期数据样本，确认历史数据的实际填充格式（如 `store_item_lot_merge` 是否拼接、`st_amt` 是否带小数等）。
-
-**完成标准**：输出线上目标表的正式 Schema、注释、分区键与历史填充范式。
-
----
 ### Step 3: 字段对齐方案与人工确认门禁 (Reconcile & Gate)
-1. 根据 Step 2 探查出的 Native 列名制定映射方案（列名歧义时可选用 `scripts/fuzzy_align.py` 辅助生成草案）。
-   - 目标字段 (`Field`)、类型 (`Type`)、注释 (`Comment`)
-   - 匹配的来源列 (`Source Column`) 与置信度
-   - 类型定型与清洗规则（如 10 位文本补零、`BIGINT` 整型转换、`DOUBLE` 浮点转换）
-   - 样例值 (`Sample Value`)
-   - **丢弃列清单**（源文件中不入库的冗余列、辅助列或序号列）
-   - **目标分区键**（如 `stat_date=YYYYMMDD`）
-3. **硬性确认门禁**：将对齐表格呈现给用户，**必须等待用户显式确认（如“确认”）后方可执行后续写入步骤**。严禁未经确认直接写入线上表！
 
-**完成标准**：向用户展示完整的对齐方案，并获得用户的显式确认答复。
+1. **结构化对齐表格展示**：
+   向用户清晰呈现包含以下列的 Markdown 对齐表：
+   - `ODPS 目标字段` (`Field`)
+   - `目标类型` (`Type`)
+   - `字段注释` (`Comment`)
+   - `Excel 来源列` (`Source Column`)
+   - `处理与定型规则` (`Rule`，如 10位文本补零、BIGINT整型转换、DOUBLE浮点转换、Key拼接)
+   - `样例值` (`Sample Value`)
+   - `目标分区键`（如 `stat_date=YYYYMMDD`）
+2. **明确披露信息**：
+   - 本地 6 项指标基准汇总；
+   - 丢弃列清单（若有冗余列、辅助列或行序号）；
+   - 下游使用建议（如 INNER JOIN 关联字段与分区条件）。
+3. **⛔ 硬性确认门禁 (Hard Gate)**：
+   - **必须等待用户显式确认（如“确认”）后，方可执行后续写入步骤**；
+   - 严禁在未经用户确认前调用写入方法或修改线上生产数据。
+
+**完成标准**：对齐方案结构化呈现给用户，并收到用户的显式确认答复。
 
 ---
 
-### Step 4: 类型定型与分区写入 (Cast & Ingest)
-1. 根据确认的映射规则，对每行数据执行严格的类型定型：
-   - `STRING` 编码列：去除首尾空格，保留前导零（防止 `00123` 丢失）。
-   - `BIGINT` 整数列：安全转换 `int(float(val))`，空值转为 `None`。
-   - `DOUBLE` 浮点列：解析数值并保留精度，非法字符或空值转为 `None`。
-2. 调用 PyODPS 写入指定分区（若分区不存在，自动创建）：
-   ```python
-   t = odps.get_table(table_name, project=project)
-   if is_partitioned:
-       t.create_partition(part_spec, if_not_exists=True)
-       with t.open_writer(partition=part_spec, create_partition=True) as writer:
-           writer.write(records_to_upload)
-   else:
-       with t.open_writer() as writer:
-           writer.write(records_to_upload)
-   ```
+### Step 4: 类型定型与分区写入 (Cast & Write)
 
-**完成标准**：PyODPS 写入成功，无异常抛出，返回 Logview 地址。
+1. **严格类型定型**：
+   - `STRING` 编码列：去除首尾空格，保留/补齐前导零（防止 `00123` 丢失）。
+   - `BIGINT` 整数列：安全转换 `int(float(val))`，空值置为 `None`。
+   - `DOUBLE` 浮点列：解析数值保留完整精度，非法值置为 `None`。
+   - `store_item_lot_merge` 拼接列：按目标规范合成 `f"{store_code}{item_code}{lot}"`。
+2. **分区安全写入**：
+   - 声明 `create_partition=True` 或 `t.create_partition(part_spec, if_not_exists=True)`；
+   - 使用 `t.open_writer(partition=part_spec, create_partition=True)` 写入记录列表。
+
+**完成标准**：PyODPS 写入成功返回 Logview，无类型溢出或格式异常。
 
 ---
 
 ### Step 5: 线上聚合 SQL 举证闭环 (Prove)
-1. 写入完成后，立即执行线上 MaxCompute 聚合查询 SQL：
+
+1. **执行 MaxCompute 验证查询**：
    ```sql
    SELECT 
-       COUNT(1) AS row_cnt,
-       SUM(st_qty) AS sum_qty,
-       ROUND(SUM(st_amt), 2) AS sum_amt,
-       COUNT(DISTINCT store_code) AS store_cnt,
-       COUNT(DISTINCT item_code) AS item_cnt,
+       COUNT(1)                             AS row_cnt,
+       SUM(st_qty)                          AS sum_qty,
+       ROUND(SUM(st_amt), 2)                AS sum_amt,
+       COUNT(DISTINCT store_code)           AS store_cnt,
+       COUNT(DISTINCT item_code)            AS item_cnt,
        COUNT(DISTINCT store_item_lot_merge) AS merge_cnt
    FROM <project>.<table_name>
    WHERE <partition_condition>;
    ```
-2. 将线上聚合查询结果与 Step 1 产出的本地数据画像进行双向核对：
-   - `row_cnt` 必须 100% 等于本地物化行数。
-   - `sum_qty` 与 `sum_amt` 必须与本地总和一致。
-   - 去重键值（门店数、商品数、唯一主键数）必须完全一致。
-3. 结构化输出最终举证报告。
+2. **双向核对对比表输出**：
+   输出包含 `指标项`、`本地物化源数据`、`MaxCompute 线上实际查询结果`、`核验结论` 的对比表：
+   - `row_cnt` 必须 **100% 等于** 本地行数；
+   - `sum_qty` 与 `sum_amt` 必须与本地总和一致；
+   - 去重键值（门店数、商品数、店品批唯一键）必须完全吻合。
 
-**完成标准**：ODPS SQL 查验结果与本地指标完全吻合，形成闭环证据链。
+**完成标准**：MaxCompute 线上聚合查询输出 Logview，6 大指标与本地画像完全吻合，形成闭环证据链。
+
+---
+
+## 辅助参考与工具目录 (Progressive Disclosure)
+
+- [`references/CASE_STUDY.md`](references/CASE_STUDY.md) — 典型实战案例：
+  - **案例 1**：粤东退货剩余库存全量导入（39,289 行直接导入举证）；
+  - **案例 2**：粤西茂名仓缩铺第一批清单导入与历史 Typo 表 `RENAME` 分区无损继承（25,700 行、表名重命名、下游 INNER JOIN 语义与逐日退仓走势印证）。
+- [`references/ALIGNMENT_RULES.md`](references/ALIGNMENT_RULES.md) — 常见零售/供应链业务字段别名词典、边界类型转换规则与质量门禁。
+- `scripts/introspect_table.py` — 表结构、注释、分区定义与历史样本探查脚本。
+- `scripts/upload_and_verify.py` — 显式列序写入与事后聚合 SQL 双向举证脚本。
