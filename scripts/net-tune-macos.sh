@@ -15,8 +15,12 @@ CONFIG_DIR="${HOME}/.config/mac-bootstrap"
 PROFILE_FILE="${CONFIG_DIR}/net-profiles.json"
 mkdir -p "$CONFIG_DIR"
 
-if [ ! -f "$PROFILE_FILE" ]; then
-  cat <<EOF > "$PROFILE_FILE"
+# macOS Kernel Upper Hard-Limits
+MAX_ALLOWED_SOCKBUF=16777216
+
+init_or_migrate_profiles() {
+  if [ ! -f "$PROFILE_FILE" ]; then
+    cat <<EOF > "$PROFILE_FILE"
 {
   "profiles": {
     "home": {
@@ -28,8 +32,8 @@ if [ ! -f "$PROFILE_FILE" ]; then
       "recvspace": 8388608,
       "autosndbufmax": 16777216,
       "autorcvbufmax": 16777216,
-      "maxsockbuf": 33554432,
-      "ssids": []
+      "maxsockbuf": 16777216,
+      "networks": ["gw:192.168.31.1"]
     },
     "office": {
       "name": "Office Default",
@@ -40,8 +44,8 @@ if [ ! -f "$PROFILE_FILE" ]; then
       "recvspace": 4194304,
       "autosndbufmax": 8388608,
       "autorcvbufmax": 16777216,
-      "maxsockbuf": 33554432,
-      "ssids": []
+      "maxsockbuf": 16777216,
+      "networks": []
     },
     "mobile": {
       "name": "Mobile Hotspot / Low Latency",
@@ -53,13 +57,38 @@ if [ ! -f "$PROFILE_FILE" ]; then
       "autosndbufmax": 4194304,
       "autorcvbufmax": 8388608,
       "maxsockbuf": 16777216,
-      "ssids": []
+      "networks": []
     }
   },
   "current_active": "stock"
 }
 EOF
-fi
+  else
+    # Auto-sanitize any profile exceeding macOS 16MB ceiling
+    python3 -c "
+import json
+try:
+    data = json.load(open('${PROFILE_FILE}'))
+    modified = False
+    for p in data.get('profiles', {}).values():
+        if p.get('maxsockbuf', 0) > ${MAX_ALLOWED_SOCKBUF}:
+            p['maxsockbuf'] = ${MAX_ALLOWED_SOCKBUF}
+            modified = True
+        if p.get('autorcvbufmax', 0) > ${MAX_ALLOWED_SOCKBUF}:
+            p['autorcvbufmax'] = ${MAX_ALLOWED_SOCKBUF}
+            modified = True
+        if 'ssids' in p and 'networks' not in p:
+            p['networks'] = p.pop('ssids')
+            modified = True
+    if modified:
+        json.dump(data, open('${PROFILE_FILE}', 'w'), indent=2)
+except Exception:
+    pass
+" 2>/dev/null || true
+  fi
+}
+
+init_or_migrate_profiles
 
 # Defaults
 DEFAULT_SENDSPACE=131072
@@ -73,13 +102,27 @@ get_sysctl() {
   sysctl -n "$key" 2>/dev/null || echo "0"
 }
 
-get_current_ssid() {
-  local ssid
-  ssid=$(/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport -I 2>/dev/null | awk -F': ' '/ SSID/ {print $2}' || true)
-  if [ -z "$ssid" ]; then
-    ssid=$(networksetup -getairportnetwork en0 2>/dev/null | awk -F': ' '{print $2}' || true)
+get_current_network_identifier() {
+  local identifier=""
+
+  # 1. Try system_profiler SPAirPortDataType for Wi-Fi SSID
+  identifier=$(system_profiler SPAirPortDataType 2>/dev/null | awk '/Current Network Information:/ {getline; gsub(/^ +|:$/,""); print; exit}' || true)
+
+  # 2. Try airport tool if non-empty
+  if [ -z "$identifier" ]; then
+    identifier=$(/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport -I 2>/dev/null | awk -F': ' '/ SSID/ {print $2}' || true)
   fi
-  echo "${ssid:-unknown}"
+
+  # 3. Fall back to Gateway IP signature (e.g. gw:192.168.31.1)
+  if [ -z "$identifier" ]; then
+    local gw
+    gw=$(route -n get default 2>/dev/null | awk '/gateway:/ {print $2}' || true)
+    if [ -n "$gw" ]; then
+      identifier="gw:${gw}"
+    fi
+  fi
+
+  echo "${identifier:-unknown}"
 }
 
 show_status() {
@@ -90,7 +133,7 @@ show_status() {
   echo "  net.inet.tcp.autorcvbufmax:    $(get_sysctl net.inet.tcp.autorcvbufmax) bytes ($(awk "BEGIN {printf \"%.2f MB\", $(get_sysctl net.inet.tcp.autorcvbufmax)/(1024*1024)}"))"
   echo "  kern.ipc.maxsockbuf:           $(get_sysctl kern.ipc.maxsockbuf) bytes ($(awk "BEGIN {printf \"%.2f MB\", $(get_sysctl kern.ipc.maxsockbuf)/(1024*1024)}"))"
   echo "  net.inet.tcp.win_scale_factor: $(get_sysctl net.inet.tcp.win_scale_factor)"
-  echo "  Active Wi-Fi SSID:             $(get_current_ssid)"
+  echo "  Current Network Signature:     $(get_current_network_identifier)"
 }
 
 list_profiles() {
@@ -103,8 +146,8 @@ for k, v in profiles.items():
     print(f'* [{k}] {v.get(\"name\", k)}')
     print(f'    Target: {v.get(\"target_up_mbps\")}M Up / {v.get(\"target_down_mbps\")}M Down ({v.get(\"target_rtt_ms\")}ms RTT)')
     print(f'    Values: sendspace={v.get(\"sendspace\")//1024}KB, recvspace={v.get(\"recvspace\")//1024}KB, autosndbufmax={v.get(\"autosndbufmax\")//(1024*1024)}MB, maxsockbuf={v.get(\"maxsockbuf\")//(1024*1024)}MB')
-    if v.get('ssids'):
-        print(f'    Associated SSIDs: {\", \".join(v.get(\"ssids\"))}')
+    if v.get('networks'):
+        print(f'    Associated Networks/SSIDs: {\", \".join(v.get(\"networks\"))}')
 "
 }
 
@@ -157,17 +200,16 @@ print(int((val + 65535) // 65536 * 65536))
 
   local autosndbufmax=$(( calculated_sendspace * 4 ))
   if [ "$autosndbufmax" -lt 8388608 ]; then autosndbufmax=8388608; fi
-  if [ "$autosndbufmax" -gt 33554432 ]; then autosndbufmax=33554432; fi
+  if [ "$autosndbufmax" -gt "$MAX_ALLOWED_SOCKBUF" ]; then autosndbufmax="$MAX_ALLOWED_SOCKBUF"; fi
 
   local autorcvbufmax=$(( calculated_recvspace * 2 ))
-  if [ "$autorcvbufmax" -lt 16777216 ]; then autorcvbufmax=16777216; fi
-  if [ "$autorcvbufmax" -gt 33554432 ]; then autorcvbufmax=33554432; fi
+  if [ "$autorcvbufmax" -lt "$MAX_ALLOWED_SOCKBUF" ]; then autorcvbufmax="$MAX_ALLOWED_SOCKBUF"; fi
+  if [ "$autorcvbufmax" -gt "$MAX_ALLOWED_SOCKBUF" ]; then autorcvbufmax="$MAX_ALLOWED_SOCKBUF"; fi
 
-  # macOS XNU maxsockbuf is capped at 32MB (33554432)
-  local maxsockbuf=33554432
+  local maxsockbuf="$MAX_ALLOWED_SOCKBUF"
 
   echo ""
-  echo "  Calculated Parameters:"
+  echo "  Calculated Parameters (Clamped to macOS ${MAX_ALLOWED_SOCKBUF}B ceiling):"
   echo "    net.inet.tcp.sendspace:     ${calculated_sendspace} bytes ($(awk "BEGIN {printf \"%.2f MB\", ${calculated_sendspace}/(1024*1024)}"))"
   echo "    net.inet.tcp.recvspace:     ${calculated_recvspace} bytes ($(awk "BEGIN {printf \"%.2f MB\", ${calculated_recvspace}/(1024*1024)}"))"
   echo "    net.inet.tcp.autosndbufmax: ${autosndbufmax} bytes ($(awk "BEGIN {printf \"%.2f MB\", ${autosndbufmax}/(1024*1024)}"))"
@@ -182,9 +224,9 @@ print(int((val + 65535) // 65536 * 65536))
 }
 
 save_profile() {
-  local pname="${PROFILE_ARG:-custom}"
-  local current_ssid
-  current_ssid=$(get_current_ssid)
+  local pname="${PROFILE_ARG:-home}"
+  local current_net
+  current_net=$(get_current_network_identifier)
 
   probe_network
   calculate_tuning
@@ -193,9 +235,9 @@ save_profile() {
 import json
 data = json.load(open('${PROFILE_FILE}'))
 profiles = data.setdefault('profiles', {})
-ssids = profiles.get('${pname}', {}).get('ssids', [])
-if '${current_ssid}' != 'unknown' and '${current_ssid}' not in ssids:
-    ssids.append('${current_ssid}')
+networks = profiles.get('${pname}', {}).get('networks', [])
+if '${current_net}' != 'unknown' and '${current_net}' not in networks:
+    networks.append('${current_net}')
 
 profiles['${pname}'] = {
     'name': '${pname} Profile',
@@ -207,10 +249,10 @@ profiles['${pname}'] = {
     'autosndbufmax': int('${NEW_AUTOSNDBUFMAX}'),
     'autorcvbufmax': int('${NEW_AUTORCVBUFMAX}'),
     'maxsockbuf': int('${NEW_MAXSOCKBUF}'),
-    'ssids': ssids
+    'networks': networks
 }
 json.dump(data, open('${PROFILE_FILE}', 'w'), indent=2)
-print(f'✅ Profile \"${pname}\" saved with SSID association: {ssids}')
+print(f'✅ Profile \"${pname}\" saved with network association: {networks}')
 "
 }
 
@@ -235,29 +277,29 @@ print(f'sudo sysctl net.inet.tcp.sendspace={p[\"sendspace\"]} net.inet.tcp.recvs
 }
 
 auto_detect_and_apply() {
-  local current_ssid
-  current_ssid=$(get_current_ssid)
-  echo "=== Auto-Detecting Network Profile (SSID: ${current_ssid}) ==="
+  local current_net
+  current_net=$(get_current_network_identifier)
+  echo "=== Auto-Detecting Network Profile (Network Signature: ${current_net}) ==="
 
   local matched_profile
   matched_profile=$(python3 -c "
 import json
 data = json.load(open('${PROFILE_FILE}'))
-ssid = '${current_ssid}'
+net = '${current_net}'
 matched = None
 for k, v in data.get('profiles', {}).items():
-    if ssid in v.get('ssids', []):
+    if net in v.get('networks', []):
         matched = k
         break
 print(matched or '')
 ")
 
   if [ -n "$matched_profile" ]; then
-    echo "Found matching profile for SSID '${current_ssid}': [${matched_profile}]"
+    echo "Found matching profile for network '${current_net}': [${matched_profile}]"
     PROFILE_ARG="$matched_profile"
     apply_named_profile
   else
-    echo "No matching profile for SSID '${current_ssid}'. Falling back to default 'home' profile (or run 'make net-tune-save PROFILE=name' to bind)."
+    echo "No matching profile for network '${current_net}'. Falling back to default 'home' profile (or run 'make net-tune-save PROFILE=name' to bind)."
     PROFILE_ARG="home"
     apply_named_profile
   fi
