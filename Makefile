@@ -1,15 +1,17 @@
 SHELL := /usr/bin/env bash
 UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
+PYTEST_PARALLEL_WORKERS ?= 4
+PYTEST_PARALLEL_ARGS ?= -n $(PYTEST_PARALLEL_WORKERS) --dist loadfile
 LUAC ?= luac
 GIT_HOOK_REPO ?= .
 GIT_HOOK_REGISTRY ?= agent/runtime/registry.jsonc
 GIT_HOOK_APPROVALS ?=
 GIT_HOOK_PYTHON ?= $(shell command -v python3)
 
-.PHONY: help bootstrap check repo-check machine-check ci syntax-check pytest pytest-machine pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
+.PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent \
-	install-antigravity-cli install agent-sync agent-tools agent-refresh \
+	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
@@ -22,7 +24,8 @@ GIT_HOOK_PYTHON ?= $(shell command -v python3)
 	imgup-install imgup \
 	colima-start colima-stop colima-status colima-doctor \
 	claude-daemon-install claude-daemon-status claude-daemon-logs claude-daemon-unload \
-	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall
+	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall cleanup-services \
+	net-tune net-tune-apply net-tune-save net-tune-auto net-tune-list net-tune-status net-tune-restore
 
 help:
 	@echo "Usage: make <target>"
@@ -30,7 +33,9 @@ help:
 	@echo "── Common ──"
 	@echo "  bootstrap              Full bootstrap on this machine"
 	@echo "  check                  Repository checks + strict machine doctor"
-	@echo "  repo-check             Repository-only syntax, privacy, skills, and tests"
+	@echo "  check-parallel         Repository + machine checks with grouped xdist"
+	@echo "  repo-check             Repository-only grouped syntax, privacy, skills, and tests"
+	@echo "  repo-check-serial      Repository-only serial checks for debugging"
 	@echo "  machine-check          Strict machine health check"
 	@echo "  ci                     Public CI: syntax + pytest + privacy + skill + docs gates"
 	@echo "  syntax-check          Shell, Python, and Lua syntax checks"
@@ -39,6 +44,8 @@ help:
 	@echo "  neat-freak-ci         Check changed operational files have public docs"
 	@echo "  doctor                 Machine health check"
 	@echo "  doctor-agent           Agent tooling health check"
+	@echo "  agent-rules-audit      Scan all AGENTS.md / CLAUDE.md for duplicate imports & drift"
+	@echo "  cleanup-services       Audit & clean obsolete LaunchAgents and zombie daemon processes"
 	@echo "  privacy-audit          Redacted privacy scan"
 	@echo "  proxy-on               Configure npm + git to use the shell proxy values"
 	@echo "  proxy-off              Clear npm + git proxy settings"
@@ -50,6 +57,10 @@ help:
 	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
 	@echo "  obsidian-kit           Install reusable Obsidian vault kit: VAULT=/path/to/vault"
 	@echo "  ghostty-font-repair    Re-register existing Liga SFMono Nerd Font files"
+	@echo "  net-tune               Adaptive network probe & macOS TCP window optimization"
+	@echo "  net-tune-apply         Apply dynamic macOS TCP window tuning (requires sudo)"
+	@echo "  net-tune-status        Show current macOS TCP socket parameters"
+	@echo "  net-tune-restore       Restore macOS stock TCP socket defaults"
 	@echo ""
 	@echo "── Bootstrap ──"
 	@echo "  install / bootstrap    Full install (Homebrew + shell + agent tooling)"
@@ -139,7 +150,7 @@ help:
 	@echo "  publish-public         Publish public template"
 	@echo ""
 	@echo "── Other ──"
-	@echo "  pi-packages            Install Pi packages"
+	@echo "  pi-packages (legacy)  Install legacy Pi packages"
 	@echo "  pm-detect              Detect package manager"
 	@echo "  pm-set                 Set global package manager"
 	@echo "  mcp-profiles           Setup MCP profiles"
@@ -156,16 +167,28 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 repo-check:
+	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
+
+repo-check-serial:
 	$(MAKE) syntax-check
 	$(MAKE) skill-check
 	./scripts/privacy-audit.sh
 	$(MAKE) pytest
 
+repo-check-parallel: repo-check
+
 machine-check:
 	./scripts/doctor.sh --strict
 	$(MAKE) pytest-machine
 
-check: repo-check machine-check
+check: check-parallel
+
+check-parallel:
+	+$(MAKE) -j2 repo-check-parallel machine-check
+
+check-serial:
+	$(MAKE) repo-check-serial
+	$(MAKE) machine-check
 
 ci:
 	$(MAKE) syntax-check
@@ -188,6 +211,14 @@ pytest:
 pytest-machine:
 	mkdir -p "$(UV_CACHE_DIR)"
 	env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m machine
+
+pytest-parallel:
+	mkdir -p "$(UV_CACHE_DIR)"
+	if $(PYTHON) -c 'import pytest_cov' >/dev/null 2>&1; then \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m 'not machine' --cov --cov-report=term-missing $(PYTEST_PARALLEL_ARGS); \
+	else \
+		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m 'not machine' $(PYTEST_PARALLEL_ARGS); \
+	fi
 
 pytest-all:
 	mkdir -p "$(UV_CACHE_DIR)"
@@ -296,6 +327,9 @@ ssh-key-import-stdin:
 
 doctor-agent:
 	./scripts/agent-doctor.sh
+
+agent-rules-audit:
+	@"$(PYTHON)" ./scripts/audit-agent-rules.py || python3 ./scripts/audit-agent-rules.py
 
 security-scan:
 	./scripts/agent-doctor.sh --fix
@@ -500,6 +534,10 @@ maxfiles-limit-uninstall:
 	sudo rm -f /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	@echo "=== maxfiles daemon uninstalled ==="
 
+# ── Daemon & LaunchAgent Maintenance ──────────────────────────────
+cleanup-services:
+	./scripts/cleanup-daemon-services.sh
+
 # ── Tmux Workspace ───────────────────────────────────────────────
 tmux-workspace:
 	"$(HOME)/.local/bin/tmux-workspace.sh"
@@ -526,3 +564,25 @@ cold-start:
 	./scripts/install-clash.sh
 cold-start-dry:
 	./scripts/install-clash.sh --dry-run
+
+# ── Network Tuning & Dynamic BDP (macOS Client) ──────────────────────
+net-tune:
+	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) $(if $(APPLY),--apply,)
+
+net-tune-apply:
+	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) --apply
+
+net-tune-save:
+	./scripts/net-tune-macos.sh save $(if $(PROFILE),$(PROFILE),home)
+
+net-tune-auto:
+	./scripts/net-tune-macos.sh auto
+
+net-tune-list:
+	./scripts/net-tune-macos.sh list
+
+net-tune-status:
+	./scripts/net-tune-macos.sh status
+
+net-tune-restore:
+	./scripts/net-tune-macos.sh restore

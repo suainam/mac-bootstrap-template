@@ -149,9 +149,8 @@ def test_mcp_unknown_method_uses_json_rpc_method_not_found(tmp_path):
     assert response["error"]["code"] == -32601
 
 
-def test_manifest_documents_prompt_mcp_server():
-    manifest = json.loads(open(os.path.join(TEMPLATE, "agent", "agent-manifest.json")).read())
-    server = manifest["mcp_servers"]["agent-prompt-library"]
-    assert server["command"] == "agent-prompt-mcp"
-    assert "prompts/list" in server["capabilities"]
-    assert "prompts/get" in server["capabilities"]
+def test_manifest_does_not_distribute_prompt_mcp_server():
+    manifest = json.loads(
+        open(os.path.join(TEMPLATE, "agent", "agent-manifest.json")).read()
+    )
+    assert "agent-prompt-library" not in manifest["mcp_servers"]

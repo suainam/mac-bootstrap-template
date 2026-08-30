@@ -2,6 +2,7 @@
   "version": 1,
   "canonical": {
     "rules_file": "agent/rules/12-rules.md",
+    "adversarial_review_file": "agent/rules/adversarial-review-gate.md",
     "rules_common_dir": "agent/rules/common",
     "rules_python_dir": "agent/rules/python",
     "prompts_dir": "agent/prompts",
@@ -43,19 +44,6 @@
         "ingest_traces"
       ]
     },
-    "agent-prompt-library": {
-      "command": "agent-prompt-mcp",
-      "args": [],
-      "approved_tools": [
-        "search_prompts"
-      ],
-      "capabilities": [
-        "prompts/list",
-        "prompts/get",
-        "tools/list",
-        "tools/call"
-      ]
-    },
     "context7": {
       "command": "npx",
       "args": [
@@ -78,6 +66,7 @@
         "rules_12": "~/.claude/12-rules.md",
         "rules_common": "~/.claude/rules/common",
         "rules_python": "~/.claude/rules/python",
+        "rules_adversarial_review": "~/.claude/adversarial-review-gate.md",
         "skills": "~/.claude/skills",
         "agents": "~/.claude/agents"
       }

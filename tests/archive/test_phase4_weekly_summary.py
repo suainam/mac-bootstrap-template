@@ -233,7 +233,7 @@ def test_weekly_summary_logs_execution(temp_vault, mock_daily_notes, temp_db):
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
     from execution_logger import ExecutionLogger
 
-    with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
+    with patch.dict("os.environ", {"OBSIDIAN_VAULT_DIR": str(temp_vault)}):
         # Need to patch get_db_connection BEFORE importing main
         # because main() closes the connection in finally block
         with patch("sys.argv", ["weekly_summary.py", "2026-07-10"]):
@@ -295,7 +295,7 @@ def test_weekly_summary_uses_fallback_when_llm_fails(temp_vault, mock_daily_note
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
-    with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
+    with patch.dict("os.environ", {"OBSIDIAN_VAULT_DIR": str(temp_vault)}):
         with patch("sys.argv", ["weekly_summary.py", "2026-07-10"]):
             import weekly_summary
 
@@ -379,7 +379,7 @@ def test_weekly_summary_falls_back_when_validation_fails_twice(temp_vault, mock_
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
-    with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
+    with patch.dict("os.environ", {"OBSIDIAN_VAULT_DIR": str(temp_vault)}):
         with patch("sys.argv", ["weekly_summary.py", "2026-07-10"]):
             import weekly_summary
 
@@ -430,7 +430,7 @@ def test_weekly_summary_skips_non_friday(temp_vault, mock_daily_notes, temp_db, 
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
-    with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
+    with patch.dict("os.environ", {"OBSIDIAN_VAULT_DIR": str(temp_vault)}):
         with patch("weekly_summary.get_db_connection", return_value=temp_db):
             # Mock today as Monday (no explicit date, implicit mode)
             with patch("weekly_summary.today_str", return_value="2026-07-06"):
@@ -449,7 +449,7 @@ def test_weekly_summary_empty_week(temp_vault, temp_db):
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub"))
     sys.path.insert(0, str(TEMPLATE_ROOT / "data-hub" / "scripts" / "archive"))
 
-    with patch.dict("os.environ", {"OBSIDIAN_VAULT": str(temp_vault)}):
+    with patch.dict("os.environ", {"OBSIDIAN_VAULT_DIR": str(temp_vault)}):
         from weekly_summary import collect_week_summaries
 
         start = date(2026, 8, 1)

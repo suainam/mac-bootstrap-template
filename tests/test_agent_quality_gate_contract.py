@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -31,6 +32,15 @@ def test_makefiles_expose_quality_gate_targets():
         ):
             assert f"{target}:" in content
 
+def test_pre_push_uses_grouped_full_check_without_duplicate_doctor():
+    manifest = json.loads(read("agent/quality-gates/manifest.jsonc"))
+    assert manifest["events"]["pre-push"]["default_gates"] == [
+        "classify",
+        "neat-freak-apply",
+        "make-check-parallel",
+        "make-doctor-agent",
+    ]
+
 
 def test_trusted_git_hook_dispatcher_targets_are_explicit_migration_actions():
     template_makefile = read("Makefile")
@@ -48,14 +58,24 @@ def test_trusted_git_hook_dispatcher_targets_are_explicit_migration_actions():
     assert "template/agent/quality-gates/hooks" in installer
 
 
+def test_parallel_pytest_uses_bounded_default_worker_count():
+    content = read("Makefile")
+    assert "PYTEST_PARALLEL_WORKERS ?= 4" in content
+    assert "PYTEST_PARALLEL_ARGS ?= -n $(PYTEST_PARALLEL_WORKERS) --dist loadfile" in content
+
+
 def test_repo_and_machine_checks_split_pytest_markers():
     content = read("Makefile")
     repo_check = content.split("repo-check:", 1)[1].split("machine-check:", 1)[0]
     machine_check = content.split("machine-check:", 1)[1].split("ci:", 1)[0]
 
-    assert "$(MAKE) pytest\n" in repo_check
+    assert "pytest-parallel" in repo_check
     assert "pytest-all" not in repo_check
     assert "$(MAKE) pytest-machine" in machine_check
+    repo_check_serial = content.split("repo-check-serial:", 1)[1].split("repo-check-parallel:", 1)[0]
+    assert "$(MAKE) pytest\n" in repo_check_serial
+    repo_check_parallel = content.split("repo-check-parallel:", 1)[1].split("machine-check:", 1)[0]
+    assert "repo-check" in repo_check_parallel
 
 
 def test_pytest_targets_honor_python_override_without_leaking_it():

@@ -145,6 +145,38 @@ def is_tsd_encrypted(path: Path) -> bool:
         return False
 
 
+TRANSPARENT_LAYER_HINT = (
+    "TSD 透明解密层未激活：Python 经 .sql 暂存副本读到的仍是 %TSD-Header-###% 密文。\n"
+    "加密来源为天锐 OCular 企业 DLP（见 references/TSD_ATTRIBUTION.md），恢复步骤：\n"
+    "  1. 完成 OCular 客户端登录（如菜单栏 ScanCodeLogin 扫码弹窗）；\n"
+    "  2. 连入企业网等待策略下发，确认 LSDHelper 进程无断连报错；\n"
+    "  3. 登录生效后重试本脚本；长期方案是请企业 IT 将 ~/.codex 加入加密排除列表。"
+)
+
+
+def transparent_layer_active(sample: Path) -> bool:
+    """用 .sql 暂存副本探测透明解密层是否对当前进程生效。
+
+    透明层按扩展名激活：.sql 副本经 Python 读取时应返回明文；
+    若仍读到 TSD 头说明 DLP 未授权当前会话，批量解密必然失败。
+    """
+    stage = sample.parent / f".{sample.name}.layer-probe.sql"
+    try:
+        if get_platform() != 'windows' and shutil.which('cp'):
+            result = subprocess.run(
+                ['cp', str(sample), str(stage)], capture_output=True, check=False
+            )
+            if result.returncode != 0:
+                return False
+        else:
+            shutil.copy2(sample, stage)
+        return b'TSD-Header' not in stage.read_bytes()[:16]
+    except Exception:
+        return False
+    finally:
+        stage.unlink(missing_ok=True)
+
+
 def decrypt_sqlite(src: Path, dst: Path) -> dict:
     """Materialize a consistent SQLite snapshot, including committed WAL data."""
     try:
@@ -345,6 +377,10 @@ def main() -> int:
         return 0
 
     print(f"找到 {len(encrypted_files)} 个加密文件")
+
+    if not transparent_layer_active(encrypted_files[0]):
+        print(f"错误: {TRANSPARENT_LAYER_HINT}", file=sys.stderr)
+        return 2
 
     # 解密文件
     results = []

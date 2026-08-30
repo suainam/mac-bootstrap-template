@@ -51,19 +51,34 @@
 
   "projects": {
     "franchise_store": {
-      "skills_dir": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.claude/skills"
+      }
     },
     "mac-bootstrap": {
-      "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills"
+      "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/config/mac-bootstrap/.claude/skills"
+      }
     },
     "playground": {
-      "skills_dir": "${HOME}/work/projects/playground/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/playground/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/playground/.claude/skills"
+      }
     },
     "product_strategy": {
-      "skills_dir": "${HOME}/work/projects/product_strategy/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/product_strategy/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/product_strategy/.claude/skills"
+      }
     },
     "www": {
-      "skills_dir": "${HOME}/work/projects/www/.agents/skills"
+      "skills_dir": "${HOME}/work/projects/www/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/www/.claude/skills"
+      }
     }
   },
 
@@ -901,10 +916,31 @@
     "herdr": {
       "type": "external",
       "fetcher": "manual",
-      "ref": "ogulcancelik/herdr",
+      "ref": "https://github.com/herdrdev/herdr/tree/master/skills/herdr",
       "skills": {
         "herdr": {
           "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "local_shadow_path": "agent-skills/local/shadows/herdr/herdr",
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-08-13",
+            "approved_hash": "sha256:3409da24ca6e315c9723130553d4f130f5d9146dfdfa211866d6c2eac0b9716e",
+            "reason": "User-approved reviewed local shadow based on herdrdev/herdr blob fafea549c0c46b87bac6c7ae4ad22ef7ac635a5e with explicit local authorization and data-handling policy"
+          },
+          "reason": "Reviewed local shadow retains official Herdr workflow and adds local authorization and sensitive-output boundaries"
+        }
+      }
+    },
+
+    "jeffallan-claude-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/jeffallan/claude-skills",
+      "skills": {
+        "typescript-pro": {
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
@@ -913,12 +949,40 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-27",
-            "reason": "User-confirmed global distribution; upstream README installs with: npx skills add ogulcancelik/herdr --skill herdr -g"
-          }
+            "approved_at": "2026-08-12",
+            "approved_hash": "sha256:22eb8c500e6029fede1b430a0657f1aa7ca69afb73f9a552def55ee0b3ad64fd",
+            "reason": "User-approved TypeScript engineering skill; manually reviewed SKILL.md and all five reference files"
+          },
+          "reason": "User-approved global TypeScript engineering skill; ponytail remains the default simplicity guard"
         }
       }
     },
+    "archify": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/tt-a1i/archify",
+      "skills": {
+        "archify": {
+          "distribution_state": "enabled",
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-08-13",
+            "approved_hash": "sha256:dca2a6db872b7a453569a57d89b3d5e64440d75771118d0f6ffe0c016f777e60",
+            "reason": "User-approved after manual review of SKILL.md, bundled Node CLI, local git/Chrome/open subprocesses, output writes, and no network fetch path"
+          },
+          "reason": "User-requested global architecture diagram skill; supports Codex, Claude Code, OpenCode, and cross-agent targets"
+        }
+      }
+    },
+
 
     "local-global": {
       "type": "internal",
@@ -943,6 +1007,31 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "reason": "通用仓库知识冷启动、权威路由、文档收敛与按需记忆毕业"
+        },
+        "explain-changes": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "Vendored from nickbasile gist 61a425b0bd79b01649d1ce35c1ffaa47 (upstream author of the plan->implement->explain workflow); not on skills.sh so quarantine fetcher cannot ingest; content verbatim v1.0.0"
+        },
+        "playwriter": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "基于 Playwright 和 Chrome 扩展的实时浏览器自动化与无头网页交互技能"
+        },
+        "public-api-index": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "免认证公共 REST API 目录与即时查询工具（天气、地理/IP、加密汇率、DNS网络、知识检索）"
+        },
+        "herdr-nvim-qa-workspace": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "基于 Herdr + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构"
+        },
+        "luvus-nvim-qa-workspace": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "reason": "基于 Luvus + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构（Herdr 技能的 Luvus 移植版，无 Kitty Graphics 直通，terminal-browser 需改走 Playwriter/CDP）"
         }
       }
     },
@@ -1022,6 +1111,11 @@
           "scope": "project",
           "projects": ["product_strategy"],
           "reason": "product_strategy data-analysis project skill"
+        },
+        "odps-table-ingest": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "MaxCompute/ODPS 表上传、字段对齐、分区写入与双向聚合 SQL 举证"
         },
         "sql-analysis": {
           "scope": "project",

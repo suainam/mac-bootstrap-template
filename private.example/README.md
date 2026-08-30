@@ -5,7 +5,7 @@ Copy this layout into your private repository or ignored `private/` directory.
 ```text
 private/
   clash/
-    Merge.yaml
+    work-mac.yaml
   python/
     odps_config.py
   infra/

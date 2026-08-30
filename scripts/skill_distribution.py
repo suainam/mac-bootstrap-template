@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 
 try:
@@ -42,6 +43,18 @@ def expand_target_path(path: Path, root: Path = ROOT) -> Path:
     raw = raw.replace("${BOOTSTRAP}", str(root))
     raw = raw.replace("${HOME}", str(Path.home()))
     return Path(raw).expanduser()
+
+
+def _project_targets(
+    registry: Registry,
+    project_name: str,
+    root: Path,
+) -> tuple[tuple[str, Path], ...]:
+    project = registry.projects[project_name]
+    return tuple(
+        (target_name, expand_target_path(path, root))
+        for target_name, path in project_skill_dirs(project_name, project)
+    )
 
 
 def _bundle_skill_source(registry: Registry, skill: SkillRef, root: Path) -> Path | None:
@@ -107,17 +120,16 @@ def build_distribution_actions(
             continue
         if skill.scope == "project":
             for project_name in skill.projects:
-                project = registry.projects[project_name]
-                target_path = expand_target_path(Path(project["skills_dir"]), root) / skill.name
-                actions.append(
-                    DistributionAction(
-                        skill_name=skill.name,
-                        source=source,
-                        target_agent=None,
-                        target_path=target_path,
-                        action="link-dir",
+                for _, base in _project_targets(registry, project_name, root):
+                    actions.append(
+                        DistributionAction(
+                            skill_name=skill.name,
+                            source=source,
+                            target_agent=None,
+                            target_path=base / skill.name,
+                            action="link-dir",
+                        )
                     )
-                )
             continue
         for agent in skill.agents:
             target = targets[agent]
@@ -155,7 +167,8 @@ def _enabled_distribution_specs(
             continue
         if skill.scope == "project":
             for project_name in skill.projects:
-                specs.add(("project", project_name, skill.name))
+                for target_name, _ in _project_targets(registry, project_name, root):
+                    specs.add(("project", target_name, skill.name))
             continue
         for agent in skill.agents:
             if agent in targets:
@@ -278,32 +291,32 @@ def build_reconcile_actions(
                 )
             )
 
-    for project_name, project in sorted(registry.projects.items()):
-        base = expand_target_path(Path(project["skills_dir"]), root)
-        if not base.exists():
-            continue
-        for child in sorted(base.iterdir()):
-            if child.name.startswith("."):
+    for project_name in sorted(registry.projects):
+        for target_name, base in _project_targets(registry, project_name, root):
+            if not base.exists():
                 continue
-            if not (child.is_dir() or child.is_symlink()):
-                continue
-            skill_name = child.name
-            if ("project", project_name, skill_name) in desired:
-                continue
-            action = "remove-symlink" if child.is_symlink() else "skip-real-path"
-            reason = "not enabled for this project in skills-sources.jsonc"
-            if action == "skip-real-path":
-                reason += "; real directory is left untouched"
-            actions.append(
-                ReconcileAction(
-                    surface="project",
-                    target_name=project_name,
-                    skill_name=skill_name,
-                    target_path=child,
-                    action=action,  # type: ignore[arg-type]
-                    reason=reason,
+            for child in sorted(base.iterdir()):
+                if child.name.startswith("."):
+                    continue
+                if not (child.is_dir() or child.is_symlink()):
+                    continue
+                skill_name = child.name
+                if ("project", target_name, skill_name) in desired:
+                    continue
+                action = "remove-symlink" if child.is_symlink() else "skip-real-path"
+                reason = "not enabled for this project view in skills-sources.jsonc"
+                if action == "skip-real-path":
+                    reason += "; real directory is left untouched"
+                actions.append(
+                    ReconcileAction(
+                        surface="project",
+                        target_name=target_name,
+                        skill_name=skill_name,
+                        target_path=child,
+                        action=action,  # type: ignore[arg-type]
+                        reason=reason,
+                    )
                 )
-            )
     return actions
 
 
@@ -343,20 +356,32 @@ def apply_distribution_actions(actions: list[DistributionAction], dry_run: bool 
         if dry_run:
             print(f"DRY-RUN {action.action} {action.source} -> {action.target_path}")
             continue
+        if not action.target_path.is_absolute():
+            raise RegistryError(f"refusing distribution to non-absolute target path: {action.target_path}")
+        home = Path.home()
+        # Block filesystem root, shallow system paths (/etc, /usr, ...), $HOME itself,
+        # and every ancestor of $HOME (/Users, ...). Legit targets are always
+        # <skills_dir>/<skill-name> at depth >= 3 under $HOME.
+        if (
+            len(action.target_path.parts) <= 2
+            or action.target_path == home
+            or action.target_path in home.parents
+        ):
+            raise RegistryError(f"refusing distribution to unsafe root/home target path: {action.target_path}")
+
         action.target_path.parent.mkdir(parents=True, exist_ok=True)
         if action.action == "copy-flat-md":
             shutil.copyfile(action.source / "SKILL.md", action.target_path)
             continue
-        if action.target_path.is_symlink():
+        if action.target_path.is_symlink() or action.target_path.is_file():
             action.target_path.unlink()
-        elif action.target_path.exists():
-            backup = action.target_path.with_name(action.target_path.name + ".bak")
-            if not backup.exists():
-                action.target_path.rename(backup)
-            else:
-                continue
+        elif action.target_path.is_dir():
+            print(
+                f"WARN: replacing unmanaged directory '{action.target_path}' with symlink to '{action.source}'",
+                file=sys.stderr,
+            )
+            shutil.rmtree(action.target_path)
         action.target_path.symlink_to(action.source)
-
 
 def _read_frontmatter_line(text: str, key: str) -> str | None:
     if not text.startswith("---"):
@@ -475,16 +500,16 @@ def build_distribution_snapshot(
 
     project_targets = snapshot["project_targets"]
     assert isinstance(project_targets, dict)
-    for project_name, project in sorted(registry.projects.items()):
-        base = expand_target_path(Path(project["skills_dir"]), root)
-        skills = _snapshot_skill_dir(base, flat_md=False)
-        project_targets[project_name] = {
-            "path": str(base),
-            "format": "directory",
-            "count": len(skills),
-            "skills": skills,
-        }
-        counts["project_total_entries"] += len(skills)
+    for project_name in sorted(registry.projects):
+        for target_name, base in _project_targets(registry, project_name, root):
+            skills = _snapshot_skill_dir(base, flat_md=False)
+            project_targets[target_name] = {
+                "path": str(base),
+                "format": "directory",
+                "count": len(skills),
+                "skills": skills,
+            }
+            counts["project_total_entries"] += len(skills)
     return snapshot
 
 
@@ -538,3 +563,74 @@ def compare_distribution_snapshots(before: dict, after: dict) -> dict:
             "changed": changed,
         }
     return diff
+
+
+def validate_runtime_hygiene(
+    registry: Registry,
+    targets: dict[str, SkillTarget],
+    root: Path = ROOT,
+) -> list[str]:
+    """Scan runtime target directories for forbidden backup residue and divergent realpaths."""
+    errors: list[str] = []
+    target_dirs: list[tuple[str, Path]] = []
+    for target_name, target in sorted(targets.items()):
+        target_dirs.append((target_name, expand_target_path(target.path, root)))
+
+    for project_name in sorted(registry.projects):
+        target_dirs.extend(_project_targets(registry, project_name, root))
+
+    global_target_names = set(targets.keys())
+    seen_skills: dict[str, list[tuple[str, Path, Path]]] = {}
+
+    for target_name, target_dir in target_dirs:
+        if not target_dir.is_dir():
+            continue
+        for child in sorted(target_dir.iterdir()):
+            if (
+                child.name.endswith(".bak")
+                or child.name.endswith(".old")
+                or child.name.endswith(".tmp")
+                or child.name.endswith("~")
+            ):
+                errors.append(
+                    f"forbidden backup residue in runtime target: {child} (target: {target_name})"
+                )
+                continue
+            # Real (non-symlink) directories are deliberately tracked: runtimes
+            # like Codex load every SKILL.md they find, so two real copies of the
+            # same skill name in co-scanned views register twice even when their
+            # content matches. That is the duplicate-registration bug class this
+            # check exists to catch.
+            if target_name in global_target_names and (child.is_symlink() or child.is_dir()):
+                skill_name = child.name
+                try:
+                    real = child.resolve()
+                except OSError:
+                    continue
+                seen_skills.setdefault(skill_name, []).append((target_name, child, real))
+    # Divergence only breaks de-duplication when ONE runtime co-scans the views.
+    # Codex reads ~/.codex/skills AND ~/.agents/skills together; OpenCode reads
+    # ~/.config/opencode/skills AND ~/.agents/skills together. Divergence between
+    # different runtimes' exclusive views (e.g. claude vs codex) is resolved by
+    # provider priority (documented OMP behavior) and is not an error.
+    co_scanned_groups: tuple[set[str], ...] = (
+        {"codex", "cross-agent"},
+        {"opencode", "cross-agent"},
+    )
+
+    for group in co_scanned_groups:
+        grouped: dict[str, list[tuple[str, Path, Path]]] = {}
+        for skill_name, occurrences in seen_skills.items():
+            in_group = [occ for occ in occurrences if occ[0] in group]
+            if len(in_group) > 1:
+                grouped[skill_name] = in_group
+        for skill_name, occurrences in sorted(grouped.items()):
+            reals = {real for _, _, real in occurrences}
+            if len(reals) > 1:
+                details = "; ".join(f"{t}: {p} -> {r}" for t, p, r in occurrences)
+                errors.append(
+                    f"skill '{skill_name}' resolves to divergent realpaths across co-scanned targets "
+                    f"({','.join(sorted(group))}): {details}"
+                )
+
+    return errors

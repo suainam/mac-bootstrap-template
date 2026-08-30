@@ -82,6 +82,7 @@ def test_tmux_has_cross_window_swap():
 
 @pytest.mark.machine
 def test_tmux_pane_titles():
+    require_tmux_live_socket()
     workspace_script = open(os.path.join(TEMPLATE, "scripts", "tmux-workspace.sh")).read()
     assert 'ANALYSIS_WINDOW="${TMUX_ANALYSIS_WINDOW:-analysis}"' in workspace_script
     assert 'create_analysis_window()' in workspace_script
@@ -91,7 +92,6 @@ def test_tmux_pane_titles():
     assert '"notes"' in workspace_script
     assert '"daemon"' in workspace_script
 
-    require_tmux_live_socket()
     out, _, _ = run("tmux list-panes -F '#{pane_title}' 2>/dev/null")
     titles = [title for title in out.strip().split('\n') if title]
     assert titles, "Expected tmux panes to expose non-empty titles"
@@ -107,12 +107,14 @@ def test_tmux_pane_border_format_shows_title():
 
 @pytest.mark.machine
 def test_tmux_theme_exists():
+    require_tmux_live_socket()
     path = os.path.expanduser("~/.tmux/theme.conf")
     assert os.path.exists(path)
 
 
 @pytest.mark.machine
 def test_tmux_config_resets_append_only_options_before_readding():
+    require_tmux_live_socket()
     config = os.path.expanduser("~/.tmux.conf")
     content = open(config).read()
     assert "set -gu terminal-features" in content
@@ -124,6 +126,18 @@ def test_tmux_config_resets_append_only_options_before_readding():
 def test_zshrc_defers_host_aliases_to_private_overrides():
     content = open(os.path.expanduser("~/.zshrc")).read()
     assert "Host-specific SSH TERM wrappers belong in ~/.zshrc.local" in content
+
+
+@pytest.mark.machine
+def test_zshrc_skips_ui_plugins_without_tty_even_in_herdr():
+    out, err, rc = run("env HERDR_ENV=1 zsh -lic 'printf ZSH_OK'")
+    combined = f"{out}\n{err}"
+
+    assert rc == 0
+    assert "ZSH_OK" in out
+    assert "gitstatus failed to initialize" not in combined
+    assert "cannot bind to an empty key sequence" not in combined
+    assert "can't change option: zle" not in combined
 
 
 @pytest.mark.machine

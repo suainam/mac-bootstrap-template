@@ -350,19 +350,23 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 自动改写现有 `core.hooksPath`。template 始终是 repo-only；完整 machine checks 只属于显式
 标记的父仓管理 checkout。
 
-### 普通 Python 仓库 profiles
+### 普通仓库与 Python profiles
 
-`python-repo-smoke` 是首个不绑定仓库名称的机械曳光弹。它只包含编辑后 Python 语法、
-staged snapshot 编译和 push ref/OID 完整性，不运行项目检查，适合验证 dispatcher 的最小
-闭环。
-
-`python-repository` 在同一组机械 gate 之外复用通用 `repository-check`，push 前固定调用
-仓库自己的只读 `make repo-check`。全局 registry 不包含 pytest、uv、ruff 或项目路径；仓库
-拥有 compile、lint、typecheck、test 与 diff-check 的组合，runtime 只拥有可信调用、timeout、
-输出预算和 fail-closed 边界。项目依赖准备应在显式 bootstrap 或 CI 的 sync/install 阶段完成；
+`repository` 是语言无关的最小完整仓库 profile。它只验证 push ref/OID 完整性，并在
+`before.push` 复用通用 `repository-check`，固定调用仓库自己的只读 `make repo-check`。
+全局 registry 不知道 npm、pnpm、pytest、uv、ruff 或任何项目路径；仓库拥有 lint、typecheck、
+test、build/dry-run 与 diff-check 的具体组合，runtime 只拥有可信调用、timeout、输出预算和
+fail-closed 边界。项目依赖准备应在显式 bootstrap 或 CI 的 sync/install 阶段完成；
 `repo-check` 不应在 push 热路径隐式安装依赖、发布制品或产生真实外部副作用。
 
-两种 profile 都要求显式 opt-in、inventory、install 和 doctor。smoke 通过不代表完整仓库
+`python-repo-smoke` 是首个不绑定仓库名称的 Python 机械曳光弹。它只包含编辑后 Python
+语法、staged snapshot 编译和 push ref/OID 完整性，不运行项目检查，适合验证 dispatcher
+的最小闭环。
+
+`python-repository` 在上述 Python 机械 gate 之外同样复用 `repository-check`；适用于希望在
+commit 前额外阻断 Python 语法错误的仓库。
+
+这些 profile 都要求显式 opt-in、inventory、install 和 doctor。smoke 通过不代表完整仓库
 迁移完成；完整 profile 还必须经过失败注入、真实临时分支 push、hosted CI 和 uninstall
 回滚演练。
 
@@ -447,13 +451,17 @@ worktree 时 `post-checkout` 可能传入全零 old OID；dispatcher 将其规�
 
 | Target | 职责 | 适用位置 |
 |---|---|---|
-| `make repo-check` | 语法、隐私、skill、非 `machine` 测试 | 普通 clone、管理 checkout、linked worktree、submodule |
+| `make repo-check` | 语法、隐私、skill、非 `machine` 测试的默认 grouped 路径 | 普通 clone、管理 checkout、linked worktree、submodule |
+| `make repo-check-serial` | 语法、隐私、skill、非 `machine` 测试的串行路径 | 调试测试干扰 |
+| `make repo-check-parallel` | `repo-check` 的显式 grouped 目标 | pre-push 的 linked worktree、submodule |
 | `make machine-check` | strict doctor 与 `machine` 标记测试 | 显式标记的真实管理 checkout |
-| `make check` | `repo-check + machine-check` | 显式标记的真实管理 checkout 的完整发布验证 |
+| `make check` | `check-parallel` 的默认 grouped 路径 | 手动完整验收 |
+| `make check-serial` | `repo-check-serial + machine-check` 的串行参考路径 | 调试测试干扰 |
+| `make check-parallel` | `repo-check-parallel + machine-check` 的 grouped 路径 | pre-push 的真实管理 checkout |
 
-普通 clone、linked worktree 或 submodule 的 pre-push 只运行 repository checks。临时
-worktree 不应接管或重写真实机器上的 managed symlink，也不应因它们仍指向管理 checkout
-而失败。
+普通 clone、linked worktree 或 submodule 的 pre-push 只运行
+`repo-check-parallel`。临时 worktree 不应接管或重写真实机器上的 managed symlink，
+也不应因它们仍指向管理 checkout 而失败。
 
 ## 跨仓执行
 
@@ -496,10 +504,10 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 不要只依赖 mock 或 dry-run。按以下顺序验证：
 
 1. **聚焦集成测试**：临时创建真实父仓、submodule 和 linked worktree，注入父仓 Git 环境，证明子仓仍读取自己的 tracked files。
-2. **Repository checks**：使用外部 `PYTHON` 运行完整 `make repo-check`，确认 worktree 无本地 venv 也可完成非机器检查。
+2. **Repository checks**：使用外部 `PYTHON` 运行 `make repo-check-parallel`，确认 worktree 无本地 venv 也可完成非机器检查。
 3. **真实本地 push**：创建临时 bare remote，从 linked worktree 执行真实 `git push`；不得使用 bypass 或 `--no-verify`。
 4. **远端 CI**：子仓 Public CI 通过后合并。
-5. **管理 checkout push**：父仓 main checkout 真实 push，确认 repository checks、machine checks、doctor 和 post-success 记录全部完成。
+5. **管理 checkout push**：父仓 main checkout 真实 push，确认 `make check-parallel`、doctor-agent 和 post-success 记录全部完成。
 
 真实 push 验收必须同时证明：
 
@@ -514,6 +522,10 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 ### 先跑真实验收，再提交最终 PR
 
 临时 Git 仓库测试能验证核心上下文，但不能覆盖真实项目中 venv、test helper、文档门禁和 post-success side effect。最终 PR 前应先完成一次真实 linked-worktree push，避免用多个 follow-up PR 修补同一闭环。
+
+### 交接任务先核对状态
+
+交接已给出子仓提交、验证和目标远端时，先核对 child、parent 与 remote state；只有证据矛盾才重新诊断。创建 PR 前，使用最终 hook/runtime 做一次确定性预检，并先查询是否已有同一 head PR，避免重复 push、重复 CI 和无效轮询。
 
 ### 每个 operational PR 都要携带当前文档变更
 
@@ -539,8 +551,9 @@ linked worktree 通常没有独立 `.venv`。允许通过 `PYTHON` 复用真实 
 
 - [ ] Git 上下文由 `git rev-parse` 解析，而非目录猜测。
 - [ ] 跨仓命令动态清理 Git local environment variables。
-- [ ] linked worktree 和 submodule 只跑 `repo-check`。
-- [ ] 管理 checkout 跑 `make check`，包括 machine checks。
+- [ ] linked worktree 和 submodule 只跑 `repo-check-parallel`。
+- [ ] 管理 checkout 的 pre-push 跑 `make check-parallel`，包括 machine checks。
+- [ ] `make check-serial` 可作为串行参考验收路径。
 - [ ] pytest 可复用外部解释器，但子进程不继承 `PYTHON/PYTHON_BIN`。
 - [ ] test helper 使用 `sys.executable`。
 - [ ] 子仓 commit 在父仓 pointer 验收前已远端可达。

@@ -1,0 +1,30 @@
+agent = "omp"
+
+[identity]
+distinct = ["omp", "oh-my-pi"]
+ambiguous = []
+
+[[rule]]
+state = "working"
+priority = 120
+spinner = true
+
+[[rule]]
+state = "working"
+priority = 110
+any = ["esc to interrupt", "ctrl+c to stop", "esc to cancel", "thinking..."]
+
+[[rule]]
+state = "blocked"
+priority = 320
+any = [
+  "allow this command",
+  "allow editing file",
+  "waiting for approval",
+  "waiting for confirmation",
+  "do you want to proceed",
+  "press enter to confirm",
+  "enter to submit answer",
+  "yes, allow",
+  "no, cancel"
+]

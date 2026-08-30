@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import importlib.util
 import sqlite3
 import sys
@@ -227,7 +228,7 @@ def test_confirmation_accept_saves_through_writer(tmp_path: Path) -> None:
     )
 
     assert result.status == "accepted"
-    with sqlite3.connect(db_path) as check:
+    with closing(sqlite3.connect(db_path)) as check:
         count = check.execute("SELECT COUNT(*) FROM knowledge_records").fetchone()[0]
     assert count == 1
 

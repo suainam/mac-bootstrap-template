@@ -84,6 +84,15 @@ to Ghostty, repair the existing install without adding a new font:
 ```bash
 make ghostty-font-repair
 ```
+Herdr is installed from `multiplexer/herder/install.sh` and links the tracked
+`config.toml` into `~/.config/herdr/`. Its built-in `catppuccin` theme is
+Catppuccin Mocha, matching the Ghostty theme; keep `auto_switch = false` for a
+deterministic palette. Verify the rendered configuration with:
+
+```bash
+herdr config check
+```
+
 
 Reusable Obsidian vault config lives in `editors/obsidian/`. Install it into a
 vault explicitly:
@@ -140,11 +149,12 @@ syntax and auto-attach checks, and keeps the workflow closer to a normal new
 terminal session.
 
 AI coding CLIs are managed from this Brewfile where possible: `claude-code` and
-`pi-coding-agent` are Homebrew packages, while Reasonix is installed as a global
+`omp` are Homebrew packages, while Reasonix is installed as a global
 npm package through Homebrew Bundle's `npm` support. Token/context helpers are
 split the same way: RTK and `codex-threadripper` are installed from Homebrew
 taps, and `context-mode` is installed as a global npm package. Antigravity CLI
 follows the official Google installer instead of Homebrew cask packaging.
+OMP is the current default Agent CLI; Pi runtime wiring remains a compatibility layer and does not imply Pi remains installed on this machine.
 
 Machine-level npm globals are tracked in `template/agent/npm-global-packages.txt`.
 Use `make npm-packages` to install missing entries, `make npm-packages-upgrade`
@@ -152,14 +162,50 @@ to refresh them in place, and `make doctor-agent` to verify the current machine
 against that manifest. The manifest intentionally stores bare package names, and
 `make doctor-agent` reports a missing prerequisite if `node`/`npm` is absent.
 
-DevSpace is also wired in as the remote MCP sidecar for browser and CLI agents.
-Use [`docs/devspace-local.md`](docs/devspace-local.md) for the local server,
-Cloudflare Tunnel, LaunchAgent workflow, and web-UI troubleshooting links
-including the ChatGPT-side DevSpace app creation walkthrough.
+DevSpace is a local web-facing MCP service for browser integrations; it is not
+distributed into agent MCP configurations. Use
+[`docs/devspace-local.md`](docs/devspace-local.md) for the local server,
+Cloudflare Tunnel, LaunchAgent workflow, and ChatGPT-side DevSpace app creation
+walkthrough.
 
 `~/work` is the umbrella workspace, not a single repo. Keep each real project as
 its own git repository under `~/work/projects`, with its own `.envrc`, `.env`,
 and runtime state.
+
+## 全生态统一升级 (Topgrade & System Upgrade)
+
+系统将多渠道包管理器与工具链聚合收敛至 `topgrade` 进行一键联动更新，配置真源维护在 `template/system/topgrade/topgrade.toml` 并自动软链至 `~/.config/topgrade.toml`。
+
+```mermaid
+flowchart TD
+    All[已安装工具与应用] --> PKG[标准包管理 - Topgrade 原生接管]
+    All --> Sparkle[自带更新引擎 - 打开自动静默更新]
+    All --> Enterprise[企业与系统托管]
+    All --> Manual[独立孤立安装 - 手动或自更新]
+
+    PKG --> P1[Homebrew: Formula + Cask]
+    PKG --> P2[NPM Global: context-mode 等]
+    PKG --> P3[Bun Global: opencode2 等]
+    PKG --> P4[pipx: ansible 等 CLI]
+    PKG --> P5[uv tool: ruff, basedpyright 等]
+    PKG --> P6[mas: Mac App Store 应用]
+
+    Sparkle --> S1[Ghostty, Hammerspoon, Maccy, OBS 等]
+    Enterprise --> E1[企业 MDM 与配套 CLI: 随应用升级]
+    Manual --> M1[独立下载应用: 自带更新或手动替换]
+```
+
+- **真源路径**: `template/system/topgrade/topgrade.toml`
+- **动态探测机制**: Topgrade 在运行时动态查询已安装列表（如 `brew outdated`、`npm list -g`、`bun pm ls -g`），**已卸载的软件绝对不会被重新下载或自动升级**。
+- **编排与分工**:
+  - **`make system-upgrade`（推荐日常唯一入口）**: 权威入口，统一调度 `topgrade`（全包管理更新） $\rightarrow$ `make patch-chrome-gemini`（Chrome Gemini 补丁） $\rightarrow$ Agent 技能供应链刷新与分发。
+  - **`topgrade`（底层多包引擎）**: 单独运行仅执行包管理器与插件更新。
+- **使用方式**:
+  ```bash
+  make system-upgrade   # 推荐：全生态升级 + Chrome 补丁 + 技能供应链分发
+  topgrade --dry-run    # 演练查看待更新项
+  topgrade              # 仅更新多包管理器与运行时插件
+  ```
 
 ## Public template + private overlay
 
@@ -272,15 +318,13 @@ ServerAliveCountMax 10    # drop after 10 missed replies (~10 min of silence)
 
 Clash profile flow:
 
-- `template/proxy/clash/Merge.yaml` is the checked-in public working default.
-- `template/proxy/clash/Merge.yaml.template` is the lower-level fallback seed.
 - `private/clash/work-mac.yaml` is the private machine-specific source of truth
   for this Mac.
+- `make render-configs` syncs `work-mac.yaml` to the active Clash Verge local
+  profile and restarts the app to force a mihomo reload.
 - Runtime profiles under `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/` are generated state.
-- Refreshing a Clash subscription does not rewrite `proxy/clash/Merge.yaml`; it only
+- Refreshing a Clash subscription does not rewrite `work-mac.yaml`; it only
   updates app-managed runtime state.
-- `make render-configs` no longer copies `private/clash/work-mac.yaml` back into
-  `template/proxy/clash/Merge.yaml`; private overrides sync only to the runtime profile.
 - Full notes: [`docs/clash-profile-flow.md`](docs/clash-profile-flow.md)
 
 Use `make export-public DEST=/path/to/mac-bootstrap-public` to produce a
@@ -361,6 +405,7 @@ make doctor-agent    # Verify all configs (contains AgentShield scan)
 
 ```bash
 make check
+make check-parallel
 make ci
 make doctor
 make doctor-agent    # Agent health check (symlinks, config files)
@@ -372,10 +417,19 @@ Actions. It runs syntax checks, pytest, the privacy audit, the skill registry
 check, and the neat-freak documentation-alignment gate. It does not inspect
 local applications, GUI state, accounts, or generated agent runtime state.
 
-`make check` validates shell syntax, data-driven doctor checks, and runs the
-template pytest suite from `template/.venv`. If `pytest-cov` is installed in the
-local venv, the check also emits coverage for the extracted Python helper
-scripts.
+`make check` is the default grouped validation path. It runs repository tests
+with pytest-xdist grouped by test file (`--dist loadfile`) using four workers by
+default, while machine checks run in a separate make job. Override
+`PYTEST_PARALLEL_WORKERS` when the host has different resource constraints.
+
+`make check-parallel` is the explicit form of the grouped validation path. The
+managed pre-push hook uses this target for the real checkout and
+`repo-check-parallel` for linked worktrees and submodules.
+
+`make check-serial` runs `repo-check` and `machine-check` sequentially for
+debugging test interference. Keep one full check invocation at a time; live
+daemon and tmux fixtures can collide when independent invocations overlap.
+
 `make doctor` prints diagnostics without failing.
 `make doctor-agent` verifies managed symlinks against the current template
 targets, so directory refactors surface as stale-link failures instead of
@@ -451,9 +505,9 @@ make skill-update SOURCE=mattpocock-skills
 
 This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
 - Symlinks canonical config files from `agent/rules/` to agent home dirs
-- RTK global hook, Codex config, OpenCode plugin, Pi extension
+- RTK global hook, Codex config, OpenCode plugin, legacy Pi extension
 - Context Mode Claude plugin + OpenCode plugin
-- Caveman with **ultra** mode for Claude, Codex, OpenCode, and Pi
+- Caveman with **ultra** mode for Claude, Codex, OpenCode, and legacy Pi
 - Agent quality gate policy + runner wiring
 - Codebase Memory MCP installer with auto_index config
 - 12 operating rules embedded in all agent system prompts
@@ -500,8 +554,8 @@ Prompt libraries follow the same generated-state split as skills:
 - Treat upstream prompt repos under `~/.agent/upstream/` as synced external material
 - Treat `~/.agent/prompts/index.json` as generated lookup state for agents and MCPs
 - Keep SQLite/vector indexes as generated caches only, if needed later
-- Use [`docs/agent-prompt-mcp.md`](docs/agent-prompt-mcp.md) for Codex MCP
-  setup, JSON-RPC smoke tests, and troubleshooting
+- Use [`docs/agent-prompt-mcp.md`](docs/agent-prompt-mcp.md) for the optional
+  local prompt MCP smoke test and troubleshooting
 
 ## Architecture
 
@@ -525,10 +579,12 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make skill-update SOURCE=mattpocock-skills` | Fetch and safely promote an external bundle |
 | `make system-upgrade` | Interactive Homebrew update/upgrade followed by safe skill refresh |
 | `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
-| `make check` | Syntax + tool validation |
-| `make ci` | Public CI contract: syntax, pytest, privacy, skill, and docs gates |
+| `make check` | Default grouped repository + machine validation |
+| `make check-serial` | Serial repository + machine validation |
+| `make check-parallel` | Explicit grouped pytest-xdist validation |
+| `make repo-check` | Default grouped repository-only validation |
+| `make repo-check-serial` | Serial repository-only validation |
 | `make doctor` | Machine health check |
-| `make doctor-agent` | Agent health check |
 | `make security-scan` | AgentShield audit |
 | `make privacy-audit` | Redacted current-tree privacy scan |
 | `make privacy-audit-history` | Redacted git-history privacy scan |

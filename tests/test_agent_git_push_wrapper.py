@@ -263,7 +263,7 @@ def test_pre_push_gate_failure_does_not_contact_remote_or_write_receipt(tmp_path
     )
     git(runtime.repo, runtime.env, "add", "Makefile")
     git(runtime.repo, runtime.env, "commit", "-qm", "add failing gate")
-    git(runtime.repo, runtime.env, "config", "agent.runtime.profile", "python-repository")
+    git(runtime.repo, runtime.env, "config", "agent.runtime.profile", "repository")
 
     blocked = wrapper_push(runtime, "op-blocked", "origin", "main", check=False)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import sqlite3
 from pathlib import Path
 
@@ -34,7 +35,7 @@ def save_draft(
 
 def load_saved_record(record_id: str, *, db_path: str | None = None) -> dict[str, object]:
     target = Path(db_path) if db_path else record_knowledge.find_db_path()
-    with sqlite3.connect(str(target)) as conn:
+    with closing(sqlite3.connect(str(target))) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             """

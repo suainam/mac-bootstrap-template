@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 from pathlib import Path
 
 from agent_mcp_runtime import (
@@ -19,7 +18,6 @@ from agent_mcp_runtime import (
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--context7-command", required=True)
-    parser.add_argument("--devspace-url")
     parser.add_argument("--policy")
     args = parser.parse_args()
 
@@ -27,11 +25,6 @@ def main() -> int:
     inputs = RuntimeInputs.from_env(
         bootstrap=bootstrap,
         context7_command=args.context7_command,
-    )
-    inputs = replace(
-        inputs,
-        devspace_enabled=bool(args.devspace_url),
-        devspace_url=args.devspace_url or "",
     )
     desired = desired_servers(inputs)
     policy_path = Path(args.policy) if args.policy else bootstrap / "agent/mcp-policy.json"

@@ -1,0 +1,24 @@
+id = "local.omp-monitor"
+name = "OMP Agent & Workspace Status"
+version = "0.1.0"
+min_luvus_version = "0.12.0"
+description = "Live OMP active model & system health indicators for Luvus Bar"
+
+[[bars]]
+id = "omp_status"
+title = "OMP Model"
+region = "top-right"
+priority = 50
+
+[[startup]]
+command = ["python3", "monitor.py", "start"]
+
+[[events]]
+on = "workspace.created"
+command = ["python3", "monitor.py", "start"]
+
+[[actions]]
+id = "refresh"
+title = "Refresh OMP Status"
+contexts = ["workspace", "pane"]
+command = ["python3", "monitor.py", "refresh"]

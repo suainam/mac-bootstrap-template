@@ -31,6 +31,11 @@ enabled Codex Context7 server; generated configs and other agent hosts remain
 keyless. Missing or placeholder keys use the anonymous service. Validate the
 overlay and managed configs with `stat -f '%Sp' private/agent/context7.runtime.jsonc`
 and `make doctor-agent`.
+The Aliyun DataWorks credentials live in `private/agent/dataworks.runtime.jsonc`
+with mode `0600`; only `scripts/dataworks-mcp-bridge.py` reads it, injecting
+`ALIBABA_CLOUD_ACCESS_KEY_ID` / `ALIBABA_CLOUD_ACCESS_KEY_SECRET` / `REGION`
+into the child MCP server environment. Validate with
+`python3 scripts/dataworks-mcp-bridge.py --validate-private-config`.
 
 Note: Private paths stay as `private/clash/`, `private/infra/`, and `private/python/` (not the new
 public paths `proxy/clash/` or `infra/python/`) to avoid breaking existing
@@ -54,9 +59,9 @@ public Neovim config.
 4. local ignored `<path>`
 5. public `<path>.template`
 
-For Clash specifically, private `private/clash/work-mac.yaml` is synced directly to
-the local Clash runtime profile. It is not copied back into
-`proxy/clash/Merge.yaml`.
+For Clash specifically, `private/clash/work-mac.yaml` is synced directly to
+the active Clash Verge local profile and the app is restarted to force a
+mihomo reload.
 
 For remote code-server deployment, `infra/code-server/install.sh` first looks
 for `private/infra/code-server/env.sh` (or the same path under

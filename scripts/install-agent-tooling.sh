@@ -14,8 +14,6 @@ PYTHON_BIN="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
 . "$BOOTSTRAP/scripts/lib/agent-mcp.sh"
 . "$BOOTSTRAP/scripts/lib/agent-configure.sh"
 
-load_devspace_mcp_private_env
-
 usage() {
   cat <<'EOF'
 Usage: scripts/install-agent-tooling.sh [options]
@@ -38,7 +36,7 @@ Configuration performed with --configure:
   - Caveman ultra mode (default)
   - codebase-memory-mcp MCP
   - context7 docs MCP (for library documentation queries)
-  - agent-prompt helper for local prompt-library lookup
+  - agent-prompt helper for local prompt-library lookup (MCP remains opt-in)
   - Pi RTK extension
   - AgentShield security scan integration
   - Instinct/continuous learning skeleton
@@ -63,12 +61,14 @@ fi
 
 RULES_FILE="$(canonical_path canonical.rules_file)"
 RULES_COMMON_SRC="$(canonical_path canonical.rules_common_dir)"
+ADVERSARIAL_REVIEW_SRC="$(canonical_path canonical.adversarial_review_file)"
 RULES_PYTHON_SRC="$(canonical_path canonical.rules_python_dir)"
 PI_LOCAL_PROVIDER_SRC="$(canonical_path canonical.personal_extensions_dir)/local-openai-provider.ts"
 
 CLAUDE_RULES_12="$(json_get_path agents.claude.paths.rules_12)"
 CLAUDE_RULES_COMMON="$(json_get_path agents.claude.paths.rules_common)"
 CLAUDE_RULES_PYTHON="$(json_get_path agents.claude.paths.rules_python)"
+CLAUDE_RULES_ADVERSARIAL_REVIEW="$(json_get_path agents.claude.paths.rules_adversarial_review)"
 CLAUDE_SETTINGS="$(json_get_path agents.claude.paths.settings)"
 CLAUDE_MCP_JSON="$(json_get_path agents.claude.paths.mcp)"
 CLAUDE_MD="$(json_get_path agents.claude.paths.instructions)"

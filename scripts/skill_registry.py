@@ -35,7 +35,7 @@ VALID_TARGET_FORMATS = {"directory", "flat-md"}
 VALID_TARGET_STRATEGIES = {"symlink", "copy"}
 VALID_DISTRIBUTION_STATES = {"enabled", "staged", "disabled", "merged"}
 VALID_BUNDLE_INSTALL_MODES = {"all"}
-NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
 
@@ -278,8 +278,43 @@ def _tuple_of_strings(raw: object, *, name: str) -> tuple[str, ...]:
 
 
 def _validate_name(kind: str, name: str) -> None:
-    if not NAME_RE.match(name):
+    if len(name) > 64 or not NAME_RE.fullmatch(name):
         raise RegistryError(f"invalid {kind} name: {name}")
+
+
+def project_skill_dirs(project_name: str, project: dict) -> tuple[tuple[str, Path], ...]:
+    """Return canonical and compatibility project Skill views.
+
+    The `.agents/skills` path stays the project authority-facing distribution view.
+    Compatibility views expose the same source directories to runtimes, such as
+    Claude Code, that require their own discovery path.
+    """
+    if not isinstance(project, dict):
+        raise RegistryError(f"project must be an object: {project_name}")
+    primary = project.get("skills_dir")
+    if not isinstance(primary, str) or not primary:
+        raise RegistryError(f"project skills_dir must be a non-empty string: {project_name}")
+    result = [(project_name, Path(primary))]
+    compatibility = project.get("compatibility_skills_dirs", {})
+    if not isinstance(compatibility, dict):
+        raise RegistryError(
+            f"project compatibility_skills_dirs must be an object: {project_name}"
+        )
+    seen_paths = {primary}
+    for runtime, raw_path in sorted(compatibility.items()):
+        _validate_name("project compatibility runtime", runtime)
+        if not isinstance(raw_path, str) or not raw_path:
+            raise RegistryError(
+                "project compatibility skill path must be a non-empty string: "
+                f"{project_name}/{runtime}"
+            )
+        if raw_path in seen_paths:
+            raise RegistryError(
+                f"duplicate project skill path: {project_name}/{runtime} path={raw_path}"
+            )
+        seen_paths.add(raw_path)
+        result.append((f"{project_name}:{runtime}", Path(raw_path)))
+    return tuple(result)
 
 
 def load_registry(path: Path = DEFAULT_REGISTRY) -> Registry:
@@ -292,6 +327,8 @@ def load_registry(path: Path = DEFAULT_REGISTRY) -> Registry:
     projects = raw.get("projects", {})
     if not isinstance(projects, dict):
         raise RegistryError("projects must be an object")
+    for project_name, project in projects.items():
+        project_skill_dirs(project_name, project)
 
     skills: dict[tuple[str, str], SkillRef] = {}
     bundles: dict[str, SkillBundle] = {}
@@ -483,10 +520,19 @@ def validate_skill_dir(path: Path, expected_name: str) -> list[str]:
     actual_name = meta.get("name")
     if not actual_name:
         errors.append(f"missing frontmatter name: {skill_md}")
-    elif actual_name != expected_name:
-        errors.append(f"frontmatter name mismatch: {skill_md} expected={expected_name} actual={actual_name}")
-    if "description" not in meta:
-        errors.append(f"missing frontmatter description: {skill_md}")
+    else:
+        if len(actual_name) > 64 or not NAME_RE.fullmatch(actual_name):
+            errors.append(f"invalid frontmatter name: {skill_md} actual={actual_name}")
+        if actual_name != expected_name:
+            errors.append(
+                f"frontmatter name mismatch: {skill_md} "
+                f"expected={expected_name} actual={actual_name}"
+            )
+    description = meta.get("description")
+    if not description:
+        errors.append(f"missing or empty frontmatter description: {skill_md}")
+    elif len(description) > 1024:
+        errors.append(f"frontmatter description exceeds 1024 characters: {skill_md}")
     text = skill_md.read_text(encoding="utf-8")
     missing_markdown = set()
     for raw_target in MARKDOWN_LINK_RE.findall(text):
@@ -540,6 +586,41 @@ def validate_registry_sources(registry: Registry, root: Path = ROOT) -> list[str
     for skill in registry.skills.values():
         if skill.distribution_state == "enabled":
             enabled_by_name.setdefault(skill.name, []).append(skill)
+        if (
+            skill.distribution_state == "enabled"
+            and skill.source_type == "external"
+            and skill.local_shadow_path is None
+            and skill.gate.manual_approval
+            and skill.gate.approved
+            and not skill.gate.approved_hash
+        ):
+            errors.append(
+                f"approved external skill missing approved_hash: "
+                f"{skill.source_id}/{skill.name}"
+            )
+    for skill_name, candidates in sorted(enabled_by_name.items()):
+        for index, first in enumerate(candidates):
+            for second in candidates[index + 1 :]:
+                overlapping_agents = set(first.agents or VALID_AGENTS) & set(
+                    second.agents or VALID_AGENTS
+                )
+                if not overlapping_agents:
+                    continue
+                if first.scope == second.scope == "global":
+                    overlapping_projects = {"global"}
+                elif first.scope == second.scope == "project":
+                    overlapping_projects = set(first.projects) & set(second.projects)
+                else:
+                    project_skill = first if first.scope == "project" else second
+                    overlapping_projects = set(project_skill.projects)
+                if not overlapping_projects:
+                    continue
+                errors.append(
+                    "duplicate enabled skill target: "
+                    f"{skill_name} sources={first.source_id},{second.source_id} "
+                    f"agents={','.join(sorted(overlapping_agents))} "
+                    f"projects={','.join(sorted(overlapping_projects))}"
+                )
     for skill in registry.skills.values():
         if skill.distribution_state != "enabled":
             continue
@@ -569,6 +650,22 @@ def validate_registry_sources(registry: Registry, root: Path = ROOT) -> list[str
                     f"agents={','.join(missing_agents)}"
                 )
     return errors
+
+
+def validate_registry_targets(
+    registry: Registry,
+    targets: dict[str, SkillTarget],
+) -> list[str]:
+    referenced_agents = {
+        agent
+        for skill in registry.skills.values()
+        if skill.scope == "global" and skill.distribution_state == "enabled"
+        for agent in skill.agents
+    }
+    missing = sorted(referenced_agents - set(targets))
+    if not missing:
+        return []
+    return [f"enabled global skill agents missing targets: {','.join(missing)}"]
 
 
 RISK_ORDER = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}

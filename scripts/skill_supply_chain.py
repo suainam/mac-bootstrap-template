@@ -49,6 +49,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     registry = load_registry(args.registry)
     targets = load_targets(args.targets)
     errors = validate_registry_sources(registry, ROOT)
+    errors.extend(validate_registry_targets(registry, targets))
+    errors.extend(validate_runtime_hygiene(registry, targets, ROOT))
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1

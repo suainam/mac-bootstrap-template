@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "theme": "catppuccin-mocha",
+  "language": "en",
+  "prefix": "ctrl+a",
+  "check_updates": true,
+  "resume_launch_flags": true,
+  "keybindings": {
+    "split_right": "\\",
+    "split_down": "-",
+    "toggle_files": "e",
+    "open_board": "o",
+    "toggle_agents": "a",
+    "toggle_sidebar": "b",
+    "zoom_pane": "z",
+    "close_pane": "x",
+    "resize_mode": "r",
+    "search": "/"
+  },
+  "layout": {
+    "show_titles": true,
+    "pane_title_path": true,
+    "agent_title": true,
+    "resume_in_new_workspace": true,
+    "file_open": "nvim",
+    "files_show_hidden": true,
+    "diff_show_line_numbers": true,
+    "diff_live_refresh": true
+  },
+  "notifications": {
+    "sound_on_done": true,
+    "sound_on_blocked": true
+  },
+  "sidebars": {
+    "left": {
+      "visible": true,
+      "width": 26,
+      "docks": [
+        "workspaces",
+        "agents",
+        "files"
+      ]
+    },
+    "right": {
+      "visible": false,
+      "width": 26,
+      "docks": []
+    }
+  }
+}

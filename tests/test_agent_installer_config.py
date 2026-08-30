@@ -16,7 +16,7 @@ def test_install_agent_tooling_is_thin_orchestrator():
 def test_install_agent_tooling_links_prompt_helpers():
     content = open(os.path.join(TEMPLATE, "scripts", "lib", "agent-configure.sh")).read()
     assert 'ln -sf "$BOOTSTRAP/scripts/agent-prompt.sh" "$HOME/.local/bin/agent-prompt"' in content
-    assert 'ln -sf "$BOOTSTRAP/scripts/agent-prompt-mcp.sh" "$HOME/.local/bin/agent-prompt-mcp"' in content
+    assert 'rm -f "$HOME/.local/bin/agent-prompt-mcp"' in content
 
 
 def test_brewfile_includes_devspace_npm_package():

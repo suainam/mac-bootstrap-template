@@ -29,7 +29,7 @@ def test_build_command_enables_profile_servers(tmp_path):
         json.dumps(
             {
                 "version": 1,
-                "default_enabled": {"context7": False, "devspace": False},
+                "default_enabled": {"context7": False},
                 "profiles": {"docs": ["context7"]},
             }
         )

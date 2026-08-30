@@ -457,4 +457,4 @@ def test_tunnel_run_prints_redacted_command(monkeypatch, tmp_path, capsys):
 
     assert rc == 0
     assert "secret-token" not in out
-    assert "cloudflared tunnel run --token <redacted>" in out
+    assert "cloudflared tunnel run --protocol http2 --token <redacted>" in out

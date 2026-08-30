@@ -1,3 +1,4 @@
+onboarding = false
 # Herdr Configuration File
 # Ported some settings from tmux
 
@@ -10,14 +11,32 @@ reload_config = "prefix+r"
 split_vertical = "prefix+\\"
 split_horizontal = "prefix+minus"
 
+[[keys.command]]
+key = "prefix+e"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.toggle"
+description = "nvim sidebar"
+
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.pick-file"
+description = "open file from agent output"
 [ui]
 # Herdr's UI is generally opinionated for agents, but you can configure theme/layout here if needed later.
 
 agent_panel_sort = "spaces"
+show_agent_labels_on_pane_borders = true
 [ui.toast]
 # Best Practice: 让 Herdr 调用 macOS 系统通知，当后台 Agent 跑完长任务时弹窗提醒你
 delivery = "system"
 
 [experimental]
+kitty_graphics = true
 pane_history = true
 switch_ascii_input_source_in_prefix = true
+
+[theme]
+# Herdr's built-in catppuccin theme is Catppuccin Mocha, matching Ghostty.
+name = "catppuccin"
+auto_switch = false

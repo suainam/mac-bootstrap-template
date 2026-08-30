@@ -18,7 +18,8 @@ for distribution behavior.
 ## Local taxonomy
 
 - `local/global/`: reusable Skills distributed to configured global agent targets.
-- `local/<project>/`: project-maintained Skills, normally distributed only to that project's `.agents/skills/`.
+- `local/<project>/`: project-maintained Skills distributed to the project's
+  `.agents/skills/` view and declared compatibility views such as `.claude/skills/`.
 - `local/shadows/<source>/`: reviewed local shadows retaining external lineage.
 - `local/deprecated/`: disabled sources retained for history and audit.
 - `external/quarantine/`: ignored external fetch output pending review.
@@ -27,6 +28,60 @@ for distribution behavior.
 adapter drives the mac-bootstrap Data Hub backend. Individual `knowledge-*` stage
 Skills remain project-scoped; the manager may invoke them without globally
 installing every stage.
+
+## Implemented distribution contract
+
+The registry owns one source tree per Skill (single source of truth). Distribution creates directory
+symlinks only; every projection of the same Skill must resolve to that same
+source realpath.
+
+### Invariants
+
+- **Single Source of Truth (唯一真源)**: Each Skill must have exactly one authoritative source directory (`local/`, `external/quarantine/`, or explicit registry entry). Projections across all managed runtime views (`~/.claude/skills`, `~/.agents/skills`, `~/.codex/skills`, etc.) MUST be directory symlinks pointing to that exact same source `realpath`. Never point different target views of the same Skill name to divergent paths.
+- **Zero Backup / Shadow Directory Residue (严禁备份与影子目录残留)**: Runtime skill directories (`~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`, project `.agents/skills`, etc.) must NEVER contain `.bak`, `.old`, `.tmp`, or manual copy directories containing `SKILL.md`. Runtimes such as Codex discover all subdirectories declaring `SKILL.md` regardless of directory naming, registering duplicate and conflicting definitions that pollute model context. Backup, versioning, and state management belong in Git or `.agent-state/` snapshots (`make skill-snapshot`), never in runtime discovery paths.
+- **Canonical De-duplication**: Multi-runtime discovery engines de-duplicate by `(name, realpath)`. Divergent realpaths for the same name prevent de-duplication and cause duplicate registration.
+
+| Scope | Managed view | Consumers |
+|---|---|---|
+| Global | `~/.claude/skills/<name>/SKILL.md` | Claude Code; also discovered by OpenCode and OMP |
+| Global | `~/.agents/skills/<name>/SKILL.md` | Codex, OpenCode, and OMP's canonical `agents` provider |
+| Global compatibility | `~/.codex/skills`, `~/.config/opencode/skills`, and agent-specific targets in `registry/targets.jsonc` | Existing production compatibility views pending an explicit target migration |
+| Project | `<repo>/.agents/skills/<name>/SKILL.md` | Codex, OpenCode, and OMP |
+| Project compatibility | `<repo>/.claude/skills/<name>/SKILL.md` | Claude Code |
+
+OMP has no separate registry target. It discovers the Claude, Agents, Codex,
+and OpenCode views, de-duplicates identical files by realpath, then resolves
+same-name collisions by provider priority. Do not add another OMP copy of the
+same source.
+
+Managed Skills follow the open Agent Skills format: a one-level
+`<name>/SKILL.md` directory, a 1-64 character lowercase hyphenated `name`, and a
+non-empty `description` of at most 1024 characters. Supporting `scripts/`,
+`references/`, and `assets/` remain inside the same source directory. Claude
+plugins are a different package type and are not silently flattened into this
+standalone-Skill pipeline.
+
+Official discovery references, verified 2026-08-13:
+
+- [Agent Skills specification](https://agentskills.io/specification)
+- [Claude Code Skills](https://code.claude.com/docs/en/slash-commands)
+- [Codex Skills](https://learn.chatgpt.com/docs/build-skills)
+- [OpenCode Agent Skills](https://opencode.ai/docs/skills/)
+- [OMP Skills](https://github.com/can1357/oh-my-pi/blob/main/docs/skills.md)
+
+## Reviewed architecture diagram skill
+
+`archify` is registered as a hash-bound external Skill from
+[`tt-a1i/archify`](https://github.com/tt-a1i/archify). It generates validated,
+self-contained architecture, workflow, sequence, data-flow, and lifecycle HTML
+artifacts. It is globally distributed to Claude Code, Codex, OpenCode, and the
+cross-agent view; invoke it explicitly as `$archify`.
+
+The bundled Node CLI requires Node 18 or newer. It writes only requested
+artifacts and temporary preview/visual-check files, and its optional subprocess
+paths are local Node, Git repository evidence, Chrome capture, and macOS
+`open`. The approved source hash and script allowance remain in
+`registry/sources.jsonc`.
 
 ## Operations
 

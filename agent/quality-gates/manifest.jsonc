@@ -53,8 +53,7 @@
       "default_gates": [
         "classify",
         "neat-freak-apply",
-        "make-check",
-        "make-doctor",
+        "make-check-parallel",
         "make-doctor-agent"
       ],
       "class_gates": {

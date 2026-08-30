@@ -1,6 +1,7 @@
 # ========== Tap ==========
 tap "rtk-ai/tap"
 tap "wangnov/tap"
+tap "can1357/tap"
 
 # ========== CLI 核心 ==========
 brew "git"
@@ -16,13 +17,14 @@ brew "tree-sitter-cli"
 # ========== Shell 增强 ==========
 brew "fzf"
 brew "pngpaste"
-brew "tmux"
+# brew "tmux"  # Optional; install manually when using the tmux workspace.
 brew "lua"
 brew "direnv"
 brew "zoxide"
 brew "eza"
 brew "bat"
 brew "yazi"
+brew "topgrade"
 
 # ========== 语言 & 运行时 ==========
 brew "node"
@@ -30,7 +32,8 @@ brew "uv"
 
 # ========== Agent 工具链 ==========
 brew "opencode"
-brew "pi-coding-agent"
+brew "omp"
+# brew "pi-coding-agent"  # 2026-08-03 起改用 omp（pi 的分发版，命令为 omp）
 brew "rtk"
 brew "codex-threadripper"
 brew "gh"
@@ -62,6 +65,7 @@ cask "iterm2"
 cask "hammerspoon"
 # cask "mos"  # 2026-06-15: 卸载 — 罗技G304鼠标卡顿，Mos拦截鼠标输入导致延迟
 cask "shottr"
+cask "maccy"
 cask "cc-switch"
 
 # ========== 网络 & 安全 ==========
@@ -93,6 +97,7 @@ npm "reasonix"
 npm "context-mode"
 npm "codebase-memory-mcp"
 npm "@waishnav/devspace"
+npm "playwriter"
 
 # ========== Python 分析库（通过 pip/uv 安装，不作为 brew 依赖） ==========
 # 见 python/requirements-common.txt

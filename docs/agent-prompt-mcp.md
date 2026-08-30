@@ -1,8 +1,8 @@
-# Agent Prompt MCP
+# Optional Local Prompt MCP
 
-`agent-prompt-library` exposes the local Fabric and Wonderful Prompts index as
-an MCP stdio server. It lets Codex and other MCP-capable agents discover stored
-prompt templates without manual copy and paste.
+The prompt library remains available as an explicit local utility. It is not a
+managed MCP server and is no longer distributed into Claude, Codex, OpenCode,
+Pi, Reasonix, or Antigravity configurations.
 
 ## Install
 
@@ -12,26 +12,15 @@ make agent-tools
 ```
 
 `make prompt-sync` clones or updates prompt sources and writes
-`~/.agent/prompts/index.json`. `make agent-tools` installs:
+`~/.agent/prompts/index.json`. `make agent-tools` installs the local CLI:
 
 - `~/.local/bin/agent-prompt`
-- `~/.local/bin/agent-prompt-mcp`
 
-Codex MCP config is generated with an absolute command path:
+Run the stdio adapter directly only when a local experiment needs it:
 
-```toml
-[mcp_servers.agent-prompt-library]
-enabled = false
-command = "<home>/.local/bin/agent-prompt-mcp"
-args = []
-
-[mcp_servers.agent-prompt-library.tools.search_prompts]
-approval_mode = "approve"
+```bash
+make prompt-mcp
 ```
-
-Codex keeps this optional server disabled in normal sessions. Start an on-demand
-session with `codex-mcp prompts`; other supported agents continue using their
-host-specific generated MCP configuration.
 
 ## CLI Use
 
@@ -82,8 +71,6 @@ Expected checks:
 ## Agent Verification
 
 ```bash
-codex mcp get agent-prompt-library
-codex-mcp prompts mcp get agent-prompt-library
 scripts/agent-doctor.sh
 ```
 
@@ -92,22 +79,23 @@ scripts/agent-doctor.sh
 ```text
 --- Prompt Library ---
   OK   agent-prompt helper
-  OK   agent-prompt-mcp helper
   OK   prompt index: <n> records
 ```
 
-AgentShield findings are reported as warnings so they do not prevent later
-configuration health checks from running.
+AgentShield scans the explicit `~/.claude` runtime target. The private parent
+may acknowledge a reviewed set in `private/agent/agentshield.baseline.json`;
+the baseline stores rule/file/severity plus a hash of evidence, never raw
+evidence. A rule, file, severity, or evidence-fingerprint change warns again.
+Only update the baseline after human review: acknowledgement records ownership
+of a known finding and is not a trust endorsement. Findings and scanner errors
+do not prevent later configuration health checks from running.
 
 ## Troubleshooting
 
-- Missing `agent-prompt-mcp`: rerun `make agent-tools`.
 - Missing index: rerun `make prompt-sync`.
 - Old prompt results: rerun `make prompt-index` after updating upstream repos.
-- Codex does not show the server definition: run `make agent-tools`.
-- Codex shows the server as disabled: use `codex-mcp prompts` for that session.
-- MCP client cannot start the server: verify that the generated config uses the
-  absolute `~/.local/bin/agent-prompt-mcp` target and that the symlink exists.
+- A host does not show the prompt server by design; invoke `make prompt-mcp`
+  explicitly for a local stdio experiment.
 
 ## Source Of Truth
 

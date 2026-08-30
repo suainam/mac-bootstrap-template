@@ -2,3 +2,4 @@ if [ -z "$ZSH_VERSION" ] && [ -z "$AUTO_SWITCHED_TO_ZSH" ] && command -v zsh &>/
     export AUTO_SWITCHED_TO_ZSH=1
     exec zsh
 fi
+. "$HOME/.cargo/env"

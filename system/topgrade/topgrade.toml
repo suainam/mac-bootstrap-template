@@ -1,0 +1,34 @@
+# Topgrade Configuration - mac-bootstrap Single Source of Truth
+# Managed by template/system/topgrade/topgrade.toml -> ~/.config/topgrade.toml
+
+[misc]
+assume_yes = false
+cleanup = true
+notify_end = "on_failure"
+show_skipped = false
+
+# Disable steps that shouldn't run unconditionally
+disable = [
+    "colima",       # Colima VM may be offline
+    "containers",   # Docker daemon may be offline
+    "git_repos",    # Do not indiscriminately git pull local dev repositories
+    "vim",          # System vim plugin update fails headless; Neovim is updated separately
+    "pnpm"          # Global pnpm bin is not in PATH; Bun/npm/uv manage global tools
+]
+
+# Steps that shouldn't block the entire upgrade run if they fail
+ignore_failures = [
+    "colima",
+    "containers",
+    "system",
+    "gem"
+]
+
+[brew]
+# Set greedy_cask = false to avoid unexpectedly breaking GUI apps with internal updaters
+greedy_cask = false
+autoremove = true
+
+[npm]
+use_sudo = false
+

@@ -28,7 +28,25 @@
     },
     "defaults": {"type": "object"},
     "reference_sources": {"type": "object"},
-    "projects": {"type": "object"},
+    "projects": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["skills_dir"],
+        "additionalProperties": false,
+        "properties": {
+          "skills_dir": {"type": "string", "minLength": 1},
+          "compatibility_skills_dirs": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 64
+            },
+            "additionalProperties": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
     "sources": {"type": "object"}
   }
 }

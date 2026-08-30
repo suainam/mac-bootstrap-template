@@ -50,6 +50,19 @@ def test_devspace_tunnel_supervisor_contract():
     assert "cloudflare_tunnel_token" not in content
 
 
+def test_devspace_tunnel_supervisor_has_public_health_watchdog():
+    """cloudflared gets stuck retrying a stale edge while the network is fine;
+    the supervisor must probe the public endpoint and exit so launchd restarts
+    it. Regression guard for 2026-08-24 hours-long 530 outage."""
+    content = read("scripts/devspace-tunnel-supervisor.sh")
+
+    assert "./scripts/devspace-local.sh public-url" in content
+    assert "TUNNEL_CHECK_INTERVAL_SECONDS" in content
+    assert "TUNNEL_MAX_FAILURES" in content
+    assert "200|401|405" in content
+    assert "consecutive public probe failures" in content
+
+
 def test_devspace_agent_installer_contract():
     content = read("scripts/install-devspace-agents.sh")
 
@@ -93,3 +106,11 @@ def test_makefiles_expose_devspace_agent_targets():
             assert f"{target}:" in content
 
     assert "$(MAKE) syntax-check" in template_makefile
+
+
+def test_tunnel_run_forces_http2_protocol():
+    """cloudflared must pin --protocol http2: through a local TUN proxy the
+    default QUIC transport flaps (edge dials time out / TLS EOF) and the
+    public URL returns 530. Regression guard for 2026-08-24 outage."""
+    content = read("scripts/devspace_local.py")
+    assert '"--protocol", "http2"' in content

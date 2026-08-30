@@ -14,8 +14,9 @@ make agent-tools # Configure RTK, caveman, CBM, context7 + wire skills for all a
 make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Validate and distribute landed registry sources only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
-make prompt-mcp  # Run prompt-library MCP stdio server
+make prompt-mcp  # Run the optional local prompt-library MCP server
 make doctor-agent # Verify all configs
+make agent-rules-audit # Scan all global & workspace AGENTS.md / CLAUDE.md for prompt drift
 make security-scan  # AgentShield security audit
 ```
 
@@ -33,14 +34,13 @@ Keep server connection definitions in `scripts/agent_mcp_runtime.py`; use the
 policy file only for default enablement and named profiles. Run `make
 agent-tools` after changing either source.
 
-The base Codex session starts core MCPs plus Context7. Other optional MCPs are
-enabled per session through generated profiles:
+The base Codex session starts context-mode, codebase-memory-mcp, and Context7.
+The only retained profile is a compatibility override for Context7. DevSpace is
+intentionally not in this list: it is a browser-facing local service, not an
+agent MCP. The prompt-library MCP is local-only and is not distributed to hosts.
 
 ```bash
 codex-mcp docs       # context7 profile override
-codex-mcp prompts    # agent-prompt-library
-codex-mcp devspace   # authenticated remote DevSpace
-codex-mcp full       # all optional managed MCPs
 ```
 
 The generated `~/.local/bin/codex-mcp` launcher converts the selected profile
@@ -128,7 +128,7 @@ The script is intentionally split by responsibility:
 - Legacy Git runner source: `template/scripts/agent-quality-gate.sh`
 - `mac-bootstrap-template` is the first repository migration profile: it reuses edit syntax feedback, compiles dispatcher-provided staged Python snapshots before commit, validates push ref metadata, and runs the fixed repository-only `make repo-check` target before push. It never runs machine checks.
 - `python-repo-smoke` keeps only the ordinary Python edit/commit/ref-integrity tracer and deliberately skips project checks. `python-repository` adds the shared fixed `repository-check` gate, so an opted-in repository owns a read-only `make repo-check` target without exposing project commands through the trusted registry.
-- `mac-bootstrap-parent` requires staged `template` gitlink OIDs to be fetchable, then reuses the same fixed `repository-check` gate before push. `machine-check` additionally requires `agent.runtime.managementCheckout=true` in a primary non-submodule checkout; ordinary clones and linked worktrees remain repo-only. The trusted bundle owns the target selection, passes the install-selected external Python to Make without resolving away a venv entrypoint, and doctor reports the effective scope.
+- `mac-bootstrap-parent` requires staged `template` gitlink OIDs to be fetchable, then reuses the same fixed `repository-check` gate before push. `machine-check` additionally requires `agent.runtime.managementCheckout=true` in a primary non-submodule checkout; ordinary clones and linked worktrees remain repo-only. The trusted bundle owns target selection, uses the repository `.venv/bin/python` for `make repo-check` when present, preserves the trusted runtime directory in `PATH`, and doctor reports the effective scope.
 - Repo-managed git hooks remain authoritative for real parent/template checkouts until #55 explicitly installs and validates the dispatcher; never activate both paths.
 - Codex `hooks.json` does not own quality gate execution and should not guess git intent from prompts.
 - Codex hook commands use `hooks.json` only; `config.toml` must not define a second hook representation.
@@ -151,9 +151,11 @@ Remote OAuth authorization is runtime readiness, not desired-state drift.
 
 ---
 
+Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用跨工具发现层，不由本模板的 Pi manifest、installer 或 `pi-packages` 接管。
+
 ## Agent Config Matrix
 
-| Tool | Claude Code | Codex CLI | OpenCode | Pi | Reasonix | Antigravity |
+| Tool | Claude Code | Codex CLI | OpenCode | Pi (legacy) | Reasonix | Antigravity |
 |------|:-----------:|:---------:|:--------:|:--:|:--------:|:------------:|
 | **RTK** | ✅ hook+RTK.md | ✅ RTK.md+AGENTS.md | ✅ plugin | ✅ extension + settings.json | ❌ | ❌ |
 | **Caveman** | ✅ plugin+ultra | ✅ skills+hooks | ✅ plugin+ultra | ✅ skill file | ✅ skill file |
@@ -198,11 +200,12 @@ Decision rule:
 - Keep `index.json` as the agent/MCP lookup contract.
 - Add SQLite later only as a generated FTS/cache layer, not as canonical data.
 
-`agent-prompt-mcp` reads `agent/prompts/sources.json` and
+The optional local `agent-prompt-mcp` reads `agent/prompts/sources.json` and
 `~/.agent/prompts/index.json`, then loads content by source file and line range
-or Fabric pattern directory on demand. See
-[`docs/agent-prompt-mcp.md`](../docs/agent-prompt-mcp.md) for the MCP contract,
-Codex config shape, smoke test, and troubleshooting steps.
+or Fabric pattern directory on demand. It is not included in generated host
+MCP configurations. See
+[`docs/agent-prompt-mcp.md`](../docs/agent-prompt-mcp.md) for the optional local
+MCP contract, smoke test, and troubleshooting steps.
 
 ---
 
@@ -285,11 +288,9 @@ Reasonix uses:
 
 ---
 
-## Pi Terminal Agent
+## Pi Terminal Agent (Legacy Compatibility)
 
-**Status**: Installed (`/opt/homebrew/bin/pi` v0.77.0). RTK extension registered,
-`pi-mcp-extension` installed, local OpenAI-compatible provider wired, CBM +
-context7 configured as MCP servers, skills installed, AGENTS.md wired.
+**Status**: Optional legacy integration. `omp` is current default CLI; this section applies only when `pi` is installed.
 
 Pi uses:
 - Config: `~/.pi/agent/settings.json` (global), `.pi/settings.json` (project)

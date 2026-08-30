@@ -19,19 +19,6 @@ end
 hs.grid.setGrid("3x2")
 
 require("wuying")
-
-local clipboard_tool = hs.loadSpoon("ClipboardTool")
-if clipboard_tool then
-  spoon.ClipboardTool.hist_size = 80
-  spoon.ClipboardTool.show_copied_alert = false
-  spoon.ClipboardTool:bindHotkeys({
-    show_clipboard = { hyper, "V" },
-  })
-  spoon.ClipboardTool:start()
-else
-  hs.alert.show("ClipboardTool spoon missing")
-end
-
 local keybindings_tool = hs.loadSpoon("HSKeybindings")
 local keybindings_visible = false
 

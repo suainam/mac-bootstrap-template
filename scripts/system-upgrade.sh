@@ -8,6 +8,7 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BREW_BIN="${BREW_BIN:-$(command -v brew || true)}"
+TOPGRADE_BIN="${TOPGRADE_BIN:-$(command -v topgrade || true)}"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/.venv/bin/python}"
 SKILL_SOURCE="${SKILL_SOURCE:-mattpocock-skills}"
 
@@ -20,10 +21,14 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   exit 1
 fi
 
-echo "Running Homebrew update and upgrade in the current terminal..."
-"${BREW_BIN}" update
-"${BREW_BIN}" upgrade
-
+if [[ -n "${TOPGRADE_BIN}" && -x "${TOPGRADE_BIN}" ]]; then
+  echo "Running Topgrade universal upgrade..."
+  "${TOPGRADE_BIN}"
+else
+  echo "Running Homebrew update and upgrade in the current terminal..."
+  "${BREW_BIN}" update
+  "${BREW_BIN}" upgrade
+fi
 echo "Patching Chrome to ensure Gemini features remain enabled..."
 (
   cd "${ROOT_DIR}"

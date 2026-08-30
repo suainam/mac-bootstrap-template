@@ -33,11 +33,8 @@ for file in "$DIR"/*.lua; do
   ln -sf "$file" "$TARGET/$(basename "$file")"
   echo "  $TARGET/$(basename "$file") -> hammerspoon/$(basename "$file")"
 done
-
 echo "=== Installing official Spoons ==="
-install_spoon "ClipboardTool"
 install_spoon "HSKeybindings"
-
 
 
 echo "Done. Reload with: killall Hammerspoon && open -a Hammerspoon"

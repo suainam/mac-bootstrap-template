@@ -22,9 +22,12 @@ def test_hammerspoon_has_iterm2_binding():
     assert "iterm2_bundle_id" in content
 
 
+
 # ── Hammerspoon Spoons ────────────────────────────────────────────────
 
 def test_spoons_installed():
     spoons = os.listdir(os.path.expanduser("~/.hammerspoon/Spoons"))
     assert "ClipboardTool.spoon" in spoons
     assert "HSKeybindings.spoon" in spoons
+
+
