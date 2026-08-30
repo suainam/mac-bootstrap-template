@@ -50,6 +50,17 @@ smoke state, and serve prefix. For every serve output declare:
 Bind existing producer and consumer pytest node IDs. Old-page exceptions belong only in the
 exact, shrink-only baseline; never add a broad `legacy` bypass or raise counts to hide new debt.
 
+## Data Contract Gate
+
+When a page data source or assistant context changes, read the data and AI sections of
+`merchandise/docs/dashboard-development-contract.md`. Complete the page change only when:
+
+- the notebook consumes registered Serve Datasets and root legacy files gain no new consumer;
+- each data-backed assistant component reports its dataset-local snapshot and bounded catalog
+  `dataset_refs`;
+- page context contains typed filters rather than DataFrames, cell output, DOM, or file paths;
+- producer-shaped consumer tests and the Dashboard contract gate pass.
+
 ## Page Rules
 
 - Reuse the existing page shell, header, filter, KPI, section, table, and state patterns.
