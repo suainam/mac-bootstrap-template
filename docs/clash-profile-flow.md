@@ -1,15 +1,17 @@
 # Clash Profile Flow
 
-This setup has three different layers. Keep them separate.
+This setup has three layers. Keep them separate.
 
 ## 1. Source Of Truth
 
-- `private/clash/work-mac.yaml` is the private machine-specific source of truth
-  for proxy rules, DNS, local domains, and subscription-specific tweaks on this
-  Mac.
-- `make render-configs` syncs `work-mac.yaml` directly to the active Clash Verge
-  local profile (identified by `profiles.yaml` `current` field) and restarts the
-  app to force a mihomo reload.
+- The server-owned compatible subscription is the source of truth for the
+  complete common Mihomo profile: TUN, DNS, process rules, capability groups,
+  and routing policy.
+- `private/clash/work-mac.yaml` remains the private local fallback and source
+  for machine-only overlays. It is not copied over a remote compatible profile.
+- `make render-configs` only syncs `work-mac.yaml` when the active profile is
+  local. For a remote profile it skips without editing `profiles.yaml` or
+  restarting Clash Verge; refresh the subscription through Clash Verge.
 
 ## 2. Runtime State
 
@@ -35,7 +37,10 @@ This setup has three different layers. Keep them separate.
 
 ## Recommended Workflow
 
-1. Edit `private/clash/work-mac.yaml` for machine-specific behavior.
-2. Run `make render-configs`.
-3. The script syncs to the active local profile and restarts Clash Verge.
+1. Deploy common policy from the server and refresh the remote compatible
+   subscription in Clash Verge.
+2. Keep company-only domains, addresses, and other machine-only settings in
+   `private/clash/work-mac.yaml` or the authorized private overlay.
+3. Run `make render-configs` only when using the local fallback profile; it
+   safely skips a remote active profile.
 4. Keep runtime files in `Application Support` out of version control.

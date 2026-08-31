@@ -174,17 +174,51 @@ sync_clash_verge_profile() {
     return 0
   fi
 
-  # Determine active local profile from profiles.yaml
   local profiles_yaml="$clash_dir/profiles.yaml"
   local current_uid=""
   if [ -f "$profiles_yaml" ]; then
     current_uid=$(awk '/^current:/ {print $2; exit}' "$profiles_yaml" 2>/dev/null)
   fi
 
-  local target=""
-  if [ -n "$current_uid" ]; then
-    target="$profiles_dir/${current_uid}.yaml"
+  # A remote compatible profile is complete and server-owned. Never overwrite
+  # it with the legacy local work-mac snapshot; refresh it through Clash Verge.
+  local current_type=""
+  current_type=$(awk -v uid="$current_uid" '
+    function indent(line, prefix) {
+      prefix = line
+      sub(/[^[:space:]].*$/, "", prefix)
+      return length(prefix)
+    }
+    /^[[:space:]]*-[[:space:]]+uid:/ {
+      candidate = $0
+      sub(/^[[:space:]]*-[[:space:]]+uid:[[:space:]]*/, "", candidate)
+      sub(/[[:space:]]+#.*$/, "", candidate)
+      sub(/[[:space:]]*$/, "", candidate)
+      gsub(/"/, "", candidate)
+      item_indent = indent($0)
+      if (!found && candidate == uid) {
+        found = 1
+        target_indent = item_indent
+        next
+      }
+      if (found && item_indent <= target_indent) exit
+    }
+    found && /^[[:space:]]+type:[[:space:]]*/ {
+      value = $0
+      sub(/^[[:space:]]*type:[[:space:]]*/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      gsub(/"/, "", value)
+      print value
+      exit
+    }
+  ' "$profiles_yaml" 2>/dev/null || true)
+  if [ "$current_type" != "local" ]; then
+    echo "  Clash Verge Profile: skipped (active profile type is ${current_type:-unknown}; refresh the remote compatible subscription)"
+    return 0
   fi
+
+  local target="$profiles_dir/${current_uid}.yaml"
 
   if [ -z "$target" ] || [ ! -f "$target" ]; then
     echo "  Clash Verge Profile: skipped (active local profile not found: ${current_uid:-none})"

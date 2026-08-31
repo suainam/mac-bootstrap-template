@@ -318,13 +318,15 @@ ServerAliveCountMax 10    # drop after 10 missed replies (~10 min of silence)
 
 Clash profile flow:
 
-- `private/clash/work-mac.yaml` is the private machine-specific source of truth
-  for this Mac.
-- `make render-configs` syncs `work-mac.yaml` to the active Clash Verge local
-  profile and restarts the app to force a mihomo reload.
+- The server-owned compatible subscription is the source of truth for the
+  complete common Mihomo profile.
+- `private/clash/work-mac.yaml` stores machine-only/private fallback policy and
+  is not copied over a remote compatible profile.
+- `make render-configs` syncs `work-mac.yaml` only to an active local profile;
+  it safely skips remote profiles.
 - Runtime profiles under `~/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/` are generated state.
-- Refreshing a Clash subscription does not rewrite `work-mac.yaml`; it only
-  updates app-managed runtime state.
+- Refreshing a Clash subscription updates the app-managed runtime profile
+  without rewriting `work-mac.yaml`.
 - Full notes: [`docs/clash-profile-flow.md`](docs/clash-profile-flow.md)
 
 Use `make export-public DEST=/path/to/mac-bootstrap-public` to produce a
