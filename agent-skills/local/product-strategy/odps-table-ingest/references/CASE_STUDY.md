@@ -27,7 +27,7 @@
 
 ### 3. 事后 ODPS 聚合 SQL 举证
 ```sql
-SELECT 
+SELECT
     COUNT(1) AS row_cnt,
     SUM(st_qty) AS sum_qty,
     ROUND(SUM(st_amt), 2) AS sum_amt,
