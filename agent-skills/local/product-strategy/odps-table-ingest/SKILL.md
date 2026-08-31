@@ -32,8 +32,9 @@ description: Ingest local Excel/CSV files into MaxCompute (ODPS) partitioned tab
 2. **历史表名 Typo 与 RENAME 继承决策树**：
    - 当遇到历史表名拼写错误（如 `anslysis_...` 对比 `analysis_...`）时：
      - 若旧表已承载历史生产分区，**严禁直接新建空表**（会造成历史分区丢失或资产孤立）；
-     - **必须执行 `ALTER TABLE <old_typo_table> RENAME TO <correct_table>;`**，确保历史分区 100% 完整继承至正名表名下；
+     - 先向用户展示候选表、分区快照与回滚方案；**只有获得明确确认后，才可执行 `ALTER TABLE <old_typo_table> RENAME TO <correct_table>;`**，确保历史分区 100% 完整继承至正名表名下；
      - 重命名后立即运行 `SHOW PARTITIONS` 验证历史分区数与名称全部在册。
+     - **严禁自动 DROP 或清理所谓“空表”**；表清理必须单独列入确认范围。
 3. **下游 Join 语义识别**：
    - 明确待导入数据在下游工作流中的角色：是全量数据直传，还是作为下游主流程按店品批 `INNER JOIN` 过滤特定批次的清单表。
 
@@ -57,7 +58,7 @@ description: Ingest local Excel/CSV files into MaxCompute (ODPS) partitioned tab
    - 丢弃列清单（若有冗余列、辅助列或行序号）；
    - 下游使用建议（如 INNER JOIN 关联字段与分区条件）。
 3. **⛔ 硬性确认门禁 (Hard Gate)**：
-   - **必须等待用户显式确认（如“确认”）后，方可执行后续写入步骤**；
+   - **必须等待用户显式确认（如“确认”）后，方可执行 RENAME、清理/删除与后续写入步骤**；
    - 严禁在未经用户确认前调用写入方法或修改线上生产数据。
 
 **完成标准**：对齐方案结构化呈现给用户，并收到用户的显式确认答复。
