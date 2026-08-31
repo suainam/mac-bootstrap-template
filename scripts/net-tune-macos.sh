@@ -33,7 +33,7 @@ init_or_migrate_profiles() {
       "autosndbufmax": 16777216,
       "autorcvbufmax": 16777216,
       "maxsockbuf": 16777216,
-      "networks": ["gw:192.168.31.1"]
+      "networks": []
     },
     "office": {
       "name": "Office Default",
@@ -113,7 +113,7 @@ get_current_network_identifier() {
     identifier=$(/System/Library/PrivateFrameworks/Apple80211.framework/Resources/airport -I 2>/dev/null | awk -F': ' '/ SSID/ {print $2}' || true)
   fi
 
-  # 3. Fall back to Gateway IP signature (e.g. gw:192.168.31.1)
+  # 3. Fall back to a gateway IP signature (e.g. gw:<gateway-ip>)
   if [ -z "$identifier" ]; then
     local gw
     gw=$(route -n get default 2>/dev/null | awk '/gateway:/ {print $2}' || true)
@@ -243,7 +243,7 @@ profiles['${pname}'] = {
     'name': '${pname} Profile',
     'target_up_mbps': int('${TARGET_UP_MBPS:-160}'),
     'target_down_mbps': int('${TARGET_DOWN_MBPS:-1000}'),
-    'target_rtt_ms': int('${PROBED_RTT:-235}'),
+    'target_rtt_ms': int(round(float('${PROBED_RTT:-235}'))),
     'sendspace': int('${NEW_SENDSPACE}'),
     'recvspace': int('${NEW_RECVSPACE}'),
     'autosndbufmax': int('${NEW_AUTOSNDBUFMAX}'),
