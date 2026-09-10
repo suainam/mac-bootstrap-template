@@ -1125,6 +1125,11 @@
         "sql-analysis": {
           "scope": "project",
           "projects": ["product_strategy"]
+        },
+        "franchise-store-yoy-report": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "加盟店组货同比汇报的动态日期口径、模板化 Excel、省区表、桑基图和差异复核"
         }
       }
     },
