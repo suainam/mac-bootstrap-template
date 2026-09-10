@@ -1108,6 +1108,10 @@
       "type": "internal",
       "path": "agent-skills/local/product-strategy",
       "skills": {
+        "product-strategy-ops": {
+          "scope": "project",
+          "projects": ["product_strategy"]
+        },
         "web-video-presentation-delivery": {
           "scope": "project",
           "projects": ["product_strategy"]
