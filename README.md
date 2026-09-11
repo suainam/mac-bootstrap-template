@@ -157,8 +157,9 @@ follows the official Google installer instead of Homebrew cask packaging.
 OMP is the current default Agent CLI; Pi runtime wiring remains a compatibility layer and does not imply Pi remains installed on this machine.
 
 Machine-level npm globals are tracked in `template/agent/npm-global-packages.txt`.
-Use `make npm-packages` to install missing entries, `make npm-packages-upgrade`
-to refresh them in place, and `make doctor-agent` to verify the current machine
+Use `make npm-packages` to install missing entries, or `make system-upgrade` for
+the daily manifest-driven upgrade (the explicit step is also available as
+`make npm-packages-upgrade`). `make doctor-agent` verifies the current machine
 against that manifest. The manifest intentionally stores bare package names, and
 `make doctor-agent` reports a missing prerequisite if `node`/`npm` is absent.
 
@@ -174,7 +175,7 @@ and runtime state.
 
 ## 全生态统一升级 (Topgrade & System Upgrade)
 
-系统将多渠道包管理器与工具链聚合收敛至 `topgrade` 进行一键联动更新，配置真源维护在 `template/system/topgrade/topgrade.toml` 并自动软链至 `~/.config/topgrade.toml`。
+系统将多渠道包管理器与工具链聚合至 `system-upgrade`：Topgrade 负责通用系统/包管理，manifest helper 负责 npm globals；Topgrade 配置真源维护在 `template/system/topgrade/topgrade.toml` 并自动软链至 `~/.config/topgrade.toml`。
 
 ```mermaid
 flowchart TD
@@ -196,13 +197,13 @@ flowchart TD
 ```
 
 - **真源路径**: `template/system/topgrade/topgrade.toml`
-- **动态探测机制**: Topgrade 在运行时动态查询已安装列表（如 `brew outdated`、`npm list -g`、`bun pm ls -g`），**已卸载的软件绝对不会被重新下载或自动升级**。
+- **动态探测机制**: Topgrade 在运行时动态查询其负责的已安装工具（如 `brew outdated`、`bun pm ls -g`）；npm globals 由 `template/agent/npm-global-packages.txt` 显式管理。**已卸载的软件绝对不会被重新下载或自动升级**。
 - **编排与分工**:
-  - **`make system-upgrade`（推荐日常唯一入口）**: 权威入口，统一调度 `topgrade`（全包管理更新） $\rightarrow$ `make patch-chrome-gemini`（Chrome Gemini 补丁） $\rightarrow$ Agent 技能供应链刷新与分发。
+  - **`make system-upgrade`（推荐日常唯一入口）**: 权威入口，依次调度 `topgrade --disable node` $\rightarrow$ manifest npm globals $\rightarrow$ `make patch-chrome-gemini`（Chrome Gemini 补丁） $\rightarrow$ Agent 技能供应链刷新与分发。
   - **`topgrade`（底层多包引擎）**: 单独运行仅执行包管理器与插件更新。
 - **使用方式**:
   ```bash
-  make system-upgrade   # 推荐：全生态升级 + Chrome 补丁 + 技能供应链分发
+  make system-upgrade   # 推荐：全生态升级（含 manifest npm globals） + Chrome 补丁 + 技能供应链分发
   topgrade --dry-run    # 演练查看待更新项
   topgrade              # 仅更新多包管理器与运行时插件
   ```
@@ -403,7 +404,7 @@ make agent-tools     # Wire RTK, caveman, managed MCPs, and skills for all agent
 make agent-refresh   # Full sync + full agent reconfigure
 make skill-refresh   # Ensure missing bundles + re-wire managed skills
 make skill-update SOURCE=mattpocock-skills  # Fetch + safely promote upstream updates
-make system-upgrade  # Interactive brew update/upgrade + safe skill refresh
+make system-upgrade  # Interactive system upgrade + manifest-managed npm globals + safe skill refresh
 make prompt-sync     # Sync prompt libraries + rebuild prompt index
 make doctor-agent    # Verify all configs (contains AgentShield scan)
 ```
@@ -584,7 +585,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make agent-refresh` | Full sync + full agent reconfigure |
 | `make skill-refresh` | Ensure missing bundles + re-wire managed skills |
 | `make skill-update SOURCE=mattpocock-skills` | Fetch and safely promote an external bundle |
-| `make system-upgrade` | Interactive Homebrew update/upgrade followed by safe skill refresh |
+| `make system-upgrade` | Interactive system upgrade + manifest-managed npm globals followed by safe skill refresh |
 | `make prompt-sync` | Sync prompt libraries + rebuild prompt index |
 | `make check` | Default grouped repository + machine validation |
 | `make check-serial` | Serial repository + machine validation |

@@ -106,12 +106,12 @@ The daily update entry point is:
 make system-upgrade
 ```
 
-It requires a real interactive terminal, runs `brew update` and `brew upgrade`
-in that same terminal, and only then refreshes the configured source (default:
-`mattpocock-skills`) and distributes approved skills. Homebrew owns any sudo
-prompt; the wrapper does not capture, store, or supply passwords. Set
-`BREW_BIN`, `PYTHON_BIN`, or `SKILL_SOURCE` only when the local installation
-needs a non-default executable or bundle.
+It requires a real interactive terminal, updates Homebrew and then the
+manifest-managed global npm packages in that same terminal before refreshing
+the configured source (default: `mattpocock-skills`) and distributing approved
+skills. Homebrew owns any sudo prompt; the wrapper does not capture, store, or
+supply passwords. Set `BREW_BIN`, `PYTHON_BIN`, or `SKILL_SOURCE` only when the
+local installation needs a non-default executable or bundle.
 
 ## Distribution
 

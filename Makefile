@@ -91,7 +91,7 @@ help:
 	@echo "  skill-snapshot         Snapshot current global/project skill views"
 	@echo "  skill-refresh          Validate + wire managed skills"
 	@echo "  skill-check            Validate skill registry and local skill sources"
-	@echo "  system-upgrade         Interactive brew update/upgrade + safe skill refresh"
+	@echo "  system-upgrade         Interactive system + manifest-managed npm upgrade + safe skill refresh"
 	@echo "  prompt-sync            Sync prompt libraries + rebuild prompt index"
 	@echo "  prompt-index           Rebuild prompt index from local prompt upstreams"
 	@echo "  prompt-list            List indexed prompts: Q=query"

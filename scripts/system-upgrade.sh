@@ -23,12 +23,17 @@ fi
 
 if [[ -n "${TOPGRADE_BIN}" && -x "${TOPGRADE_BIN}" ]]; then
   echo "Running Topgrade universal upgrade..."
-  "${TOPGRADE_BIN}"
+  "${TOPGRADE_BIN}" --disable node
 else
   echo "Running Homebrew update and upgrade in the current terminal..."
   "${BREW_BIN}" update
   "${BREW_BIN}" upgrade
 fi
+echo "Upgrading managed global npm packages..."
+(
+  cd "${ROOT_DIR}"
+  ./scripts/install-npm-global-packages.sh --yes --upgrade
+)
 echo "Patching Chrome to ensure Gemini features remain enabled..."
 (
   cd "${ROOT_DIR}"
