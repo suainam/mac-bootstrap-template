@@ -11,7 +11,9 @@ Curate the smallest navigable knowledge surface. Keep each fact at one authority
 
 Read repository rules first and follow their project-native discovery and validation priority. Use the declared code graph for code discovery, Git's tracked/unignored set for document inventory, and existing language manifests, Make targets, and tests for stack facts. Use generic search only as a named fallback when the project supplies no suitable capability.
 
-Run the bundled `python3 <skill-root>/scripts/audit_project.py <project-root> --format json` for mechanical checks. Read [references/audit-report.md](references/audit-report.md) only when interpreting findings. Read the human entrypoint, routed authorities, and structured sources they name. Inspect candidates before accepting them.
+Create a coverage ledger from the user's named directories and requested scenarios before consulting generated indexes. For each item record its actual entrypoint, nearest rules, authority, evidence, and unresolved gaps. A missing manifest or root README is a discovery gap, not permission to omit the directory or invent metadata. Inspect relevant ignored runtime views separately: record registry ownership, symlink targets, and source realpaths without recursively loading unrelated ignored data.
+
+Run the bundled `python3 <skill-root>/scripts/audit_project.py <project-root> --format json` for mechanical checks. If it reports `ENCRYPTED_MARKDOWN`, use `$decrypt-materialize` to create an external verified output and retain its JSON result, then rerun with `--materialized-manifest <result.json>`. Read [references/audit-report.md](references/audit-report.md) only when interpreting findings. Read the human entrypoint, routed authorities, and structured sources they name. Inspect candidates before accepting them.
 
 Complete when every existing knowledge surface has an audience, authority, loading tier, and current evidence source, with no project-native capability silently bypassed.
 
@@ -56,3 +58,5 @@ Complete when the diff contains only authorized, evidence-backed changes.
 Rerun the audit with `--strict`; run repository documentation checks and relevant tests. Inspect the diff for duplicated facts, narrative sediment, dead references, unexplained growth, and missing affected audiences. Report skipped checks as skipped.
 
 Complete when mechanical checks pass, every semantic candidate is resolved or listed, and the final summary names changed authorities, evidence, budgets, and remaining decisions.
+
+Match every requested outcome to direct evidence in the coverage ledger. Mechanical success does not prove semantic coverage, a help command does not prove a business run, and a registry entry does not prove distribution. For affected projections verify all intended targets resolve to the canonical source after distribution and repeat the bounded operation to check idempotence. Challenge wrong-directory, stale-index, missing-input, repeated-write, and read-versus-write cases before closing; label tabletop review separately from executed tests and independent review.

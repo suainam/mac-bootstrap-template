@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,99 @@ def run_audit(project: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def test_invalid_utf8_reports_gap_and_continues_other_checks(tmp_path: Path) -> None:
+    (tmp_path / "bad.md").write_bytes(b"\xff\xfe\x00")
+    (tmp_path / "README.md").write_text("[missing](absent.md)\n", encoding="utf-8")
+    result = run_audit(tmp_path, "--strict")
+    report = json.loads(result.stdout)
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+    assert any(x["code"] == "UNREADABLE_MARKDOWN" and x["path"] == "bad.md"
+               for x in report["findings"])
+    assert any(x["code"] == "DEAD_LOCAL_LINK" for x in report["findings"])
+    assert "README.md" in report["measurements"]
+    assert "bad.md" not in report["measurements"]
+
+
+def test_tsd_wrapped_markdown_reports_materialization_route(tmp_path: Path) -> None:
+    (tmp_path / "wrapped.md").write_bytes(b"%TSD-Header-###%opaque")
+    result = run_audit(tmp_path, "--strict")
+    report = json.loads(result.stdout)
+    assert result.returncode == 1
+    finding = next(x for x in report["findings"] if x["path"] == "wrapped.md")
+    assert finding["code"] == "ENCRYPTED_MARKDOWN"
+    assert "decrypt-materialize" in finding["evidence"]["remediation"]
+
+
+def test_verified_external_materialization_clears_tsd_strict_block(tmp_path: Path) -> None:
+    source = tmp_path / "wrapped.md"
+    source.write_bytes(b"%TSD-Header-###%opaque")
+    (tmp_path / "context.md").write_text("# Context\n", encoding="utf-8")
+    external = tmp_path.parent / f"{tmp_path.name}-materialized.md"
+    external.write_text("# Materialized knowledge\n\n[context](context.md)\n", encoding="utf-8")
+    manifest = tmp_path.parent / f"{tmp_path.name}-materialized.json"
+    data = external.read_bytes()
+    manifest.write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "source": str(source),
+                "output": str(external),
+                "bytes": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "verified": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_audit(
+        tmp_path,
+        "--strict",
+        "--materialized-manifest",
+        str(manifest),
+    )
+
+    assert result.returncode == 0
+    report = json.loads(result.stdout)
+    assert report["summary"]["error_count"] == 0
+    assert report["measurements"]["wrapped.md"]["bytes"] == len(data)
+    assert report["measurements"]["wrapped.md"]["materialized_manifest"] == str(manifest.resolve())
+
+
+def test_invalid_materialization_cannot_clear_tsd_strict_block(tmp_path: Path) -> None:
+    source = tmp_path / "wrapped.md"
+    source.write_bytes(b"%TSD-Header-###%opaque")
+    external = tmp_path.parent / f"{tmp_path.name}-bad-materialized.md"
+    external.write_text("# Materialized knowledge\n", encoding="utf-8")
+    manifest = tmp_path.parent / f"{tmp_path.name}-bad-materialized.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "source": str(source),
+                "output": str(external),
+                "bytes": external.stat().st_size,
+                "sha256": "tampered",
+                "verified": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_audit(
+        tmp_path,
+        "--strict",
+        "--materialized-manifest",
+        str(manifest),
+    )
+
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    codes = {item["code"] for item in report["findings"]}
+    assert {"INVALID_MATERIALIZATION", "ENCRYPTED_MARKDOWN"} <= codes
 
 
 def test_audit_reports_lean_single_source_project_without_mutation(

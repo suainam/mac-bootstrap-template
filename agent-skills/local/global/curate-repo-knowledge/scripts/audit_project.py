@@ -41,6 +41,11 @@ SKIP_PARTS = {
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 FENCED_CODE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
 CHINESE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+TSD_HEADER = b"%TSD-Header-###%"
+
+
+class TSDWrappedMarkdown(UnicodeError):
+    """A Markdown path contains a Codex TSD wrapper on disk."""
 
 
 def estimated_tokens(text: str) -> int:
@@ -52,6 +57,8 @@ def estimated_tokens(text: str) -> int:
 
 def measurement(path: Path) -> dict[str, int | str]:
     data = path.read_bytes()
+    if data.startswith(TSD_HEADER):
+        raise TSDWrappedMarkdown(path.as_posix())
     text = data.decode("utf-8")
     return {
         "total_lines": len(text.splitlines()),
@@ -214,11 +221,11 @@ def budget_findings(
 
 def local_link_findings(
     root: Path,
-    paths: list[Path],
+    paths: list[tuple[Path, str]],
     uninitialized_submodules: list[Path],
 ) -> list[dict[str, Any]]:
     results = []
-    for path in paths:
+    for path, relative in paths:
         if path.is_symlink():
             continue
         text = FENCED_CODE.sub("", path.read_text(encoding="utf-8"))
@@ -235,13 +242,13 @@ def local_link_findings(
             clean = clean.split("#", 1)[0]
             if not clean or "://" in clean or clean.startswith(("mailto:", "#")):
                 continue
-            candidate = (path.parent / clean).resolve()
+            candidate = ((root / relative).parent / clean).resolve()
             if not candidate.is_relative_to(root):
                 results.append(
                     finding(
                         "LOCAL_LINK_ESCAPES_ROOT",
                         "error",
-                        path.relative_to(root).as_posix(),
+                        relative,
                         {"target": target},
                         "review-required",
                     )
@@ -254,7 +261,7 @@ def local_link_findings(
                     finding(
                         "DEAD_LOCAL_LINK",
                         "error",
-                        path.relative_to(root).as_posix(),
+                        relative,
                         {"target": target},
                         "safe-auto-repair",
                     )
@@ -262,12 +269,13 @@ def local_link_findings(
     return results
 
 
-def duplicate_candidates(root: Path, paths: list[Path]) -> list[dict[str, Any]]:
+def duplicate_candidates(
+    root: Path, paths: list[tuple[Path, str]]
+) -> list[dict[str, Any]]:
     occurrences: dict[str, list[str]] = defaultdict(list)
-    for path in paths:
+    for path, relative in paths:
         if path.is_symlink():
             continue
-        relative = path.relative_to(root).as_posix()
         for line in path.read_text(encoding="utf-8").splitlines():
             normalized = " ".join(line.strip().split())
             if (
@@ -315,17 +323,100 @@ def duplicate_candidates(root: Path, paths: list[Path]) -> list[dict[str, Any]]:
     return results
 
 
-def audit(root: Path) -> dict[str, Any]:
+def _load_materializations(
+    root: Path, manifest_paths: list[Path]
+) -> tuple[dict[str, tuple[Path, Path]], list[dict[str, Any]]]:
+    mappings: dict[str, tuple[Path, Path]] = {}
+    findings: list[dict[str, Any]] = []
+    for raw_manifest in manifest_paths:
+        manifest = raw_manifest.expanduser().resolve(strict=False)
+        try:
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            source = Path(str(payload["source"])).expanduser().resolve(strict=False)
+            output = Path(str(payload["output"])).expanduser().resolve(strict=False)
+            if payload.get("status") != "success" or payload.get("verified") is not True:
+                raise ValueError("manifest is not a verified successful materialization")
+            relative = source.relative_to(root).as_posix()
+            if not source.is_file() or not source.read_bytes().startswith(TSD_HEADER):
+                raise ValueError("source is not an existing TSD-wrapped file")
+            if output.is_relative_to(root) or not output.is_file():
+                raise ValueError("materialized output must be an existing external file")
+            data = output.read_bytes()
+            data.decode("utf-8")
+            if data.startswith(TSD_HEADER):
+                raise ValueError("materialized output still has a TSD header")
+            if payload.get("bytes") != len(data):
+                raise ValueError("materialized byte count does not match manifest")
+            if payload.get("sha256") != hashlib.sha256(data).hexdigest():
+                raise ValueError("materialized sha256 does not match manifest")
+            previous = mappings.get(relative)
+            if previous is not None and previous[0] != output:
+                raise ValueError("multiple materializations claim the same source")
+            mappings[relative] = (output, manifest)
+        except (KeyError, OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+            findings.append(
+                finding(
+                    "INVALID_MATERIALIZATION",
+                    "error",
+                    manifest.as_posix(),
+                    {"reason": str(exc)},
+                    "review-required",
+                )
+            )
+    return mappings, findings
+
+
+def audit(root: Path, materialized_manifests: list[Path] | None = None) -> dict[str, Any]:
     root = root.resolve()
     markdown = active_markdown_files(root)
     uninitialized_submodules = uninitialized_submodule_paths(root)
-    measurements = {
-        path.relative_to(root).as_posix(): measurement(path)
-        for path in markdown
-        if not path.is_symlink()
-    }
+    materializations, materialization_findings = _load_materializations(
+        root, materialized_manifests or []
+    )
+    measurements = {}
+    readable: list[tuple[Path, str]] = []
+    findings: list[dict[str, Any]] = list(materialization_findings)
+    for path in markdown:
+        if path.is_symlink():
+            continue
+        relative = path.relative_to(root).as_posix()
+        try:
+            measurements[relative] = measurement(path)
+        except (UnicodeError, OSError) as exc:
+            materialized = materializations.get(relative)
+            if isinstance(exc, TSDWrappedMarkdown) and materialized is not None:
+                output, manifest = materialized
+                measurements[relative] = {
+                    **measurement(output),
+                    "materialized_path": output.as_posix(),
+                    "materialized_manifest": manifest.as_posix(),
+                }
+                readable.append((output, relative))
+                continue
+            code = (
+                "ENCRYPTED_MARKDOWN"
+                if isinstance(exc, TSDWrappedMarkdown)
+                else "UNREADABLE_MARKDOWN"
+            )
+            findings.append(finding(
+                code, "error", relative,
+                {
+                    "reason": type(exc).__name__,
+                    "checks_skipped": [
+                        "measurement", "local_links", "duplicate_candidates"
+                    ],
+                    "remediation": (
+                        "materialize to an external temporary path with "
+                        "decrypt-materialize; preserve the source"
+                        if code == "ENCRYPTED_MARKDOWN"
+                        else "inspect encoding or file format"
+                    ),
+                },
+                "review-required",
+            ))
+        else:
+            readable.append((path, relative))
     source = agent_source(root)
-    findings: list[dict[str, Any]] = []
 
     if source["status"] == "conflict":
         findings.append(
@@ -349,8 +440,8 @@ def audit(root: Path) -> dict[str, Any]:
                 budget_findings(relative, measurements[relative], ROUTING_BUDGET)
             )
 
-    findings.extend(local_link_findings(root, markdown, uninitialized_submodules))
-    findings.extend(duplicate_candidates(root, markdown))
+    findings.extend(local_link_findings(root, readable, uninitialized_submodules))
+    findings.extend(duplicate_candidates(root, readable))
     findings.sort(key=lambda item: (item["severity"], item["code"], item["path"]))
 
     return {
@@ -368,6 +459,10 @@ def audit(root: Path) -> dict[str, Any]:
             ]
         },
         "measurements": measurements,
+        "materializations": {
+            relative: {"output": output.as_posix(), "manifest": manifest.as_posix()}
+            for relative, (output, manifest) in materializations.items()
+        },
         "findings": findings,
         "summary": {
             "error_count": sum(item["severity"] == "error" for item in findings),
@@ -384,6 +479,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("root", type=Path)
     parser.add_argument("--format", choices=("json",), default="json")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--materialized-manifest",
+        action="append",
+        type=Path,
+        default=[],
+        help="verified decrypt-materialize JSON output; may be repeated",
+    )
     return parser.parse_args()
 
 
@@ -391,7 +493,7 @@ def main() -> int:
     args = parse_args()
     if not args.root.is_dir():
         raise SystemExit(f"project root does not exist: {args.root}")
-    report = audit(args.root)
+    report = audit(args.root, args.materialized_manifest)
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     if args.strict and report["summary"]["error_count"]:
         return 1
