@@ -61,7 +61,8 @@ def test_product_strategy_project_skills_are_registered():
     assert sources["guizang-ppt-skill"]["skills"]["guizang-ppt-skill"]["projects"] == [
         "product_strategy"
     ]
-    assert sources["local-franchise-store"]["skills"]["franchise-store-sankey-analysis"]["projects"] == [
+    assert "franchise-store-sankey-analysis" not in sources.get("local-franchise-store", {}).get("skills", {})
+    assert sources["local-product-strategy"]["skills"]["ps-franchise-store-report"]["projects"] == [
         "product_strategy"
     ]
     assert sources["local-franchise-store"]["skills"]["sankey-flow-analysis"]["projects"] == [
