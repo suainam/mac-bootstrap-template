@@ -48,6 +48,7 @@ def test_previous_skill_governance_files_are_removed():
 def test_product_strategy_project_skills_are_registered():
     registry = load_sources()
     sources = registry["sources"]
+    assert "franchise_store" not in registry.get("projects", {})
     assert sources["local-product-strategy"]["skills"]["python-data-analysis"]["projects"] == [
         "product_strategy"
     ]
@@ -60,7 +61,12 @@ def test_product_strategy_project_skills_are_registered():
     assert sources["guizang-ppt-skill"]["skills"]["guizang-ppt-skill"]["projects"] == [
         "product_strategy"
     ]
-
+    assert sources["local-franchise-store"]["skills"]["franchise-store-sankey-analysis"]["projects"] == [
+        "product_strategy"
+    ]
+    assert sources["local-franchise-store"]["skills"]["sankey-flow-analysis"]["projects"] == [
+        "product_strategy"
+    ]
 
 def test_lifecycle_manager_is_global_but_stage_skills_are_project_scoped():
     registry = load_sources()

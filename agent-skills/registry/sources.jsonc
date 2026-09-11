@@ -50,12 +50,6 @@
   },
 
   "projects": {
-    "franchise_store": {
-      "skills_dir": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.agents/skills",
-      "compatibility_skills_dirs": {
-        "claude": "${HOME}/work/projects/product_strategy/catalogue/franchise_store/.claude/skills"
-      }
-    },
     "mac-bootstrap": {
       "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills",
       "compatibility_skills_dirs": {
@@ -1095,11 +1089,11 @@
       "skills": {
         "franchise-store-sankey-analysis": {
           "scope": "project",
-          "projects": ["franchise_store"]
+          "projects": ["product_strategy"]
         },
         "sankey-flow-analysis": {
           "scope": "project",
-          "projects": ["franchise_store"]
+          "projects": ["product_strategy"]
         }
       }
     },

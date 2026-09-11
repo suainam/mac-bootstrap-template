@@ -5,15 +5,15 @@
 ### HTTP service
 
 ```bash
-cd "${PRODUCT_STRATEGY_DIR:-$HOME/work/projects/product_strategy}/catalogue/franchise_store"
+cd "${PRODUCT_STRATEGY_DIR:-$HOME/work/projects/product_strategy}/topics/franchise_store/04_outputs/video/video_output"
 python3 -m http.server 8787 --bind 127.0.0.1
 ```
 
 ### Open the OBS-ready player
 
 ```bash
-cd "${PRODUCT_STRATEGY_DIR:-$HOME/work/projects/product_strategy}/catalogue/franchise_store"
-./scripts/open_obs_player.sh
+cd "${PRODUCT_STRATEGY_DIR:-$HOME/work/projects/product_strategy}/topics/franchise_store/03_analysis/scripts"
+./open_obs_player.sh
 ```
 
 Or open manually:
