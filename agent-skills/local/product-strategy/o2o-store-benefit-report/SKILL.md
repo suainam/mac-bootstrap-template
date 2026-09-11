@@ -25,7 +25,7 @@ Orchestrate end-to-end evaluation for O2O key stores and center stores. Produce 
    - If the request says only “导出卡片/最新报告” without an explicit scope, ask whether it means the default 4 raw-priority cards, the 11 restored-priority cards, or all materialized cards. If “上线前” is used as a baseline term, confirm whether the user means the default H baseline or explicitly wants L.
 7. **Two-Layer Delivery Architecture**:
    - `dws_o2o_key_store_benefit_period_summary_df`: Long diagnostic table storing raw sums, item counts, and turnover numerator/denominator.
-   - `ads_o2o_key_store_benefit_card_df`: Final card table pivoted to Image #1 executive layout (10 core metric columns + 6 store-average quantitative evidence columns; raw store counts are omitted from the final presentation to reduce cognitive load).
+   - `ads_o2o_key_store_benefit_card_df`: Final card table pivoted to Image #1 executive layout (12 channel metric columns + 8 store-average quantitative evidence columns; legacy absolute-store-count columns remain null for schema compatibility).
 
 ## Step-by-Step Pipeline
 
@@ -92,10 +92,10 @@ Step 6: ADS Card Pivot & Export (ads_..._card_df -> Excel)
 
 ## Testing
 
-Regression coverage lives in `scripts/test_helper.py` (outside `pytest.ini`'s `testpaths = topics`, so pass the path explicitly):
+Regression coverage lives in `.claude/skills/o2o-store-benefit-report/scripts/test_helper.py` in the `product_strategy` checkout (use `agent-skills/local/product-strategy/o2o-store-benefit-report/scripts/test_helper.py` from `mac-bootstrap/template`; outside project pytest `testpaths`, so pass the path explicitly):
 
 ```bash
-env ODPS_ENV_FILE=~/work/projects/www/marimo/merchandise/.env \
+ODPS_ENV_FILE=/path/to/merchandise/.env \
   uv run pytest .claude/skills/o2o-store-benefit-report/scripts/test_helper.py -v
 ```
 
@@ -105,8 +105,10 @@ Lint before commit:
 
 ```bash
 uv run ruff check .claude/skills/o2o-store-benefit-report/scripts/helper.py \
+  .claude/skills/o2o-store-benefit-report/scripts/sql_builder.py \
   .claude/skills/o2o-store-benefit-report/scripts/test_helper.py
 uv run ruff format .claude/skills/o2o-store-benefit-report/scripts/helper.py \
+  .claude/skills/o2o-store-benefit-report/scripts/sql_builder.py \
   .claude/skills/o2o-store-benefit-report/scripts/test_helper.py
 ```
 

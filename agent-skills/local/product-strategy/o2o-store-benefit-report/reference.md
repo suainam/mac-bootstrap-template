@@ -81,10 +81,28 @@ comment 'O2O效益分析-重点门店商品销售明细(线上+线下)'
 partitioned by (pt bigint comment '跑批日期(yyyyMMdd)');
 ```
 
-### 3.3 Diagnostic Summary Table (DWS)
+### 3.3 Goals Wide Table
+```sql
+create table if not exists ${dsl_analysis}.analysis_analysis_assortment_o2_store_cata_items_goals_df (
+    store_code      bigint        comment '门店编码',
+    item_code       bigint        comment '商品编码',
+    is_key_store    bigint        comment '是否中心店:1中心店,0其他重点门店',
+    period_type     string        comment '周期类型:C上线后/L上线前/H去年同期',
+    platform_name   string        comment '渠道:online线上/offline线下',
+    lx_new          string        comment '还原后优先级标签(is_3he1_fl)',
+    pay_amt         decimal(38,4) comment '销售额',
+    margin_account  decimal(38,4) comment '毛利额',
+    passenger_flow  bigint        comment '客流',
+    lx_raw          string        comment '原始优先级标签(reason_zfl)'
+)
+comment 'O2O效益分析-重点门店商品效益宽表(双标签源)'
+partitioned by (pt bigint comment '跑批日期(yyyyMMdd)');
+```
+
+### 3.4 Diagnostic Summary Table (DWS)
 ```sql
 create table if not exists ${dsl_analysis}.dws_o2o_key_store_benefit_period_summary_df (
-    store_group      string        comment '门店群:中心店/O2O其他重点店',
+    store_group      string        comment '门店群:所有重点门店/中心店/O2O其他重点店',
     strategy_tag     string        comment '策略标签:城市top500品/城市top200/跨渠道top80/o2o中心店品',
     platform_name    string        comment '渠道:all整体/online线上/offline线下',
     period_type     string        comment '周期:C上线后/L上线前/H去年同期',
@@ -96,6 +114,7 @@ create table if not exists ${dsl_analysis}.dws_o2o_key_store_benefit_period_summ
     cata_item_cnt    bigint        comment '目录内店品总数',
     cata_dx_item_cnt bigint        comment '目录内动销店品总数',
     tag_source       string        comment '标签来源:restored/raw'
+)
 comment 'O2O重点店效益分析-指标明细排障表'
 partitioned by (pt bigint comment '跑批日期(yyyyMMdd)');
 ```
@@ -105,10 +124,10 @@ Runtime additions used by the dual-source card pipeline:
 - DWS carries `tag_source` (`restored` for `is_3he1_fl`, `raw` for `reason_zfl`) and keeps `store_cnt` for store-average evidence.
 - The detail tag table is not changed by card-scope selection.
 
-### 3.4 Final Executive Card Table (ADS)
+### 3.5 Final Executive Card Table (ADS)
 ```sql
 create table if not exists ${dsl_analysis}.ads_o2o_key_store_benefit_card_df (
-    store_group        string        comment '门店群:中心店/O2O其他重点店',
+    store_group        string        comment '门店群:所有重点门店/中心店/O2O其他重点店',
     strategy_tag       string        comment '策略标签:城市top500品/城市top200/跨渠道top80/o2o中心店品',
     order_seq          int           comment '行排序:1销售额/2毛利额/3标签动销率/4目录内动销率',
     metric_name        string        comment '指标名称:销售额/毛利额/topXX商品动销率/目录内动销率',
@@ -124,7 +143,18 @@ create table if not exists ${dsl_analysis}.ads_o2o_key_store_benefit_card_df (
     offline_pre        decimal(18,2) comment '线下渠道-上线前',
     offline_diff       decimal(18,2) comment '线下渠道-差异值',
     offline_diff_ratio decimal(18,4) comment '线下渠道-增幅(百分比)',
-    remark             string        comment '备注说明(如动销率看整体即可)'
+    c_store_cnt       bigint        comment '兼容字段(当前卡片透视为空)',
+    l_store_cnt       bigint        comment '兼容字段(当前卡片透视为空)',
+    c_avg_tag_items   decimal(18,1) comment '上线后店均标签品数',
+    l_avg_tag_items   decimal(18,1) comment '上线前店均标签品数',
+    c_avg_tag_dx      decimal(18,1) comment '上线后店均标签动销品数',
+    l_avg_tag_dx      decimal(18,1) comment '上线前店均标签动销品数',
+    c_avg_cata_items  decimal(18,1) comment '上线后店均目录品数',
+    l_avg_cata_items  decimal(18,1) comment '上线前店均目录品数',
+    c_avg_cata_dx     decimal(18,1) comment '上线后店均目录动销品数',
+    l_avg_cata_dx     decimal(18,1) comment '上线前店均目录动销品数',
+    remark            string        comment '备注说明(如动销率看整体即可)',
+    tag_source        string        comment '标签来源:restored/raw'
 )
 comment 'O2O重点店效益分析-终态卡片交付表(对齐Image #1汇报格式)'
 partitioned by (pt bigint comment '跑批日期(yyyyMMdd)');

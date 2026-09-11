@@ -19,13 +19,13 @@ if str(SKILL_ROOT) not in sys.path:
 
 from helper import O2OStoreBenefitRunner  # noqa: E402
 
-DEFAULT_ENV_FILE = Path.home() / "work/projects/www/marimo/merchandise/.env"
-
 
 @pytest.fixture
 def runner_20260907() -> O2OStoreBenefitRunner:
     """Runner for the 20260907 cutoff using the default H baseline."""
-    env_file = os.environ.get("ODPS_ENV_FILE") or str(DEFAULT_ENV_FILE)
+    env_file = os.environ.get("ODPS_ENV_FILE")
+    if not env_file:
+        pytest.skip("ODPS_ENV_FILE is not set")
     if not Path(env_file).exists():
         pytest.skip(f"ODPS env file not found: {env_file}")
     os.environ["ODPS_ENV_FILE"] = env_file
@@ -40,7 +40,9 @@ def runner_20260907() -> O2OStoreBenefitRunner:
 @pytest.fixture
 def runner_20260907_raw() -> O2OStoreBenefitRunner:
     """Runner for the default reason_zfl four-card export."""
-    env_file = os.environ.get("ODPS_ENV_FILE") or str(DEFAULT_ENV_FILE)
+    env_file = os.environ.get("ODPS_ENV_FILE")
+    if not env_file:
+        pytest.skip("ODPS_ENV_FILE is not set")
     if not Path(env_file).exists():
         pytest.skip(f"ODPS env file not found: {env_file}")
     os.environ["ODPS_ENV_FILE"] = env_file
@@ -237,3 +239,32 @@ def test_all_scope_keeps_tag_sources_as_separate_cards(
     assert len(card_headers) == 22
     assert any("reason_zfl" in header for header in card_headers)
     assert any("is_3he1_fl" in header for header in card_headers)
+
+
+def test_all_store_honeycomb_uses_center_catalog_metrics(
+    runner_20260907: O2OStoreBenefitRunner,
+) -> None:
+    """The center-only honeycomb card must not use an all-store catalog numerator."""
+    sql = f"""
+    select tag_source, period_type, store_group, cata_item_cnt, cata_dx_item_cnt
+    from {runner_20260907.target_project}.dws_o2o_key_store_benefit_period_summary_df
+    where pt = {runner_20260907.cutoff_date}
+      and platform_name = 'all'
+      and strategy_tag = 'o2o中心店品'
+      and period_type in ('C', 'H')
+    """
+    with runner_20260907.odps.execute_sql(sql).open_reader() as reader:
+        rows = {
+            (rec.tag_source, rec.period_type, rec.store_group): (
+                rec.cata_item_cnt,
+                rec.cata_dx_item_cnt,
+            )
+            for rec in reader
+        }
+
+    for tag_source in ("raw", "restored"):
+        for period_type in ("C", "H"):
+            assert (
+                rows[(tag_source, period_type, "所有重点门店")]
+                == rows[(tag_source, period_type, "中心店")]
+            )

@@ -1,6 +1,7 @@
 # O2O Store Benefit Report — Usage Examples
 
 Executable examples covering historical replication (0617), latest production refresh (0907), and automated Excel export.
+Commands below assume the `product_strategy` checkout. From `mac-bootstrap/template`, replace `.claude/skills/o2o-store-benefit-report` with `agent-skills/local/product-strategy/o2o-store-benefit-report`.
 
 ## Example 1: Run Historical Partition (20260617, explicit restored 11-card scope)
 
@@ -8,7 +9,7 @@ Replicates a historical evaluation partition with C vs H YoY metrics. The explic
 scope keeps the preserved `is_3he1_fl` view instead of the default four raw-priority cards:
 
 ```bash
-uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
+uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --cutoff 20260617 \
   --version 20260408 \
   --baseline H \
@@ -26,7 +27,7 @@ uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
 Executes evaluation for the latest version launched on 2026-07-05. H is the default baseline and the default Excel scope is the four `reason_zfl` cards for `所有重点门店`:
 
 ```bash
-uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
+uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --cutoff 20260907 \
   --export
 ```
@@ -40,7 +41,7 @@ uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
 To export the preserved restored-priority 11-card view instead:
 
 ```bash
-uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
+uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --cutoff 20260907 \
   --card-scope restored_11 \
   --export
@@ -77,7 +78,7 @@ order by strategy_tag, order_seq
 When the MaxCompute ADS partition is already computed, use `--export-only` to regenerate the default four-card report without repeating upstream calculations:
 
 ```bash
-uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
+uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --cutoff 20260907 \
   --export-only
 ```
@@ -85,7 +86,7 @@ uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
 Choose another scope explicitly when needed:
 
 ```bash
-uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
+uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --cutoff 20260907 \
   --card-scope restored_11 \
   --export-only
@@ -96,6 +97,13 @@ uv run python ~/.agents/skills/o2o-store-benefit-report/scripts/helper.py \
 ## Example 5: Python Direct Pipeline Ingestion
 
 ```python
+import sys
+from pathlib import Path
+
+sys.path.insert(
+    0,
+    str(Path(".claude/skills/o2o-store-benefit-report/scripts").resolve()),
+)
 from helper import O2OStoreBenefitRunner
 
 runner = O2OStoreBenefitRunner(cutoff_date="20260907")  # H + raw_all_stores defaults

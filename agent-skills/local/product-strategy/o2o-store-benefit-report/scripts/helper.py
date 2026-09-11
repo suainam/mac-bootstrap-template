@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +19,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-_candidates = [Path.cwd()]
+_script_path = Path(__file__).absolute()
+_candidates = [Path.cwd(), _script_path.parent, *_script_path.parents]
 _env_root = os.environ.get("PRODUCT_STRATEGY_ROOT")
 if _env_root:
     _candidates.append(Path(_env_root))
@@ -32,6 +35,7 @@ from run_city_top2500_phase1 import load_env_file  # noqa: E402
 
 from shared.config import ODPSConfig  # noqa: E402
 from shared.odps_connector import ODPSConnector  # noqa: E402
+from sql_builder import render_dws_and_ads_sql  # noqa: E402
 
 
 class O2OStoreBenefitRunner:
@@ -40,16 +44,41 @@ class O2OStoreBenefitRunner:
         cutoff_date: str,
         version_date: str | None = None,
         baseline_type: str = "H",
-        card_scope: str = "raw_all_stores",
+        tag_source: str | None = None,
         target_project: str = "dsl_analysis",
         export_dir: Path | None = None,
+        card_scope: str = "raw_all_stores",
     ) -> None:
         self.cutoff_date = str(cutoff_date)
         self.version_date = str(version_date) if version_date else None
+        for field_name, field_value in (
+            ("cutoff_date", self.cutoff_date),
+            ("version_date", self.version_date),
+        ):
+            if field_value is None:
+                continue
+            try:
+                datetime.strptime(field_value, "%Y%m%d")
+            except ValueError as exc:
+                raise ValueError(f"{field_name} must be a valid YYYYMMDD date") from exc
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", target_project):
+            raise ValueError("target_project must be a safe MaxCompute identifier")
         self.baseline_type = baseline_type.upper()  # 'H' for YoY, 'L' for MoM
         if self.baseline_type not in {"H", "L"}:
             raise ValueError("baseline_type must be 'H' or 'L'")
-        self.card_scope = card_scope.lower()
+        requested_scope = card_scope.lower()
+        if tag_source is not None:
+            legacy_scopes = {"new": "restored_11", "raw": "raw_all_stores"}
+            try:
+                legacy_scope = legacy_scopes[tag_source.lower()]
+            except KeyError as exc:
+                raise ValueError("tag_source must be 'new' or 'raw'") from exc
+            if requested_scope != "raw_all_stores" and requested_scope != legacy_scope:
+                raise ValueError(
+                    "tag_source and card_scope select conflicting card scopes"
+                )
+            requested_scope = legacy_scope
+        self.card_scope = requested_scope
         if self.card_scope not in {"raw_all_stores", "restored_11", "all"}:
             raise ValueError(
                 "card_scope must be 'raw_all_stores', 'restored_11', or 'all'"
@@ -311,270 +340,14 @@ class O2OStoreBenefitRunner:
         self.execute_sql(sql, "Build Goals Wide Table")
 
     def run_dws_and_ads(self, bounds: dict[str, Any]) -> None:
-        """Step 5 & 6: Ingest diagnostic summary and pivoted card table with store average quantitative evidence."""
-        ver_id = bounds["ver_id"]
-        key_store_month = ver_id // 100
-        baseline_col = self.baseline_type
-        yoy_date = int(self.cutoff_date) - 10000
-
-        # DWS table
-        sql_dws = f"""
-        insert overwrite table {self.target_project}.dws_o2o_key_store_benefit_period_summary_df partition (pt = {self.cutoff_date})
-        with sales_base as (
-            select 
-                case when is_key_store = 1 then '中心店' else 'O2O其他重点店' end as raw_store_group,
-                lx_new as strategy_tag,
-                'restored' as tag_source,
-                platform_name,
-                period_type,
-                pay_amt,
-                margin_account
-            from {self.target_project}.analysis_analysis_assortment_o2_store_cata_items_goals_df
-            where pt = {self.cutoff_date}
-              and lx_new in ('城市top500品', '城市top200', '跨渠道top80', 'o2o中心店品')
-            union all
-            select
-                case when is_key_store = 1 then '中心店' else 'O2O其他重点店' end as raw_store_group,
-                lx_raw as strategy_tag,
-                'raw' as tag_source,
-                platform_name,
-                period_type,
-                pay_amt,
-                margin_account
-            from {self.target_project}.analysis_analysis_assortment_o2_store_cata_items_goals_df
-            where pt = {self.cutoff_date}
-              and lx_raw in ('城市top500品', '城市top200', '跨渠道top80', 'o2o中心店品')
+        """Step 5 & 6: render and execute DWS/ADS benefit-card SQL."""
+        sql_dws, sql_ads = render_dws_and_ads_sql(
+            bounds,
+            cutoff_date=self.cutoff_date,
+            baseline_type=self.baseline_type,
+            target_project=self.target_project,
         )
-        , sales_agg as (
-            select
-                coalesce(raw_store_group, '所有重点门店') as store_group,
-                strategy_tag,
-                tag_source,
-                coalesce(platform_name, 'all') as platform_name,
-                period_type,
-                sum(pay_amt) as pay_amt,
-                sum(margin_account) as margin_account
-            from sales_base
-            group by raw_store_group, strategy_tag, tag_source, platform_name, period_type
-            grouping sets (
-                (raw_store_group, strategy_tag, tag_source, period_type),
-                (raw_store_group, strategy_tag, tag_source, platform_name, period_type),
-                (strategy_tag, tag_source, period_type),
-                (strategy_tag, tag_source, platform_name, period_type)
-            )
-        )
-        , tag_turnover_base as (
-            select 
-                case when re.is_key_store = 1 then '中心店' else 'O2O其他重点店' end as raw_store_group,
-                t2.is_3he1_fl as strategy_tag,
-                'restored' as tag_source,
-                case when a.stat_date = {self.cutoff_date} then 'C'
-                     when a.stat_date = {ver_id} then 'L'
-                     when a.stat_date = {yoy_date} then 'H' end as period_type,
-                a.store_code,
-                a.item_code,
-                case when a.lt90_item_sale_cnt_sum > 0 then a.item_code end as dx_item_code
-            from dsl_ads.ads_item_store_content_day_stat_sale a
-            inner join {self.target_project}.tmp_o2o_mttop500_city_detail_df_2604 t2 
-                on a.store_code = t2.store_code and a.item_code = t2.item_code and t2.pt = {self.cutoff_date}
-            inner join (
-                select store_code, max(case when store_level = 'A' then 1 else 0 end) as is_key_store
-                from dsl_dwd.dwd_ti_ec_key_stores_business_capacity
-                where stat_date = {key_store_month}
-                group by store_code
-            ) re on a.store_code = re.store_code
-            where a.stat_date in ({self.cutoff_date}, {ver_id}, {yoy_date})
-              and (a.ld_inv_amt > 0 or a.is_content_item = 1)
-              and coalesce(a.item_push_class, 'A') not in ('K', 'Y', 'T', 'S')
-            union all
-            select
-                case when re.is_key_store = 1 then '中心店' else 'O2O其他重点店' end as raw_store_group,
-                t2.reason_zfl as strategy_tag,
-                'raw' as tag_source,
-                case when a.stat_date = {self.cutoff_date} then 'C'
-                     when a.stat_date = {ver_id} then 'L'
-                     when a.stat_date = {yoy_date} then 'H' end as period_type,
-                a.store_code,
-                a.item_code,
-                case when a.lt90_item_sale_cnt_sum > 0 then a.item_code end as dx_item_code
-            from dsl_ads.ads_item_store_content_day_stat_sale a
-            inner join {self.target_project}.tmp_o2o_mttop500_city_detail_df_2604 t2
-                on a.store_code = t2.store_code and a.item_code = t2.item_code and t2.pt = {self.cutoff_date}
-            inner join (
-                select store_code, max(case when store_level = 'A' then 1 else 0 end) as is_key_store
-                from dsl_dwd.dwd_ti_ec_key_stores_business_capacity
-                where stat_date = {key_store_month}
-                group by store_code
-            ) re on a.store_code = re.store_code
-            where a.stat_date in ({self.cutoff_date}, {ver_id}, {yoy_date})
-              and (a.ld_inv_amt > 0 or a.is_content_item = 1)
-              and coalesce(a.item_push_class, 'A') not in ('K', 'Y', 'T', 'S')
-        )
-        , tag_turnover as (
-            select 
-                coalesce(raw_store_group, '所有重点门店') as store_group,
-                strategy_tag,
-                tag_source,
-                period_type,
-                count(distinct store_code) as store_cnt,
-                count(item_code) as tag_item_cnt,
-                count(dx_item_code) as tag_dx_item_cnt
-            from tag_turnover_base
-            group by raw_store_group, strategy_tag, tag_source, period_type
-            grouping sets (
-                (raw_store_group, strategy_tag, tag_source, period_type),
-                (strategy_tag, tag_source, period_type)
-            )
-        )
-        , cata_turnover_base as (
-            select
-                case when re.is_key_store = 1 then '中心店' else 'O2O其他重点店' end as raw_store_group,
-                case when t0.stat_date = {self.cutoff_date} then 'C'
-                     when t0.stat_date = {ver_id} then 'L'
-                     when t0.stat_date = {yoy_date} then 'H' end as period_type,
-                t0.item_num_ct,
-                t0.item_num_yxs_ct
-            from dsl_ads.ads_item_content_store_all_stat t0
-            inner join (
-                select store_code, max(case when store_level = 'A' then 1 else 0 end) as is_key_store
-                from dsl_dwd.dwd_ti_ec_key_stores_business_capacity
-                where stat_date = {key_store_month}
-                group by store_code
-            ) re on t0.store_code = re.store_code
-            where t0.stat_date in ({self.cutoff_date}, {ver_id}, {yoy_date})
-        )
-        , cata_turnover as (
-            select
-                coalesce(raw_store_group, '所有重点门店') as store_group,
-                period_type,
-                sum(item_num_ct) as cata_item_cnt,
-                sum(item_num_yxs_ct) as cata_dx_item_cnt
-            from cata_turnover_base
-            group by raw_store_group, period_type
-            grouping sets (
-                (raw_store_group, period_type),
-                (period_type)
-            )
-        )
-        select 
-            s.store_group,
-            s.strategy_tag,
-            s.platform_name,
-            s.period_type,
-            s.pay_amt,
-            s.margin_account,
-            t.store_cnt,
-            t.tag_item_cnt,
-            t.tag_dx_item_cnt,
-            c.cata_item_cnt,
-            c.cata_dx_item_cnt,
-            s.tag_source
-        from sales_agg s
-        left join tag_turnover t 
-            on s.store_group = t.store_group
-           and s.strategy_tag = t.strategy_tag
-           and s.tag_source = t.tag_source
-           and s.period_type = t.period_type
-        left join cata_turnover c
-            on s.store_group = c.store_group and s.period_type = c.period_type
-        ;
-        """
         self.execute_sql(sql_dws, "DWS Diagnostic Summary Ingestion")
-
-        # ADS card table
-        sql_ads = f"""
-        insert overwrite table {self.target_project}.ads_o2o_key_store_benefit_card_df partition (pt = {self.cutoff_date})
-        with p as (
-            select 
-                store_group,
-                strategy_tag,
-                tag_source,
-                -- 销售额 (万元)
-                round(max(case when platform_name = 'all' and period_type = 'C' then pay_amt end) / 10000.0, 1) as c_sales_all,
-                round(max(case when platform_name = 'all' and period_type = '{baseline_col}' then pay_amt end) / 10000.0, 1) as l_sales_all,
-                round(max(case when platform_name = 'online' and period_type = 'C' then pay_amt end) / 10000.0, 1) as c_sales_o2o,
-                round(max(case when platform_name = 'online' and period_type = '{baseline_col}' then pay_amt end) / 10000.0, 1) as l_sales_o2o,
-                round(max(case when platform_name = 'offline' and period_type = 'C' then pay_amt end) / 10000.0, 1) as c_sales_off,
-                round(max(case when platform_name = 'offline' and period_type = '{baseline_col}' then pay_amt end) / 10000.0, 1) as l_sales_off,
-                -- 毛利额 (万元)
-                round(max(case when platform_name = 'all' and period_type = 'C' then margin_account end) / 10000.0, 1) as c_margin_all,
-                round(max(case when platform_name = 'all' and period_type = '{baseline_col}' then margin_account end) / 10000.0, 1) as l_margin_all,
-                round(max(case when platform_name = 'online' and period_type = 'C' then margin_account end) / 10000.0, 1) as c_margin_o2o,
-                round(max(case when platform_name = 'online' and period_type = '{baseline_col}' then margin_account end) / 10000.0, 1) as l_margin_o2o,
-                round(max(case when platform_name = 'offline' and period_type = 'C' then margin_account end) / 10000.0, 1) as c_margin_off,
-                round(max(case when platform_name = 'offline' and period_type = '{baseline_col}' then margin_account end) / 10000.0, 1) as l_margin_off,
-                -- 标签动销率 (%)
-                round(max(case when period_type = 'C' then tag_dx_item_cnt * 100.0 / tag_item_cnt end), 2) as c_tag_dx,
-                round(max(case when period_type = '{baseline_col}' then tag_dx_item_cnt * 100.0 / tag_item_cnt end), 2) as l_tag_dx,
-                -- 目录内动销率 (%)
-                round(max(case when period_type = 'C' then cata_dx_item_cnt * 100.0 / cata_item_cnt end), 2) as c_cata_dx,
-                round(max(case when period_type = '{baseline_col}' then cata_dx_item_cnt * 100.0 / cata_item_cnt end), 2) as l_cata_dx,
-                -- 店均量化证据 (不包含易混淆的门店数列)
-                round(max(case when period_type = 'C' then tag_item_cnt * 1.0 / store_cnt end), 1) as c_avg_tag_items,
-                round(max(case when period_type = '{baseline_col}' then tag_item_cnt * 1.0 / store_cnt end), 1) as l_avg_tag_items,
-                round(max(case when period_type = 'C' then tag_dx_item_cnt * 1.0 / store_cnt end), 1) as c_avg_tag_dx,
-                round(max(case when period_type = '{baseline_col}' then tag_dx_item_cnt * 1.0 / store_cnt end), 1) as l_avg_tag_dx,
-                round(max(case when period_type = 'C' then cata_item_cnt * 1.0 / store_cnt end), 1) as c_avg_cata_items,
-                round(max(case when period_type = '{baseline_col}' then cata_item_cnt * 1.0 / store_cnt end), 1) as l_avg_cata_items,
-                round(max(case when period_type = 'C' then cata_dx_item_cnt * 1.0 / store_cnt end), 1) as c_avg_cata_dx,
-                round(max(case when period_type = '{baseline_col}' then cata_dx_item_cnt * 1.0 / store_cnt end), 1) as l_avg_cata_dx
-            from {self.target_project}.dws_o2o_key_store_benefit_period_summary_df
-            where pt = {self.cutoff_date}
-            group by store_group, strategy_tag, tag_source
-        )
-        select 
-            store_group, strategy_tag, 1 as order_seq, '销售额' as metric_name,
-            c_sales_all, l_sales_all, c_sales_all - l_sales_all, round((c_sales_all - l_sales_all) / l_sales_all, 4),
-            c_sales_o2o, l_sales_o2o, c_sales_o2o - l_sales_o2o, round((c_sales_o2o - l_sales_o2o) / l_sales_o2o, 4),
-            c_sales_off, l_sales_off, c_sales_off - l_sales_off, round((c_sales_off - l_sales_off) / l_sales_off, 4),
-            null as c_store_cnt, null as l_store_cnt,
-            c_avg_tag_items, l_avg_tag_items, c_avg_tag_dx, l_avg_tag_dx,
-            c_avg_cata_items, l_avg_cata_items, c_avg_cata_dx, l_avg_cata_dx,
-            null as remark,
-            tag_source
-        from p
-        union all
-        select 
-            store_group, strategy_tag, 2 as order_seq, '毛利额' as metric_name,
-            c_margin_all, l_margin_all, c_margin_all - l_margin_all, round((c_margin_all - l_margin_all) / l_margin_all, 4),
-            c_margin_o2o, l_margin_o2o, c_margin_o2o - l_margin_o2o, round((c_margin_o2o - l_margin_o2o) / l_margin_o2o, 4),
-            c_margin_off, l_margin_off, c_margin_off - l_margin_off, round((c_margin_off - l_margin_off) / l_margin_off, 4),
-            null as c_store_cnt, null as l_store_cnt,
-            c_avg_tag_items, l_avg_tag_items, c_avg_tag_dx, l_avg_tag_dx,
-            c_avg_cata_items, l_avg_cata_items, c_avg_cata_dx, l_avg_cata_dx,
-            null as remark,
-            tag_source
-        from p
-        union all
-        select 
-            store_group, strategy_tag, 3 as order_seq, concat(strategy_tag, '动销率') as metric_name,
-            c_tag_dx, l_tag_dx, c_tag_dx - l_tag_dx, null,
-            null, null, null, null,
-            null, null, null, null,
-            null as c_store_cnt, null as l_store_cnt,
-            c_avg_tag_items, l_avg_tag_items, c_avg_tag_dx, l_avg_tag_dx,
-            c_avg_cata_items, l_avg_cata_items, c_avg_cata_dx, l_avg_cata_dx,
-            '每个城市TOP不一致，动销率建议看整体即可' as remark,
-            tag_source
-        from p
-        union all
-        select 
-            store_group, strategy_tag, 4 as order_seq, '目录内动销率' as metric_name,
-            c_cata_dx, l_cata_dx, c_cata_dx - l_cata_dx, null,
-            null, null, null, null,
-            null, null, null, null,
-            null as c_store_cnt, null as l_store_cnt,
-            c_avg_tag_items, l_avg_tag_items, c_avg_tag_dx, l_avg_tag_dx,
-            c_avg_cata_items, l_avg_cata_items, c_avg_cata_dx, l_avg_cata_dx,
-            case when store_group = '中心店' 
-                 then '注:动销率变化主要受分母扩张稀释。中心店目录品数大幅扩增，店均实际动销商品种数显著增长，拉动销售毛利倍增'
-                 when store_group = '所有重点门店'
-                 then '注:全量重点门店综合表现，兼顾中心店扩增与常规重点店放量效益'
-                 else '注:店均目录总品数与实际动销品数均稳步增长' end as remark,
-            tag_source
-        from p
-        ;
-        """
         self.execute_sql(sql_ads, "ADS Executive Card Table Ingestion")
 
     def export_excel(self) -> str:
@@ -721,19 +494,16 @@ class O2OStoreBenefitRunner:
             )
             cata_dx_row = by_metric.get("目录内动销率")
 
-            def _pct(row: dict[str, Any] | None, ratio_key: str, diff_key: str) -> str:
+            def _pct(row: dict[str, Any] | None, ratio_key: str) -> str:
                 if row is None:
                     return "-"
                 ratio = row.get(ratio_key)
-                if ratio is not None:
-                    return f"{ratio * 100:+.2f}%"
-                diff = row.get(diff_key)
-                return f"{diff:+.2f}%" if diff is not None else "-"
+                return f"{ratio * 100:+.2f}%" if ratio is not None else "-"
 
-            sales_pct = _pct(sales_row, "all_diff_ratio", "all_diff")
-            margin_pct = _pct(margin_row, "all_diff_ratio", "all_diff")
-            dx_pct = _pct(dx_row, "all_diff_ratio", "all_diff")
-            cata_dx_pct = _pct(cata_dx_row, "all_diff_ratio", "all_diff")
+            sales_pct = _pct(sales_row, "all_diff_ratio")
+            margin_pct = _pct(margin_row, "all_diff_ratio")
+            dx_pct = _pct(dx_row, "all_diff_ratio")
+            cata_dx_pct = _pct(cata_dx_row, "all_diff_ratio")
 
             summary_row_idx = curr_row + 1
             ws.merge_cells(
@@ -1047,6 +817,15 @@ def main() -> None:
         help="Baseline period type: H (default YoY baseline) or L (optional pre-launch window)",
     )
     parser.add_argument(
+        "--tag-source",
+        default=None,
+        choices=["new", "raw"],
+        help=(
+            "Legacy source selector: new maps to restored_11; "
+            "raw maps to raw_all_stores. Prefer --card-scope."
+        ),
+    )
+    parser.add_argument(
         "--card-scope",
         default="raw_all_stores",
         choices=["raw_all_stores", "restored_11", "all"],
@@ -1071,6 +850,7 @@ def main() -> None:
         cutoff_date=args.cutoff,
         version_date=args.version,
         baseline_type=args.baseline,
+        tag_source=args.tag_source,
         card_scope=args.card_scope,
     )
     if args.export_only:
