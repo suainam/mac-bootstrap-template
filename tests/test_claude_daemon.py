@@ -354,6 +354,47 @@ class TestProcessGroupKill:
             except ProcessLookupError:
                 pass  # correctly dead
 
+    def test_detached_descendant_is_killed(self, tmp_path):
+        """A descendant that starts an independent session must not escape cleanup."""
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        claude_pid_file = tmp_path / "claude.pid"
+        detached_pid_file = tmp_path / "detached.pid"
+        script = bin_dir / "claude"
+        script.write_text(textwrap.dedent(f"""\
+            #!/usr/bin/env bash
+            echo $$ > {claude_pid_file}
+            python3 -c 'import os, sys; os.setsid(); f = open(sys.argv[1], "w"); f.write(str(os.getpid())); f.close(); os.execvp(sys.argv[2], sys.argv[2:])' {detached_pid_file} sleep 120 &
+            wait
+        """))
+        script.chmod(0o755)
+
+        env = base_env(tmp_path, bin_dir, CLAUDE_TIMEOUT="3")
+        proc = subprocess.Popen([str(SCRIPT)], env=env)
+
+        for _ in range(100):
+            if claude_pid_file.exists() and detached_pid_file.exists():
+                break
+            time.sleep(0.05)
+
+        assert claude_pid_file.exists(), "script did not start claude child"
+        assert detached_pid_file.exists(), "script did not spawn detached descendant"
+
+        claude_pid = int(claude_pid_file.read_text().strip())
+        detached_pid = int(detached_pid_file.read_text().strip())
+        assert os.getpgid(claude_pid) != os.getpgid(detached_pid)
+
+        try:
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            pytest.fail("daemon did not exit after timeout")
+
+        time.sleep(1)
+        for pid in (claude_pid, detached_pid):
+            with pytest.raises(ProcessLookupError):
+                os.kill(pid, 0)
 
 # ── 7. Environment overrides ───────────────────────────────────────────────────
 

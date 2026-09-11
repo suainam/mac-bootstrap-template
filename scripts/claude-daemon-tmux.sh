@@ -51,16 +51,44 @@ fi
 echo $$ > "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT
 
-# run_with_timeout <seconds> cmd [args...]
-# Kills the entire process group on timeout (SIGTERM → SIGKILL after 5 s).
-# The watchdog subshell immediately closes inherited FDs (exec >/dev/null 2>&1)
-# so orphaned sleeps inside it never hold the caller's stdout/stderr pipes open.
-run_with_timeout() {
-    local timeout_secs="$1"; shift
+# kill_tree <pid> [signal]
+# Recursively kill a process and every descendant, regardless of process group.
+# Real `claude -p` spawns helper processes that may re-parent into their own
+# session, so a process-group kill alone can leave orphans that keep the parent
+# alive far past the deadline (observed: 28 min runs at the 08:00 slot).
+kill_tree() {
+    local target="$1"
+    local signal="${2:-TERM}"
+    local descendants
+    descendants="$(pgrep -P "$target" 2>/dev/null || true)"
+    for pid in $descendants; do
+        kill_tree "$pid" "$signal" 2>/dev/null || true
+    done
+    kill -"$signal" -- "-$target" 2>/dev/null || true   # process group
+    kill -"$signal" "$target" 2>/dev/null || true        # explicit PID
+}
 
-    # Spawn the command in its own session so timeout signals can target the
-    # whole process group without touching this wrapper shell.
-    python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@" &
+# kill_tree_rescan <target> <signal>
+# A helper can fork a fresh descendant *after* the first scan, so the SIGTERM
+# pass must be re-run before SIGKILL — otherwise a respawning child survives both.
+kill_tree_rescan() {
+    local target="$1"
+    local signal="${2:-TERM}"
+    local descendants
+    descendants="$(pgrep -P "$target" 2>/dev/null || true)"
+    for pid in $descendants; do
+        kill_tree "$pid" "$signal" 2>/dev/null || true
+    done
+    kill -"$signal" -- "-$target" 2>/dev/null || true
+    kill -"$signal" "$target" 2>/dev/null || true
+}
+
+run_with_timeout() {
+    local timeout_secs="${1:-$CLAUDE_TIMEOUT}"
+    local grace_secs="${CLAUDE_KILL_GRACE:-3}"
+    shift
+
+    "$@" &
     local child_pid=$!
     local child_pgid="$child_pid"
 
@@ -69,11 +97,11 @@ run_with_timeout() {
         sleep "$timeout_secs"
         if kill -0 "$child_pid" 2>/dev/null; then
             log "TIMEOUT: claude -p exceeded ${timeout_secs}s — SIGTERM pid $child_pid"
-            kill -TERM -- "-$child_pgid" 2>/dev/null || true
-            sleep 5
+            kill_tree_rescan "$child_pgid" TERM
+            sleep "$grace_secs"
             if kill -0 "$child_pid" 2>/dev/null; then
                 log "TIMEOUT: still alive after SIGTERM — SIGKILL pid $child_pid"
-                kill -KILL -- "-$child_pgid" 2>/dev/null || true
+                kill_tree_rescan "$child_pgid" KILL
             fi
         fi
     ) &
@@ -87,7 +115,6 @@ run_with_timeout() {
 
     return $exit_status
 }
-
 # --- main: keepalive ping via claude -p ---
 START_TS=$(date '+%s')
 log "=== tmux daemon starting ==="
