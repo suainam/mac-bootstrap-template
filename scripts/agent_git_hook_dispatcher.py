@@ -206,8 +206,10 @@ def _source_directory() -> Path:
 
 
 def _default_trusted_python() -> Path:
-    candidate = shutil.which("python3") or sys.executable
-    return Path(candidate).expanduser().absolute()
+    # The dispatcher is already running under the agent's supported Python.
+    # PATH may resolve `python3` to macOS system Python 3.9, which fails the
+    # install gate even when the current dispatcher is running on 3.10+.
+    return Path(sys.executable).expanduser().absolute()
 
 
 def _validate_trusted_python(context: GitContext, path: Path) -> Path:

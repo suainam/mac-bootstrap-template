@@ -439,7 +439,9 @@ def test_async_gate_runs_outside_hot_path_and_logs_externally(tmp_path: Path):
     script = tmp_path / "async_gate.py"
     script.write_text(
         "import pathlib, sys, time\n"
-        "time.sleep(0.1)\n"
+        # Leave a clear window to observe that dispatch returned before the
+        # detached worker completed; wall-clock startup varies under xdist.
+        "time.sleep(1)\n"
         "pathlib.Path(sys.argv[1]).write_text('done')\n",
         encoding="utf-8",
     )
@@ -448,14 +450,12 @@ def test_async_gate_runs_outside_hot_path_and_logs_externally(tmp_path: Path):
         gates={"async-marker": gate_command(script, marker, mode="async")},
     )
 
-    started = time.monotonic()
     result = run_runtime(repo, registry, "dispatch", event(repo))
-    elapsed = time.monotonic() - started
 
     assert result.returncode == 0
     assert result.stdout == ""
     assert result.stderr == ""
-    assert elapsed < 1
+    assert not marker.exists()
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline and not marker.exists():
         time.sleep(0.05)

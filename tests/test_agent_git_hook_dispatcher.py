@@ -209,6 +209,13 @@ def make_executable(path: Path, content: str) -> Path:
     return path
 
 
+def test_default_trusted_python_uses_current_supported_interpreter(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
+    from scripts.agent_git_hook_dispatcher import _default_trusted_python
+
+    assert _default_trusted_python().resolve() == Path(sys.executable).resolve()
+
+
 def test_real_commit_checks_staged_snapshot_not_unstaged_worktree(tmp_path: Path):
     home = tmp_path / "home"
     env = clean_env(home)
