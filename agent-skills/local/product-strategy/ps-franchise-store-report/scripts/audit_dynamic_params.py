@@ -11,7 +11,7 @@ import sys
 
 DATE_LITERAL = re.compile(r"(?<!\d)20\d{6}(?!\d)")
 YEAR_LITERAL = re.compile(r"(?<!\d)20(?:1\d|2\d)(?!\d)")
-PERSONAL_PATH = re.compile(r"['\"]/Users/|['\"]/Volumes/")
+PERSONAL_PATH = re.compile(r"['\"]/" + "(?:Users|Volumes)" + "/")
 
 
 def _is_comment_or_doc(line: str) -> bool:

@@ -9,10 +9,10 @@ from pathlib import Path
 import sys
 
 import pandas as pd
-candidates = [
-    Path.cwd(),
-    Path("/Users/suai/work/projects/product_strategy"),
-]
+candidates = [Path.cwd()]
+_env_root = os.environ.get("PRODUCT_STRATEGY_ROOT")
+if _env_root:
+    candidates.append(Path(_env_root))
 REPO_ROOT = next((c for c in candidates if (c / "shared").is_dir()), Path.cwd())
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
