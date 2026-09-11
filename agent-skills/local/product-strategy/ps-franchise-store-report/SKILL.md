@@ -33,17 +33,22 @@ description: 加盟店组货汇报（同比与环比）：涵盖大盘基准对�
    ```bash
    uv run python topics/franchise_store/03_analysis/scripts/export_franchise_store_yoy.py --project-et <YYYYMMDD>
    ```
-   *说明：无需传递 `--market-previous` 或 `--market-current`，脚本已集成 ODPS 大盘直算。*
+   *说明：无需传递 `--market-previous` 或 `--market-current`，已集成 ODPS 大盘直算；无需传 `--report-template`，脚本会自动寻找 `04_outputs/tables/` 中最新的历史工作簿（如 `franchise_store_sale_profit_yoy_20260907.xlsx`）作为模板，自动继承 3 张柱状图与内嵌桑基图媒体。*
 3. 自动生成：
    - 目标 Excel: `04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx`
-   - 流转图表: `04_outputs/graphs/franchise_store_sankey_graph_<YYYYMMDD>.svg`
+   - 矢量桑基图: `04_outputs/graphs/franchise_store_sankey_graph_<YYYYMMDD>.svg`
+   - 网页卡片: `04_outputs/graphs/franchise_store_sankey_flow_<YYYYMMDD>.html`
 4. 运行质量门禁：
    ```bash
+   # (1) 结构与图表存在性审查 (验证 3 张原生图表与桑基图锚点)
    python scripts/inspect_workbook.py 04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx
-   ```
-- **完成标准**：Excel 生成且包含完整的“整体汇总”、“省区明细”及“加盟店大盘”三张工作表，桑基图成功嵌入，数值无 `#VALUE!` 或空表头。
-- **深入参考**：[references/parameter-contract.md](references/parameter-contract.md)、[references/adversarial-review.md](references/adversarial-review.md)。
+   officecli view 04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx outline
 
+   # (2) 视觉溢出审查 (排查大额数值超宽变 ### 或文字溢出行高风险)
+   officecli view 04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx issues --type format
+   ```
+- **完成标准**：Excel 生成且包含完整的“整体汇总”、“省区明细”及“加盟店大盘”等 7 张工作表，3 张原生柱状图完整，内嵌桑基 PNG 图片无损加载，无 `#VALUE!` 错误。
+- **深入参考**：[references/parameter-contract.md](references/parameter-contract.md)、[references/adversarial-review.md](references/adversarial-review.md)。
 ### Branch C: 桑基流转图与卡片独立交付
 当用户需要单独输出或复核目录流转双列桑基图、HTML 汇报卡片时触发：
 1. 确认流转数据集包含 8 大标准流向：`稳定目录内`、`稳定目录外`、`目录外转目录内`、`目录内转目录外`、`新增目录内`、`新增目录外`、`目录内汰换`、`目录外汰换`。

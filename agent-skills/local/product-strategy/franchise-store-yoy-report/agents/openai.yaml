@@ -1,4 +1,0 @@
-interface:
-  display_name: "加盟店同比汇报"
-  short_description: "生成并复核加盟店组货同比动态汇报表、口径差异与图表校验"
-  default_prompt: "使用 $franchise-store-yoy-report 生成指定 project_et 的动态汇报表并执行口径、硬编码和历史版本差异复核。"
