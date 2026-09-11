@@ -1128,6 +1128,16 @@
           "scope": "project",
           "projects": ["product_strategy"],
           "reason": "加盟店组货同比汇报的动态日期口径、模板化 Excel、省区表、桑基图和差异复核"
+        },
+        "ps-franchise-store-report": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "加盟店组货汇报（同比与环比）的大盘基准对齐、店品可比同比、桑基流转图与省区明细看板"
+        },
+        "o2o-store-benefit-report": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "O2O重点店/中心店效益评估与卡片导出(TOP500/TOP200/跨渠道TOP80/中心店蜂窝品，支持店均规模量化归因)"
         }
       }
     },
