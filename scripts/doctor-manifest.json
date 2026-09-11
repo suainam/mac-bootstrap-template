@@ -85,10 +85,6 @@
     },
     "miniforge": {
       "app": "Miniforge-Navigator.app"
-    },
-    "workbuddy": {
-      "app": "WorkBuddy.app",
-      "optional": true
     }
   }
 }
