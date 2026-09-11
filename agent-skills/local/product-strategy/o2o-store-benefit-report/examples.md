@@ -6,8 +6,8 @@ Commands below assume the `product_strategy` checkout. From `mac-bootstrap/templ
 ## Example 1: Run Historical Partition (20260617, explicit restored 11-card scope)
 
 Replicates a historical evaluation partition with C vs H YoY metrics. The explicit
-scope keeps the preserved `is_3he1_fl` view instead of the default four raw-priority cards:
-
+scope keeps the preserved three-store-group `is_3he1_fl` view instead of the
+default four all-store raw-priority cards:
 ```bash
 uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --cutoff 20260617 \
@@ -37,6 +37,7 @@ uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
 - C Window: `2026-07-05` ~ `2026-09-07`
 - Baseline: H (YoY; default)
 - Cards exported: 4 (`reason_zfl` × `所有重点门店`)
+- Tag extraction excludes `version_num` values containing `月度`.
 
 To export the preserved restored-priority 11-card view instead:
 
@@ -46,6 +47,7 @@ uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --card-scope restored_11 \
   --export
 ```
+
 ---
 
 ## Example 3: Ad-hoc Query for Executive Card Table
@@ -65,8 +67,8 @@ select
     remark
 from dsl_analysis.ads_o2o_key_store_benefit_card_df
 where pt = 20260907
-  and tag_source = 'raw'
-  and store_group = '所有重点门店'
+    and tag_source = 'raw'
+    and store_group = '所有重点门店'
 order by strategy_tag, order_seq
 ;
 ```
@@ -92,6 +94,8 @@ uv run python .claude/skills/o2o-store-benefit-report/scripts/helper.py \
   --export-only
 ```
 
+Use `--card-scope restored_11` to export the preserved restored-priority 11-card view.
+
 ---
 
 ## Example 5: Python Direct Pipeline Ingestion
@@ -106,7 +110,7 @@ sys.path.insert(
 )
 from helper import O2OStoreBenefitRunner
 
-runner = O2OStoreBenefitRunner(cutoff_date="20260907")  # H + raw_all_stores defaults
+runner = O2OStoreBenefitRunner(cutoff_date="20260907")  # H + raw_all_stores default
 runner.run_pipeline()
 excel_path = runner.export_excel()
 print("Saved to:", excel_path)

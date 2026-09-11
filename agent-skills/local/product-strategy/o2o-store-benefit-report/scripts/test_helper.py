@@ -6,6 +6,7 @@ import os
 import sys
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 import openpyxl
 import pytest
@@ -17,7 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
-from helper import O2OStoreBenefitRunner  # noqa: E402
+from helper import O2OStoreBenefitRunner, format_card_summary  # noqa: E402
 
 
 @pytest.fixture
@@ -167,7 +168,7 @@ def test_excel_export_renders_11_ordered_card_banners(
 def test_default_reason_zfl_export_renders_4_cards(
     runner_20260907_raw: O2OStoreBenefitRunner,
 ) -> None:
-    """The default scope exports four all-key-store cards from reason_zfl."""
+    """The default raw scope exports four all-key-store cards."""
     sql = f"""
     select store_group, strategy_tag, count(*) as row_cnt
     from {runner_20260907_raw.target_project}.ads_o2o_key_store_benefit_card_df
@@ -192,7 +193,7 @@ def test_default_reason_zfl_export_renders_4_cards(
     excel_path = Path(runner_20260907_raw.export_excel())
     wb = openpyxl.load_workbook(excel_path)
     ws = wb.active
-    assert "H期（默认基线/去年同期）" in ws["A1"].value
+    assert "基期: 去年同期" in ws["A1"].value
     card_headers = [
         cell.value
         for row in ws.iter_rows(min_row=1, max_row=100, min_col=1, max_col=1)
@@ -268,3 +269,109 @@ def test_all_store_honeycomb_uses_center_catalog_metrics(
                 rows[(tag_source, period_type, "所有重点门店")]
                 == rows[(tag_source, period_type, "中心店")]
             )
+
+def test_card_summary_formats_turnover_as_percentage_points() -> None:
+    items = [
+        {"metric_name": "销售额", "all_diff_ratio": 0.2727},
+        {"metric_name": "毛利额", "all_diff_ratio": 0.2},
+        {
+            "metric_name": "城市top500品动销率",
+            "all_diff": -18.56,
+            "all_diff_ratio": None,
+        },
+        {
+            "metric_name": "目录内动销率",
+            "all_diff": -1.16,
+            "all_diff_ratio": None,
+        },
+    ]
+
+    summary = format_card_summary(
+        card_idx=1,
+        store_group="所有重点门店",
+        strategy_tag="城市top500品",
+        source_suffix="",
+        items=items,
+    )
+
+    assert "销售额变化 +27.27%" in summary
+    assert "毛利额变化 +20.00%" in summary
+    assert "标签动销率变化 -18.56个百分点" in summary
+    assert "全店目录内动销率变化 -1.16个百分点" in summary
+
+def test_default_export_queries_raw_cards(tmp_path: Path) -> None:
+    columns = [
+        "store_group",
+        "strategy_tag",
+        "order_seq",
+        "metric_name",
+        "all_post",
+        "all_pre",
+        "all_diff",
+        "all_diff_ratio",
+        "o2o_post",
+        "o2o_pre",
+        "o2o_diff",
+        "o2o_diff_ratio",
+        "offline_post",
+        "offline_pre",
+        "offline_diff",
+        "offline_diff_ratio",
+        "c_avg_tag_items",
+        "l_avg_tag_items",
+        "c_avg_tag_dx",
+        "l_avg_tag_dx",
+        "c_avg_cata_items",
+        "l_avg_cata_items",
+        "c_avg_cata_dx",
+        "l_avg_cata_dx",
+        "remark",
+        "tag_source",
+    ]
+    values = {column: 1 for column in columns}
+    values.update(
+        store_group="所有重点门店",
+        strategy_tag="城市top500品",
+        order_seq=1,
+        metric_name="销售额",
+        remark="",
+        tag_source="raw",
+    )
+    record = [values[column] for column in columns]
+
+    class FakeReader:
+        _schema = SimpleNamespace(
+            columns=[SimpleNamespace(name=column) for column in columns]
+        )
+
+        def open_reader(self) -> "FakeReader":
+            return self
+
+        def __enter__(self) -> "FakeReader":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def __iter__(self):
+            return iter([record])
+
+    class FakeODPS:
+        sql = ""
+
+        def execute_sql(self, sql: str) -> FakeReader:
+            self.sql = sql
+            return FakeReader()
+
+    runner = object.__new__(O2OStoreBenefitRunner)
+    runner.odps = FakeODPS()
+    runner.target_project = "project"
+    runner.cutoff_date = 20260907
+    runner.card_scope = "raw_all_stores"
+    runner.baseline_type = "H"
+    runner.export_dir = tmp_path
+
+    runner.export_excel()
+
+    assert "tag_source = 'raw'" in runner.odps.sql
+    assert "store_group = '所有重点门店'" in runner.odps.sql

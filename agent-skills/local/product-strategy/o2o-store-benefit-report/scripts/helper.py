@@ -31,10 +31,51 @@ O2O_SCRIPTS = REPO_ROOT / "topics/o2o_store/03_analysis/scripts"
 if str(O2O_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(O2O_SCRIPTS))
 
-from run_city_top2500_phase1 import load_env_file
-from shared.config import ODPSConfig
-from shared.odps_connector import ODPSConnector
-from sql_builder import render_dws_and_ads_sql
+from run_city_top2500_phase1 import load_env_file  # noqa: E402
+from shared.config import ODPSConfig  # noqa: E402
+from shared.odps_connector import ODPSConnector  # noqa: E402
+from sql_builder import render_dws_and_ads_sql  # noqa: E402
+
+
+def format_card_summary(
+    *,
+    card_idx: int,
+    store_group: str,
+    strategy_tag: str,
+    source_suffix: str,
+    items: list[dict[str, Any]],
+) -> str:
+    """Format the executive summary while preserving metric units."""
+    by_metric = {item["metric_name"]: item for item in items}
+    sales_row = by_metric.get("销售额")
+    margin_row = by_metric.get("毛利额")
+    dx_row = next(
+        (
+            value
+            for metric_name, value in by_metric.items()
+            if metric_name.endswith("动销率") and metric_name != "目录内动销率"
+        ),
+        None,
+    )
+    cata_dx_row = by_metric.get("目录内动销率")
+
+    def _ratio(row: dict[str, Any] | None) -> str:
+        if row is None or row.get("all_diff_ratio") is None:
+            return "-"
+        return f"{row['all_diff_ratio'] * 100:+.2f}%"
+
+    def _percentage_points(row: dict[str, Any] | None) -> str:
+        if row is None or row.get("all_diff") is None:
+            return "-"
+        return f"{row['all_diff']:+.2f}个百分点"
+
+    return (
+        f"【卡片 {card_idx}】{store_group} - {strategy_tag}{source_suffix} 结果呈现：\n"
+        f"通过将「{strategy_tag}」纳入{store_group}组货，"
+        f"销售额变化 {_ratio(sales_row)}，毛利额变化 {_ratio(margin_row)}，"
+        f"标签动销率变化 {_percentage_points(dx_row)}，"
+        f"全店目录内动销率变化 {_percentage_points(cata_dx_row)}"
+    )
 
 
 class O2OStoreBenefitRunner:
@@ -74,7 +115,7 @@ class O2OStoreBenefitRunner:
                 legacy_scope = legacy_scopes[tag_source.lower()]
             except KeyError as exc:
                 raise ValueError("tag_source must be 'new' or 'raw'") from exc
-            if requested_scope != "raw_all_stores" and requested_scope != legacy_scope:
+            if requested_scope not in {"raw_all_stores", legacy_scope}:
                 raise ValueError(
                     "tag_source and card_scope select conflicting card scopes"
                 )
@@ -482,30 +523,13 @@ class O2OStoreBenefitRunner:
             c_cell.alignment = align_center
 
             # Summary Sentence Row (auto-generated from card metrics)
-            by_metric = {it["metric_name"]: it for it in items}
-            sales_row = by_metric.get("销售额")
-            margin_row = by_metric.get("毛利额")
-            dx_row = next(
-                (
-                    v
-                    for k, v in by_metric.items()
-                    if k.endswith("动销率") and k != "目录内动销率"
-                ),
-                None,
+            summary_text = format_card_summary(
+                card_idx=card_idx,
+                store_group=s_group,
+                strategy_tag=s_tag,
+                source_suffix=source_suffix,
+                items=items,
             )
-            cata_dx_row = by_metric.get("目录内动销率")
-
-            def _pct(row: dict[str, Any] | None, ratio_key: str) -> str:
-                if row is None:
-                    return "-"
-                ratio = row.get(ratio_key)
-                return f"{ratio * 100:+.2f}%" if ratio is not None else "-"
-
-            sales_pct = _pct(sales_row, "all_diff_ratio")
-            margin_pct = _pct(margin_row, "all_diff_ratio")
-            dx_pct = _pct(dx_row, "all_diff_ratio")
-            cata_dx_pct = _pct(cata_dx_row, "all_diff_ratio")
-
             summary_row_idx = curr_row + 1
             ws.merge_cells(
                 start_row=summary_row_idx,
@@ -516,12 +540,7 @@ class O2OStoreBenefitRunner:
             s_cell = ws.cell(
                 row=summary_row_idx,
                 column=1,
-                value=(
-                    f"【卡片 {card_idx}】{s_group} - {s_tag}{source_suffix} 结果呈现：\n"
-                    f"通过将「{s_tag}」纳入{s_group}组货，"
-                    f"销售额变化 {sales_pct}，毛利额变化 {margin_pct}，"
-                    f"标签动销率变化 {dx_pct}，全店目录内动销率变化 {cata_dx_pct}"
-                ),
+                value=summary_text,
             )
             s_cell.font = font_note
             s_cell.alignment = Alignment(
