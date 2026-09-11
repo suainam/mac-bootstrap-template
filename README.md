@@ -388,6 +388,11 @@ For non-interactive git identity setup:
 GIT_NAME="Your Name" GIT_EMAIL="you@example.com" make bootstrap
 ```
 
+`install.sh` provisions the shared `template/.venv` from the tracked
+`pyproject.toml`, `uv.lock`, and `.python-version` via
+`uv sync --locked --group dev`. The test suite, `make doctor`, and the agent
+tooling wrappers all use that venv, so no ad-hoc virtualenv is needed.
+
 ## Full setup (including agent tools)
 
 ```bash

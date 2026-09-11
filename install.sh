@@ -114,6 +114,9 @@ fi
 echo "=== Install from Brewfile ==="
 "$DIR/scripts/brew-bundle.sh"
 
+echo "=== Provision template Python environment ==="
+"$DIR/scripts/setup-python-venv.sh"
+
 echo "=== Install Antigravity CLI ==="
 "$DIR/scripts/install-antigravity-cli.sh"
 
