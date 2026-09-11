@@ -11,7 +11,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -31,11 +31,10 @@ O2O_SCRIPTS = REPO_ROOT / "topics/o2o_store/03_analysis/scripts"
 if str(O2O_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(O2O_SCRIPTS))
 
-from run_city_top2500_phase1 import load_env_file  # noqa: E402
-
-from shared.config import ODPSConfig  # noqa: E402
-from shared.odps_connector import ODPSConnector  # noqa: E402
-from sql_builder import render_dws_and_ads_sql  # noqa: E402
+from run_city_top2500_phase1 import load_env_file
+from shared.config import ODPSConfig
+from shared.odps_connector import ODPSConnector
+from sql_builder import render_dws_and_ads_sql
 
 
 class O2OStoreBenefitRunner:
@@ -58,7 +57,9 @@ class O2OStoreBenefitRunner:
             if field_value is None:
                 continue
             try:
-                datetime.strptime(field_value, "%Y%m%d")
+                date.fromisoformat(
+                    f"{field_value[:4]}-{field_value[4:6]}-{field_value[6:]}"
+                )
             except ValueError as exc:
                 raise ValueError(f"{field_name} must be a valid YYYYMMDD date") from exc
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", target_project):
@@ -353,7 +354,11 @@ class O2OStoreBenefitRunner:
     def export_excel(self) -> str:
         """Step 7: Pull from ADS card table and format into executive Excel workbooks."""
         scope_filters = {
-            "raw_all_stores": "tag_source = 'raw' and store_group = '所有重点门店'",
+            "raw_all_stores": (
+                "tag_source = 'raw' and store_group = '所有重点门店' "
+                "and strategy_tag in "
+                "('城市top500品','城市top200','跨渠道top80','o2o中心店品')"
+            ),
             "restored_11": "tag_source = 'restored'",
             "all": "1 = 1",
         }
@@ -436,11 +441,7 @@ class O2OStoreBenefitRunner:
         align_right = Alignment(horizontal="right", vertical="center")
 
         # Title block
-        baseline_desc = (
-            "H期（默认基线/去年同期）"
-            if self.baseline_type == "H"
-            else "L期（上线前窗口）"
-        )
+        baseline_desc = "去年同期" if self.baseline_type == "H" else "上线前窗口"
         ws.merge_cells("A1:P1")
         title_cell = ws["A1"]
         title_cell.value = (
