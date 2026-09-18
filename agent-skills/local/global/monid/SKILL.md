@@ -1,6 +1,6 @@
 ---
 name: monid
-version: 0.1.6
+version: 0.1.7
 description: >-
   Discover better ways to complete tasks. Proactively run `monid discover`
   before writing a scraper, before using a generic web fetch for structured
@@ -44,7 +44,7 @@ after approval if ANY of these is true:**
 1. Install (or update) the CLI, then run setup:
 
 ```bash
-npm install -g @monid-ai/cli@0.1.6
+npm install -g @monid-ai/cli@0.1.7
 monid setup --client <agent-name-if-known> --email <email-if-already-provided>
 ```
 
