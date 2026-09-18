@@ -130,8 +130,8 @@ help:
 	@echo "  theme-switch          Switch tmux + Ghostty theme: THEME=catppuccin-mocha|gruvbox-dark"
 	@echo "  theme-list            List supported terminal themes"
 	@echo ""
-	@echo "── Claude Daemon (tmux) ──"
-	@echo "  claude-daemon-install    Install tmux-based daemon"
+	@echo "── Claude Daemon ──"
+	@echo "  claude-daemon-install    Install launchd keepalive daemon"
 	@echo "  claude-daemon-unload     Stop daemon services"
 	@echo "  claude-daemon-status     Show daemon status"
 	@echo "  claude-daemon-logs       Show daemon logs"
@@ -504,8 +504,8 @@ claude-daemon-status:
 	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon 2>&1 | head -20
 
 claude-daemon-logs:
-	@echo "=== Tmux daemon ==="
-	tail -20 "$(HOME)/Library/Logs/claude-daemon/tmux.log" 2>/dev/null || echo "(no tmux.log)"
+	@echo "=== Claude daemon logs ==="
+	tail -20 "$(HOME)/Library/Logs/claude-daemon/daemon.log" 2>/dev/null || echo "(no daemon.log)"
 
 claude-daemon-unload:
 	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || true

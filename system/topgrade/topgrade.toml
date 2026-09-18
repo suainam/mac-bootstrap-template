@@ -13,7 +13,8 @@ disable = [
     "containers",   # Docker daemon may be offline
     "git_repos",    # Do not indiscriminately git pull local dev repositories
     "vim",          # System vim plugin update fails headless; Neovim is updated separately
-    "pnpm"          # Global pnpm bin is not in PATH; Bun/npm/uv manage global tools
+    "pnpm",         # Global pnpm bin is not in PATH; Bun/npm/uv manage global tools
+    "pipx"          # All CLI tools migrated to uv tool
 ]
 
 # Steps that shouldn't block the entire upgrade run if they fail

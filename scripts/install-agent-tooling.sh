@@ -91,6 +91,19 @@ PI_AGENTS_MD="$(json_get_path agents.pi.paths.instructions)"
 PI_SKILLS_DIR="$(json_get_path agents.pi.paths.skills)"
 PI_EXTENSIONS_DIR="$(json_get_path agents.pi.paths.extensions)"
 PI_LOCAL_PROVIDER="$(json_get_path agents.pi.paths.local_provider_extension)"
+PI_PRIVATE_CONFIG_DIR="${PI_PRIVATE_CONFIG_DIR:-}"
+if [ -z "$PI_PRIVATE_CONFIG_DIR" ]; then
+  for _candidate in \
+    "$BOOTSTRAP/../private/agent/pi" \
+    "$BOOTSTRAP/../../private/agent/pi" \
+    "$BOOTSTRAP/../../../private/agent/pi"
+  do
+    if [ -d "$_candidate" ]; then
+      PI_PRIVATE_CONFIG_DIR="$_candidate"
+      break
+    fi
+  done
+fi
 
 REASONIX_CONFIG="$(json_get_path agents.reasonix.paths.config)"
 REASONIX_SETTINGS="$(json_get_path agents.reasonix.paths.settings)"

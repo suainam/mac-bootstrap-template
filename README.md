@@ -187,8 +187,7 @@ flowchart TD
     PKG --> P1[Homebrew: Formula + Cask]
     PKG --> P2[NPM Global: context-mode 等]
     PKG --> P3[Bun Global: opencode2 等]
-    PKG --> P4[pipx: ansible 等 CLI]
-    PKG --> P5[uv tool: ruff, basedpyright 等]
+    PKG --> P4[uv tool: ruff, basedpyright, ansible 等]
     PKG --> P6[mas: Mac App Store 应用]
 
     Sparkle --> S1[Ghostty, Hammerspoon, Maccy, OBS 等]
@@ -465,13 +464,13 @@ Regression notes:
 ## Claude daemon
 
 `launchd/io.local.mac-bootstrap.claude-daemon.plist` runs
-`scripts/claude-daemon-tmux.sh` at `00:00`, `08:00`, and `15:00`.
+`scripts/claude-daemon.sh` at `00:00`, `08:00`, and `15:00`.
 
-- Structured run summaries go to `~/Library/Logs/claude-daemon/tmux.log`
-- Raw `claude -p` stdout/stderr go to `/tmp/claude-daemon-tmux.log` and
-  `/tmp/claude-daemon-tmux.err`
-- `/tmp/claude-daemon-tmux.log` is best treated as the latest raw run only;
-  use `~/Library/Logs/claude-daemon/tmux.log` for multi-day history
+- Structured run summaries go to `~/Library/Logs/claude-daemon/daemon.log`
+- Raw `claude -p` stdout/stderr go to `/tmp/claude-daemon.log` and
+  `/tmp/claude-daemon.err`
+- `/tmp/claude-daemon.log` is best treated as the latest raw run only;
+  use `~/Library/Logs/claude-daemon/daemon.log` for multi-day history
 - For a one-off multi-line drill prompt, create `~/.claude/claude-daemon-prompt.txt`;
   the daemon will prefer that file over the default keepalive prompt
 - Remove that file after the drill so scheduled runs return to the default

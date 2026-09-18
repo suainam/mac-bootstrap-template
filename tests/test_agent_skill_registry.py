@@ -49,7 +49,7 @@ def test_product_strategy_project_skills_are_registered():
     registry = load_sources()
     sources = registry["sources"]
     assert "franchise_store" not in registry.get("projects", {})
-    assert sources["local-product-strategy"]["skills"]["python-data-analysis"]["projects"] == [
+    assert sources["local-product-strategy"]["skills"]["ps-analytics"]["projects"] == [
         "product_strategy"
     ]
     assert sources["local-product-strategy"]["skills"]["web-video-presentation-delivery"]["projects"] == [
@@ -131,7 +131,7 @@ def test_langgpt_prompt_writer_skill_registered_as_external_shadow():
     )
     registry = load_sources()
     langgpt = registry["sources"]["langgpt"]["skills"][skill]
-    assert langgpt["agents"] == ["claude", "codex", "opencode", "cross-agent"]
+    assert langgpt["agents"] == ["claude", "codex", "opencode", "pi", "cross-agent"]
     assert langgpt.get("distribution_state", "enabled") == "enabled"
     assert (
         langgpt["local_shadow_path"]

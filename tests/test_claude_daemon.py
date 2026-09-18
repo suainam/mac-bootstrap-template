@@ -1,4 +1,4 @@
-"""Tests for claude-daemon-tmux.sh keepalive script.
+"""Tests for claude-daemon.sh keepalive script.
 
 Coverage:
 - Syntax validity (bash -n)
@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).parent.parent / "scripts" / "claude-daemon-tmux.sh"
+SCRIPT = Path(__file__).parent.parent / "scripts" / "claude-daemon.sh"
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ def fake_claude_bin(
 
 
 def log_path(log_dir: Path) -> Path:
-    return log_dir / "tmux.log"
+    return log_dir / "daemon.log"
 
 
 def read_log(log_dir: Path) -> str:
@@ -135,7 +135,7 @@ class TestHappyPath:
         bin_dir = fake_claude_bin(tmp_path, exit_code=0)
         run_script(base_env(tmp_path, bin_dir))
         log = read_log(tmp_path / "Library" / "Logs" / "claude-daemon")
-        assert "tmux daemon starting" in log
+        assert "claude daemon starting" in log
 
     def test_log_contains_finished_banner(self, tmp_path):
         bin_dir = fake_claude_bin(tmp_path, exit_code=0)
@@ -395,6 +395,78 @@ class TestProcessGroupKill:
         for pid in (claude_pid, detached_pid):
             with pytest.raises(ProcessLookupError):
                 os.kill(pid, 0)
+
+# ── 6b. Anti-sleep assertion (caffeinate) ───────────────────────────────────────
+# Regression for: launchd fires this script inside maintenance DarkWake
+# windows; if the system re-enters sleep while `claude -p` is still running,
+# the child and the watchdog's `sleep` get frozen until the next wake cycle,
+# inflating elapsed time from seconds to tens of minutes while still exiting
+# 0. Observed in ~/Library/Logs/claude-daemon/daemon.log: 236s-1674s "finished"
+# runs that were actually suspended mid-flight, not slow.
+
+class TestAntiSleepAssertion:
+    def _fake_caffeinate_bin(self, tmp_path: Path, bin_dir: Path, log_file: Path) -> None:
+        script = bin_dir / "caffeinate"
+        script.write_text(textwrap.dedent(f"""\
+            #!/usr/bin/env bash
+            echo "$@" >> {log_file}
+            # Mimic `caffeinate -w PID`: block until the watched pid exits.
+            watched_pid=""
+            prev=""
+            for arg in "$@"; do
+                if [ "$prev" = "-w" ]; then
+                    watched_pid="$arg"
+                fi
+                prev="$arg"
+            done
+            while [ -n "$watched_pid" ] && kill -0 "$watched_pid" 2>/dev/null; do
+                sleep 0.1
+            done
+        """))
+        script.chmod(0o755)
+
+    def test_caffeinate_invoked_with_child_pid(self, tmp_path):
+        """run_with_timeout must hold a caffeinate -i -w <child_pid> assertion."""
+        bin_dir = fake_claude_bin(tmp_path, exit_code=0, sleep_secs=1)
+        caffeinate_log = tmp_path / "caffeinate-calls.log"
+        self._fake_caffeinate_bin(tmp_path, bin_dir, caffeinate_log)
+
+        env = base_env(tmp_path, bin_dir, CLAUDE_TIMEOUT="10")
+        run_script(env, timeout=15)
+
+        assert caffeinate_log.exists(), "caffeinate was never invoked"
+        call = caffeinate_log.read_text().strip()
+        assert "-i" in call.split(), f"caffeinate missing -i flag: {call}"
+        assert "-w" in call.split(), f"caffeinate missing -w flag: {call}"
+
+    def test_caffeinate_does_not_outlive_claude(self, tmp_path):
+        """caffeinate must be reaped once claude exits, not leak past the run."""
+        bin_dir = fake_claude_bin(tmp_path, exit_code=0, sleep_secs=1)
+        caffeinate_log = tmp_path / "caffeinate-calls.log"
+        self._fake_caffeinate_bin(tmp_path, bin_dir, caffeinate_log)
+
+        env = base_env(tmp_path, bin_dir, CLAUDE_TIMEOUT="10")
+        run_script(env, timeout=15)
+
+        time.sleep(0.5)
+        remaining = subprocess.run(
+            ["pgrep", "-f", f"caffeinate.*{caffeinate_log}"],
+            capture_output=True, text=True,
+        )
+        assert remaining.returncode != 0, \
+            f"fake caffeinate still running after script exit: {remaining.stdout}"
+
+    def test_missing_caffeinate_does_not_break_run(self, tmp_path, monkeypatch):
+        """If caffeinate is unavailable on PATH, the run must still succeed."""
+        bin_dir = fake_claude_bin(tmp_path, exit_code=0, sleep_secs=0)
+        env = base_env(tmp_path, bin_dir, CLAUDE_TIMEOUT="10")
+        # base_env's PATH injection is via CLAUDE_BIN_EXTRA_PATH; the script's
+        # own PATH export includes /usr/bin etc. where real caffeinate lives
+        # on macOS, but this asserts the script degrades gracefully either way.
+        result = run_script(env, timeout=15)
+        assert result.returncode == 0
+        log = read_log(tmp_path / "Library" / "Logs" / "claude-daemon")
+        assert "exit 0" in log
 
 # ── 7. Environment overrides ───────────────────────────────────────────────────
 

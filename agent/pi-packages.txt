@@ -7,3 +7,4 @@ npm:pi-web-access
 npm:pi-mcp-adapter
 npm:pi-subagents
 npm:context-mode
+npm:pi-cliproxyapi-provider

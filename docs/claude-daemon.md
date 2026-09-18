@@ -1,57 +1,45 @@
-# Claude Daily Drill in tmux
+# Claude Daemon (launchd Keepalive)
 
-This document describes the tmux-first daily drill path for Claude Code.
+This document describes the launchd-managed keepalive daemon for Claude Code.
+It does not use tmux — the daemon is a plain `bash` script fired on a
+calendar schedule, with no terminal multiplexer involved.
 
-## Recommended workflow
+## What it does
 
-1. Start the AI workspace:
+`launchd/io.local.mac-bootstrap.claude-daemon.plist` runs
+`scripts/claude-daemon.sh` at `00:00`, `08:00`, and `15:00`. Each run sends a
+single non-interactive `claude -p ... --bare --no-session-persistence` ping
+and exits — there is no persistent process or session between runs.
 
-```bash
-make tmux-workspace
-```
-
-2. If you already have a session, attach or switch to it:
-
-```bash
-tmux list-sessions
-tmux attach -t ai-work
-tmux switch-client -t ai-work
-```
-
-3. Use the native daily drill launcher:
+## Install / manage
 
 ```bash
-make claude-daily-drill-run
+make claude-daemon-install   # install + bootstrap the LaunchAgent
+make claude-daemon-status    # show launchd status
+make claude-daemon-logs      # tail structured run summaries
+make claude-daemon-unload    # stop and remove the LaunchAgent
 ```
 
-4. Export the latest drill result:
+## Logs
 
-```bash
-make claude-daily-drill-export
-```
+- Structured run summaries: `~/Library/Logs/claude-daemon/daemon.log`
+- Raw `claude -p` stdout/stderr (latest run only): `/tmp/claude-daemon.log`
+  and `/tmp/claude-daemon.err`
+- For multi-day history, use `~/Library/Logs/claude-daemon/daemon.log`
+- For a one-off multi-line drill prompt, create
+  `~/.claude/claude-daemon-prompt.txt`; the daemon prefers that file over the
+  default keepalive prompt. Remove it after the drill so scheduled runs
+  return to the default keepalive behavior.
 
-## Session layout
+## Anti-sleep assertion
 
-- Default session: `ai-work`
-- Default layout: `ai-work`
-- Claude pane: the pane running `claude`
-- Daemon window: `daemon`, `remote`, `work`
-- Analysis window: `shell`, `python`, `sql`, `notes`
-- Pane headers: `pane title | cwd | branch` with generic fallback names when unnamed
-
-## Verification
-
-```bash
-tmux list-keys
-tmux list-sessions
-tmux show -gv mode-keys
-```
+launchd can fire this script inside a macOS maintenance DarkWake window. The
+script wraps the `claude -p` child in `caffeinate -i -w <pid>` so the system
+can't fall back asleep mid-run and freeze the process for minutes; the
+assertion is released automatically once `claude -p` exits.
 
 ## Notes
 
-- `tmux` is the terminal entrypoint for this migration track.
-- Daily drill is run against the tmux Claude pane.
-- Hammerspoon stays at the OS tier for hotkeys, window placement, and clipboard helpers.
-- Shell startup details live in [`shell-startup.md`](shell-startup.md). The
-  daemon panes are expected to boot through `/bin/zsh -il`, not a partial shell
-  path that skips interactive prompt loading.
+- `tmux` is unrelated to this daemon. If you're looking for the interactive
+  tmux workspace, see `make tmux-workspace` — that's a separate, unrelated
+  feature for day-to-day terminal sessions.

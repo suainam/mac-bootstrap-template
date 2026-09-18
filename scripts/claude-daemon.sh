@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Claude Code keepalive daemon — macOS launchd-managed
 # Sends a non-interactive claude -p ping on a calendar schedule (00:00 / 08:00 / 15:00).
-# launchd captures stdout/stderr in /tmp/claude-daemon-tmux.{log,err}, while
-# this script appends structured run summaries to ~/Library/Logs/claude-daemon/tmux.log.
+# launchd captures stdout/stderr in /tmp/claude-daemon.{log,err}, while
+# this script appends structured run summaries to ~/Library/Logs/claude-daemon/daemon.log.
 # Override defaults via env vars (set in ~/.zshrc.local or private overlay):
 #   CLAUDE_PROJECT_DIR  — working directory for claude (default: $HOME/work)
 #   CLAUDE_SESSION      — unused; kept for forward compat
@@ -32,7 +32,7 @@ elif [ -n "${CLAUDE_KEEPALIVE_PROMPT:-}" ]; then
 fi
 
 LOG_DIR="${HOME}/Library/Logs/claude-daemon"
-LOG="${LOG_DIR}/tmux.log"
+LOG="${LOG_DIR}/daemon.log"
 mkdir -p "$LOG_DIR"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
@@ -92,6 +92,19 @@ run_with_timeout() {
     local child_pid=$!
     local child_pgid="$child_pid"
 
+    # Hold an idle-sleep assertion for the lifetime of the child process.
+    # launchd fires this script inside maintenance DarkWake windows; if the
+    # system re-enters sleep while claude -p is still running, the child
+    # (and the watchdog's `sleep` below) get frozen until the next wake
+    # cycle, inflating elapsed time from seconds to tens of minutes
+    # (observed: 236s-1674s "successful" runs that were actually suspended,
+    # not slow). caffeinate -i -w ties the assertion to child_pid and exits
+    # on its own once the child exits, so it never outlives the run.
+    local caffeinate_pid=""
+    if command -v caffeinate >/dev/null 2>&1; then
+        caffeinate -i -w "$child_pid" >/dev/null 2>&1 &
+        caffeinate_pid=$!
+    fi
     (
         exec >/dev/null 2>&1          # close inherited pipes — critical for correctness
         sleep "$timeout_secs"
@@ -112,12 +125,16 @@ run_with_timeout() {
 
     kill "$watchdog_pid" 2>/dev/null || true
     wait "$watchdog_pid" 2>/dev/null || true
+    if [ -n "$caffeinate_pid" ]; then
+        kill "$caffeinate_pid" 2>/dev/null || true
+        wait "$caffeinate_pid" 2>/dev/null || true
+    fi
 
     return $exit_status
 }
 # --- main: keepalive ping via claude -p ---
 START_TS=$(date '+%s')
-log "=== tmux daemon starting ==="
+log "=== claude daemon starting ==="
 log "  project_dir: $CLAUDE_PROJECT_DIR"
 log "  timeout: ${CLAUDE_TIMEOUT}s"
 log "  prompt_source: $PROMPT_SOURCE"

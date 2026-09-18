@@ -174,6 +174,21 @@ sync_clash_verge_profile() {
     return 0
   fi
 
+  # ── Sync Global Extension Script (Script.js) ──
+  local script_source=""
+  if [ -n "$EXTERNAL_PRIVATE_DIR" ] && [ -f "$EXTERNAL_PRIVATE_DIR/clash/Script.js" ]; then
+    script_source="$EXTERNAL_PRIVATE_DIR/clash/Script.js"
+  elif [ -f "$PARENT_DIR/private/clash/Script.js" ]; then
+    script_source="$PARENT_DIR/private/clash/Script.js"
+  elif [ -f "$DIR/private/clash/Script.js" ]; then
+    script_source="$DIR/private/clash/Script.js"
+  fi
+
+  if [ -n "$script_source" ]; then
+    run cp "$script_source" "$profiles_dir/Script.js"
+    echo "  Clash Verge Script.js <- $(label_path "$script_source")"
+  fi
+
   local profiles_yaml="$clash_dir/profiles.yaml"
   local current_uid=""
   if [ -f "$profiles_yaml" ]; then
