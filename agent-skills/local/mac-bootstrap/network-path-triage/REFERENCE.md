@@ -119,6 +119,20 @@ When a company target fails, answer these in order:
 - `DIRECT` can still mean `app -> Mihomo -> DIRECT -> target`.
 - `PAC DIRECT` can still mean `browser socket -> Clash TUN -> target`.
 - A `/32` exclusion is a last-mile fix, not a default response.
+- Enterprise VPN client daemons (CorpLink/飞连, cloud-desktop clients like 无影云)
+  run their own network self-diagnosis. If their probe domains resolve to the
+  Clash fake-ip range and then the client's own connect attempt gets
+  `permission denied`, this is a client-process-vs-TUN conflict, not a
+  rule-match problem: the client saw a fake IP it cannot actually reach.
+- Minimal fix pattern for that case (see `private/clash/corplink-experience.md`
+  § 11 for the worked example): add `PROCESS-PATH,<client-binary>,DIRECT` for
+  every binary path the client actually runs from (daemon AND GUI, and any
+  duplicate install locations), AND add the client's own probe domains to
+  `dns.fake-ip-filter` so its self-check gets a real IP instead of a fake one.
+  PROCESS-PATH alone is not sufficient when the client's DNS resolution already
+  happened through the fake-ip resolver before the process rule is evaluated.
+- This pattern generalizes to any local daemon/GUI pair that does its own
+  outbound network health probing while Clash TUN is active.
 
 ## Escalation hints
 
