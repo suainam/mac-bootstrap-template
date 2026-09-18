@@ -458,11 +458,12 @@ ensure_codex_instructions() {
 Prefer MCP graph tools before grep/glob/file-search for code discovery.
 
 ## Priority Order
-1. `search_graph` - find functions/classes/routes by name pattern
+1. `search_graph` - find functions/classes/routes by name pattern / semantic_query
 2. `trace_path` - call chain traversal (inbound/outbound/both)
 3. `get_code_snippet` - read source by qualified name
 4. `get_architecture` - repo overview: languages, packages, routes, hotspots
-5. `query_graph` - Cypher-like queries for complex patterns
+5. `check_index_coverage` - verify index coverage before stating absence or dead code
+6. `query_graph` - Cypher-like queries for complex patterns
 
 ## Context Mode SOP
 - Start with `ctx_batch_execute(commands, queries)` for parallel capture and same-roundtrip search
@@ -471,14 +472,59 @@ Prefer MCP graph tools before grep/glob/file-search for code discovery.
 - Use bash for short fixed observations or state mutation, not large-output analysis
 - Avoid `curl` / `wget` / `rsync` in bash; use `ctx_execute(language: "shell", code: "...")` instead
 
+## Mandatory Threshold
+- Do NOT run `glob` or `read` across broad code trees before running `search_graph` / `trace_path`.
+- If a glob or grep would match >20 code files, stop and use CBM structural query tools.
+
 ## When to fall back to grep/glob
 - Searching for string literals, error messages, config values
 - Searching non-code files (Dockerfiles, shell scripts, configs)
+- Verifying lines flagged by `check_index_coverage`
 <!-- codebase-memory-mcp:end -->'
   replace_managed_block "$CODEX_AGENTS" '<!-- codebase-memory-mcp:start -->' '<!-- codebase-memory-mcp:end -->' "$codex_crg_block"
 }
 
+link_pi_private_configs() {
+  [ -n "${PI_PRIVATE_CONFIG_DIR:-}" ] || return 0
+  [ -d "$PI_PRIVATE_CONFIG_DIR" ] || return 0
+
+  local name src dst
+  for name in settings.json mcp.json models.json; do
+    src="$PI_PRIVATE_CONFIG_DIR/$name"
+    [ -e "$src" ] || continue
+    dst="$HOME/.pi/agent/$name"
+    if [ -L "$dst" ]; then
+      run rm "$dst"
+    elif [ -e "$dst" ]; then
+      if [ ! -e "$src.pre-private" ]; then
+        run mv "$dst" "$src.pre-private"
+        echo "  Pi: preserved previous $name at $src.pre-private"
+      else
+        run rm "$dst"
+      fi
+    fi
+    run ln -s "$src" "$dst"
+    echo "  Pi: $dst -> $src"
+  done
+
+  local package_src package_dst
+  package_src="$PI_PRIVATE_CONFIG_DIR/pi-cliproxyapi-provider"
+  package_dst="$HOME/.pi/agent/pi-cliproxyapi-provider"
+  run mkdir -p "$package_src"
+  if [ -d "$package_dst" ] && [ ! -L "$package_dst" ]; then
+    if [ -f "$package_dst/config.json" ] && [ ! -f "$package_src/config.json" ]; then
+      run mv "$package_dst/config.json" "$package_src/config.json"
+    fi
+    run rm -rf "$package_dst"
+  elif [ -L "$package_dst" ]; then
+    run rm "$package_dst"
+  fi
+  run ln -s "$package_src" "$package_dst"
+  echo "  Pi: $package_dst -> $package_src"
+}
+
 configure_pi_step() {
+  link_pi_private_configs
   if [ -d "$(dirname "$PI_AGENTS_MD")" ]; then
     write_markdown_file "$PI_AGENTS_MD" "$(render_runtime_rules_doc "Global Pi Coding Agent Rules" "$RTK_SOURCE")"
     echo "  Pi: AGENTS.md generated"
@@ -558,6 +604,7 @@ fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
   echo "  Pi: settings.json updated"
 
   configure_pi_mcp_file
+  link_pi_private_configs
 
   local pi_local_base_url="${PI_LOCAL_PROVIDER_BASE_URL:-http://localhost:20128/v1}"
   local skip_models="asr|tts|voiceclone|voicedesign|omni"

@@ -54,6 +54,10 @@ CBM_TOOLS = (
     "index_status",
     "manage_adr",
     "ingest_traces",
+    "check_index_coverage",
+    "compare_graphs",
+    "get_file_outline",
+    "delete_project",
 )
 
 CONTEXT_MODE_TOOLS = ("ctx_stats", "ctx_search", "ctx_index", "ctx_doctor")

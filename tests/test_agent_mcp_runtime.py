@@ -62,6 +62,10 @@ def test_desired_servers_has_one_normalized_catalog():
         "index_status",
         "manage_adr",
         "ingest_traces",
+        "check_index_coverage",
+        "compare_graphs",
+        "get_file_outline",
+        "delete_project",
     )
 
 

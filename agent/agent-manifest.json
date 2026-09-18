@@ -41,7 +41,10 @@
         "get_architecture",
         "search_code",
         "manage_adr",
-        "ingest_traces"
+        "ingest_traces",
+        "check_index_coverage",
+        "compare_graphs",
+        "get_file_outline"
       ]
     },
     "context7": {
