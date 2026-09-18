@@ -1,6 +1,6 @@
 ---
 name: odps-table-ingest
-description: Ingest local Excel/CSV files into MaxCompute (ODPS) partitioned tables with strict 5-phase verification: profile, introspect (with typo/rename handling), reconcile & gate, cast & write, and prove via aggregate SQL.
+description: "Ingest local Excel/CSV files into MaxCompute (ODPS) partitioned tables with strict 5-phase verification: profile, introspect (with typo/rename handling), reconcile & gate, cast & write, and prove via aggregate SQL."
 ---
 
 # odps-table-ingest

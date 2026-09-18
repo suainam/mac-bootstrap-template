@@ -1,0 +1,40 @@
+# DataWorks 批量回刷配置模板
+
+# DataWorks 工作空间配置
+dataworks:
+  project_id: 175690  # 数智中台部工作空间 ID
+  workflow_id: 10002308897  # 工作流根节点 ID
+  env: PROD  # PROD / DEV
+
+# MaxCompute 配置
+odps:
+  project: dsl_analysis  # 目标 ODPS 项目
+  endpoint: https://service.cn-shenzhen.maxcompute.aliyun.com/api
+
+# 回刷窗口配置（按季度切片，倒序：新→旧）
+quarters:
+  - name: "2026 Q3 (0701~0809)"
+    start: "20260701"
+    end: "20260809"
+  - name: "2026 Q2 (0401~0630)"
+    start: "20260401"
+    end: "20260630"
+  - name: "2026 Q1 (0101~0331)"
+    start: "20260101"
+    end: "20260331"
+
+# 分区表清单（用于断点续传检查）
+partition_tables:
+  - ads_prov_region_stat_cata_trend_detail_df
+  - ads_prov_region_stat_cata_detail_df
+
+# 并发配置
+concurrency:
+  workers: 16  # 线程池并发数
+  retry: 3  # 单日失败重试次数
+
+# 凭据加载优先级（按顺序尝试）
+credential_sources:
+  - ~/work/projects/www/marimo/merchandise/.env
+  - ~/work/config/shared/.env
+  - 环境变量: ODPS_ACCESS_ID / ODPS_SECRET_KEY

@@ -1,0 +1,3 @@
+alibabacloud-dataworks-public20200518>=10.1.0
+alibabacloud-tea-openapi>=0.4.6
+pyodps>=0.11.0

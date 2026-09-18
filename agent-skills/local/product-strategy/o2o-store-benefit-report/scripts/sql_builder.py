@@ -32,7 +32,7 @@ def render_dws_and_ads_sql(
             margin_account
         from {target_project}.analysis_analysis_assortment_o2_store_cata_items_goals_df
         where pt = {cutoff_date}
-          and lx_new in ('城市top500品', '城市top200', '跨渠道top80', 'o2o中心店品')
+          and (lx_new <> 'o2o中心店品' or is_key_store = 1)
         union all
         select
             case when is_key_store = 1 then '中心店' else 'O2O其他重点店' end as raw_store_group,
@@ -44,7 +44,7 @@ def render_dws_and_ads_sql(
             margin_account
         from {target_project}.analysis_analysis_assortment_o2_store_cata_items_goals_df
         where pt = {cutoff_date}
-          and lx_raw in ('城市top500品', '城市top200', '跨渠道top80', 'o2o中心店品')
+          and (lx_raw <> 'o2o中心店品' or is_key_store = 1)
     )
     , sales_agg as (
         select
@@ -85,6 +85,7 @@ def render_dws_and_ads_sql(
             group by store_code
         ) re on a.store_code = re.store_code
         where a.stat_date in ({cutoff_date}, {ver_id}, {yoy_date})
+          and (t2.is_3he1_fl <> 'o2o中心店品' or re.is_key_store = 1)
           and (a.ld_inv_amt > 0 or a.is_content_item = 1)
           and coalesce(a.item_push_class, 'A') not in ('K', 'Y', 'T', 'S')
         union all
@@ -108,6 +109,7 @@ def render_dws_and_ads_sql(
             group by store_code
         ) re on a.store_code = re.store_code
         where a.stat_date in ({cutoff_date}, {ver_id}, {yoy_date})
+          and (t2.reason_zfl <> 'o2o中心店品' or re.is_key_store = 1)
           and (a.ld_inv_amt > 0 or a.is_content_item = 1)
           and coalesce(a.item_push_class, 'A') not in ('K', 'Y', 'T', 'S')
     )
@@ -197,43 +199,152 @@ def render_dws_and_ads_sql(
     # ADS card table
     sql_ads = f"""
     insert overwrite table {target_project}.ads_o2o_key_store_benefit_card_df partition (pt = {cutoff_date})
-    with p as (
+    with store_total_base as (
         select
-            store_group,
-            strategy_tag,
-            tag_source,
-            -- 销售额 (万元)
-            round(max(case when platform_name = 'all' and period_type = 'C' then pay_amt end) / 10000.0, 1) as c_sales_all,
-            round(max(case when platform_name = 'all' and period_type = '{baseline_col}' then pay_amt end) / 10000.0, 1) as l_sales_all,
-            round(max(case when platform_name = 'online' and period_type = 'C' then pay_amt end) / 10000.0, 1) as c_sales_o2o,
-            round(max(case when platform_name = 'online' and period_type = '{baseline_col}' then pay_amt end) / 10000.0, 1) as l_sales_o2o,
-            round(max(case when platform_name = 'offline' and period_type = 'C' then pay_amt end) / 10000.0, 1) as c_sales_off,
-            round(max(case when platform_name = 'offline' and period_type = '{baseline_col}' then pay_amt end) / 10000.0, 1) as l_sales_off,
-            -- 毛利额 (万元)
-            round(max(case when platform_name = 'all' and period_type = 'C' then margin_account end) / 10000.0, 1) as c_margin_all,
-            round(max(case when platform_name = 'all' and period_type = '{baseline_col}' then margin_account end) / 10000.0, 1) as l_margin_all,
-            round(max(case when platform_name = 'online' and period_type = 'C' then margin_account end) / 10000.0, 1) as c_margin_o2o,
-            round(max(case when platform_name = 'online' and period_type = '{baseline_col}' then margin_account end) / 10000.0, 1) as l_margin_o2o,
-            round(max(case when platform_name = 'offline' and period_type = 'C' then margin_account end) / 10000.0, 1) as c_margin_off,
-            round(max(case when platform_name = 'offline' and period_type = '{baseline_col}' then margin_account end) / 10000.0, 1) as l_margin_off,
-            -- 标签动销率 (%)
-            round(max(case when period_type = 'C' then tag_dx_item_cnt * 100.0 / tag_item_cnt end), 2) as c_tag_dx,
-            round(max(case when period_type = '{baseline_col}' then tag_dx_item_cnt * 100.0 / tag_item_cnt end), 2) as l_tag_dx,
-            -- 目录内动销率 (%)
-            round(max(case when period_type = 'C' then cata_dx_item_cnt * 100.0 / cata_item_cnt end), 2) as c_cata_dx,
-            round(max(case when period_type = '{baseline_col}' then cata_dx_item_cnt * 100.0 / cata_item_cnt end), 2) as l_cata_dx,
-            -- 店均量化证据 (不包含易混淆的门店数列)
-            round(max(case when period_type = 'C' then tag_item_cnt * 1.0 / store_cnt end), 1) as c_avg_tag_items,
-            round(max(case when period_type = '{baseline_col}' then tag_item_cnt * 1.0 / store_cnt end), 1) as l_avg_tag_items,
-            round(max(case when period_type = 'C' then tag_dx_item_cnt * 1.0 / store_cnt end), 1) as c_avg_tag_dx,
-            round(max(case when period_type = '{baseline_col}' then tag_dx_item_cnt * 1.0 / store_cnt end), 1) as l_avg_tag_dx,
-            round(max(case when period_type = 'C' then cata_item_cnt * 1.0 / store_cnt end), 1) as c_avg_cata_items,
-            round(max(case when period_type = '{baseline_col}' then cata_item_cnt * 1.0 / store_cnt end), 1) as l_avg_cata_items,
-            round(max(case when period_type = 'C' then cata_dx_item_cnt * 1.0 / store_cnt end), 1) as c_avg_cata_dx,
-            round(max(case when period_type = '{baseline_col}' then cata_dx_item_cnt * 1.0 / store_cnt end), 1) as l_avg_cata_dx
-        from {target_project}.dws_o2o_key_store_benefit_period_summary_df
+            case when is_key_store = 1 then '中心店' else 'O2O其他重点店' end as raw_store_group,
+            platform_name,
+            period_type,
+            pay_amt,
+            margin_account
+        from {target_project}.tmp_o2o_channel_sales_detail_df_2604
         where pt = {cutoff_date}
-        group by store_group, strategy_tag, tag_source
+          and period_type in ('C', 'L', 'H')
+    )
+    , store_total_agg as (
+        select
+            coalesce(raw_store_group, '所有重点门店') as store_group,
+            coalesce(platform_name, 'all') as platform_name,
+            period_type,
+            sum(pay_amt) as total_pay_amt,
+            sum(margin_account) as total_margin_account
+        from store_total_base
+        group by raw_store_group, platform_name, period_type
+        grouping sets (
+            (raw_store_group, period_type),
+            (raw_store_group, platform_name, period_type),
+            (period_type),
+            (platform_name, period_type)
+        )
+    )
+    , p as (
+        select
+            d.store_group,
+            d.strategy_tag,
+            d.tag_source,
+            -- 销售额 (万元)
+            round(max(case when d.platform_name = 'all' and d.period_type = 'C' then d.pay_amt end) / 10000.0, 1) as c_sales_all,
+            round(max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then d.pay_amt end) / 10000.0, 1) as l_sales_all,
+            round(max(case when d.platform_name = 'online' and d.period_type = 'C' then d.pay_amt end) / 10000.0, 1) as c_sales_o2o,
+            round(max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then d.pay_amt end) / 10000.0, 1) as l_sales_o2o,
+            round(max(case when d.platform_name = 'offline' and d.period_type = 'C' then d.pay_amt end) / 10000.0, 1) as c_sales_off,
+            round(max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then d.pay_amt end) / 10000.0, 1) as l_sales_off,
+            -- 毛利额 (万元)
+            round(max(case when d.platform_name = 'all' and d.period_type = 'C' then d.margin_account end) / 10000.0, 1) as c_margin_all,
+            round(max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then d.margin_account end) / 10000.0, 1) as l_margin_all,
+            round(max(case when d.platform_name = 'online' and d.period_type = 'C' then d.margin_account end) / 10000.0, 1) as c_margin_o2o,
+            round(max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then d.margin_account end) / 10000.0, 1) as l_margin_o2o,
+            round(max(case when d.platform_name = 'offline' and d.period_type = 'C' then d.margin_account end) / 10000.0, 1) as c_margin_off,
+            round(max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then d.margin_account end) / 10000.0, 1) as l_margin_off,
+            -- 策略销售/毛利占门店整体的比例 (%); 中心店蜂窝策略沿用中心店分母
+            round(
+                case when max(case when d.platform_name = 'all' and d.period_type = 'C' then st.total_pay_amt end) <> 0
+                     then max(case when d.platform_name = 'all' and d.period_type = 'C' then d.pay_amt end) * 100.0
+                          / max(case when d.platform_name = 'all' and d.period_type = 'C' then st.total_pay_amt end)
+                end, 8
+            ) as c_sales_share_all,
+            round(
+                case when max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then st.total_pay_amt end) <> 0
+                     then max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then d.pay_amt end) * 100.0
+                          / max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then st.total_pay_amt end)
+                end, 8
+            ) as l_sales_share_all,
+            round(
+                case when max(case when d.platform_name = 'online' and d.period_type = 'C' then st.total_pay_amt end) <> 0
+                     then max(case when d.platform_name = 'online' and d.period_type = 'C' then d.pay_amt end) * 100.0
+                          / max(case when d.platform_name = 'online' and d.period_type = 'C' then st.total_pay_amt end)
+                end, 8
+            ) as c_sales_share_o2o,
+            round(
+                case when max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then st.total_pay_amt end) <> 0
+                     then max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then d.pay_amt end) * 100.0
+                          / max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then st.total_pay_amt end)
+                end, 8
+            ) as l_sales_share_o2o,
+            round(
+                case when max(case when d.platform_name = 'offline' and d.period_type = 'C' then st.total_pay_amt end) <> 0
+                     then max(case when d.platform_name = 'offline' and d.period_type = 'C' then d.pay_amt end) * 100.0
+                          / max(case when d.platform_name = 'offline' and d.period_type = 'C' then st.total_pay_amt end)
+                end, 8
+            ) as c_sales_share_off,
+            round(
+                case when max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then st.total_pay_amt end) <> 0
+                     then max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then d.pay_amt end) * 100.0
+                          / max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then st.total_pay_amt end)
+                end, 8
+            ) as l_sales_share_off,
+            round(
+                case when max(case when d.platform_name = 'all' and d.period_type = 'C' then st.total_margin_account end) <> 0
+                     then max(case when d.platform_name = 'all' and d.period_type = 'C' then d.margin_account end) * 100.0
+                          / max(case when d.platform_name = 'all' and d.period_type = 'C' then st.total_margin_account end)
+                end, 8
+            ) as c_margin_share_all,
+            round(
+                case when max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then st.total_margin_account end) <> 0
+                     then max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then d.margin_account end) * 100.0
+                          / max(case when d.platform_name = 'all' and d.period_type = '{baseline_col}' then st.total_margin_account end)
+                end, 8
+            ) as l_margin_share_all,
+            round(
+                case when max(case when d.platform_name = 'online' and d.period_type = 'C' then st.total_margin_account end) <> 0
+                     then max(case when d.platform_name = 'online' and d.period_type = 'C' then d.margin_account end) * 100.0
+                          / max(case when d.platform_name = 'online' and d.period_type = 'C' then st.total_margin_account end)
+                end, 8
+            ) as c_margin_share_o2o,
+            round(
+                case when max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then st.total_margin_account end) <> 0
+                     then max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then d.margin_account end) * 100.0
+                          / max(case when d.platform_name = 'online' and d.period_type = '{baseline_col}' then st.total_margin_account end)
+                end, 8
+            ) as l_margin_share_o2o,
+            round(
+                case when max(case when d.platform_name = 'offline' and d.period_type = 'C' then st.total_margin_account end) <> 0
+                     then max(case when d.platform_name = 'offline' and d.period_type = 'C' then d.margin_account end) * 100.0
+                          / max(case when d.platform_name = 'offline' and d.period_type = 'C' then st.total_margin_account end)
+                end, 8
+            ) as c_margin_share_off,
+            round(
+                case when max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then st.total_margin_account end) <> 0
+                     then max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then d.margin_account end) * 100.0
+                          / max(case when d.platform_name = 'offline' and d.period_type = '{baseline_col}' then st.total_margin_account end)
+                end, 8
+            ) as l_margin_share_off,
+            -- 标签动销率 (%)
+            round(max(case when d.period_type = 'C' then d.tag_dx_item_cnt * 100.0 / d.tag_item_cnt end), 2) as c_tag_dx,
+            round(max(case when d.period_type = '{baseline_col}' then d.tag_dx_item_cnt * 100.0 / d.tag_item_cnt end), 2) as l_tag_dx,
+            -- 目录内动销率 (%)
+            round(max(case when d.period_type = 'C' then d.cata_dx_item_cnt * 100.0 / d.cata_item_cnt end), 2) as c_cata_dx,
+            round(max(case when d.period_type = '{baseline_col}' then d.cata_dx_item_cnt * 100.0 / d.cata_item_cnt end), 2) as l_cata_dx,
+            -- 店均量化证据 (不包含易混淆的门店数列)
+            round(max(case when d.period_type = 'C' then d.tag_item_cnt * 1.0 / d.store_cnt end), 1) as c_avg_tag_items,
+            round(max(case when d.period_type = '{baseline_col}' then d.tag_item_cnt * 1.0 / d.store_cnt end), 1) as l_avg_tag_items,
+            round(max(case when d.period_type = 'C' then d.tag_dx_item_cnt * 1.0 / d.store_cnt end), 1) as c_avg_tag_dx,
+            round(max(case when d.period_type = '{baseline_col}' then d.tag_dx_item_cnt * 1.0 / d.store_cnt end), 1) as l_avg_tag_dx,
+            round(max(case when d.period_type = 'C' then d.cata_item_cnt * 1.0 / d.store_cnt end), 1) as c_avg_cata_items,
+            round(max(case when d.period_type = '{baseline_col}' then d.cata_item_cnt * 1.0 / d.store_cnt end), 1) as l_avg_cata_items,
+            round(max(case when d.period_type = 'C' then d.cata_dx_item_cnt * 1.0 / d.store_cnt end), 1) as c_avg_cata_dx,
+            round(max(case when d.period_type = '{baseline_col}' then d.cata_dx_item_cnt * 1.0 / d.store_cnt end), 1) as l_avg_cata_dx
+        from {target_project}.dws_o2o_key_store_benefit_period_summary_df d
+        left join store_total_agg st
+            on st.store_group = case
+                    when d.strategy_tag = 'o2o中心店品'
+                     and d.store_group = '所有重点门店'
+                    then '中心店'
+                    else d.store_group
+                end
+           and st.platform_name = d.platform_name
+           and st.period_type = d.period_type
+        where d.pt = {cutoff_date}
+        group by d.store_group, d.strategy_tag, d.tag_source
     )
     select
         store_group, strategy_tag, 1 as order_seq, '销售额' as metric_name,
@@ -260,7 +371,31 @@ def render_dws_and_ads_sql(
     from p
     union all
     select
-        store_group, strategy_tag, 3 as order_seq, concat(strategy_tag, '动销率') as metric_name,
+        store_group, strategy_tag, 3 as order_seq, '销售占比' as metric_name,
+        c_sales_share_all, l_sales_share_all, c_sales_share_all - l_sales_share_all, null,
+        c_sales_share_o2o, l_sales_share_o2o, c_sales_share_o2o - l_sales_share_o2o, null,
+        c_sales_share_off, l_sales_share_off, c_sales_share_off - l_sales_share_off, null,
+        null as c_store_cnt, null as l_store_cnt,
+        c_avg_tag_items, l_avg_tag_items, c_avg_tag_dx, l_avg_tag_dx,
+        c_avg_cata_items, l_avg_cata_items, c_avg_cata_dx, l_avg_cata_dx,
+        '分子为策略销售额，分母为对应门店范围的整体销售额；中心店蜂窝策略按中心店整体计算' as remark,
+        tag_source
+    from p
+    union all
+    select
+        store_group, strategy_tag, 4 as order_seq, '毛利占比' as metric_name,
+        c_margin_share_all, l_margin_share_all, c_margin_share_all - l_margin_share_all, null,
+        c_margin_share_o2o, l_margin_share_o2o, c_margin_share_o2o - l_margin_share_o2o, null,
+        c_margin_share_off, l_margin_share_off, c_margin_share_off - l_margin_share_off, null,
+        null as c_store_cnt, null as l_store_cnt,
+        c_avg_tag_items, l_avg_tag_items, c_avg_tag_dx, l_avg_tag_dx,
+        c_avg_cata_items, l_avg_cata_items, c_avg_cata_dx, l_avg_cata_dx,
+        '分子为策略毛利额，分母为对应门店范围的整体毛利额；中心店蜂窝策略按中心店整体计算' as remark,
+        tag_source
+    from p
+    union all
+    select
+        store_group, strategy_tag, 5 as order_seq, concat(strategy_tag, '动销率') as metric_name,
         c_tag_dx, l_tag_dx, c_tag_dx - l_tag_dx, null,
         null, null, null, null,
         null, null, null, null,
@@ -272,7 +407,7 @@ def render_dws_and_ads_sql(
     from p
     union all
     select
-        store_group, strategy_tag, 4 as order_seq, '目录内动销率' as metric_name,
+        store_group, strategy_tag, 6 as order_seq, '目录内动销率' as metric_name,
         c_cata_dx, l_cata_dx, c_cata_dx - l_cata_dx, null,
         null, null, null, null,
         null, null, null, null,

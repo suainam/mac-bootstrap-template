@@ -24,9 +24,9 @@ Orchestrate end-to-end evaluation for O2O key stores and center stores. Produce 
    - `--card-scope all`: export every source/store-group/strategy combination materialized in the ADS partition; raw and restored cards stay separate.
    - If the request says only “导出卡片/最新报告” without an explicit scope, use the default 4 raw-priority cards. Use `restored_11` only when the restored three-store-group view is explicitly requested. If “上线前” is used as a baseline term, confirm whether the user means the default H baseline or explicitly wants L.
 7. **Two-Layer Delivery Architecture**:
-   - `dws_o2o_key_store_benefit_period_summary_df`: Long diagnostic table storing raw sums, item counts, and turnover numerator/denominator.
+   - `dws_o2o_key_store_benefit_period_summary_df`: Long diagnostic table storing strategy raw sums, item counts, and turnover numerator/denominator.
    - `ads_o2o_key_store_benefit_card_df`: Final card table pivoted to Image #1 executive layout (12 channel metric columns + 8 store-average quantitative evidence columns; legacy absolute-store-count columns remain null for schema compatibility).
-
+   - Strategy share rows use strategy sales/margin as numerator and the effective store scope's all-item sales/margin as denominator. For `o2o中心店品` on the `所有重点门店` card, the effective denominator is `中心店`, matching its actual affected stores.
 ## Step-by-Step Pipeline
 
 ```text
@@ -85,9 +85,11 @@ Step 6: ADS Card Pivot & Export (ads_..._card_df -> Excel)
 
 ### Step 6: Pivot ADS Card Table & Export
 - Pivot C and the default H baseline metrics into `ads_o2o_key_store_benefit_card_df`.
+- Each card contains six metric rows: `销售额`、`毛利额`、`销售占比`、`毛利占比`、策略动销率、`目录内动销率`.
+- `销售占比` / `毛利占比` are percentages; Excel and summaries use the `sigfig` package to round these two metrics to two significant figures before displaying `%`; turnover rates keep two decimal places. Zero denominators render null.
 - Default `--card-scope raw_all_stores`: filter `tag_source='raw'` and `store_group='所有重点门店'`; export 4 cards.
 - `--card-scope restored_11`: export the existing 11-card `is_3he1_fl` view.
-- `--card-scope all`: export every source/store-group combination materialized in the ADS partition.
+- `--card-scope all`: export every source/store-group/strategy combination materialized in the ADS partition.
 - Excel includes one summary sentence per card and the H/L label is derived from the explicitly selected baseline.
 - **Completion Criterion**: Excel contains exactly the requested card scope; H is used unless L is explicitly selected.
 
@@ -100,7 +102,7 @@ ODPS_ENV_FILE=/path/to/merchandise/.env \
   uv run pytest .claude/skills/o2o-store-benefit-report/scripts/test_helper.py -v
 ```
 
-Covers: restored 11-card grouping-set count, additive aggregation correctness, default raw-priority 4-card scope, source separation, and Excel card-banner ordering. Requires live ODPS credentials and a populated ADS partition for the target cutoff date.
+Covers: restored 11-card grouping-set count, six metric rows per card, additive aggregation correctness, default raw-priority 4-card scope, source separation, center-store denominator for the honeycomb share rows, and Excel card-banner ordering. Requires live ODPS credentials and a populated ADS partition for the target cutoff date.
 
 Lint before commit:
 

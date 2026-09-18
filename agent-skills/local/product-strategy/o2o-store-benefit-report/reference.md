@@ -129,19 +129,19 @@ Runtime additions used by the dual-source card pipeline:
 create table if not exists ${dsl_analysis}.ads_o2o_key_store_benefit_card_df (
     store_group        string        comment '门店群:所有重点门店/中心店/O2O其他重点店',
     strategy_tag       string        comment '策略标签:城市top500品/城市top200/跨渠道top80/o2o中心店品',
-    order_seq          int           comment '行排序:1销售额/2毛利额/3标签动销率/4目录内动销率',
-    metric_name        string        comment '指标名称:销售额/毛利额/topXX商品动销率/目录内动销率',
-    all_post           decimal(18,2) comment '整体-上线后',
-    all_pre            decimal(18,2) comment '整体-上线前',
-    all_diff           decimal(18,2) comment '整体-差异值',
+    order_seq          int           comment '行排序:1销售额/2毛利额/3销售占比/4毛利占比/5标签动销率/6目录内动销率',
+    metric_name        string        comment '指标名称:销售额/毛利额/销售占比/毛利占比/topXX商品动销率/目录内动销率',
+    all_post           decimal(18,8) comment '整体-上线后',
+    all_pre            decimal(18,8) comment '整体-上线前',
+    all_diff           decimal(18,8) comment '整体-差异值',
     all_diff_ratio     decimal(18,4) comment '整体-增幅(百分比)',
-    o2o_post           decimal(18,2) comment 'O2O渠道-上线后',
-    o2o_pre            decimal(18,2) comment 'O2O渠道-上线前',
-    o2o_diff           decimal(18,2) comment 'O2O渠道-差异值',
+    o2o_post           decimal(18,8) comment 'O2O渠道-上线后',
+    o2o_pre            decimal(18,8) comment 'O2O渠道-上线前',
+    o2o_diff           decimal(18,8) comment 'O2O渠道-差异值',
     o2o_diff_ratio     decimal(18,4) comment 'O2O渠道-增幅(百分比)',
-    offline_post       decimal(18,2) comment '线下渠道-上线后',
-    offline_pre        decimal(18,2) comment '线下渠道-上线前',
-    offline_diff       decimal(18,2) comment '线下渠道-差异值',
+    offline_post       decimal(18,8) comment '线下渠道-上线后',
+    offline_pre        decimal(18,8) comment '线下渠道-上线前',
+    offline_diff       decimal(18,8) comment '线下渠道-差异值',
     offline_diff_ratio decimal(18,4) comment '线下渠道-增幅(百分比)',
     c_store_cnt       bigint        comment '兼容字段(当前卡片透视为空)',
     l_store_cnt       bigint        comment '兼容字段(当前卡片透视为空)',
@@ -160,7 +160,7 @@ comment 'O2O重点店效益分析-终态卡片交付表(对齐Image #1汇报格�
 partitioned by (pt bigint comment '跑批日期(yyyyMMdd)');
 ```
 
-The ADS table also carries `tag_source` (`restored`/`raw`) as the final non-partition column. The Excel exporter filters this column according to `--card-scope`; it does not rerun upstream ETL under `--export-only`.
+The ADS table also carries `tag_source` (`restored`/`raw`) as the final non-partition column. Strategy share metrics use the strategy's sales/margin as numerator and all-item sales/margin for the effective store scope as denominator; `o2o中心店品` on `所有重点门店` uses `中心店` as its denominator. The Excel exporter filters this column according to `--card-scope`; it does not rerun upstream ETL under `--export-only`.
 
 ## 4. Compute Engine Optimization & Tuning
 

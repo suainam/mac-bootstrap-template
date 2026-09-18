@@ -18,6 +18,7 @@ from typing import Any
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from sigfig import round as sigfig_round
 
 _script_path = Path(__file__).absolute()
 _candidates = [Path.cwd(), _script_path.parent, *_script_path.parents]
@@ -37,6 +38,22 @@ from shared.odps_connector import ODPSConnector  # noqa: E402
 from sql_builder import render_dws_and_ads_sql  # noqa: E402
 
 
+def _round_significant(value: Any, sigfigs: int = 2) -> str | None:
+    """Round a value through sigfig without changing its notation."""
+    if value is None:
+        return None
+    return str(sigfig_round(str(value), sigfigs=sigfigs))
+
+
+def _percentage_number_format(value: Any) -> str:
+    """Build an Excel format matching sigfig's rounded decimal places."""
+    rounded = _round_significant(value)
+    if rounded is None:
+        return "General"
+    decimals = len(rounded.partition(".")[2]) if "." in rounded else 0
+    return f'0.{"0" * decimals}"%"' if decimals else '0"%"'
+
+
 def format_card_summary(
     *,
     card_idx: int,
@@ -49,6 +66,8 @@ def format_card_summary(
     by_metric = {item["metric_name"]: item for item in items}
     sales_row = by_metric.get("销售额")
     margin_row = by_metric.get("毛利额")
+    sales_share_row = by_metric.get("销售占比")
+    margin_share_row = by_metric.get("毛利占比")
     dx_row = next(
         (
             value
@@ -64,17 +83,31 @@ def format_card_summary(
             return "-"
         return f"{row['all_diff_ratio'] * 100:+.2f}%"
 
-    def _percentage_points(row: dict[str, Any] | None) -> str:
+    def _format_percentage(value: Any, *, significant: bool = False) -> str:
+        if value is None:
+            return "-"
+        if significant:
+            rounded = _round_significant(value)
+            sign = "+" if float(value) > 0 else ""
+            return f"{sign}{rounded}%"
+        return f"{float(value):+.2f}%"
+
+    def _percentage(row: dict[str, Any] | None) -> str:
         if row is None or row.get("all_diff") is None:
             return "-"
-        return f"{row['all_diff']:+.2f}个百分点"
+        return _format_percentage(
+            row["all_diff"],
+            significant=row.get("metric_name") in {"销售占比", "毛利占比"},
+        )
 
     return (
         f"【卡片 {card_idx}】{store_group} - {strategy_tag}{source_suffix} 结果呈现：\n"
         f"通过将「{strategy_tag}」纳入{store_group}组货，"
         f"销售额变化 {_ratio(sales_row)}，毛利额变化 {_ratio(margin_row)}，"
-        f"标签动销率变化 {_percentage_points(dx_row)}，"
-        f"全店目录内动销率变化 {_percentage_points(cata_dx_row)}"
+        f"销售占比变化 {_percentage(sales_share_row)}，"
+        f"毛利占比变化 {_percentage(margin_share_row)}，"
+        f"标签动销率变化 {_percentage(dx_row)}，"
+        f"全店目录内动销率变化 {_percentage(cata_dx_row)}"
     )
 
 
@@ -647,48 +680,49 @@ class O2OStoreBenefitRunner:
             for item in items:
                 m_name = item["metric_name"]
                 is_dx = "动销率" in m_name
-                unit = "%" if is_dx else "万"
+                is_share = m_name in {"销售占比", "毛利占比"}
+                is_rate = is_dx or is_share
+                unit = "%" if is_rate else "万"
 
                 m_cell = ws.cell(
                     row=curr_row,
                     column=1,
-                    value=f"{m_name}({unit})" if not is_dx else m_name,
+                    value=f"{m_name}({unit})",
                 )
                 m_cell.font = font_data
                 m_cell.alignment = align_center
                 m_cell.border = border_cell
 
+                def _value_text(value: Any, *, diff: bool = False) -> str | float:
+                    if value is None:
+                        return "-"
+                    if is_rate:
+                        return (
+                            float(_round_significant(value))
+                            if is_share
+                            else float(value)
+                        )
+                    return f"{value:+.1f}万" if diff else f"{value:.1f}万"
+
                 c_post = item.get("all_post")
                 c_pre = item.get("all_pre")
                 c_diff = item.get("all_diff")
 
-                v_post = ws.cell(
-                    row=curr_row,
-                    column=2,
-                    value=f"{c_post:.2f}%"
-                    if is_dx and c_post is not None
-                    else (f"{c_post:.1f}万" if c_post is not None else "-"),
-                )
-                v_pre = ws.cell(
-                    row=curr_row,
-                    column=3,
-                    value=f"{c_pre:.2f}%"
-                    if is_dx and c_pre is not None
-                    else (f"{c_pre:.1f}万" if c_pre is not None else "-"),
-                )
+                v_post = ws.cell(row=curr_row, column=2, value=_value_text(c_post))
+                v_pre = ws.cell(row=curr_row, column=3, value=_value_text(c_pre))
                 v_diff = ws.cell(
-                    row=curr_row,
-                    column=4,
-                    value=f"{c_diff:+.2f}%"
-                    if is_dx and c_diff is not None
-                    else (f"{c_diff:+.1f}万" if c_diff is not None else "-"),
+                    row=curr_row, column=4, value=_value_text(c_diff, diff=True)
                 )
-
-                for v_cell in [v_post, v_pre, v_diff]:
+                for v_cell, raw_value in zip(
+                    (v_post, v_pre, v_diff), (c_post, c_pre, c_diff)
+                ):
                     v_cell.alignment = align_right
                     v_cell.font = font_data
                     v_cell.border = border_cell
-
+                    if is_share:
+                        v_cell.number_format = _percentage_number_format(raw_value)
+                    elif is_rate:
+                        v_cell.number_format = '0.00"%"'
                 if is_dx:
                     ws.merge_cells(
                         start_row=curr_row,
@@ -708,44 +742,39 @@ class O2OStoreBenefitRunner:
                     o_pre = item.get("o2o_pre")
                     o_diff = item.get("o2o_diff")
                     ws.cell(
-                        row=curr_row,
-                        column=5,
-                        value=f"{o_post:.1f}万" if o_post is not None else "-",
+                        row=curr_row, column=5, value=_value_text(o_post)
                     ).alignment = align_right
                     ws.cell(
-                        row=curr_row,
-                        column=6,
-                        value=f"{o_pre:.1f}万" if o_pre is not None else "-",
+                        row=curr_row, column=6, value=_value_text(o_pre)
                     ).alignment = align_right
                     ws.cell(
-                        row=curr_row,
-                        column=7,
-                        value=f"{o_diff:+.1f}万" if o_diff is not None else "-",
+                        row=curr_row, column=7, value=_value_text(o_diff, diff=True)
                     ).alignment = align_right
 
                     f_post = item.get("offline_post")
                     f_pre = item.get("offline_pre")
                     f_diff = item.get("offline_diff")
                     ws.cell(
-                        row=curr_row,
-                        column=8,
-                        value=f"{f_post:.1f}万" if f_post is not None else "-",
+                        row=curr_row, column=8, value=_value_text(f_post)
                     ).alignment = align_right
                     ws.cell(
-                        row=curr_row,
-                        column=9,
-                        value=f"{f_pre:.1f}万" if f_pre is not None else "-",
+                        row=curr_row, column=9, value=_value_text(f_pre)
                     ).alignment = align_right
                     ws.cell(
-                        row=curr_row,
-                        column=10,
-                        value=f"{f_diff:+.1f}万" if f_diff is not None else "-",
+                        row=curr_row, column=10, value=_value_text(f_diff, diff=True)
                     ).alignment = align_right
 
-                    for c in range(5, 11):
+                    for c, raw_value in zip(
+                        range(5, 11),
+                        (o_post, o_pre, o_diff, f_post, f_pre, f_diff),
+                    ):
                         cell = ws.cell(row=curr_row, column=c)
                         cell.font = font_data
                         cell.border = border_cell
+                        if is_share:
+                            cell.number_format = _percentage_number_format(raw_value)
+                        elif is_rate:
+                            cell.number_format = '0.00"%"'
 
                 # Append Evidence Columns (11 to 16, store-average only)
                 ti_post = item.get("c_avg_tag_items")

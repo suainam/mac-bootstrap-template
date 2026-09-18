@@ -83,7 +83,7 @@
       "ref": "https://github.com/vercel-labs/skills",
       "skills": {
         "find-skills": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -106,7 +106,7 @@
       "skills": {
         "web-design-guidelines": {
           "distribution_state": "staged",
-          "agents": ["codex", "opencode"],
+          "agents": ["codex", "opencode", "pi"],
           "gate": {
             "manual_approval": true,
             "approved": false,
@@ -123,7 +123,7 @@
       "skills": {
         "pdf": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex"],
+          "agents": ["claude", "codex", "pi"],
           "gate": {
             "manual_approval": true,
             "approved": false,
@@ -139,7 +139,7 @@
       "ref": "https://github.com/affaan-m/everything-claude-code.git",
       "skills": {
         "python-testing": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -154,16 +154,16 @@
         },
         "docker-patterns": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "reason": "User-confirmed stage; useful for infra/data projects but not a default global install"
         },
         "data-throughput-accelerator": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "reason": "User-confirmed stage; keep source available for ETL/backfill work"
         },
         "search-first": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -177,7 +177,7 @@
           }
         },
         "documentation-lookup": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -264,7 +264,7 @@
           "reason": "User-approved canonical upstream debugging skill for global distribution"
         },
         "improve-codebase-architecture": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -494,12 +494,12 @@
         },
         "write-a-skill": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill write-a-skill; stage by default because it is a skill-authoring helper"
         },
         "zoom-out": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill zoom-out; stage by default until routing/noise is confirmed"
         }
       }
@@ -582,11 +582,11 @@
         },
         "playwright-dev": {
           "distribution_state": "staged",
-          "agents": ["codex", "opencode", "cross-agent"]
+          "agents": ["codex", "opencode", "pi", "cross-agent"]
         },
         "playwright-triage": {
           "distribution_state": "staged",
-          "agents": ["codex", "opencode", "cross-agent"]
+          "agents": ["codex", "opencode", "pi", "cross-agent"]
         }
       }
     },
@@ -597,7 +597,7 @@
       "ref": "https://github.com/langgptai/LangGPT/blob/main/README_zh.md#%E6%96%B9%E6%B3%95%E4%BA%94claude-code-skill%E6%8E%A8%E8%8D%90",
       "skills": {
         "langgpt-prompt-writer": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "local_shadow_path": "agent-skills/local/shadows/langgpt/langgpt-prompt-writer",
           "reason": "User-confirmed keep-global/routed; LangGPT README recommends Claude Code Skill via marketplace/manual install"
         }
@@ -749,7 +749,7 @@
       "ref": "https://github.com/op7418/Humanizer-zh.git",
       "skills": {
         "humanizer-zh": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -959,7 +959,7 @@
         "archify": {
           "distribution_state": "enabled",
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -985,11 +985,11 @@
         "cavecrew": {
           "scope": "global",
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"]
         },
         "decrypt-materialize": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "cross-agent"],
           "reason": "通用解密/物化工具,支持 TSD/工作簿/smudged文本,跨平台"
         },
         "knowledge-lifecycle-manager": {
@@ -1098,27 +1098,24 @@
       "type": "internal",
       "path": "agent-skills/local/product-strategy",
       "skills": {
-        "product-strategy-ops": {
-          "scope": "project",
-          "projects": ["product_strategy"]
-        },
         "web-video-presentation-delivery": {
           "scope": "project",
           "projects": ["product_strategy"]
         },
-        "python-data-analysis": {
+        "ps-analytics": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "reason": "product_strategy data-analysis project skill"
+          "reason": "Product Strategy 统一数据分析全流程规范：MAX_PT/防笛卡尔积/多模型掩盖排查/环形跨年时间解析"
+        },
+        "dataworks-yoy-backfill": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "DataWorks 生产工作流快照拉取、表级血缘追踪、MaxCompute SDK 多分区回刷与 YoY 可比店修复"
         },
         "odps-table-ingest": {
           "scope": "project",
           "projects": ["product_strategy"],
           "reason": "MaxCompute/ODPS 表上传、字段对齐、分区写入与双向聚合 SQL 举证"
-        },
-        "sql-analysis": {
-          "scope": "project",
-          "projects": ["product_strategy"]
         },
         "ps-franchise-store-report": {
           "scope": "project",
@@ -1129,6 +1126,11 @@
           "scope": "project",
           "projects": ["product_strategy"],
           "reason": "O2O重点店/中心店效益评估与卡片导出(TOP500/TOP200/跨渠道TOP80/中心店蜂窝品，支持店均规模量化归因)"
+        },
+        "ps-new-store-benefit-report": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "新店效益分析与90天考核宽表直算（涵盖32项标准中文字段融合、月保本指标折算、O2O线上折算、对抗性审查门禁及模板化Excel导出）"
         }
       }
     },

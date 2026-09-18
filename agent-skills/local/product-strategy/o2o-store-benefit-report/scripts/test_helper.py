@@ -18,7 +18,12 @@ if str(REPO_ROOT) not in sys.path:
 if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
-from helper import O2OStoreBenefitRunner, format_card_summary  # noqa: E402
+from helper import (  # noqa: E402
+    O2OStoreBenefitRunner,
+    _round_significant,
+    format_card_summary,
+)
+from sql_builder import render_dws_and_ads_sql  # noqa: E402
 
 
 @pytest.fixture
@@ -77,8 +82,8 @@ def test_ads_card_table_produces_11_cards_with_grouping_sets(
         cards = [(rec.store_group, rec.strategy_tag, rec.row_cnt) for rec in reader]
 
     assert len(cards) == 11, f"expected 11 cards, got {len(cards)}"
-    assert all(row_cnt == 4 for _, _, row_cnt in cards), (
-        "every card must carry 4 metric rows"
+    assert all(row_cnt == 6 for _, _, row_cnt in cards), (
+        "every card must carry 6 metric rows"
     )
 
     groups_in_order = [g for g, _, _ in cards]
@@ -182,7 +187,7 @@ def test_default_reason_zfl_export_renders_4_cards(
         cards = [(rec.store_group, rec.strategy_tag, rec.row_cnt) for rec in reader]
 
     assert len(cards) == 4
-    assert all(group == "所有重点门店" and row_cnt == 4 for group, _, row_cnt in cards)
+    assert all(group == "所有重点门店" and row_cnt == 6 for group, _, row_cnt in cards)
     assert {tag for _, tag, _ in cards} == {
         "城市top500品",
         "城市top200",
@@ -224,7 +229,7 @@ def test_all_scope_keeps_tag_sources_as_separate_cards(
         ]
 
     assert len(cards) == 22
-    assert all(row_cnt == 4 for *_, row_cnt in cards)
+    assert all(row_cnt == 6 for *_, row_cnt in cards)
 
     excel_path = Path(runner_20260907.export_excel())
     wb = openpyxl.load_workbook(excel_path)
@@ -270,10 +275,35 @@ def test_all_store_honeycomb_uses_center_catalog_metrics(
                 == rows[(tag_source, period_type, "中心店")]
             )
 
-def test_card_summary_formats_turnover_as_percentage_points() -> None:
+
+def test_ads_sql_uses_effective_store_scope_for_share_metrics() -> None:
+    _, sql = render_dws_and_ads_sql(
+        {"ver_id": 20260705},
+        cutoff_date="20260907",
+        baseline_type="H",
+        target_project="project",
+    )
+
+    assert "tmp_o2o_channel_sales_detail_df_2604" in sql
+    assert "total_pay_amt" in sql
+    assert "total_margin_account" in sql
+    assert "d.strategy_tag = 'o2o中心店品'" in sql
+    assert "then '中心店'" in sql
+    assert "'销售占比' as metric_name" in sql
+    assert "'毛利占比' as metric_name" in sql
+
+
+def test_round_significant_uses_two_sigfigs() -> None:
+    assert _round_significant("1.76176714") == "1.8"
+    assert _round_significant("0.00981594") == "0.0098"
+
+
+def test_card_summary_formats_rates_as_percentages() -> None:
     items = [
         {"metric_name": "销售额", "all_diff_ratio": 0.2727},
         {"metric_name": "毛利额", "all_diff_ratio": 0.2},
+        {"metric_name": "销售占比", "all_diff": 0.00981594, "all_diff_ratio": None},
+        {"metric_name": "毛利占比", "all_diff": 1.76176714, "all_diff_ratio": None},
         {
             "metric_name": "城市top500品动销率",
             "all_diff": -18.56,
@@ -293,11 +323,35 @@ def test_card_summary_formats_turnover_as_percentage_points() -> None:
         source_suffix="",
         items=items,
     )
-
-    assert "销售额变化 +27.27%" in summary
+    assert "标签动销率变化 -18.56%" in summary
+    assert "全店目录内动销率变化 -1.16%" in summary
     assert "毛利额变化 +20.00%" in summary
-    assert "标签动销率变化 -18.56个百分点" in summary
-    assert "全店目录内动销率变化 -1.16个百分点" in summary
+    assert "销售占比变化 +0.0098%" in summary
+    assert "毛利占比变化 +1.8%" in summary
+
+
+def test_honeycomb_share_uses_center_store_denominator(
+    runner_20260907: O2OStoreBenefitRunner,
+) -> None:
+    """The all-store honeycomb card uses the center-store overall denominator."""
+    sql = f"""
+    select store_group, metric_name, all_post, all_pre
+    from {runner_20260907.target_project}.ads_o2o_key_store_benefit_card_df
+    where pt = {runner_20260907.cutoff_date}
+      and tag_source = 'restored'
+      and strategy_tag = 'o2o中心店品'
+      and metric_name in ('销售占比', '毛利占比')
+      and store_group in ('所有重点门店', '中心店')
+    """
+    with runner_20260907.odps.execute_sql(sql).open_reader() as reader:
+        rows = {
+            (rec.metric_name, rec.store_group): (rec.all_post, rec.all_pre)
+            for rec in reader
+        }
+
+    for metric_name in ("销售占比", "毛利占比"):
+        assert rows[(metric_name, "所有重点门店")] == rows[(metric_name, "中心店")]
+
 
 def test_default_export_queries_raw_cards(tmp_path: Path) -> None:
     columns = [
@@ -333,7 +387,11 @@ def test_default_export_queries_raw_cards(tmp_path: Path) -> None:
         store_group="所有重点门店",
         strategy_tag="城市top500品",
         order_seq=1,
-        metric_name="销售额",
+        metric_name="销售占比",
+        all_post=1.76176714,
+        all_pre=1.012,
+        all_diff=0.74976714,
+        all_diff_ratio=None,
         remark="",
         tag_source="raw",
     )
@@ -372,6 +430,23 @@ def test_default_export_queries_raw_cards(tmp_path: Path) -> None:
     runner.export_dir = tmp_path
 
     runner.export_excel()
+    workbook = openpyxl.load_workbook(
+        tmp_path / "o2o_key_store_benefit_cards_20260907.xlsx",
+        data_only=True,
+    )
+    sheet = workbook["O2O效益评估卡片"]
+    percentage_rows = [
+        row
+        for row in sheet.iter_rows(min_col=1, max_col=2, values_only=True)
+        if row[0] == "销售占比(%)"
+    ]
+    assert percentage_rows == [("销售占比(%)", 1.8)]
+    percentage_row = next(
+        row
+        for row in sheet.iter_rows(min_col=1, max_col=2)
+        if row[0].value == "销售占比(%)"
+    )
+    assert percentage_row[1].number_format == '0.0"%"'
 
     assert "tag_source = 'raw'" in runner.odps.sql
     assert "store_group = '所有重点门店'" in runner.odps.sql
