@@ -101,15 +101,11 @@ Summary Engine 的稳定约束：
 - `70_Summaries/` 默认不被 `llm_wiki` 索引，不自动回流知识库
 - `50_Sources` 不再是推荐的真实目录名；在新布局里它只是语义名，实际 source 域应落在 `raw/sources`
 
+
 ## 当前实现入口
 
-统一入口：
-
-```bash
-cd ~/work/config/mac-bootstrap
-template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow build_daily_summary --date 2026-07-09
-```
+统一入口与周期总结的完整操作步骤见 [`docs/ops.md`](./docs/ops.md)。
+README 只保留当前 workflow 名称，避免复制运维命令。
 
 当前 template 内已落地的 workflow 名称：
 
@@ -121,23 +117,7 @@ template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle
 
 step 定义见 [knowledge_workflows.py](./knowledge_workflows.py)。
 
-周期总结入口：
-
-```bash
-template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow build_daily_summary --date 2026-07-09
-
-template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle-manager/scripts/manager.py \
-  run --workflow build_weekly_summary --date 2026-07-09
-```
-
-人工晋升入口：
-
-```bash
-template/.venv/bin/python template/data-hub/scripts/promote_summary_knowledge.py \
-  ~/work/knowledge/70_Summaries/Weekly/2026-W28.md \
-  --selections-json selections.json
-```
+人工晋升入口与完整命令见 [`docs/ops.md`](./docs/ops.md)。
 
 ## 当前实现边界
 
