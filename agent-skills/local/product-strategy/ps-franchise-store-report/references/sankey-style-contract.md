@@ -7,7 +7,7 @@
 以稳定参考图为老师，不要临时发明新设计。
 
 完成标准：
-- Inspect [../assets/franchise_store_sankey_reference.svg](../assets/franchise_store_sankey_reference.svg) before editing when no project-local reference is provided.
+- When no project-local reference is provided, use the user-approved reference supplied with the task; otherwise preserve the established two-column visual vocabulary below.
 - If the project contains a user-approved reference such as `report/franchise_store_sankey_graph_0617.svg`, prefer that newer local reference.
 - Keep the same two-column, left-year-to-right-year reading model.
 - Keep the same visual vocabulary: solid main nodes, dashed virtual nodes, broad colored bands, and small endpoint labels.
