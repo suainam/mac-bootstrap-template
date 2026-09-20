@@ -254,6 +254,13 @@ fi
 echo "=== Render config templates ==="
 "$DIR/scripts/render-configs.sh"
 
+echo "=== Install OMP extensions ==="
+if command -v omp >/dev/null 2>&1; then
+  "$DIR/scripts/install-omp-extensions.sh"
+else
+  echo "  OMP not installed — skipping OMP extensions"
+fi
+
 echo "=== Install Pi packages ==="
 if command -v pi >/dev/null 2>&1; then
   "$DIR/scripts/install-pi-packages.sh" --yes

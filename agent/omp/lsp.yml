@@ -1,0 +1,14 @@
+servers:
+  basedpyright:
+    rootMarkers:
+      - .git
+      - pyproject.toml
+      - pyrightconfig.json
+      - setup.py
+      - requirements.txt
+  ruff:
+    rootMarkers:
+      - .git
+      - pyproject.toml
+      - ruff.toml
+      - .ruff.toml
