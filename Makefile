@@ -13,6 +13,7 @@ GIT_HOOK_PYTHON ?= $(shell command -v python3)
 	install-cache-agent organize-downloads install-downloads-agent \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	omp-extensions \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
@@ -78,6 +79,7 @@ help:
 	@echo "  agent-tools            Install/configure agent tooling"
 	@echo "  agent-sync             Sync managed skills + prompt libraries"
 	@echo "  agent-refresh          Full sync + full agent reconfigure"
+	@echo "  omp-extensions         Install version-pinned OMP extensions"
 	@echo "  skill-plan             Summarize skill registry and targets"
 	@echo "  skill-fetch            Fetch one non-bundle external skill: SOURCE=id SKILL=name"
 	@echo "  skill-fetch-bundle     Fetch one external bundle: SOURCE=id"
@@ -164,6 +166,7 @@ help:
 bootstrap install:
 	./install.sh --yes --with-vim --with-neovim --cleanup
 	./scripts/install-agent-tooling.sh --configure
+	./scripts/install-omp-extensions.sh
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 repo-check:
@@ -360,7 +363,10 @@ agent-sync: skill-refresh prompt-sync
 agent-tools:
 	./scripts/install-agent-tooling.sh --configure
 
-agent-refresh: agent-sync agent-tools
+omp-extensions:
+	./scripts/install-omp-extensions.sh
+
+agent-refresh: agent-sync agent-tools omp-extensions
 
 skill-plan:
 	$(PYTHON) scripts/skill_supply_chain.py plan

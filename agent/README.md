@@ -150,9 +150,6 @@ Context7 proxy values are treated as volatile during doctor comparison.
 Remote OAuth authorization is runtime readiness, not desired-state drift.
 
 ---
-
-Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用跨工具发现层，不由本模板的 Pi manifest、installer 或 `pi-packages` 接管。
-
 ## Agent Config Matrix
 
 | Tool | Claude Code | Codex CLI | OpenCode | Pi (legacy) | Reasonix | Antigravity |
@@ -163,6 +160,18 @@ Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用�
 | **CBM** | ✅ MCP | ✅ MCP in config.toml | ✅ MCP | ✅ `mcp.json` | ✅ MCP server | ✅ `mcp_config.json` |
 | **12 Rules** | ✅ @12-rules.md | ✅ @/path ref | ✅ inline embedded | ✅ inline AGENTS.md | ✅ workspace `REASONIX.md` | ✅ workspace/global `GEMINI.md` |
 ---
+Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用跨工具发现层，不由本模板的 Pi manifest、installer 或 `pi-packages` 接管。
+
+### OMP extensions
+
+公共 OMP 扩展清单位于 [`agent/omp/extensions.json`](omp/extensions.json)。运行
+`make omp-extensions` 会按精确版本安装扩展，并将非敏感扩展设置链接到
+`$PI_CODING_AGENT_DIR`（默认 `~/.omp/agent`）。密钥仍由私有 overlay 的 `.env`
+提供；扩展安装器不会读取或打印密钥。
+
+当前清单包含 `@narumitw/pi-typesafe`，它提供 `typesafe_question` 和随包携带的
+`typesafe-ai` Skill。不要把这个随包 Skill 再复制到公共 Skill registry，避免同名
+Skill 冲突。
 
 ## Skill Supply Chain Boundary
 
