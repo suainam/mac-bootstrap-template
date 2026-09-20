@@ -7,6 +7,7 @@ Symlinked to `~/.claude/rules/common/` — Claude Code loads these as always-on 
 
 - `coding-style.md` — Immutability, file organization, naming
 - `git-workflow.md` — Commit format, PR process
+- `rtk-diagnostics.md` — RTK command execution, artifact mechanism, diagnostic patterns
 - `testing.md` — TDD, coverage requirements
 - `hooks.md` — Hook architecture, lifecycle events
 - `security.md` — Security-first development patterns
