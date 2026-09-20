@@ -1,4 +1,5 @@
 # Examples
+> The workflow and command contract live in [SKILL.md](SKILL.md); this file keeps runnable examples.
 
 ## User trigger
 

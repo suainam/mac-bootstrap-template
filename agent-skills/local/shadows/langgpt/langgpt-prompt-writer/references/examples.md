@@ -1,4 +1,5 @@
 # LangGPT Example Prompts
+> Canonical prompt structures live in [templates.md](templates.md); this file keeps scenario examples.
 
 ## FitnessGPT - Personalized Health Planner
 

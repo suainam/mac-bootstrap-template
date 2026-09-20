@@ -1,4 +1,5 @@
 # Extension Compatibility Fixes
+> The current deployment and runtime authority is [README.md](README.md); this file keeps incident-specific remediation notes.
 
 ## Cline (Claude Dev) Navigator Error
 
