@@ -77,6 +77,30 @@
   },
 
   "sources": {
+    "typesafe-ai-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/typesafe-ai/skills",
+      "skills": {
+        "typesafe-ai": {
+          "agents": ["claude", "codex", "antigravity"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": false
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-21",
+            "approved_hash": "sha256:07d76735eed4b7e88e1d32c592ae6642f165bb9c004f337f3f90edc70ac7fbb9",
+            "reason": "User-requested official TypeSafe agent Skill; reviewed script-free MIT source and bound the fetched content hash"
+          },
+          "reason": "Official TypeSafe agent Skill for Claude Code, Codex, and Antigravity CLI; OMP keeps its bundled pi-typesafe Skill"
+        }
+      }
+    },
+
     "vercel-skills": {
       "type": "external",
       "fetcher": "skills.sh",
