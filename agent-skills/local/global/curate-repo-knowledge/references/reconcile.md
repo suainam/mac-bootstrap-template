@@ -10,6 +10,13 @@ Use this branch when a handbook exists or knowledge must be synchronized after c
 4. Classify findings as duplicate, stale, conflicting, misplaced, dead reference, missing affected audience, narrative sediment, or budget overflow.
 5. Trace the current diff or completed milestone through its affected audiences. Update the authority first, then its links or projections.
 
+When a candidate needs semantic comparison after deterministic evidence is
+collected, `$typesafe-ai` may provide a bounded typed judgment. Keep the input
+redacted and narrow, retain the candidate evidence and probability in the
+dry-run, and require human approval for destructive or low-confidence outcomes.
+TypeSafe supplements the reconcile decision; it does not replace repository
+facts, link checks, ownership rules, or mutation gates.
+
 ## Editorial order
 
 Apply this order: remove stale material; merge duplicates into their authority; promote stable knowledge from memory or temporary plans; replace copied facts with links; add genuinely missing knowledge last.

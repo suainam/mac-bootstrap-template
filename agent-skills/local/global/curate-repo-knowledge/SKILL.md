@@ -17,6 +17,32 @@ Run the bundled `python3 <skill-root>/scripts/audit_project.py <project-root> --
 
 Complete when every existing knowledge surface has an audience, authority, loading tier, and current evidence source, with no project-native capability silently bypassed.
 
+### Optional semantic judgment assistance
+
+Use `$typesafe-ai` only when deterministic inspection has produced a bounded
+semantic candidate that code cannot classify reliably. Keep the repository and
+workflow authoritative:
+
+1. Build a small JSON state from the inspected source excerpts, candidate
+   authorities, ownership rules, and evidence paths. Redact secrets and raw
+   operational logs before any model call.
+2. Ask one narrow typed judgment at a time. Use a `Choice` for mutually
+   exclusive classifications such as `keep`, `duplicate`, `stale`,
+   `conflicting`, `misplaced`, or `dead`; use a `Noul` for an independent
+   condition; use a `Score` only for an ordered relevance or confidence
+   dimension. Include a no-match outcome where applicable.
+3. Treat the result and probability as advisory evidence. Code still performs
+   file inventory, link checks, ownership lookups, budgets, and mutations.
+   Low-probability or destructive/review-required outcomes stop for human
+   approval instead of silently changing an authority.
+4. Record the candidate evidence, judgment, threshold, and final human or
+   deterministic decision in the dry-run. Do not store prompts, raw logs,
+   credentials, or private source material in repository knowledge.
+
+If the TypeSafe SDK or live documentation is unavailable, do not invent an API
+call or claim model verification. Continue with a tabletop classification,
+label it as such, and keep the normal deterministic and human review gates.
+
 ## 2. Select one branch
 
 - When durable Agent guidance or ownership routing is missing, read [references/bootstrap.md](references/bootstrap.md) and run **bootstrap**.
