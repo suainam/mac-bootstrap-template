@@ -1,5 +1,6 @@
 """Agent doctor and Python syntax-check script checks."""
 
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -9,6 +10,11 @@ from helpers import PYTHON, TEMPLATE, run
 
 def read_template(*parts: str) -> str:
     return Path(TEMPLATE, *parts).read_text()
+
+
+def test_antigravity_manifest_uses_agy_mcp_config_path():
+    manifest = json.loads(read_template("agent", "agent-manifest.json"))
+    assert manifest["agents"]["antigravity"]["paths"]["mcp"] == "~/.gemini/config/mcp_config.json"
 
 
 def test_check_python_syntax_parses_files():

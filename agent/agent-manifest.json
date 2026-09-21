@@ -141,7 +141,7 @@
       ],
       "paths": {
         "settings": "~/.gemini/antigravity-cli/settings.json",
-        "mcp": "~/.gemini/antigravity-cli/mcp_config.json",
+        "mcp": "~/.gemini/config/mcp_config.json",
         "skills": "~/.gemini/antigravity-cli/skills",
         "plugins": "~/.gemini/antigravity-cli/plugins",
         "hooks": "~/.gemini/config/hooks.json",

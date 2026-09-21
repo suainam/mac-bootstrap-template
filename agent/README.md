@@ -170,8 +170,8 @@ Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用�
 提供；扩展安装器不会读取或打印密钥。
 
 当前清单包含 `@narumitw/pi-typesafe`，它提供 `typesafe_question` 和随包携带的
-`typesafe-ai` Skill。不要把这个随包 Skill 再复制到公共 Skill registry，避免同名
-Skill 冲突。
+`typesafe-ai` Skill。公共 registry 中的 TypeSafe 条目只面向 Claude Code、Codex
+CLI 和 Antigravity；OMP 继续使用随包版本，不新增 OMP target。
 
 ## Skill Supply Chain Boundary
 
