@@ -22,6 +22,10 @@ def run(cmd: str) -> tuple[str, str, int]:
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
+def tokens_split(text: str) -> list[str]:
+    return [token for token in text.split() if token]
+
+
 def declared_brew_formulas() -> set[str]:
     """Return active formula declarations; commented Brewfile lines are optional."""
     formulas: set[str] = set()
@@ -30,6 +34,32 @@ def declared_brew_formulas() -> set[str]:
         if line.startswith('brew "') and line.endswith('"'):
             formulas.add(line[len('brew "'):-1])
     return formulas
+
+
+def brew_skip_tokens() -> set[str]:
+    """Return Brewfile tokens the machine opted out of.
+
+    Mirrors scripts/brew-bundle.sh: $MAC_BOOTSTRAP_BREW_SKIP plus
+    private/brew.skip resolved via $MAC_BOOTSTRAP_PRIVATE_DIR, then
+    ../private/, then template private/.
+    """
+    tokens: set[str] = set(tokens_split(os.environ.get("MAC_BOOTSTRAP_BREW_SKIP", "")))
+    candidates = []
+    private_dir = os.environ.get("MAC_BOOTSTRAP_PRIVATE_DIR", "")
+    if private_dir:
+        candidates.append(Path(private_dir) / "brew.skip")
+    candidates.append(Path(TEMPLATE, "..", "private", "brew.skip"))
+    candidates.append(Path(TEMPLATE, "private", "brew.skip"))
+    for path in candidates:
+        try:
+            text = path.read_text()
+        except OSError:
+            continue
+        for raw in text.splitlines():
+            line = raw.split("#", 1)[0].strip()
+            tokens.update(tokens_split(line))
+        break
+    return tokens
 
 
 def require_tmux_live_socket() -> None:
