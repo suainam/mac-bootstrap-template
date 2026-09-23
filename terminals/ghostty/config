@@ -8,7 +8,7 @@ font-codepoint-map = U+3400-U+4DBF=PingFang SC
 font-codepoint-map = U+4E00-U+9FFF=PingFang SC
 font-codepoint-map = U+F900-U+FAFF=PingFang SC
 font-codepoint-map = U+FF00-U+FFEF=PingFang SC
-font-size = 13.5
+font-size = 14
 font-thicken = true
 adjust-cell-height = 0
 

@@ -203,6 +203,10 @@ scan_agentshield() {
     echo "  WARN AgentShield baseline missing: private/agent/agentshield.baseline.json"
     return 0
   fi
+  if ! command -v ecc-agentshield &>/dev/null && ! npx --no-install ecc-agentshield --version &>/dev/null; then
+    echo "  SKIP: ecc-agentshield not installed (optional security scan)"
+    return 0
+  fi
 
   scan_dir="$(mktemp -d)"
   trap 'rm -rf -- "$scan_dir"; trap - RETURN INT TERM HUP' RETURN
@@ -588,6 +592,11 @@ PY
 
     if command -v curl &>/dev/null; then
       curl_args=(-fsS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 4)
+      case "$api_base" in
+        http://127.0.0.1*|https://127.0.0.1*|http://localhost*|https://localhost*)
+          curl_args+=(--noproxy "127.0.0.1,localhost")
+          ;;
+      esac
       if [ "${token_configured:-false}" = "true" ]; then
         token_value="${!token_env:-}"
         if [ -n "$token_value" ]; then
@@ -603,7 +612,14 @@ PY
           echo "  WARN llm_wiki API reachable but protected ($api_status); configure $token_env for authenticated data-hub access if needed"
           ;;
         000|"")
-          echo "  INFO llm_wiki API offline at $api_base; start $bundle_path if data-hub needs live API context"
+          if [ -d "$bundle_path" ]; then
+            echo "  INFO llm_wiki API offline at $api_base; start $bundle_path if data-hub needs live API context"
+          else
+            echo "  INFO llm_wiki API offline at $api_base ($bundle_path not installed); data-hub uses local fallback"
+          fi
+          ;;
+        502|503|504)
+          echo "  INFO llm_wiki API offline (gateway $api_status) at $api_base; data-hub uses local fallback"
           ;;
         *)
           echo "  WARN llm_wiki API returned HTTP $api_status at $api_base"
