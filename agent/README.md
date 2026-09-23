@@ -24,8 +24,8 @@ Agent paths and targets are driven from
 [`agent-manifest.json`](agent-manifest.json); Codex MCP startup defaults and
 profiles are driven from [`mcp-policy.json`](mcp-policy.json). Edit canonical
 sources once, then re-run `make agent-tools`.
-Generated runtime markdown files are intentionally short and ordered:
-`12-rules` first, then `RTK`, then `CBM / docs`.
+Generated runtime markdown files are ordered by host adapter: canonical rules,
+then RTK, then host-specific CBM/docs guidance.
 
 ### Codex MCP Profiles
 
@@ -64,36 +64,38 @@ managed state with `make doctor-agent`; refresh with `make agent-tools`.
 
 ```
 agent/agent-manifest.json             ← Agent locations + config targets (edit here)
-agent/rules/12-rules.md               ← Canonical instruction source
-  → ~/.claude/12-rules.md            ← Symlink (Claude @include reads it)
-  → ~/.codex/AGENTS.md @/path/ref    ← Codex reads via @/path/to/file
-  → ~/.pi/agent/AGENTS.md @~/.claude/12-rules.md  ← Pi reads via AGENTS.md ref
-  → ~/.claude/CLAUDE.md @12-rules.md              ← Reasonix inherits via Claude docs
-  → ~/.claude/CLAUDE.md @RTK.md                   ← RTK follows 12-rules
+agent/rules/AGENTS.md                 ← Canonical global instruction source
+  → ~/.claude/AGENTS.md              ← Symlink
+  → ~/.claude/CLAUDE.md              ← Symlink → AGENTS.md (compatibility alias)
+  → ~/.codex/AGENTS.md               ← Rendered with Codex host additions (embedded content)
+  → ~/.pi/agent/AGENTS.md            ← Symlink (Pi legacy global instructions)
+  → ~/.omp/agent/AGENTS.md           ← Symlink; also wins OMP global-source precedence
+  → ~/.gemini/GEMINI.md              ← Symlink; Antigravity global GEMINI.md adapter
 
-agent/rules/common/                   ← Canonical rules dir
+agent/rules/common/                   ← Canonical Claude path-independent rules
   → ~/.claude/rules/common/          ← Claude Code auto-loads rules
 
-agent/rules/python/                   ← Canonical python rules
+agent/rules/python/                   ← Canonical Claude Python rules
   → ~/.claude/rules/python/          ← Claude Code auto-loads rules
-
-~/work/GEMINI.md                      ← Generated workspace rules for Antigravity
-~/work/REASONIX.md                    ← Generated workspace rules for Reasonix
-~/.pi/agent/AGENTS.md                 ← Generated global rules for Pi
 ```
+
+Repositories and workspaces maintain their own instructions (e.g. repo-level
+`AGENTS.md` or `CLAUDE.md`); the installer manages host-level global instructions
+only and does not write or generate workspace instruction copies.
 
 ### Install Scripts (Write Agent Configs)
 
 `scripts/install-agent-tooling.sh --configure` reads the manifest and is the
 single distribution entrypoint for:
-- OpenCode `AGENTS.md` (embeds 12-rules from canonical file)
+- Canonical global `AGENTS.md` symlink distribution (Claude `~/.claude/AGENTS.md` + `~/.claude/CLAUDE.md` compatibility alias, Pi `~/.pi/agent/AGENTS.md`, OMP `${PI_CODING_AGENT_DIR:-~/.omp/agent}/AGENTS.md`, Antigravity `~/.gemini/GEMINI.md` adapter)
+- Codex `AGENTS.md` (embeds canonical rules, RTK, adversarial review gate, and context-mode SOP; no `@` imports)
+- OpenCode `AGENTS.md` (embeds host-specific instructions)
 - Codex `hooks.json` (adds caveman hooks + context-mode)
 - Quality gate policy under `template/agent/quality-gates/manifest.jsonc`
 - Caveman default mode (`~/.config/caveman/config.json`)
-- Pi `settings.json` + `mcp.json` + AGENTS.md ref
-- Reasonix config.json + skills
-- Antigravity `settings.json` + `mcp_config.json` + skills
-- Workspace `GEMINI.md` + `REASONIX.md` generated from canonical rules
+- Pi `settings.json` + `mcp.json` + global `AGENTS.md` symlink
+- Antigravity `settings.json` + `mcp_config.json` + skills + global `GEMINI.md` symlink adapter
+- Reasonix `config.json` + skills (no global rules distributed)
 - OpenCode plugin list (rtk, caveman, context-mode)
 - MCP profiles (`~/.zshrc`)
 - Hook matchers (console.log guards, destructive op warnings)
@@ -158,9 +160,9 @@ Remote OAuth authorization is runtime readiness, not desired-state drift.
 | **Caveman** | ✅ plugin+ultra | ✅ skills+hooks | ✅ plugin+ultra | ✅ skill file | ✅ skill file |
 | **Context-mode** | ✅ plugin | ✅ hooks | ✅ plugin | ❌ | ❌ | ❌ |
 | **CBM** | ✅ MCP | ✅ MCP in config.toml | ✅ MCP | ✅ `mcp.json` | ✅ MCP server | ✅ `mcp_config.json` |
-| **12 Rules** | ✅ @12-rules.md | ✅ @/path ref | ✅ inline embedded | ✅ inline AGENTS.md | ✅ workspace `REASONIX.md` | ✅ workspace/global `GEMINI.md` |
+| **Global rules** | ✅ AGENTS.md + CLAUDE.md symlink | ✅ embedded AGENTS.md | ✅ inline embedded | ✅ AGENTS.md symlink | ❌ | ✅ GEMINI.md symlink |
 ---
-Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用跨工具发现层，不由本模板的 Pi manifest、installer 或 `pi-packages` 接管。
+Pi 列描述旧安装兼容层；`omp` 是当前默认 CLI，使用相同 `AGENTS.md` 内容并通过原生配置目录 (`~/.omp/agent/AGENTS.md`) 软链接接入；Reasonix 暂不单独分发全局规则。所有仓库级/工作区指令（如各 repo 的 `AGENTS.md`/`CLAUDE.md`）由各仓库自行管理，安装脚本不生成任何工作区副本。
 
 ### OMP extensions
 
@@ -172,6 +174,9 @@ Pi 列描述旧安装兼容层；`omp` 是当前 `Brewfile` 默认 CLI，使用�
 当前清单包含 `@narumitw/pi-typesafe`，它提供 `typesafe_question` 和随包携带的
 `typesafe-ai` Skill。公共 registry 中的 TypeSafe 条目只面向 Claude Code、Codex
 CLI 和 Antigravity；OMP 继续使用随包版本，不新增 OMP target。
+
+CLIProxyAPI 切换、长上下文工具调用 400 与 DNS/进程重启的公共排障经验见
+[`omp/README.md`](omp/README.md)。提供商地址、账号和凭据仍由私有 overlay 管理。
 
 ## Skill Supply Chain Boundary
 
@@ -285,7 +290,8 @@ make pm-set PNPM        # Set global default
 ## Reasonix (DeepSeek Agent)
 
 **Status**: Installed (`/opt/homebrew/bin/reasonix` v0.53.2). Configured with
-CBM + context7 MCP and caveman skill. Rules come from `~/.claude/CLAUDE.md`.
+CBM + context7 MCP and caveman skill. Reasonix does not distribute global rules;
+repo rules remain repo-owned.
 
 Reasonix uses:
 - Config: `~/.reasonix/config.json` — includes `mcpServers`

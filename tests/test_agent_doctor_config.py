@@ -17,6 +17,48 @@ def test_antigravity_manifest_uses_agy_mcp_config_path():
     assert manifest["agents"]["antigravity"]["paths"]["mcp"] == "~/.gemini/config/mcp_config.json"
 
 
+def test_global_instruction_paths_use_canonical_agents_source():
+    manifest = json.loads(read_template("agent", "agent-manifest.json"))
+    assert manifest["canonical"]["rules_file"] == "agent/rules/AGENTS.md"
+    assert manifest["agents"]["claude"]["paths"]["agents_md"] == "~/.claude/AGENTS.md"
+    assert manifest["agents"]["claude"]["paths"]["instructions"] == "~/.claude/CLAUDE.md"
+    assert manifest["agents"]["codex"]["paths"]["instructions"] == "~/.codex/AGENTS.md"
+    assert manifest["agents"]["opencode"]["paths"]["instructions"] == "~/.config/opencode/AGENTS.md"
+    assert manifest["agents"]["pi"]["paths"]["instructions"] == "~/.pi/agent/AGENTS.md"
+    assert manifest["agents"]["antigravity"]["paths"]["global_instructions"] == "~/.gemini/GEMINI.md"
+
+    # Workspaces maintain their own instructions; manifest must not declare global workspace instruction targets
+    for agent_cfg in manifest.get("agents", {}).values():
+        paths = agent_cfg.get("paths", {})
+        assert "work_instructions" not in paths
+        assert "workspace_instructions" not in paths
+
+
+def test_installer_does_not_generate_workspace_instruction_copies():
+    configure = read_template("scripts", "lib", "agent-configure.sh")
+    installer = read_template("scripts", "install-agent-tooling.sh")
+    doctor = read_template("scripts", "agent-doctor.sh")
+    assert "write_markdown_file \"$WORK_GEMINI\"" not in configure
+    assert "write_markdown_file \"$WORK_REASONIX\"" not in configure
+    assert "WORK_AGENTS=\"$WORK_ROOT/AGENTS.md\"" not in installer
+    assert "WORK_GEMINI" not in installer
+    assert "WORK_REASONIX" not in installer
+    assert "WORK_AGENTS" not in installer
+    assert "WORK_GEMINI" not in configure
+    assert "WORK_REASONIX" not in configure
+    assert "WORK_AGENTS" not in configure
+    assert "WORK_GEMINI" not in doctor
+    assert "WORK_REASONIX" not in doctor
+    assert "WORK_AGENTS" not in doctor
+
+
+def test_agent_doctor_checks_global_instruction_symlinks():
+    content = read_template("scripts", "agent-doctor.sh")
+    assert 'check_symlink "AGENTS.md" "$CLAUDE_AGENTS_MD"' in content
+    assert 'check_symlink "CLAUDE.md → AGENTS.md" "$CLAUDE_MD"' in content
+    assert 'check_symlink "global GEMINI.md → canonical AGENTS.md" "$GLOBAL_GEMINI"' in content
+    assert 'check_symlink "OMP AGENTS.md" "$OMP_AGENT_DIR/AGENTS.md"' in content
+
 def test_check_python_syntax_parses_files():
     script = os.path.join(TEMPLATE, "scripts", "check-python-syntax.py")
     with tempfile.TemporaryDirectory() as tmpdir:

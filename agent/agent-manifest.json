@@ -1,7 +1,7 @@
 {
   "version": 1,
   "canonical": {
-    "rules_file": "agent/rules/12-rules.md",
+    "rules_file": "agent/rules/AGENTS.md",
     "adversarial_review_file": "agent/rules/adversarial-review-gate.md",
     "rules_common_dir": "agent/rules/common",
     "rules_python_dir": "agent/rules/python",
@@ -66,7 +66,7 @@
         "settings": "~/.claude/settings.json",
         "mcp": "~/.claude.json",
         "instructions": "~/.claude/CLAUDE.md",
-        "rules_12": "~/.claude/12-rules.md",
+        "agents_md": "~/.claude/AGENTS.md",
         "rules_common": "~/.claude/rules/common",
         "rules_python": "~/.claude/rules/python",
         "rules_adversarial_review": "~/.claude/adversarial-review-gate.md",
@@ -145,6 +145,7 @@
         "skills": "~/.gemini/antigravity-cli/skills",
         "plugins": "~/.gemini/antigravity-cli/plugins",
         "hooks": "~/.gemini/config/hooks.json",
+        "global_instructions": "~/.gemini/GEMINI.md",
         "workspace_mcp": ".agents/mcp_config.json"
       }
     }

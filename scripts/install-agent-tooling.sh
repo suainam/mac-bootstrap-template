@@ -27,7 +27,7 @@ Options:
   -h, --help     Show this help.
 
 Configuration performed with --configure:
-  - Symlink canonical files (12-rules, skills, rules) from bootstrap repo
+  - Symlink canonical AGENTS.md and host-specific global instruction files
   - rtk init for Claude/Codex/OpenCode/Pi
   - Claude Code context-mode + caveman plugins
   - Codex context-mode MCP + hooks
@@ -65,7 +65,7 @@ ADVERSARIAL_REVIEW_SRC="$(canonical_path canonical.adversarial_review_file)"
 RULES_PYTHON_SRC="$(canonical_path canonical.rules_python_dir)"
 PI_LOCAL_PROVIDER_SRC="$(canonical_path canonical.personal_extensions_dir)/local-openai-provider.ts"
 
-CLAUDE_RULES_12="$(json_get_path agents.claude.paths.rules_12)"
+CLAUDE_AGENTS_MD="$(json_get_path agents.claude.paths.agents_md)"
 CLAUDE_RULES_COMMON="$(json_get_path agents.claude.paths.rules_common)"
 CLAUDE_RULES_PYTHON="$(json_get_path agents.claude.paths.rules_python)"
 CLAUDE_RULES_ADVERSARIAL_REVIEW="$(json_get_path agents.claude.paths.rules_adversarial_review)"
@@ -117,11 +117,7 @@ ANTIGRAVITY_HOOKS="$(json_get_path agents.antigravity.paths.hooks)"
 SHARED_SKILLS_ROOT="$(json_get_path shared.upstream_skills_root)"
 PROMPT_LIBRARY_ROOT="$(json_get_path shared.prompt_library_root)"
 CROSS_AGENT_SKILLS_DIR="$(json_get_path shared.cross_agent_skills_dir)"
-WORK_ROOT="${WORK_ROOT:-$HOME/work}"
-WORK_AGENTS="$WORK_ROOT/AGENTS.md"
-WORK_GEMINI="$WORK_ROOT/GEMINI.md"
-WORK_REASONIX="$WORK_ROOT/REASONIX.md"
-GLOBAL_GEMINI="$HOME/.gemini/GEMINI.md"
+GLOBAL_GEMINI="$(json_get_path agents.antigravity.paths.global_instructions)"
 CLAUDE_RTK="$HOME/.claude/RTK.md"
 CODEX_RTK="$HOME/.codex/RTK.md"
 PI_LIST_OK=0
@@ -140,9 +136,6 @@ link_canonical_symlinks
 print_step_header "Step 2 — Agent dirs"
 ensure_agent_dirs
 
-print_step_header "Step 2a — Workspace context files"
-generate_workspace_context_files
-
 print_step_header "Step 2b — Wire managed skills into agents"
 run "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles
 run "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
@@ -152,6 +145,7 @@ configure_prompt_library_step
 
 print_step_header "Step 3 — RTK"
 configure_rtk_step
+RTK_SOURCE="$(pick_rtk_source)"
 
 print_step_header "Step 4 — Context Mode"
 configure_context_mode_step
@@ -168,9 +162,8 @@ configure_all_mcp
 print_step_header "Step 8 — OpenCode AGENTS.md"
 generate_opencode_agents_doc
 
-print_step_header "Step 9 — CLAUDE.md entry"
-ensure_claude_instructions
-
+print_step_header "Step 9 — Global instruction links"
+configure_global_instruction_links
 print_step_header "Step 10 — Codex AGENTS.md entry"
 ensure_codex_instructions
 
