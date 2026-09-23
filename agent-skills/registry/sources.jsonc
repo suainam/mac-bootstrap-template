@@ -50,6 +50,13 @@
   },
 
   "projects": {
+    "auroraops-control": {
+      "skills_dir": "${HOME}/work/projects/auroraops-control/.agents/skills",
+      "compatibility_skills_dirs": {
+        "antigravity": "${HOME}/work/projects/auroraops-control/.gemini/skills",
+        "claude": "${HOME}/work/projects/auroraops-control/.claude/skills"
+      }
+    },
     "mac-bootstrap": {
       "skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills",
       "compatibility_skills_dirs": {
@@ -1212,6 +1219,23 @@
         "network-path-triage": {
           "scope": "project",
           "projects": ["mac-bootstrap"]
+        }
+      }
+    },
+
+    "local-auroraops-control": {
+      "type": "internal",
+      "path": "agent-skills/local/auroraops-control",
+      "skills": {
+        "role-lifecycle-assurance": {
+          "scope": "project",
+          "projects": ["auroraops-control"],
+          "reason": "AuroraOps parent nine-stage role lifecycle assurance and sanitized evidence contract"
+        },
+        "auroraops-service-role-refactor": {
+          "scope": "project",
+          "projects": ["auroraops-control"],
+          "reason": "End-to-end discipline for refactoring and extracting unified Ansible service roles (DRY templates, docker/native platform branching, TypeSafe decision gates, and zero-residue cleanup)"
         }
       }
     },

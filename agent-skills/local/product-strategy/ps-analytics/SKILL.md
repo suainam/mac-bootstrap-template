@@ -55,6 +55,7 @@ disable-model-invocation: true
   - `references/MULTI_MODEL_MASKING_AUDIT.md` — 业务模型优先级掩盖与防误伤 SOP
   - `references/DATA_QUALITY_CHECKLIST.md` — 深度数据质量校验清单
   - `references/CIRCULAR_SEASON_PARSER.md` — 跨年环形时间段解析与呈现
+  - `references/SQL_DIFF_DIAGNOSIS_GUIDE.md` — SQL 差异排查、MaxCompute 类型陷阱与门禁
 - **完整样例**:
   - `examples/01_pure_premature_seasonal_audit.sql` — 多表对齐、MAX_PT 优化与绝对纯季节性穿透 SQL
   - `examples/02_export_excel_with_dedup.py` — PyODPS 高效抽取并导出 15万+ 行格式化 Excel 模板
