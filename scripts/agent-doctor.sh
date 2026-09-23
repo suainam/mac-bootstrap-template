@@ -39,7 +39,8 @@ json_get_path() {
   expand_path "$(manifest_get "$1")"
 }
 
-CLAUDE_RULES_12="$(json_get_path agents.claude.paths.rules_12)"
+CLAUDE_AGENTS_MD="$(json_get_path agents.claude.paths.agents_md)"
+CLAUDE_MD="$(json_get_path agents.claude.paths.instructions)"
 CLAUDE_RULES_COMMON="$(json_get_path agents.claude.paths.rules_common)"
 CLAUDE_RULES_PYTHON="$(json_get_path agents.claude.paths.rules_python)"
 CLAUDE_SETTINGS="$(json_get_path agents.claude.paths.settings)"
@@ -70,11 +71,7 @@ REASONIX_SKILLS_DIR="$(json_get_path agents.reasonix.paths.skills)"
 ANTIGRAVITY_SETTINGS="$(json_get_path agents.antigravity.paths.settings)"
 ANTIGRAVITY_MCP_JSON="$(json_get_path agents.antigravity.paths.mcp)"
 ANTIGRAVITY_SKILLS_DIR="$(json_get_path agents.antigravity.paths.skills)"
-WORK_ROOT="${WORK_ROOT:-$HOME/work}"
-WORK_AGENTS="$WORK_ROOT/AGENTS.md"
-WORK_GEMINI="$WORK_ROOT/GEMINI.md"
-WORK_REASONIX="$WORK_ROOT/REASONIX.md"
-GLOBAL_GEMINI="$HOME/.gemini/GEMINI.md"
+GLOBAL_GEMINI="$(json_get_path agents.antigravity.paths.global_instructions)"
 
 usage() {
   cat <<'EOF'
@@ -257,7 +254,7 @@ check_symlink() {
   if [ -L "$path" ]; then
     local target
     target="$(readlink "$path")"
-    if [ -e "$target" ]; then
+    if [ -e "$path" ]; then
       echo "  OK   $name → $target"
     else
       echo "  BROKEN $name → $target (missing)"
@@ -271,7 +268,8 @@ check_symlink() {
 
 echo ""
 echo "--- Claude Code ---"
-check_symlink "12-rules.md" "$CLAUDE_RULES_12"
+check_symlink "AGENTS.md" "$CLAUDE_AGENTS_MD"
+check_symlink "CLAUDE.md → AGENTS.md" "$CLAUDE_MD"
 check_symlink "rules/common" "$CLAUDE_RULES_COMMON"
 check_symlink "rules/python" "$CLAUDE_RULES_PYTHON"
 if [ -f "$CLAUDE_SETTINGS" ]; then
@@ -279,7 +277,6 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
 else
   echo "  MISS settings.json"
 fi
-check_first_line "CLAUDE.md order" "$HOME/.claude/CLAUDE.md" '@12-rules.md'
 audit_mcp_config claude "$CLAUDE_MCP_JSON"
 
 echo ""
@@ -294,7 +291,7 @@ else
 fi
 if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
   --target "$CODEX_AGENTS" \
-  --rules "$BOOTSTRAP/agent/rules/12-rules.md" \
+  --rules "$BOOTSTRAP/agent/rules/AGENTS.md" \
   --rtk "$HOME/.codex/RTK.md" \
   --adversarial-review "$BOOTSTRAP/agent/rules/adversarial-review-gate.md"; then
   echo "  OK   AGENTS.md canonical rules content"
@@ -371,17 +368,14 @@ PYEOF
     SKILL_COUNT=$(find -L "$PI_SKILLS_DIR" -mindepth 2 -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')
     echo "  OK   skills/ ($SKILL_COUNT SKILL.md files)"
   fi
+  check_symlink "AGENTS.md" "$PI_AGENTS"
   if [ -f "$PI_AGENTS" ]; then
-    if grep -q '12-rules' "$PI_AGENTS" 2>/dev/null; then
-      echo "  OK   AGENTS.md (12-rules reference)"
+    if grep -q '## Core Operating Rules' "$PI_AGENTS" 2>/dev/null; then
+      echo "  OK   AGENTS.md (canonical global rules)"
     else
-      echo "  MISS 12-rules in AGENTS.md"
+      echo "  MISS canonical global rules in AGENTS.md"
     fi
-  else
-    echo "  MISS AGENTS.md"
   fi
-  check_contains "AGENTS.md RTK" "$PI_AGENTS" '## RTK'
-  check_max_lines "AGENTS.md length" "$PI_AGENTS" 60
   EXT_LIST=$(pi list 2>/dev/null || true)
   if echo "$EXT_LIST" | grep -q "rtk.ts"; then
     echo "  OK   RTK extension registered"
@@ -430,22 +424,14 @@ if command -v agy &>/dev/null; then
 fi
 
 echo ""
-echo "--- Workspace Context ---"
-check_contains "work AGENTS directives" "$WORK_AGENTS" 'Work Root Directives'
-check_max_lines "work AGENTS.md length" "$WORK_AGENTS" 60
-check_contains "global GEMINI.md RTK" "$GLOBAL_GEMINI" '## RTK'
-check_contains "global GEMINI.md 12-rules" "$GLOBAL_GEMINI" '## 12 Rules Summary'
-check_contains "global GEMINI.md Adversarial Review" "$GLOBAL_GEMINI" 'Adversarial Review'
-check_max_lines "global GEMINI.md length" "$GLOBAL_GEMINI" 60
-check_contains "GEMINI.md RTK" "$WORK_GEMINI" '## RTK'
-check_contains "GEMINI.md 12-rules" "$WORK_GEMINI" '## 12 Rules Summary'
-check_contains "work GEMINI.md Adversarial Review" "$WORK_GEMINI" 'Adversarial Review'
-check_max_lines "work GEMINI.md length" "$WORK_GEMINI" 60
-check_contains "REASONIX.md RTK" "$WORK_REASONIX" '## RTK'
-check_contains "REASONIX.md 12-rules" "$WORK_REASONIX" '## 12 Rules Summary'
-check_contains "work REASONIX.md Adversarial Review" "$WORK_REASONIX" 'Adversarial Review'
-check_max_lines "REASONIX.md length" "$WORK_REASONIX" 60
 
+echo "--- Global Instructions & Antigravity ---"
+check_symlink "global GEMINI.md → canonical AGENTS.md" "$GLOBAL_GEMINI"
+
+OMP_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
+if [ -d "$OMP_AGENT_DIR" ] || command -v omp &>/dev/null; then
+  check_symlink "OMP AGENTS.md" "$OMP_AGENT_DIR/AGENTS.md"
+fi
 echo ""
 echo "--- Skill Supply Chain ---"
 if [ -f "$BOOTSTRAP/agent-skills/registry/sources.jsonc" ]; then
