@@ -73,6 +73,15 @@ network. Keep network IDs, managed addresses, and host-specific SSH routing in
 the private parent, for example under `private/zerotier/` and
 `private/shell/ssh_config.d/`. Never copy those values into this template.
 
+A machine can opt out of individual `Brewfile` entries without forking the
+public file. `scripts/brew-bundle.sh` drops any `brew`/`cask`/`npm` token
+listed in `private/brew.skip` (one token per line, `#` comments allowed,
+resolved via `$MAC_BOOTSTRAP_PRIVATE_DIR`, then `../private/`) plus the
+space-separated `$MAC_BOOTSTRAP_BREW_SKIP` environment variable. Skipped
+entries are reported as `Skip <token>` and never reach `brew bundle`.
+`scripts/doctor-manifest.json` marks the same casks `optional` so
+`make doctor` reports `skip` instead of `missing`.
+
 Parent `bootstrap.sh`:
 
 ```bash

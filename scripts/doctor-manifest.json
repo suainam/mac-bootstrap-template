@@ -42,7 +42,28 @@
   },
   "cask_overrides": {
     "microsoft-edge": {
-      "app": "Microsoft Edge.app"
+      "app": "Microsoft Edge.app",
+      "optional": true
+    },
+    "iterm2": {
+      "app": "iTerm.app",
+      "optional": true
+    },
+    "obs": {
+      "app": "OBS.app",
+      "optional": true
+    },
+    "obsidian": {
+      "app": "Obsidian.app",
+      "optional": true
+    },
+    "wechatwork": {
+      "app": "企业微信.app",
+      "optional": true
+    },
+    "doubao": {
+      "app": "doubao.app",
+      "optional": true
     },
     "visual-studio-code": {
       "app": "Visual Studio Code.app"

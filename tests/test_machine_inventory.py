@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from helpers import TEMPLATE, declared_brew_formulas, run
+from helpers import TEMPLATE, brew_skip_tokens, declared_brew_formulas, run
 
 
 pytestmark = pytest.mark.machine
@@ -25,14 +25,17 @@ def test_declared_brew_formulas_are_installed():
 # ── GUI apps ──────────────────────────────────────────────────────────
 
 GUI_APPS = {
-    "Ghostty": "/Applications/Ghostty.app",
-    "iTerm": "/Applications/iTerm.app",
-    "Hammerspoon": "/Applications/Hammerspoon.app",
+    "Ghostty": ("/Applications/Ghostty.app", "ghostty"),
+    "iTerm": ("/Applications/iTerm.app", "iterm2"),
+    "Hammerspoon": ("/Applications/Hammerspoon.app", "hammerspoon"),
 }
 
 
-@pytest.mark.parametrize("name,path", GUI_APPS.items(), ids=list(GUI_APPS.keys()))
-def test_gui_app_installed(name, path):
+@pytest.mark.parametrize("name,entry", GUI_APPS.items(), ids=list(GUI_APPS.keys()))
+def test_gui_app_installed(name, entry):
+    path, token = entry
+    if token in brew_skip_tokens():
+        pytest.skip(f"{name} opted out via private brew skip list")
     assert os.path.isdir(path), f"{name} not found at {path}"
 
 # ── Font ──────────────────────────────────────────────────────────────

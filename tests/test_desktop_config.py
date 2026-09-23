@@ -27,7 +27,7 @@ def test_hammerspoon_has_iterm2_binding():
 
 def test_spoons_installed():
     spoons = os.listdir(os.path.expanduser("~/.hammerspoon/Spoons"))
-    assert "ClipboardTool.spoon" in spoons
+    # Clipboard history is owned by Maccy; bootstrap only ships HSKeybindings.
     assert "HSKeybindings.spoon" in spoons
 
 

@@ -193,7 +193,40 @@ def build_record(args: argparse.Namespace) -> dict:
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
-    """Extend older SQLite files to the current knowledge_records contract."""
+    """Create knowledge_records on fresh machines, extend older files to contract."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS knowledge_records (
+            id TEXT PRIMARY KEY,
+            record_type TEXT,
+            title TEXT,
+            content TEXT,
+            background TEXT,
+            tags TEXT,
+            impact TEXT,
+            is_actionable INTEGER NOT NULL DEFAULT 0,
+            references_json TEXT,
+            project TEXT,
+            expires_at TEXT,
+            why_record TEXT,
+            agent_type TEXT,
+            session_id TEXT,
+            message_id INTEGER,
+            project_path TEXT,
+            recorded_at TEXT,
+            candidate_date TEXT,
+            status TEXT,
+            record_revision TEXT,
+            authority TEXT,
+            source_kind TEXT,
+            source_fingerprint TEXT,
+            raw_refs_json TEXT,
+            created_at TEXT,
+            updated_at TEXT,
+            materialized_path TEXT
+        )
+        """
+    )
     existing = set()
     for row in conn.execute("PRAGMA table_info(knowledge_records)").fetchall():
         existing.add(row["name"] if isinstance(row, sqlite3.Row) else row[1])

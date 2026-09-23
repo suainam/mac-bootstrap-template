@@ -158,6 +158,9 @@ def fetch_open_loops(
             ORDER BY candidate_date DESC, confidence DESC, rowid ASC
             """
         ).fetchall()
+    except sqlite3.OperationalError:
+        # Fresh machines may have a DB file without ingested tables yet.
+        return []
     finally:
         conn.close()
 

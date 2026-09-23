@@ -82,7 +82,8 @@ scripts/agent-doctor.sh
   OK   prompt index: <n> records
 ```
 
-AgentShield scans the explicit `~/.claude` runtime target. The private parent
+AgentShield scans the explicit `~/.claude` runtime target when `ecc-agentshield`
+is installed (auto-detected; skipped cleanly when uninstalled). The private parent
 may acknowledge a reviewed set in `private/agent/agentshield.baseline.json`;
 the baseline stores rule/file/severity plus a hash of evidence, never raw
 evidence. A rule, file, severity, or evidence-fingerprint change warns again.

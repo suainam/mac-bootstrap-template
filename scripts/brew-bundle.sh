@@ -10,6 +10,35 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BREWFILE="$DIR/Brewfile"
 TMP_BREWFILE="$(mktemp)"
 
+# Private skip list: space-separated tokens in $MAC_BOOTSTRAP_BREW_SKIP plus
+# one token per line in $PRIVATE_SKIP_FILE ("#"-comments and blanks ignored).
+# Lets a machine opt out of Brewfile entries (e.g. home vs. work) without
+# forking the public Brewfile.
+PRIVATE_SKIP_FILE=""
+if [ -n "${MAC_BOOTSTRAP_PRIVATE_DIR:-}" ] && [ -f "$MAC_BOOTSTRAP_PRIVATE_DIR/brew.skip" ]; then
+  PRIVATE_SKIP_FILE="$MAC_BOOTSTRAP_PRIVATE_DIR/brew.skip"
+elif [ -f "$DIR/../private/brew.skip" ]; then
+  PRIVATE_SKIP_FILE="$DIR/../private/brew.skip"
+fi
+
+BREW_SKIP="${MAC_BOOTSTRAP_BREW_SKIP:-}"
+if [ -n "$PRIVATE_SKIP_FILE" ]; then
+  while IFS= read -r skip_line || [ -n "$skip_line" ]; do
+    case "$skip_line" in
+      ''|'#'*) continue ;;
+    esac
+    BREW_SKIP="$BREW_SKIP ${skip_line%%#*}"
+  done < "$PRIVATE_SKIP_FILE"
+fi
+
+is_skipped() {
+  local token="$1"
+  case " $BREW_SKIP " in
+    *" $token "*) return 0 ;;
+  esac
+  return 1
+}
+
 cleanup() {
   rm -f "$TMP_BREWFILE"
 }
@@ -41,6 +70,16 @@ should_skip_manual_cask() {
 }
 
 while IFS= read -r line; do
+  case "$line" in
+    brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
+      token="${line#*\"}"
+      token="${token%\"*}"
+      if is_skipped "$token"; then
+        echo "Skip $token: in private brew skip list."
+        continue
+      fi
+      ;;
+  esac
   case "$line" in
     cask\ \"*\")
       token="${line#cask \"}"
