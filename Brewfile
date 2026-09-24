@@ -50,7 +50,6 @@ cask "doubao"
 # cask "visual-studio-code"
 # cask "zed"
 cask "codex"
-cask "codex-app"
 cask "claude-code"
 
 # ========== 终端 & 系统增强 ==========
@@ -58,6 +57,7 @@ cask "ghostty"
 cask "hammerspoon"
 cask "shottr"
 cask "maccy"
+cask "vorssaint"
 # ========== 网络 & 安全 ==========
 brew "cloudflared"
 cask "zerotier-one"

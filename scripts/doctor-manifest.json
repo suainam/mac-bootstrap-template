@@ -90,6 +90,9 @@
     "hammerspoon": {
       "app": "Hammerspoon.app"
     },
+    "vorssaint": {
+      "app": "Vorssaint.app"
+    },
     "linearmouse": {
       "app": "LinearMouse.app"
     },
@@ -97,9 +100,6 @@
       "app": "Bitwarden.app"
     },
     "codex": {
-      "app": "Codex.app"
-    },
-    "codex-app": {
       "app": "Codex.app"
     },
     "cc-switch": {
