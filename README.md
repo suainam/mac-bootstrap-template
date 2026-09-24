@@ -79,13 +79,12 @@ curl -fsSL https://ui.ghproxy.cc/https://github.com/suainam/mac-bootstrap-templa
 make bootstrap
 ```
 
-This installs Homebrew dependencies from `Brewfile`, links shell/git/vim/neovim/tmux
-configuration, configures Docker/npm proxy settings, and runs safe cache cleanup.
+This installs Homebrew dependencies from `Brewfile` (filtered by machine profile), links
+shell, Git, Neovim, Ghostty, Herdr, and Hammerspoon configurations, configures Docker/npm proxy settings,
+and runs safe cache cleanup.
 It does not delete project virtual environments or files under `~/work`.
-If Microsoft Edge or Clash Verge already exists under `/Applications` from a
-manual install, bootstrap skips that cask instead of forcing a reinstall.
-Manual app notes and `make doctor` cask overrides live in
-[`docs/manual-apps.md`](docs/manual-apps.md).
+If Clash Verge already exists under `/Applications` from a manual install, bootstrap skips that cask.
+Manual app notes and `make doctor` cask overrides live in [`docs/manual-apps.md`](docs/manual-apps.md).
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 Neovim / LazyVim notes live in `editors/neovim/README.md`.
@@ -152,7 +151,6 @@ rebuild pitfalls, and extension/debug checks.
 
 Shell startup reference:
 - [`docs/shell-startup.md`](docs/shell-startup.md) covers `zshenv -> shell_env -> zshrc`
-- tmux panes must start `/bin/zsh -il` so p10k and interactive plugins load on first boot
 
 For verification, `~` is the most general entrypoint. It is fine for shell
 syntax and auto-attach checks, and keeps the workflow closer to a normal new
@@ -406,7 +404,7 @@ tooling wrappers all use that venv, so no ad-hoc virtualenv is needed.
 ## Full setup (including agent tools)
 
 ```bash
-make bootstrap       # Brewfile + shell/vim/neovim/tmux
+make bootstrap       # Brewfile + shell/neovim/Ghostty/Herdr
 make npm-packages    # Install tracked global npm CLIs (context-mode, CBM, reasonix, ...)
 make agent-sync      # Ensure missing skill bundles + sync prompt libraries
 make agent-tools     # Wire RTK, caveman, managed MCPs, and skills for all agents
@@ -445,8 +443,7 @@ managed pre-push hook uses this target for the real checkout and
 
 `make check-serial` runs `repo-check` and `machine-check` sequentially for
 debugging test interference. Keep one full check invocation at a time; live
-daemon and tmux fixtures can collide when independent invocations overlap.
-
+daemon fixtures can collide when independent invocations overlap.
 `make doctor` prints diagnostics without failing.
 `make doctor-agent` verifies managed symlinks against the current template
 targets, so directory refactors surface as stale-link failures instead of
@@ -464,12 +461,6 @@ Regression notes:
 - Do not parallelize `make -C template check` and parent `make check`; the
   `claude-daemon` tests can collide on the live lock file and produce false
   `SKIP: another instance running` failures.
-- Tmux assertions query the live tmux socket. If a sandboxed run cannot access
-  `/private/tmp/tmux-*`, rerun the check outside the sandbox instead of editing
-  tmux config blindly.
-- If tmux panes show only the fallback zsh prompt, inspect
-  [`docs/shell-startup.md`](docs/shell-startup.md) before changing p10k. The
-  usual failure mode is startup path drift, not the theme itself.
 
 ## Claude daemon
 
@@ -589,7 +580,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 
 | Target | What |
 |--------|------|
-| `make bootstrap` | Brewfile + shell/vim/neovim/tmux config |
+| `make bootstrap` | Brewfile + shell/neovim/Ghostty/Herdr config |
 | `make agent-tools` | Wire all agent tools |
 | `make agent-refresh` | Full sync + full agent reconfigure |
 | `make skill-refresh` | Ensure missing bundles + re-wire managed skills |

@@ -13,26 +13,16 @@ or need `make doctor` cask overrides so the template stays rerunnable.
 
 ## Brewfile 中但本机手动安装的应用
 
-以下应用在 Brewfile 中，本机因手动安装未被 brew 管理。
-新机器通过 `brew bundle install` 会自动安装：
+以下应用在 Brewfile 中，本机若已通过 DMG 手动安装未被 brew 接管，
+`template/scripts/brew-bundle.sh` 会自动检测并跳过重复安装：
 
-- `microsoft-edge` — 本机手动安装，brew 未接管
-- `clash-verge-rev` — 本机手动安装（DMG），brew 未接管
+- `clash-verge-rev` — 本机手动安装（DMG），brew 自动跳过重复安装
 
-## WorkBuddy AI
+## Prism Browser
 
-- 路径：`/Applications/WorkBuddy AI.app`（bundle id `com.workbuddy.workbuddy-ai`）
-- 安装：`make install-workbuddy`（运行 `scripts/install-workbuddy.sh`）
-- 为什么不用 Homebrew：官方仓库没有 `workbuddy` cask（`codebuddy` / `codebuddy-cn`
-  是同厂的 IDE，不是本应用），任何 tap 中也不存在，因此不能用 `cask` 声明。
-- 上游：脚本从国际版更新接口
-  `https://www.codebuddy.ai/v2/update?platform=workbuddy-darwin-arm64` 取版本、
-  `.dmg` 地址与 SHA256，下载后校验、挂载、复制到 `/Applications`。
-  注意接口返回的 `url` 结尾是 `.zip`，但 `sha256hash` 对应的是同路径的 `.dmg`。
-- Gatekeeper：厂商随包提供 `Fix-Damage.txt`，说明安装时若验证往返失败，macOS 会误报
-  “已损坏”；脚本在安装后已清除 quarantine 标记。手动安装时可用
-  `xattr -rd com.apple.quarantine "/Applications/WorkBuddy AI.app"`。
-
+- 路径：`/Applications/Prism Browser.app`（bundle id `com.prismbrowser.desktop`）
+- 管理：声明于 `template/manifests/external-tools.json`（外部应用清单）
+- 用途：桌面多应用容器浏览器
 ## 豆包 (Doubao)
 
 - 路径：`/Applications/Doubao.app`
