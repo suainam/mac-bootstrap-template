@@ -2,13 +2,18 @@
 # Managed by template/system/topgrade/topgrade.toml -> ~/.config/topgrade.toml
 
 [misc]
-assume_yes = false
+assume_yes = true
 cleanup = true
 notify_end = "on_failure"
 show_skipped = false
 
-# Disable steps that shouldn't run unconditionally
+# Disable steps that shouldn't run unconditionally or require interactive credentials
 disable = [
+    "system",       # macOS softwareupdate requires sudo password and potential restart
+    "mas",          # Mac App Store requires interactive Apple ID authentication
+    "shell",        # Zsh plugin update (zinit) hits raw github and fails behind GFW
+    "conda",        # Miniforge/conda is deprecated in favor of uv
+    "mamba",        # Miniforge/conda is deprecated in favor of uv
     "colima",       # Colima VM may be offline
     "containers",   # Docker daemon may be offline
     "git_repos",    # Do not indiscriminately git pull local dev repositories

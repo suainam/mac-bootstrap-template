@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ ! -t 0 || ! -t 1 || ! -t 2 ]]; then
+ASSUME_YES=0
+for arg in "$@"; do
+  case "$arg" in
+    -y|--yes) ASSUME_YES=1 ;;
+  esac
+done
+if [[ "${MAC_BOOTSTRAP_YES:-0}" -eq 1 ]]; then
+  ASSUME_YES=1
+fi
+
+if [[ "$ASSUME_YES" -eq 0 && (! -t 0 || ! -t 1 || ! -t 2) ]]; then
   echo "system-upgrade requires an interactive TTY; Homebrew may request sudo authentication" >&2
   exit 2
 fi
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BREW_BIN="${BREW_BIN:-$(command -v brew || true)}"
-TOPGRADE_BIN="${TOPGRADE_BIN:-$(command -v topgrade || true)}"
+BREW_BIN="${BREW_BIN:-$(command -v brew 2>/dev/null || echo '')}"
+TOPGRADE_BIN="${TOPGRADE_BIN:-$(command -v topgrade 2>/dev/null || echo '')}"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/.venv/bin/python}"
 SKILL_SOURCE="${SKILL_SOURCE:-mattpocock-skills}"
 
