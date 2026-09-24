@@ -62,6 +62,10 @@ if [ "$ASSUME_YES" -eq 0 ]; then
     exit 0
   fi
 fi
+# Ensure trusted global packages are permitted to run lifecycle scripts (e.g. node-pty native bindings)
+TRUSTED_ALLOW_SCRIPTS="context-mode,better-sqlite3,reasonix,codebase-memory-mcp,@waishnav/devspace,node-pty,pnpm,@google/genai,protobufjs"
+npm config set allow-scripts="$TRUSTED_ALLOW_SCRIPTS" --location=user >/dev/null 2>&1 || true
+
 
 installed_json="$(npm -g ls --depth=0 --json 2>/dev/null || true)"
 if [ -z "$installed_json" ]; then
