@@ -6,7 +6,7 @@ assume_yes = true
 cleanup = true
 notify_end = "on_failure"
 show_skipped = false
-
+no_retry = true
 # Disable steps that shouldn't run unconditionally or require interactive credentials
 disable = [
     "system",       # macOS softwareupdate requires sudo password and potential restart
@@ -18,6 +18,7 @@ disable = [
     "containers",   # Docker daemon may be offline
     "git_repos",    # Do not indiscriminately git pull local dev repositories
     "vim",          # System vim plugin update fails headless; Neovim is updated separately
+    "tmux",         # Tmux is not installed; prevent TPM execution failures
     "pnpm",         # Global pnpm bin is not in PATH; Bun/npm/uv manage global tools
     "pipx"          # All CLI tools migrated to uv tool
 ]
@@ -33,8 +34,8 @@ ignore_failures = [
 [brew]
 # Set greedy_cask = false to avoid unexpectedly breaking GUI apps with internal updaters
 greedy_cask = false
+greedy_auto_updates = false
 autoremove = true
-
 [npm]
 use_sudo = false
 

@@ -304,7 +304,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:2823acbf7eb6674817713d21f449418c03dc4dbe33661760cff64255d40f8532",
+            "approved_hash": "sha256:86096700ab48a5fb3d8b8dd73b60b4474925d63e4b3585ec07e5979a04e9ce2d",
             "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
           }
         },
@@ -318,7 +318,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:6af47ce35b6d06ce5a06201ab222c29d77fdd0211168526f30035a24e6873c7b",
+            "approved_hash": "sha256:826e65f8d718794b0647dd50122d3c388c6e860c608d6aa313d7d716ff535933",
             "reason": "User-approved global architecture vocabulary skill; current upstream content manually audited"
           },
           "reason": "User-approved global architecture workflow skill"
@@ -333,7 +333,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:a0a6ea333e7fd617515f47613832e1f2decb3abf18ac313d7fd0ea5ddda04365",
+            "approved_hash": "sha256:2bf54bc5e5eed6f8c78b2dbe99bfcfcc0e0221e0c11dbf07ff0f27effb2aed76",
             "reason": "User-approved two-axis code review skill; current upstream content manually audited"
           },
           "reason": "End-to-end engineering workflow review stage; Reasonix excluded until it supports parent-level parallel review agents"
@@ -348,7 +348,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:9c70797062c1017367293905782a5a3a6b8f3ea85148abc172996a8de3f60071",
+            "approved_hash": "sha256:2cc88b237a4704f9fe2057492024856a48ea803a5b9257b1c1e3174eb1f13a09",
             "reason": "User-approved global domain vocabulary skill; current upstream content manually audited"
           },
           "reason": "User-approved global domain-modeling workflow skill"
@@ -363,7 +363,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:1468bb9078a95a6672a687cd37b97cbc25be2584ec327400b94613e69a1f5956",
+            "approved_hash": "sha256:d5833e50e0081bbf5133b6c6b61aa8ba9ffae66e9071404b61e45b18f4cdb57e",
             "reason": "User-approved global grilling primitive; current upstream content manually audited"
           },
           "reason": "User-approved global design-review workflow skill"
@@ -378,7 +378,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:8683d99a2d347d358662c4d4744affd38212913b85a69158118b1f6735e5da7e",
+            "approved_hash": "sha256:2dff19547f0f72000f8b88868e21b7d76c27cf5c7ececc6edf4042bbe06157ac",
             "reason": "User-confirmed keep-global; approved current quarantined version after clean redistribution"
           },
           "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
@@ -393,7 +393,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:cdbcb9150df241254a5178eeebfa7c20c9a09613b19aea56eb4d4ca79893666e",
+            "approved_hash": "sha256:fe287d0ae54ed66c99522e272af1020323ba4d4698ef60fe1fa63f042dffd313",
             "reason": "User-confirmed global workflow skill; approved current quarantined version after clean redistribution"
           },
           "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
@@ -408,7 +408,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:37152c34127f0609d05e7de3859e8273cefbdadebcb008bf7d46b95e325ce383",
+            "approved_hash": "sha256:1a7a56bca542f46ff8e42fa5ddd293dab21b38b6dad57e1bf3e76d12e41c5fc2",
             "reason": "User-approved implementation stage; current upstream content manually audited, including its commit instruction"
           },
           "reason": "End-to-end engineering workflow implementation stage; Reasonix excluded because its code-review dependency requires unavailable parent-level parallel agents"
@@ -423,7 +423,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-18",
-            "approved_hash": "sha256:34a2e7866454c90e04f8efd6a2175c46b95f913ecdf066cc142059829b46b6e9",
+            "approved_hash": "sha256:c4efd5e0f1c302b6225be83e8e42abdb05e13fde900484e4e2240e90b4e83eb6",
             "reason": "User-approved wayfinder prototype dependency; current upstream content and its three Markdown files manually audited"
           },
           "reason": "Required wayfinder dependency for runnable logic or UI decision prototypes"
@@ -438,7 +438,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:41a52a12eaeb5302c9a672af40d4090988b43758438855f0927dc378a2ddd570",
+            "approved_hash": "sha256:570d12b3caf6c468d77e0aba8602efc7a5346697a77cb5372f623cf67247784b",
             "reason": "User-approved workflow setup dependency; current upstream content and its confirmation-before-edit rule manually audited"
           },
           "reason": "End-to-end engineering workflow setup dependency; Reasonix directory wiring preserves its five referenced templates"
@@ -453,7 +453,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:e8ecf2e6373d026ec1926fcfb4bf61510e614754c6a9402cd8f33105f5c0d258",
+            "approved_hash": "sha256:2da488cb71308948f58928bbbae6d55d060d5414d5bb3ec7ee7d4bb73c670442",
             "reason": "User-approved canonical TDD dependency; current upstream content manually audited"
           },
           "reason": "Canonical generic TDD skill for the Matt Pocock engineering workflow; directory wiring preserves tests and mocking references"
@@ -468,7 +468,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:305911f9a65016bf31b209ade13da492042e3ebe1434db4161a777a4efc69dbb",
+            "approved_hash": "sha256:f525dab8b9bd3961aa4813d8568ef6184f6e24aad5a020e129165ca6c220f836",
             "reason": "User-approved specification stage; current upstream content manually audited"
           },
           "reason": "End-to-end engineering workflow specification stage; requires setup-matt-pocock-skills tracker configuration before publication"
@@ -483,7 +483,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-11",
-            "approved_hash": "sha256:d03c2c1e5fee2080647ca49e6e4849cf5bbaf9250af9862ebc629d66f181b140",
+            "approved_hash": "sha256:5c1691ddf02291d5189213f8ffc82d2b05451131929bbc9e99052f912a05c300",
             "reason": "User-approved ticketing stage; current upstream content manually audited"
           },
           "reason": "End-to-end engineering workflow ticket stage; requires setup-matt-pocock-skills tracker configuration before publication"
@@ -499,7 +499,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-12",
-            "approved_hash": "sha256:b21256d42f6810e0a8e452dd7f2c273a32869823ce0ec68bda95d6378bfe7cd1",
+            "approved_hash": "sha256:fa164901a041cab31d281288ea4b5af5aeb0a0d557b586cf6b341998a3fb3eb3",
             "reason": "User-approved planning stage; current upstream content manually audited and compatible with the configured GitHub issue tracker"
           },
           "reason": "Optional front door for work larger than one agent session; maps investigation tickets before grill/spec/ticket execution"

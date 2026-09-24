@@ -5,6 +5,7 @@ export VISUAL=nvim
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
+export HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS="${HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS:-1}"
 
 codex_find_writable_root() {
     local current="${1:-$PWD}"

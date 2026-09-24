@@ -57,7 +57,19 @@ def brew_skip_tokens() -> set[str]:
     if private_dir_path:
         profile = os.environ.get("MAC_BOOTSTRAP_PROFILE", "")
         if not profile:
-            for profile_file in [private_dir_path / "profile", private_dir_path / "current_profile"]:
+            script = Path(TEMPLATE, "scripts", "resolve-profile.sh")
+            if script.is_file() and os.access(script, os.X_OK):
+                res = subprocess.run(
+                    [str(script)],
+                    capture_output=True,
+                    text=True,
+                    env={**os.environ, "MAC_BOOTSTRAP_PRIVATE_DIR": str(private_dir_path)},
+                    check=False,
+                )
+                if res.returncode == 0 and res.stdout.strip():
+                    profile = res.stdout.strip()
+        if not profile:
+            for profile_file in [private_dir_path / "current_profile", private_dir_path / "profile"]:
                 if profile_file.is_file():
                     profile = profile_file.read_text().strip()
                     break

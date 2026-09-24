@@ -21,12 +21,16 @@ elif [ -d "$DIR/../private" ]; then
   PRIVATE_DIR="$(cd "$DIR/../private" && pwd)"
 fi
 
-PROFILE="${MAC_BOOTSTRAP_PROFILE:-}"
+if [ -z "${MAC_BOOTSTRAP_PROFILE:-}" ] && [ -x "$DIR/resolve-profile.sh" ]; then
+  PROFILE="$("$DIR/resolve-profile.sh" 2>/dev/null || true)"
+else
+  PROFILE="${MAC_BOOTSTRAP_PROFILE:-}"
+fi
 if [ -z "$PROFILE" ] && [ -n "$PRIVATE_DIR" ]; then
-  if [ -f "$PRIVATE_DIR/profile" ]; then
-    PROFILE="$(tr -d '[:space:]' < "$PRIVATE_DIR/profile")"
-  elif [ -f "$PRIVATE_DIR/current_profile" ]; then
+  if [ -f "$PRIVATE_DIR/current_profile" ]; then
     PROFILE="$(tr -d '[:space:]' < "$PRIVATE_DIR/current_profile")"
+  elif [ -f "$PRIVATE_DIR/profile" ]; then
+    PROFILE="$(tr -d '[:space:]' < "$PRIVATE_DIR/profile")"
   fi
 fi
 

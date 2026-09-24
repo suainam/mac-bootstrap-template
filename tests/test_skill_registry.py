@@ -63,7 +63,7 @@ def test_mattpocock_source_is_managed_as_a_bundle() -> None:
         "setup-matt-pocock-skills",
     )
     assert registry.skills[("mattpocock-skills", "prototype")].gate.approved_hash == (
-        "sha256:34a2e7866454c90e04f8efd6a2175c46b95f913ecdf066cc142059829b46b6e9"
+        "sha256:c4efd5e0f1c302b6225be83e8e42abdb05e13fde900484e4e2240e90b4e83eb6"
     )
 
 

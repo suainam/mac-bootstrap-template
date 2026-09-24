@@ -15,6 +15,7 @@ if [[ "$ASSUME_YES" -eq 0 && (! -t 0 || ! -t 1 || ! -t 2) ]]; then
   echo "system-upgrade requires an interactive TTY; Homebrew may request sudo authentication" >&2
   exit 2
 fi
+export HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS="${HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS:-1}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BREW_BIN="${BREW_BIN:-$(command -v brew 2>/dev/null || echo '')}"
 TOPGRADE_BIN="${TOPGRADE_BIN:-$(command -v topgrade 2>/dev/null || echo '')}"

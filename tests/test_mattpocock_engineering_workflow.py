@@ -27,37 +27,37 @@ def registry():
     [
         (
             "setup-matt-pocock-skills",
-            "sha256:41a52a12eaeb5302c9a672af40d4090988b43758438855f0927dc378a2ddd570",
+            "sha256:570d12b3caf6c468d77e0aba8602efc7a5346697a77cb5372f623cf67247784b",
             ALL_AGENTS,
         ),
         (
             "tdd",
-            "sha256:e8ecf2e6373d026ec1926fcfb4bf61510e614754c6a9402cd8f33105f5c0d258",
+            "sha256:2da488cb71308948f58928bbbae6d55d060d5414d5bb3ec7ee7d4bb73c670442",
             ALL_AGENTS,
         ),
         (
             "to-spec",
-            "sha256:305911f9a65016bf31b209ade13da492042e3ebe1434db4161a777a4efc69dbb",
+            "sha256:f525dab8b9bd3961aa4813d8568ef6184f6e24aad5a020e129165ca6c220f836",
             ALL_AGENTS,
         ),
         (
             "to-tickets",
-            "sha256:d03c2c1e5fee2080647ca49e6e4849cf5bbaf9250af9862ebc629d66f181b140",
+            "sha256:5c1691ddf02291d5189213f8ffc82d2b05451131929bbc9e99052f912a05c300",
             ALL_AGENTS,
         ),
         (
             "wayfinder",
-            "sha256:b21256d42f6810e0a8e452dd7f2c273a32869823ce0ec68bda95d6378bfe7cd1",
+            "sha256:fa164901a041cab31d281288ea4b5af5aeb0a0d557b586cf6b341998a3fb3eb3",
             ALL_AGENTS,
         ),
         (
             "implement",
-            "sha256:37152c34127f0609d05e7de3859e8273cefbdadebcb008bf7d46b95e325ce383",
+            "sha256:1a7a56bca542f46ff8e42fa5ddd293dab21b38b6dad57e1bf3e76d12e41c5fc2",
             DIRECTORY_AGENTS,
         ),
         (
             "code-review",
-            "sha256:a0a6ea333e7fd617515f47613832e1f2decb3abf18ac313d7fd0ea5ddda04365",
+            "sha256:2bf54bc5e5eed6f8c78b2dbe99bfcfcc0e0221e0c11dbf07ff0f27effb2aed76",
             DIRECTORY_AGENTS,
         ),
     ],

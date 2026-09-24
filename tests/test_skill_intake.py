@@ -304,10 +304,10 @@ def test_mattpocock_commands_include_skills_sh_page_backed_skills():
         "cross-agent",
     )
     expected_hashes = {
-        "codebase-design": "sha256:6af47ce35b6d06ce5a06201ab222c29d77fdd0211168526f30035a24e6873c7b",
+        "codebase-design": "sha256:826e65f8d718794b0647dd50122d3c388c6e860c608d6aa313d7d716ff535933",
         "diagnosing-bugs": "sha256:3eaddfa5b028a2d4ca47731bb7a64cae28a0e8cb1ca802d201e754a1cc23d5a3",
-        "domain-modeling": "sha256:9c70797062c1017367293905782a5a3a6b8f3ea85148abc172996a8de3f60071",
-        "grilling": "sha256:1468bb9078a95a6672a687cd37b97cbc25be2584ec327400b94613e69a1f5956",
+        "domain-modeling": "sha256:2cc88b237a4704f9fe2057492024856a48ea803a5b9257b1c1e3174eb1f13a09",
+        "grilling": "sha256:d5833e50e0081bbf5133b6c6b61aa8ba9ffae66e9071404b61e45b18f4cdb57e",
     }
     for name, expected_hash in expected_hashes.items():
         skill = registry.skills[("mattpocock-skills", name)]
