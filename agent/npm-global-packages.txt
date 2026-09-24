@@ -8,3 +8,7 @@
 codebase-memory-mcp
 context-mode
 reasonix
+@monid-ai/cli
+@moonrepo/cli
+playwriter
+pnpm

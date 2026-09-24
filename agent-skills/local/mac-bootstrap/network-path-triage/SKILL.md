@@ -72,7 +72,11 @@ Apply the smallest fix that changes the bad path:
 
 - PAC / system-proxy split for browser-only issues
 - `route-exclude-address` or `/32` exclusion only when the site fails and the IP
-  should keep the CorpLink/browser path
+  should keep the CorpLink/browser path, or to bypass TUN overhead for high-frequency
+  developer endpoints (e.g. MaxCompute) suffering `dial DIRECT` timeouts
+- distinguish app-owned surfaces (`tun.route-exclude-address` in Verge GUI Settings)
+  from script-owned surfaces (`rules`, `PROCESS-PATH`); script writes to app-owned
+  fields are dropped by Clash Verge Rev (v2.5.5+)
 - rule-order exception before broad `GEOSITE,CN,DIRECT` rules when a CN target
   must still proxy
 - runtime verification after any config change
@@ -105,6 +109,9 @@ re-deriving the path model.
 5. Do not trust repo copies over live runtime files when the task is diagnosis.
 6. If sandbox blocks DNS or route observation, say which live check is still
    unverified instead of inventing the result.
+7. In Clash Verge Rev (v2.5.5+), manage `route-exclude-address` via GUI Settings ->
+   TUN Mode (⚙️), not extension scripts (`Script.js` writes to `tun.*` are dropped
+   as app-owned fields).
 
 ## Reference Routing
 

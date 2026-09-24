@@ -4,47 +4,60 @@
 
 New-machine bootstrap for this Mac setup.
 
-## Cold Start (Fresh Mac Without Proxy)
+## Cold Start (Fresh Mac Zero-Dependency Guide)
 
-On a fresh Mac behind GFW, `git clone`, `brew install`, and `curl github.com` all
-fail. This one-liner uses a GitHub mirror to download Clash Verge — no proxy
-needed:
+On a fresh Mac behind GFW, start with zero dependencies via the official shortlink:
 
+### Step 0: Download & Install Clash Verge
 ```bash
-curl -fsSL https://gh-proxy.com/https://github.com/suainam/mac-bootstrap-template/raw/main/scripts/install-clash.sh | bash
+curl -fsSL https://s.suainam.eu.org/clash | bash
 ```
 
-Then:
+1. Open **Finder (访达)** -> **Applications (应用程序)** -> Launch **Clash Verge**.
+   *(If macOS blocks it, open System Settings -> Privacy & Security -> click "Open Anyway")*.
+2. In Clash Verge:
+   - Click **Profiles (订阅)** -> Paste your subscription URL -> Click **Import (导入)**.
+   - Right-click the imported profile card -> Select **Update (更新)**.
+   - Click **Settings (设置)** -> Toggle **System Proxy (系统代理)** to ON.
+   - Toggle **TUN Mode (TUN 模式)** to ON *(enter your Mac password when prompted to authorize virtual network adapter)*.
+3. Verify connectivity:
+   ```bash
+   curl -I https://github.com   # should return 200 or 301
+   ```
 
-1. Open **Clash Verge** from Applications
-2. Import your subscription URL (paste into Profiles → Import)
-3. Enable System Proxy (toggle in the app)
-4. Verify proxy works:
+### Step 1: Open Terminal & Setup GitHub SSH
+1. Press `Cmd + Space`, type `Terminal`, press Enter.
+2. Set temporary proxy variables in terminal:
+   ```bash
+   export http_proxy=http://127.0.0.1:7897
+   export https_proxy=http://127.0.0.1:7897
+   export all_proxy=socks5://127.0.0.1:7897
+   ```
+3. Generate GitHub ed25519 key (press Enter 3 times):
+   ```bash
+   ssh-keygen -t ed25519 -C "git@github.com" -f ~/.ssh/id_ed25519_github
+   ```
+4. Copy public key to clipboard:
+   ```bash
+   pbcopy < ~/.ssh/id_ed25519_github.pub
+   ```
+5. Upload to GitHub: visit `https://github.com/settings/ssh/new`, paste key, and save.
+6. Test authentication: `ssh -T git@github.com`.
 
+### Step 2: Clone Repository
 ```bash
-curl -I https://github.com   # should return 200
+mkdir -p ~/work/config && cd ~/work/config
+git clone --recursive git@github.com:suainam/mac-bootstrap.git
+cd mac-bootstrap
 ```
 
-5. Set proxy env vars in current terminal (Clash Verge default port is 7897):
-
+### Step 3: Run Bootstrap with Machine Profile
 ```bash
-export http_proxy=http://127.0.0.1:7897
-export https_proxy=http://127.0.0.1:7897
-export all_proxy=socks5://127.0.0.1:7897
-```
+# For work machine:
+make bootstrap PROFILE=work
 
-6. Continue bootstrap:
-
-```bash
-# For the public template only:
-git clone https://github.com/suainam/mac-bootstrap-template.git ~/work/config/mac-bootstrap-template
-cd ~/work/config/mac-bootstrap-template
-make bootstrap
-
-# Or with private overlay (requires access to private repo):
-git clone --recursive https://github.com/suainam/mac-bootstrap.git ~/work/config/mac-bootstrap
-cd ~/work/config/mac-bootstrap/template
-make bootstrap
+# For home machine:
+make bootstrap PROFILE=home
 ```
 
 Preview mode (no install):
@@ -111,34 +124,31 @@ make proxy-on
 make proxy-off
 ```
 
-Migration note: this bootstrap now uses Ghostty as the primary terminal host
-and tmux as the workspace/session layer. Hammerspoon is the global tier: reload, window
-placement, clipboard helpers, and terminal launcher hotkeys live there.
-Hammerspoon does not manage input methods. `tm` is terminal-local only.
+Migration note: this bootstrap uses Ghostty as the primary terminal host
+and Herdr as the terminal multiplexer and agent orchestrator. Hammerspoon is the global tier:
+reload, window placement, clipboard helpers, and terminal launcher hotkeys live there.
+Hammerspoon does not manage input methods.
 
 For file work inside the terminal, `yazi`, `fzf`, and `neovim` work together
-under a ghostty → tmux host:
+under a Ghostty → Herdr host:
 
 - In neovim, `<leader>y` opens yazi at the current file; `<leader>Y` opens it
   in the nvim working directory. Selected files open in buffers with LSP sync.
 - In the shell, `ff` uses fzf to pick a file (Tab for multi-select) and opens it
   in nvim; `fd` uses fzf to pick a directory and opens yazi there. `y` opens
   yazi and changes your cwd to the last directory you landed on when you quit.
-- Inside tmux, `prefix + y` opens yazi in the current directory; `prefix + Y`
-  opens yazi as a chooser and sends the selected file back to the focused nvim
-  pane (or opens it in nvim). `eza` is the fast read-only lister.
+- `eza` is the fast read-only lister.
+
+Quick verify:
+
+```bash
+herdr config check
+```
 
 For remote `code-server` deployment and repair notes, see
 [`infra/code-server/README.md`](infra/code-server/README.md). That runbook
 covers the expected remote directory, root-vs-coder runtime behavior, Dockerfile
 rebuild pitfalls, and extension/debug checks.
-
-Quick verify:
-
-```bash
-make tmux-workspace
-tm list-keys
-```
 
 Shell startup reference:
 - [`docs/shell-startup.md`](docs/shell-startup.md) covers `zshenv -> shell_env -> zshrc`

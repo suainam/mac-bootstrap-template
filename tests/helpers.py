@@ -44,23 +44,36 @@ def brew_skip_tokens() -> set[str]:
     ../private/, then template private/.
     """
     tokens: set[str] = set(tokens_split(os.environ.get("MAC_BOOTSTRAP_BREW_SKIP", "")))
-    candidates = []
-    private_dir = os.environ.get("MAC_BOOTSTRAP_PRIVATE_DIR", "")
-    if private_dir:
-        candidates.append(Path(private_dir) / "brew.skip")
-    candidates.append(Path(TEMPLATE, "..", "private", "brew.skip"))
-    candidates.append(Path(TEMPLATE, "private", "brew.skip"))
-    for path in candidates:
-        try:
-            text = path.read_text()
-        except OSError:
-            continue
-        for raw in text.splitlines():
-            line = raw.split("#", 1)[0].strip()
-            tokens.update(tokens_split(line))
-        break
-    return tokens
+    private_dir_path = None
+    if os.environ.get("MAC_BOOTSTRAP_PRIVATE_DIR"):
+        p = Path(os.environ["MAC_BOOTSTRAP_PRIVATE_DIR"])
+        if p.is_dir():
+            private_dir_path = p
+    if not private_dir_path:
+        parent_p = Path(TEMPLATE, "..", "private")
+        if parent_p.is_dir():
+            private_dir_path = parent_p
 
+    if private_dir_path:
+        profile = os.environ.get("MAC_BOOTSTRAP_PROFILE", "")
+        if not profile:
+            for profile_file in [private_dir_path / "profile", private_dir_path / "current_profile"]:
+                if profile_file.is_file():
+                    profile = profile_file.read_text().strip()
+                    break
+        candidates = [private_dir_path / "brew.skip"]
+        if profile:
+            candidates.append(private_dir_path / "profiles" / profile / "brew.skip")
+            candidates.append(private_dir_path / f"brew.{profile}.skip")
+        for path in candidates:
+            try:
+                text = path.read_text()
+            except OSError:
+                continue
+            for raw in text.splitlines():
+                line = raw.split("#", 1)[0].strip()
+                tokens.update(tokens_split(line))
+    return tokens
 
 def require_tmux_live_socket() -> None:
     if "tmux" not in declared_brew_formulas():

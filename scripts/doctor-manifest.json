@@ -26,13 +26,10 @@
     "~/.vim/theme.vim": "editors/vim/themes/catppuccin-mocha.vim",
     "~/.config/nvim": "editors/neovim/config",
     "~/.hammerspoon/init.lua": "desktop/hammerspoon/init.lua",
-    "~/.tmux.conf": "multiplexer/tmux/tmux.conf",
-    "~/.tmux/theme.conf": "multiplexer/tmux/themes/catppuccin-mocha.conf",
     "~/.config/ghostty/config": "terminals/ghostty/config",
+    "~/.config/herdr/config.toml": "multiplexer/herder/config.toml",
     "~/.config/topgrade.toml": "system/topgrade/topgrade.toml",
-    "~/.local/bin/tmux-workspace.sh": "scripts/tmux-workspace.sh",
     "~/.local/bin/switch-terminal-theme.sh": "scripts/switch-terminal-theme.sh",
-    "~/.local/bin/tmux-open-yazi.sh": "scripts/tmux-open-yazi.sh",
     "~/.local/bin/proxy-on.sh": "scripts/configure-proxies.sh",
     "~/.local/bin/proxy-off.sh": "scripts/clear-proxies.sh",
     "~/.local/bin/imgup": "scripts/imgup.sh",
@@ -72,10 +69,16 @@
       "app": "Clash Verge.app"
     },
     "uuremote": {
-      "app": "UU\u8fdc\u7a0b.app"
+      "app": "UU\u8fdc\u7a0b.app",
+      "optional": true
+    },
+    "wpsoffice-cn": {
+      "app": "wpsoffice.app",
+      "optional": true
     },
     "xiaomi-cloud": {
-      "app": "\u5c0f\u7c73\u4e92\u8054\u670d\u52a1.app"
+      "app": "\u5c0f\u7c73\u4e92\u8054\u670d\u52a1.app",
+      "optional": true
     },
     "claude-code": {
       "app": "Claude Code.app",

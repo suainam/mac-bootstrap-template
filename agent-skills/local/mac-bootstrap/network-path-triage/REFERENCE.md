@@ -133,6 +133,21 @@ When a company target fails, answer these in order:
   happened through the fake-ip resolver before the process rule is evaluated.
 - This pattern generalizes to any local daemon/GUI pair that does its own
   outbound network health probing while Clash TUN is active.
+- `dial DIRECT ... i/o timeout`: When multiple independent domestic targets
+  (e.g. Aliyun MaxCompute, WPS) fail simultaneously on `dial DIRECT`, the failure
+  layer is local physical egress (Wi-Fi/gateway packet loss) or security software
+  inspection, not proxy rule mismatch. High-frequency developer SDK endpoints
+  (e.g. MaxCompute/PyODPS) should bypass TUN entirely via `route-exclude-address`
+  to eliminate TUN virtual stack overhead and reconnect latency.
+- App-owned vs script-owned in Clash Verge Rev (v2.5.5+): Verge enforces strict
+  ownership boundaries. Fields with native GUI controls (`tun.*` including
+  `route-exclude-address`, `dns.*`) are app-owned. Extension scripts (`Script.js`)
+  or Merge writing them are dropped with: `"扩展配置或脚本写入了由应用设置接管的字段
+  tun.route-exclude-address，这些值已被丢弃"`. Always add `/32` exclusions directly in
+  GUI Settings -> TUN Mode (⚙️) -> Route Exclude Address (saved to `config.yaml`).
+- Core restart vs App reload: Restarting the Mihomo core regenerates `clash-verge.yaml`
+  from Verge's in-memory GUI state. Disk modifications to `config.yaml` require an
+  App restart (`Cmd+Q`) or re-saving via the GUI settings modal to take effect.
 
 ## Escalation hints
 

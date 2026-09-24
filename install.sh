@@ -23,9 +23,9 @@ Options:
   --with-neovim          Install/link Neovim + LazyVim config.
   --skip-proxy           Do not configure Docker/npm proxy.
   --skip-brew-update     Do not run brew update before brew bundle.
+  --profile PROFILE      Configure machine profile (work or home).
   --cleanup              Run safe cache cleanup after install.
   -h, --help             Show this help.
-
 Environment:
   GIT_NAME and GIT_EMAIL can be used instead of --git-name/--git-email.
   MAC_BOOTSTRAP_PRIVATE_REPO optionally points to a private overlay repo.
@@ -58,9 +58,13 @@ while [ "$#" -gt 0 ]; do
     --skip-brew-update)
       RUN_BREW_UPDATE=0
       ;;
-    --cleanup)
-      RUN_CLEANUP=1
-      ;;
+  --profile)
+    export MAC_BOOTSTRAP_PROFILE="${2:?Missing value for --profile}"
+    shift
+    ;;
+  --cleanup)
+    RUN_CLEANUP=1
+    ;;
     -h|--help)
       usage
       exit 0
@@ -117,9 +121,8 @@ echo "=== Install from Brewfile ==="
 echo "=== Provision template Python environment ==="
 "$DIR/scripts/setup-python-venv.sh"
 
-echo "=== Install Antigravity CLI ==="
-"$DIR/scripts/install-antigravity-cli.sh"
-
+echo "=== Install external tools from manifest ==="
+"$DIR/scripts/install-external-tools.sh"
 echo "=== Configure Git ==="
 if [ -z "$GIT_NAME" ]; then
   if [ "$ASSUME_YES" -eq 1 ]; then
@@ -173,37 +176,23 @@ fi
 
 echo "=== Link terminal helpers ==="
 mkdir -p "$HOME/.local/bin"
-ln -sf "$DIR/scripts/tmux-workspace.sh" "$HOME/.local/bin/tmux-workspace.sh"
-chmod +x "$HOME/.local/bin/tmux-workspace.sh"
-echo "  ~/.local/bin/tmux-workspace.sh -> scripts/tmux-workspace.sh"
 ln -sf "$DIR/scripts/switch-terminal-theme.sh" "$HOME/.local/bin/switch-terminal-theme.sh"
 chmod +x "$HOME/.local/bin/switch-terminal-theme.sh"
 echo "  ~/.local/bin/switch-terminal-theme.sh -> scripts/switch-terminal-theme.sh"
-ln -sf "$DIR/scripts/tmux-open-yazi.sh" "$HOME/.local/bin/tmux-open-yazi.sh"
-chmod +x "$HOME/.local/bin/tmux-open-yazi.sh"
-echo "  ~/.local/bin/tmux-open-yazi.sh -> scripts/tmux-open-yazi.sh"
 ln -sf "$DIR/scripts/configure-proxies.sh" "$HOME/.local/bin/proxy-on.sh"
 chmod +x "$HOME/.local/bin/proxy-on.sh"
 echo "  ~/.local/bin/proxy-on.sh -> scripts/configure-proxies.sh"
 ln -sf "$DIR/scripts/clear-proxies.sh" "$HOME/.local/bin/proxy-off.sh"
 chmod +x "$HOME/.local/bin/proxy-off.sh"
 echo "  ~/.local/bin/proxy-off.sh -> scripts/clear-proxies.sh"
-
-echo "=== Install imgup (ImgBed uploader) ==="
-"$DIR/scripts/install-imgup.sh"
-
 echo "=== Install Hammerspoon config ==="
 "$DIR/desktop/hammerspoon/install.sh"
 
 echo "=== Configure Ghostty ==="
 "$DIR/terminals/ghostty/install.sh"
 
-echo "=== Configure iTerm2 ==="
-"$DIR/terminals/iterm2/install.sh"
-
-echo "=== Configure tmux ==="
-"$DIR/multiplexer/tmux/install.sh"
-
+echo "=== Configure Herdr (Terminal Multiplexer) ==="
+"$DIR/multiplexer/herder/install.sh"
 echo "=== Configure Topgrade ==="
 mkdir -p "$HOME/.config"
 ln -sf "$DIR/system/topgrade/topgrade.toml" "$HOME/.config/topgrade.toml"
@@ -261,12 +250,6 @@ else
   echo "  OMP not installed — skipping OMP extensions"
 fi
 
-echo "=== Install Pi packages ==="
-if command -v pi >/dev/null 2>&1; then
-  "$DIR/scripts/install-pi-packages.sh" --yes
-else
-  echo "  Pi not installed — skipping Pi packages"
-fi
 
 if [ "$RUN_CLEANUP" -eq 1 ]; then
   "$DIR/scripts/clean-cache.sh"

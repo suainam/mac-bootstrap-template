@@ -59,67 +59,6 @@ def test_makefile_checks_ghostty_font_repair_script():
     assert "ghostty-font-repair:" in content
     assert "$(MAKE) syntax-check" in content
 
-# ── tmux config ───────────────────────────────────────────────────────
-
-@pytest.mark.machine
-def test_tmux_config_loadable():
-    require_tmux_live_socket()
-
-
-@pytest.mark.machine
-def test_tmux_has_swap_pane_keys():
-    require_tmux_live_socket()
-    out, _, _ = run("tmux list-keys 2>/dev/null | grep -c swap-pane")
-    assert int(out) >= 4, "Expected at least 4 swap-pane keybindings"
-
-
-@pytest.mark.machine
-def test_tmux_has_cross_window_swap():
-    require_tmux_live_socket()
-    out, _, _ = run("tmux list-keys 2>/dev/null | grep 'command-prompt.*swap-pane'")
-    assert out, "Cross-window swap-pane keybinding (C-a X) not found"
-
-
-@pytest.mark.machine
-def test_tmux_pane_titles():
-    require_tmux_live_socket()
-    workspace_script = open(os.path.join(TEMPLATE, "scripts", "tmux-workspace.sh")).read()
-    assert 'ANALYSIS_WINDOW="${TMUX_ANALYSIS_WINDOW:-analysis}"' in workspace_script
-    assert 'create_analysis_window()' in workspace_script
-    assert '"shell"' in workspace_script
-    assert '"python"' in workspace_script
-    assert '"sql"' in workspace_script
-    assert '"notes"' in workspace_script
-    assert '"daemon"' in workspace_script
-
-    out, _, _ = run("tmux list-panes -F '#{pane_title}' 2>/dev/null")
-    titles = [title for title in out.strip().split('\n') if title]
-    assert titles, "Expected tmux panes to expose non-empty titles"
-
-
-@pytest.mark.machine
-def test_tmux_pane_border_format_shows_title():
-    require_tmux_live_socket()
-    out, _, _ = run("tmux show-option -g pane-border-format")
-    assert 'pane_title' in out, f"pane-border-format doesn't reference pane_title: {out}"
-    assert 'pane-#{pane_index}' in out, f"pane-border-format doesn't use generic fallback: {out}"
-
-
-@pytest.mark.machine
-def test_tmux_theme_exists():
-    require_tmux_live_socket()
-    path = os.path.expanduser("~/.tmux/theme.conf")
-    assert os.path.exists(path)
-
-
-@pytest.mark.machine
-def test_tmux_config_resets_append_only_options_before_readding():
-    require_tmux_live_socket()
-    config = os.path.expanduser("~/.tmux.conf")
-    content = open(config).read()
-    assert "set -gu terminal-features" in content
-    assert "set -gu update-environment" in content
-
 # ── SSH config ────────────────────────────────────────────────────────
 
 @pytest.mark.machine
@@ -149,9 +88,3 @@ def test_zshrc_defines_fzf_file_and_dir_launchers():
     assert "nvim" in content
 
 
-@pytest.mark.machine
-def test_tmux_open_yazi_supports_pick_mode():
-    script = os.path.expanduser("~/.local/bin/tmux-open-yazi.sh")
-    content = open(script).read()
-    assert "--chooser-file" in content
-    assert "--pick" in content

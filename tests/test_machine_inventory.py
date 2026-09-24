@@ -26,7 +26,6 @@ def test_declared_brew_formulas_are_installed():
 
 GUI_APPS = {
     "Ghostty": ("/Applications/Ghostty.app", "ghostty"),
-    "iTerm": ("/Applications/iTerm.app", "iterm2"),
     "Hammerspoon": ("/Applications/Hammerspoon.app", "hammerspoon"),
 }
 

@@ -288,9 +288,9 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:30d504909484072b68fd2662cf1874da1d5f2c57fa02cbfc0750896c269713bb",
-            "reason": "User-approved canonical global debugging skill; current upstream content and HITL script manually audited"
+            "approved_at": "2026-09-23",
+            "approved_hash": "sha256:3eaddfa5b028a2d4ca47731bb7a64cae28a0e8cb1ca802d201e754a1cc23d5a3",
+            "reason": "User-approved upstream secret redaction (<REDACTED>) and minor cleanup update"
           },
           "reason": "User-approved canonical upstream debugging skill for global distribution"
         },
@@ -532,6 +532,81 @@
           "distribution_state": "staged",
           "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill zoom-out; stage by default until routing/noise is confirmed"
+        },
+        "writing-for-agents": {
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-23",
+            "approved_hash": "sha256:dc53f07d1f662137317789b9b5d74cfcc26dbcfc15038a7faf676c844d8638e8",
+            "reason": "Authoring guide for SKILL.md, AGENTS.md, and CLAUDE.md"
+          }
+        },
+        "research": {
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-23",
+            "approved_hash": "sha256:b1976e3b4a7cdcee2f7ade52c0cf072bafdbac9cf3284568cab1aa258e584e69",
+            "reason": "Structured research against primary sources"
+          }
+        },
+        "resolving-merge-conflicts": {
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-23",
+            "approved_hash": "sha256:9072fa5a56004c0c6abfa073dfb2629c9ac49118d38406b65f6313f0b8f45711",
+            "reason": "Guided Git conflict resolution"
+          }
+        },
+        "pr": {
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-23",
+            "approved_hash": "sha256:3c6d2011a221681e673f9a2f11844707e2c879ae909c5a828148d4ff3871b110",
+            "reason": "PR description drafting workflow"
+          }
+        },
+        "implement-spec": {
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-23",
+            "approved_hash": "sha256:72831ec425699dd16d41827c5dcf6ac4b0dbbd32ce0c419d30f52ded735cf0ad",
+            "reason": "Multi-subagent worktree concurrent implementation workflow"
+          }
         }
       }
     },
@@ -1053,11 +1128,6 @@
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
           "reason": "基于 Herdr + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构"
         },
-        "luvus-nvim-qa-workspace": {
-          "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "reason": "基于 Luvus + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构（Herdr 技能的 Luvus 移植版，无 Kitty Graphics 直通，terminal-browser 需改走 Playwriter/CDP）"
-        },
         "monid": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
@@ -1236,6 +1306,11 @@
           "scope": "project",
           "projects": ["auroraops-control"],
           "reason": "End-to-end discipline for refactoring and extracting unified Ansible service roles (DRY templates, docker/native platform branching, TypeSafe decision gates, and zero-residue cleanup)"
+        },
+        "auroraops-role-governance": {
+          "scope": "project",
+          "projects": ["auroraops-control"],
+          "reason": "Permanent role governance gate enforcing 9-stage lifecycle contracts, universal service/timer library, and anti-drift rules across all AuroraOps roles"
         }
       }
     },

@@ -15,8 +15,8 @@ GIT_HOOK_PYTHON ?= $(shell command -v python3)
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	omp-extensions \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
-	tmux-workspace theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
-	install-workbuddy devspace-check devspace-run devspace-doctor devspace-tunnel \
+	theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
+	external-tools devspace-check devspace-run devspace-doctor devspace-tunnel \
 	devspace-home-push devspace-home-pull \
 	quality-gate-pre-commit quality-gate-pre-push quality-gate-doctor \
 	quality-gate-hook-inventory quality-gate-hook-install quality-gate-hook-uninstall quality-gate-hook-doctor \
@@ -55,7 +55,7 @@ help:
 	@echo "  ssh-key-generate       Create private/shell/ssh_keys/NAME and optional host snippet"
 	@echo "  ssh-key-import         Import existing key into private/shell/ssh_keys/NAME"
 	@echo "  ssh-key-import-stdin   Read pasted key from stdin into private/shell/ssh_keys/NAME"
-	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
+	@echo "  external-tools         Install/verify standalone CLI and external tools from manifest"
 	@echo "  obsidian-kit           Install reusable Obsidian vault kit: VAULT=/path/to/vault"
 	@echo "  ghostty-font-repair    Re-register existing Liga SFMono Nerd Font files"
 	@echo "  net-tune               Adaptive network probe & macOS TCP window optimization"
@@ -127,9 +127,8 @@ help:
 	@echo "  colima-status          Show local Docker runtime status"
 	@echo "  colima-doctor          Verify proxy, Docker, and log rotation"
 	@echo ""
-	@echo "── Tmux ──"
-	@echo "  tmux-workspace         Start or attach the ai-work tmux workspace"
-	@echo "  theme-switch          Switch tmux + Ghostty theme: THEME=catppuccin-mocha|gruvbox-dark"
+	@echo "── Terminal & Theme ──"
+	@echo "  theme-switch          Switch terminal theme: THEME=catppuccin-mocha|gruvbox-dark"
 	@echo "  theme-list            List supported terminal themes"
 	@echo ""
 	@echo "── Claude Daemon ──"
@@ -456,9 +455,6 @@ publish-public:
 	@test -n "$(PUBLIC_REPO)$(PUBLIC_REMOTE)$(MAC_BOOTSTRAP_PUBLIC_REPO)$(MAC_BOOTSTRAP_PUBLIC_REMOTE)" || (echo "Usage: PUBLIC_REPO=owner/repo make publish-public" >&2; exit 2)
 	./scripts/publish-public-template.sh
 
-pi-packages:
-	./scripts/install-pi-packages.sh --yes
-
 npm-packages:
 	./scripts/install-npm-global-packages.sh --yes
 
@@ -544,9 +540,9 @@ maxfiles-limit-uninstall:
 cleanup-services:
 	./scripts/cleanup-daemon-services.sh
 
-# ── Tmux Workspace ───────────────────────────────────────────────
-tmux-workspace:
-	"$(HOME)/.local/bin/tmux-workspace.sh"
+# ── External Tools Manifest ──────────────────────────────────────────
+external-tools:
+	./scripts/install-external-tools.sh
 
 theme-switch:
 	@test -n "$(THEME)" || (echo "Usage: make theme-switch THEME=catppuccin-mocha|gruvbox-dark" >&2; exit 2)
@@ -555,11 +551,6 @@ theme-switch:
 theme-list:
 	@echo "catppuccin-mocha"
 	@echo "gruvbox-dark"
-
-# ── WorkBuddy ────────────────────────────────────────────────────────
-install-workbuddy:
-	./scripts/install-workbuddy.sh
-
 imgup-install:
 	./scripts/install-imgup.sh
 

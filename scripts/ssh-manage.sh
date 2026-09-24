@@ -243,7 +243,7 @@ verify_identity_paths() {
   while IFS= read -r identity; do
     [ -n "$identity" ] || continue
     if [[ "$identity" == "$HOME/.ssh/"* ]] && [ ! -e "$identity" ]; then
-      die "ssh -G $host resolved missing IdentityFile $identity"
+      log "  WARN: ssh -G $host resolved missing IdentityFile $identity (key not present on this machine, skipping)"
     fi
   done < <(printf '%s\n' "$out" | awk '$1 == "identityfile" { print $2 }')
 }

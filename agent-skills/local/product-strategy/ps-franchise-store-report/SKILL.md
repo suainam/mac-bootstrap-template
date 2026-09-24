@@ -26,30 +26,41 @@ description: 加盟店组货汇报（同比与环比）：涵盖大盘基准对�
 - **完成标准**：产出大盘 21 项标准指标对比摘要，与基准误差小于 $10^{-4}$。
 - **深入参考**：[references/market-baseline-contract.md](references/market-baseline-contract.md)。
 
-### Branch B: 完整组货汇报一键跑批与 Excel 导出 (默认)
-当用户需要生成本期组货汇报（整体看板、大盘看板、省区看板、内嵌桑基图）时触发：
+### Branch B: 完整主汇报一键跑批与 Excel 导出 (默认)
+当用户需要生成整体/大盘/省区汇报及内嵌桑基图时触发：
 1. 阅读 `topics/franchise_store/00_context/franchise_sales_with_company_delivery_0908.md` 确认本次业务区间与上线版本。
-2. 运行导出脚本：
+2. 运行主导出脚本：
    ```bash
    uv run python topics/franchise_store/03_analysis/scripts/export_franchise_store_yoy.py --project-et <YYYYMMDD>
    ```
-   *说明：无需传递 `--market-previous` 或 `--market-current`，已集成 ODPS 大盘直算；无需传 `--report-template`，脚本会自动寻找 `04_outputs/tables/` 中最新的历史工作簿（如 `franchise_store_sale_profit_yoy_20260907.xlsx`）作为模板，自动继承 3 张柱状图与内嵌桑基图媒体。*
-3. 自动生成：
-   - 目标 Excel: `04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx`
-   - 矢量桑基图: `04_outputs/graphs/franchise_store_sankey_graph_<YYYYMMDD>.svg`
-   - 网页卡片: `04_outputs/graphs/franchise_store_sankey_flow_<YYYYMMDD>.html`
+3. 主汇报 Excel、矢量桑基图与网页卡片。大区表不属于主导出脚本，按 Branch C 单独导出。
 4. 运行质量门禁：
    ```bash
-   # (1) 结构与图表存在性审查 (验证 3 张原生图表与桑基图锚点)
    python scripts/inspect_workbook.py 04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx
    officecli view 04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx outline
-
-   # (2) 视觉溢出审查 (排查大额数值超宽变 ### 或文字溢出行高风险)
    officecli view 04_outputs/tables/franchise_store_sale_profit_yoy_<YYYYMMDD>.xlsx issues --type format
    ```
-- **完成标准**：Excel 生成且包含完整的“整体汇总”、“省区明细”及“加盟店大盘”等 7 张工作表，3 张原生柱状图完整，内嵌桑基 PNG 图片无损加载，无 `#VALUE!` 错误。
+- **完成标准**：主汇报工作簿包含整体汇总、省区明细、加盟店大盘等 7 张工作表，3 张原生柱状图及桑基 PNG 媒体，无 `#VALUE!` 错误。
 - **深入参考**：[references/parameter-contract.md](references/parameter-contract.md)、[references/adversarial-review.md](references/adversarial-review.md)。
-### Branch C: 桑基流转图与卡片独立交付
+
+### Branch C: 独立大区汇报表与组合图
+当用户需要生成大区同比汇报或复核工作流大区汇总时触发：
+1. 查阅 DataWorks 工作流 `10003099141` 的最新快照：`topics/franchise_store/00_context/workflow_10003099141_prod_20260923.md`。大区由 `dsl_dim.dim_store.area_man_name` 直接提供。
+2. 运行独立导出脚本：
+   ```bash
+   uv run python topics/franchise_store/03_analysis/scripts/export_franchise_area_summary.py \
+     --project-et <YYYYMMDD> \
+     --env-file "$HOME/work/projects/www/marimo/merchandise/.env"
+   ```
+   脚本在 MaxCompute 聚合店品宽表、公司发货和门店维表，不下载店品明细；它与 DataWorks 大区节点使用相同口径，但独立查询、独立导出，不修改主汇报脚本。
+3. 输出 `topics/franchise_store/04_outputs/tables/franchise_store_area_summary_<YYYYMMDD>.xlsx`，含大区同比表、销售规模与目录销售占比提升组合图、省区穿透和全国总盘对账。
+4. 验收对账门禁中 2025/2026 门店数、销售额、毛利额、客流的六大区加总与全国值差异小于 `1e-4`，并运行：
+   ```bash
+   uv run pytest topics/franchise_store/03_analysis/scripts/test_export_franchise_area_summary.py
+   ```
+- **完成标准**：Excel 表、图、下钻与全国对账均可用，六大区对账通过。
+
+### Branch D: 桑基流转图与卡片独立交付
 当用户需要单独输出或复核目录流转双列桑基图、HTML 汇报卡片时触发：
 1. 确认流转数据集包含 8 大标准流向：`稳定目录内`、`稳定目录外`、`目录外转目录内`、`目录内转目录外`、`新增目录内`、`新增目录外`、`目录内汰换`、`目录外汰换`。
 2. 运行资金平衡断言：

@@ -46,11 +46,12 @@ Phase 1: Specification (to-spec)
 3. Save to `.scratch/<slug>/issues/<NN>-<title>.md`.
 
 ### Phase 3 — Worktree Implementation (`/skill:implement`)
-1. **Worktree Setup**:
+1. **Submodule-Linked Worktree Setup**:
    ```bash
-   rtk git worktree add .worktrees/<slug> -b feat/<slug>
-   cd .worktrees/<slug> && rtk make worktree-ready
+   make worktree-add NAME=<feature-slug>
+   cd .worktrees/<feature-slug>
    ```
+   (Git Submodules and parent environment are initialized natively without manual symlinks).
 2. **Execute Slices**:
    - Create unified role directory under `collections/ansible_collections/vps/services/roles/<role>/`.
    - Implement `tasks/resolve.yml`, `tasks/common_prep.yml`, `tasks/configure_common.yml`.

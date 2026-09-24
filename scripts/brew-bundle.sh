@@ -14,21 +14,43 @@ TMP_BREWFILE="$(mktemp)"
 # one token per line in $PRIVATE_SKIP_FILE ("#"-comments and blanks ignored).
 # Lets a machine opt out of Brewfile entries (e.g. home vs. work) without
 # forking the public Brewfile.
-PRIVATE_SKIP_FILE=""
-if [ -n "${MAC_BOOTSTRAP_PRIVATE_DIR:-}" ] && [ -f "$MAC_BOOTSTRAP_PRIVATE_DIR/brew.skip" ]; then
-  PRIVATE_SKIP_FILE="$MAC_BOOTSTRAP_PRIVATE_DIR/brew.skip"
-elif [ -f "$DIR/../private/brew.skip" ]; then
-  PRIVATE_SKIP_FILE="$DIR/../private/brew.skip"
+PRIVATE_DIR=""
+if [ -n "${MAC_BOOTSTRAP_PRIVATE_DIR:-}" ] && [ -d "$MAC_BOOTSTRAP_PRIVATE_DIR" ]; then
+  PRIVATE_DIR="$MAC_BOOTSTRAP_PRIVATE_DIR"
+elif [ -d "$DIR/../private" ]; then
+  PRIVATE_DIR="$(cd "$DIR/../private" && pwd)"
+fi
+
+PROFILE="${MAC_BOOTSTRAP_PROFILE:-}"
+if [ -z "$PROFILE" ] && [ -n "$PRIVATE_DIR" ]; then
+  if [ -f "$PRIVATE_DIR/profile" ]; then
+    PROFILE="$(tr -d '[:space:]' < "$PRIVATE_DIR/profile")"
+  elif [ -f "$PRIVATE_DIR/current_profile" ]; then
+    PROFILE="$(tr -d '[:space:]' < "$PRIVATE_DIR/current_profile")"
+  fi
 fi
 
 BREW_SKIP="${MAC_BOOTSTRAP_BREW_SKIP:-}"
-if [ -n "$PRIVATE_SKIP_FILE" ]; then
+
+load_skip_file() {
+  local file="$1"
+  [ -f "$file" ] || return 0
   while IFS= read -r skip_line || [ -n "$skip_line" ]; do
     case "$skip_line" in
       ''|'#'*) continue ;;
     esac
     BREW_SKIP="$BREW_SKIP ${skip_line%%#*}"
-  done < "$PRIVATE_SKIP_FILE"
+  done < "$file"
+}
+
+if [ -n "$PRIVATE_DIR" ]; then
+  # 1. Base private/brew.skip (common to all profiles)
+  load_skip_file "$PRIVATE_DIR/brew.skip"
+  # 2. Profile-specific skip file (e.g. private/profiles/home/brew.skip or private/brew.home.skip)
+  if [ -n "$PROFILE" ]; then
+    load_skip_file "$PRIVATE_DIR/profiles/$PROFILE/brew.skip"
+    load_skip_file "$PRIVATE_DIR/brew.$PROFILE.skip"
+  fi
 fi
 
 is_skipped() {

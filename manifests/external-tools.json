@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": 1,
+  "description": "Declarative manifest of non-brew CLI tools, standalone binaries, and external GUI apps managed by mac-bootstrap",
+  "npm_globals": [
+    "@monid-ai/cli",
+    "@moonrepo/cli",
+    "@upstash/context7-mcp",
+    "@waishnav/devspace",
+    "codebase-memory-mcp",
+    "context-mode",
+    "playwriter",
+    "pnpm",
+    "reasonix"
+  ],
+  "standalone_binaries": [
+    {
+      "name": "agy",
+      "target": "~/.local/bin/agy",
+      "installer": "scripts/install-antigravity-cli.sh",
+      "description": "Antigravity AI CLI"
+    },
+    {
+      "name": "imgup",
+      "target": "~/.local/bin/imgup",
+      "installer": "scripts/install-imgup.sh",
+      "description": "ImgBed uploader"
+    },
+    {
+      "name": "terminal-browser",
+      "target": "~/.local/bin/terminal-browser",
+      "install_cmd": "curl -fsSL https://terminalbrowser.com/install.sh | bash",
+      "description": "Terminal in-pane browser (zenbu-labs)"
+    },
+    {
+      "name": "officecli",
+      "target": "~/.local/bin/officecli",
+      "description": "Office document analysis and reporting CLI"
+    }
+  ],
+  "external_apps": [
+    {
+      "name": "Prism Browser",
+      "app": "Prism Browser.app",
+      "bundle_id": "com.prismbrowser.desktop",
+      "description": "Prism desktop multi-app container browser",
+      "homepage": "https://prismbrowser.com"
+    }
+  ]
+}

@@ -4,7 +4,6 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/.." && pwd)"
 GHOSTTY_THEME_FILE="$HOME/.config/ghostty/theme.local"
-TMUX_SWITCH_SCRIPT="$ROOT/multiplexer/tmux/switch-theme.sh"
 
 usage() {
   cat <<'EOF'
@@ -40,8 +39,9 @@ cat >"$GHOSTTY_THEME_FILE" <<EOF
 # Managed by switch-terminal-theme.sh
 theme = "$GHOSTTY_THEME_NAME"
 EOF
-
-"$TMUX_SWITCH_SCRIPT" "$THEME"
+if [ -f "$ROOT/multiplexer/tmux/switch-theme.sh" ]; then
+  "$ROOT/multiplexer/tmux/switch-theme.sh" "$THEME"
+fi
 
 echo "Ghostty theme override -> $GHOSTTY_THEME_FILE ($GHOSTTY_THEME_NAME)"
 echo "Restart Ghostty windows to apply terminal chrome/palette changes."
