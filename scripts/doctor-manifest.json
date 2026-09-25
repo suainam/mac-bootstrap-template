@@ -67,7 +67,8 @@
       "app": "Visual Studio Code.app"
     },
     "clash-verge-rev": {
-      "app": "Clash Verge.app"
+      "app": "Clash Verge.app",
+      "optional": true
     },
     "cloudflare-warp": {
       "app": "Cloudflare WARP.app",
