@@ -6,9 +6,8 @@ or need `make doctor` cask overrides so the template stays rerunnable.
 ## 小米互联服务 (Xiaomi HyperConnect)
 
 - 路径：`/Applications/小米互联服务.app`
-- Homebrew cask：`xiaomi-cloud`
-- 现状：本机是手动安装的 `小米互联服务.app`，`make doctor` 通过
-  `scripts/doctor-manifest.json` 的 `cask_overrides` 将其识别为 `xiaomi-cloud`
+- Homebrew cask：`hyperconnect`
+- 现状：Homebrew 官方已收录 `hyperconnect` cask 并由 brew 统一管理。
 - 作用：小米手机与 Mac 之间的跨设备协同（剪贴板共享、文件传输、通知同步等）
 
 ## Brewfile 中但本机手动安装的应用
