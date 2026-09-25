@@ -90,7 +90,7 @@
       "ref": "https://github.com/typesafe-ai/skills",
       "skills": {
         "typesafe-ai": {
-          "agents": ["claude", "codex", "antigravity"],
+          "agents": ["claude", "codex", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": false
@@ -123,7 +123,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:781bd6d3f9b19f8c9af6b53d8d0e4876d0183841b565db34ca7092ffa412d111",
+            "approved_hash": "sha256:b146008599c31057cef1c145774cea5d5afb30e8f43fa802e47a4b461419aaaf",
             "reason": "User-confirmed global routed; approved current quarantined version after clean redistribution"
           }
         }
@@ -179,7 +179,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:076c407824b1271b9068c59e793626e768e98073266c4ed587f752227ef15d6a",
+            "approved_hash": "sha256:5fb80a2e7ed868c6c7fdcfd785b7eac41f6d95f305964f2901e7e61ae4ad12ab",
             "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
           }
         },
@@ -505,19 +505,8 @@
           "reason": "Optional front door for work larger than one agent session; maps investigation tickets before grill/spec/ticket execution"
         },
         "writing-great-skills": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "audit": {
-            "allow_unaudited": true
-          },
-          "gate": {
-            "manual_approval": true,
-            "approved": true,
-            "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:396fd1098e3f311f0f4373bab9c503b365f0ffcfe3c5bfbc74840a7e0b046c21",
-            "reason": "User-confirmed keep-global; approved current quarantined version after clean redistribution"
-          },
-          "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
+          "distribution_state": "merged",
+          "reason": "Renamed upstream to writing-for-agents"
         },
         "diagnose": {
           "distribution_state": "disabled",
@@ -610,6 +599,112 @@
         }
       }
     },
+    "ponytail": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/DietrichGebert/ponytail",
+      "bundle": {
+        "install_mode": "all",
+        "distribution_state": "enabled",
+        "catalog_path": ".agent-state/skill-bundles/ponytail.json"
+      },
+      "skills": {
+        "ponytail": {
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-25",
+            "approved_hash": "sha256:388ec42c9551f47d12555b1723b1af67b8fe18a8afbea0a8db96cfb870eb3803",
+            "reason": "Official Ponytail simplicity guard"
+          }
+        },
+        "ponytail-review": {
+          "distribution_state": "disabled",
+          "reason": "Disabled to avoid context pollution; core ponytail ladder governs review complexity",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-25",
+            "approved_hash": "sha256:cd3715f0513d93e4caab8cc30ad09080ae62f763ed8b95304fd84efda5fbf0be",
+            "reason": "Ponytail code review for over-engineering"
+          }
+        },
+        "ponytail-audit": {
+          "distribution_state": "disabled",
+          "reason": "Disabled to avoid context pollution; low-frequency scan not needed globally",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-25",
+            "approved_hash": "sha256:e3d9eddf58dd7b4dae504266d8a5eb7b306db1e69114710800d554ef386ccfd0",
+            "reason": "Whole-repo over-engineering scan"
+          }
+        },
+        "ponytail-debt": {
+          "distribution_state": "disabled",
+          "reason": "Disabled to avoid context pollution; niche grep for ponytail comment markers",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-25",
+            "approved_hash": "sha256:368db847eb919b0d841d253da745e8215e234cb217609b55b27528e8cb754c84",
+            "reason": "Harvest ponytail comment shortcuts into debt ledger"
+          }
+        },
+        "ponytail-gain": {
+          "distribution_state": "disabled",
+          "reason": "Disabled; static benchmark scoreboard card with no operational utility",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-25",
+            "approved_hash": "sha256:c6d2cc7d7af635acadb96571fd71d9922acb8d8d856d37dc678aafe76a06a7fb",
+            "reason": "Show ponytail measured impact scoreboard"
+          }
+        },
+        "ponytail-help": {
+          "distribution_state": "disabled",
+          "reason": "Disabled; static help cheatsheet redundant with core ponytail instructions",
+          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-25",
+            "approved_hash": "sha256:92f909eddf3b371e4737a85f60a8024cec6ae5cfb523561b8c56f86fcf3f52b0",
+            "reason": "Ponytail help reference card"
+          }
+        }
+      }
+    },
 
     "baoyu-skills": {
       "type": "external",
@@ -641,62 +736,6 @@
         }
       }
     },
-
-    "codebase-memory-mcp": {
-      "type": "external",
-      "fetcher": "manual",
-      "ref": "https://github.com/DeusData/codebase-memory-mcp",
-      "skills": {
-        "codebase-memory": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "audit": {
-            "allow_unaudited": true
-          },
-          "gate": {
-            "manual_approval": true,
-            "approved": true,
-            "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:e3bdcd27e7d34721c9407ef38c91620c0c2164207ba6bcb1b930231ca0be9aad",
-            "reason": "User-confirmed global; restored from pre-clean Claude runtime backup because upstream is MCP/runtime material"
-          },
-          "reason": "User-confirmed global; current skills.sh list found no SKILL.md, so distribution still requires a manual/quarantine source before fresh installs"
-        }
-      }
-    },
-
-    "microsoft-playwright": {
-      "type": "external",
-      "fetcher": "skills.sh",
-      "ref": "https://github.com/microsoft/playwright",
-      "skills": {
-        "playwright": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "audit": {
-            "allow_unaudited": true,
-            "allow_scripts": true
-          },
-          "gate": {
-            "manual_approval": true,
-            "approved": true,
-            "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:2b1315e0e6c865783aaf7fb8d5455920a4bdc4e46511ed2ad78584e3d553cbf0",
-            "reason": "User-confirmed global; restored current runtime skill from pre-clean Codex backup and bound hash"
-          },
-          "reason": "User-confirmed global; existing runtime skill is named playwright, while current skills.sh source exposes playwright-dev/playwright-devops/playwright-test-results/playwright-triage"
-        },
-        "playwright-dev": {
-          "distribution_state": "staged",
-          "agents": ["codex", "opencode", "pi", "cross-agent"]
-        },
-        "playwright-triage": {
-          "distribution_state": "staged",
-          "agents": ["codex", "opencode", "pi", "cross-agent"]
-        }
-      }
-    },
-
     "langgpt": {
       "type": "external",
       "fetcher": "manual",
@@ -739,7 +778,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:4e6b4a71244e3ae08537a7f1bad93bf772b82d231cf92814253d8e36cfff97c4",
+            "approved_hash": "sha256:0eb775b0d028aa9ae7e4ba3e045e5e102f4b83c1dc86fcf85240fcc0fc7c0567",
             "reason": "User-confirmed project skill; approved current quarantined version for mac-bootstrap"
           }
         },
@@ -826,7 +865,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:44432ee5458b019cddf6cb72b7875ae980ffe82a8a1edbc1088d77dcfa1a952a",
+            "approved_hash": "sha256:d01f8e8c47e54cba12dd672dad54dfc1efa056cf8c9185179842f622bb34a026",
             "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
           }
         },
@@ -864,7 +903,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-07-10",
-            "approved_hash": "sha256:6ec65e7426594de020c5f568b4fb03810acae473acb680fa75debeaf5efa1170",
+            "approved_hash": "sha256:a61a8cbc6a19615c980197e5ac1b2374ec86cfbf0c55382cf44ee3965d62ff2e",
             "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
           }
         }
@@ -1034,29 +1073,6 @@
         }
       }
     },
-
-    "jeffallan-claude-skills": {
-      "type": "external",
-      "fetcher": "skills.sh",
-      "ref": "https://github.com/jeffallan/claude-skills",
-      "skills": {
-        "typescript-pro": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
-          "audit": {
-            "allow_unaudited": true
-          },
-          "gate": {
-            "manual_approval": true,
-            "approved": true,
-            "approved_by": "dsl",
-            "approved_at": "2026-08-12",
-            "approved_hash": "sha256:22eb8c500e6029fede1b430a0657f1aa7ca69afb73f9a552def55ee0b3ad64fd",
-            "reason": "User-approved TypeScript engineering skill; manually reviewed SKILL.md and all five reference files"
-          },
-          "reason": "User-approved global TypeScript engineering skill; ponytail remains the default simplicity guard"
-        }
-      }
-    },
     "archify": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -1075,7 +1091,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-08-13",
-            "approved_hash": "sha256:dca2a6db872b7a453569a57d89b3d5e64440d75771118d0f6ffe0c016f777e60",
+            "approved_hash": "sha256:ecf3060d32cc985e3d4a73fc39b0d3b901b5c8f53bf4770721b9843c0687beb3",
             "reason": "User-approved after manual review of SKILL.md, bundled Node CLI, local git/Chrome/open subprocesses, output writes, and no network fetch path"
           },
           "reason": "User-requested global architecture diagram skill; supports Codex, Claude Code, OpenCode, and cross-agent targets"

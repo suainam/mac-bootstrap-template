@@ -35,27 +35,27 @@ from scripts.skill_supply_chain import (  # noqa: E402
 
 def test_enabled_bundle_is_not_refetched_when_catalog_and_sources_are_present(tmp_path: Path) -> None:
     registry = load_registry(DEFAULT_REGISTRY)
-    bundle = registry.bundles["mattpocock-skills"]
-    catalog_path = tmp_path / bundle.catalog_path
-    catalog_path.parent.mkdir(parents=True)
-    skills = []
-    for skill in registry.skills.values():
-        if skill.bundle_id != bundle.source_id or skill.distribution_state != "enabled":
-            continue
-        relative_path = Path(skill.name)
-        source = tmp_path / bundle.quarantine_path / relative_path
-        source.mkdir(parents=True)
-        skills.append(
-            {
-                "name": skill.name,
-                "relative_path": relative_path.as_posix(),
-                "content_hash": "sha256:" + "0" * 64,
-            }
+    for bundle in registry.bundles.values():
+        catalog_path = tmp_path / bundle.catalog_path
+        catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        skills = []
+        for skill in registry.skills.values():
+            if skill.bundle_id != bundle.source_id or skill.distribution_state != "enabled":
+                continue
+            relative_path = Path(skill.name)
+            source = tmp_path / bundle.quarantine_path / relative_path
+            source.mkdir(parents=True, exist_ok=True)
+            skills.append(
+                {
+                    "name": skill.name,
+                    "relative_path": relative_path.as_posix(),
+                    "content_hash": "sha256:" + "0" * 64,
+                }
+            )
+        catalog_path.write_text(
+            json.dumps({"source_id": bundle.source_id, "ref": bundle.ref, "skills": skills}),
+            encoding="utf-8",
         )
-    catalog_path.write_text(
-        json.dumps({"source_id": bundle.source_id, "ref": bundle.ref, "skills": skills}),
-        encoding="utf-8",
-    )
 
     assert ensure_external_bundles(registry, tmp_path) == ()
 

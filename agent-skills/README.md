@@ -83,6 +83,21 @@ paths are local Node, Git repository evidence, Chrome capture, and macOS
 `open`. The approved source hash and script allowance remain in
 `registry/sources.jsonc`.
 
+## Reviewed minimalist coding skill (ponytail)
+
+`ponytail` is registered as a bundle-managed external Skill from
+[`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail). It enforces
+the 7-rung ladder (YAGNI → existing code → standard library → platform native →
+installed dependency → one-liner → minimal viable code) to eliminate
+over-engineering and code bloat.
+
+To prevent prompt context bloat and slash-command routing noise, only the core
+`ponytail` Skill is globally distributed. The auxiliary bundle items
+(`ponytail-review`, `ponytail-audit`, `ponytail-debt`, `ponytail-gain`, and
+`ponytail-help`) are retained in quarantined source but disabled from runtime
+distribution (`"distribution_state": "disabled"`). Upstream bundle updates are
+tracked via `make system-upgrade`.
+
 ## Operations
 
 ```bash

@@ -20,7 +20,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BREW_BIN="${BREW_BIN:-$(command -v brew 2>/dev/null || echo '')}"
 TOPGRADE_BIN="${TOPGRADE_BIN:-$(command -v topgrade 2>/dev/null || echo '')}"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/.venv/bin/python}"
-SKILL_SOURCE="${SKILL_SOURCE:-mattpocock-skills}"
+SKILL_SOURCE="${SKILL_SOURCE:-}"
 
 if [[ -z "${BREW_BIN}" || ! -x "${BREW_BIN}" ]]; then
   echo "Homebrew executable not found" >&2
@@ -50,9 +50,13 @@ echo "Patching Chrome to ensure Gemini features remain enabled..."
   make patch-chrome-gemini || true
 )
 
-echo "Refreshing approved external skills: ${SKILL_SOURCE}"
+echo "Refreshing approved external skill bundles..."
 (
   cd "${ROOT_DIR}"
-  "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles --source "${SKILL_SOURCE}"
+  if [[ -n "${SKILL_SOURCE}" ]]; then
+    "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles --source "${SKILL_SOURCE}"
+  else
+    "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles
+  fi
   "${PYTHON_BIN}" scripts/skill_supply_chain.py distribute
 )
