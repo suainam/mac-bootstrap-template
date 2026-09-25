@@ -20,6 +20,20 @@ if [ ! -r "$CHROME_STATE" ] || [ ! -w "$CHROME_STATE" ]; then
     echo "   System Settings -> Privacy & Security -> Full Disk Access"
     exit 1
 fi
+# Disable IPv6 on Wi-Fi/Ethernet if enabled, preventing domestic ISP IPv6 from leaking to Google
+if command -v networksetup &>/dev/null; then
+    for svc in "Wi-Fi" "Ethernet"; do
+        if networksetup -listallnetworkservices 2>/dev/null | grep -qx "$svc"; then
+            v6_info="$(networksetup -getinfo "$svc" 2>/dev/null | grep -E '^IPv6:' || true)"
+            if [ -n "$v6_info" ] && [[ "$v6_info" != *"Off"* ]]; then
+                echo "⚠️ IPv6 is active on $svc ($v6_info), which leaks domestic ISP IP to Google."
+                echo "   Disabling IPv6 on $svc to prevent Happy Eyeballs region lock..."
+                networksetup -setv6off "$svc" 2>/dev/null || true
+            fi
+        fi
+    done
+fi
+
 
 # Check if patching is even needed
 NEEDS_PATCH=0
