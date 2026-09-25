@@ -65,7 +65,7 @@ cask "zerotier-one"
 cask "clash-verge-rev"
 cask "cloudflare-warp"
 cask "uuremote"
-cask "xiaomi-cloud"
+cask "hyperconnect"
 cask "bitwarden"
 
 # ========== 办公 & 沟通 ==========

@@ -32,7 +32,9 @@ def declared_brew_formulas() -> set[str]:
     for raw in (Path(TEMPLATE) / "Brewfile").read_text().splitlines():
         line = raw.strip()
         if line.startswith('brew "') and line.endswith('"'):
-            formulas.add(line[len('brew "'):-1])
+            name = line[len('brew "'):-1]
+            # brew list --formula outputs the short name for tapped formulae (e.g. opencode-v2)
+            formulas.add(name.split("/")[-1])
     return formulas
 
 

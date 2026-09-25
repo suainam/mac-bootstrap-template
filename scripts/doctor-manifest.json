@@ -1,6 +1,7 @@
 {
   "formula_command_overrides": {
-    "ripgrep": "rg"
+    "ripgrep": "rg",
+    "anomalyco/tap/opencode-v2": "opencode"
   },
   "standalone_clis": [
     {
@@ -82,7 +83,11 @@
       "optional": true
     },
     "hyperconnect": {
-      "app": "\u5c0f\u7c73\u4e92\u8054\u670d\u52a1.app",
+      "app": "小米互联服务.app",
+      "optional": true
+    },
+    "xiaomi-cloud": {
+      "app": "小米互联服务.app",
       "optional": true
     },
     "claude-code": {
@@ -92,11 +97,9 @@
     "ghostty": {
       "app": "Ghostty.app"
     },
-    "hammerspoon": {
-      "app": "Hammerspoon.app"
-    },
     "vorssaint": {
-      "app": "Vorssaint.app"
+      "app": "Vorssaint.app",
+      "optional": true
     },
     "linearmouse": {
       "app": "LinearMouse.app"
