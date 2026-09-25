@@ -28,7 +28,8 @@ Options:
 
 Configuration performed with --configure:
   - Symlink canonical AGENTS.md and host-specific global instruction files
-  - rtk init for Claude/Codex/OpenCode/Pi
+  - rtk init for Claude/Codex/Pi
+  - OpenCode V2 RTK plugin + config migration
   - Claude Code context-mode + caveman plugins
   - Codex context-mode MCP + hooks
   - Codex skills + hooks for caveman
@@ -83,6 +84,7 @@ OPENCODE_CONFIG="$(json_get_path agents.opencode.paths.config)"
 OPENCODE_AGENTS="$(json_get_path agents.opencode.paths.instructions)"
 OPENCODE_SKILLS_DIR="$(json_get_path agents.opencode.paths.skills)"
 OPENCODE_PLUGINS_DIR="$(json_get_path agents.opencode.paths.plugins)"
+OPENCODE_RTK_PLUGIN="$BOOTSTRAP/agent/opencode/plugins/rtk.ts"
 
 PI_SETTINGS="$(json_get_path agents.pi.paths.settings)"
 PI_MCP_JSON="$(json_get_path agents.pi.paths.mcp)"
@@ -149,6 +151,9 @@ RTK_SOURCE="$(pick_rtk_source)"
 
 print_step_header "Step 4 — Context Mode"
 configure_context_mode_step
+
+print_step_header "Step 4b — OpenCode V2"
+configure_opencode_v2_step
 
 print_step_header "Step 5 — Caveman"
 configure_caveman_step

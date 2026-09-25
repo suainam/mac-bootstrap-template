@@ -12,7 +12,7 @@
 - `install.sh`：zsh、git、vim、neovim、tmux 与 VS Code。
 - `scripts/setup-python-venv.sh`：Brewfile 之后用 `uv sync --locked --group dev` 生成 `template/.venv`；解释器由 `.python-version` 固定。测试、doctor 与 agent 工具链共用该 venv，不得自行临时搭建。
 - `infra/docker/install.sh`：Colima、代理与 Docker Compose。
-- `scripts/install-agent-tooling.sh`：skills、MCP、RTK、caveman、OMP、Pi 兼容层与 Codebase Memory。
+- `scripts/install-agent-tooling.sh`：skills、MCP、RTK、caveman、OMP、Pi 兼容层与 Codebase Memory；OpenCode V2 的 RTK 插件和配置迁移也由该入口负责。
 - `install-pi-packages.sh`、`editors/obsidian/install.sh`、`terminals/ghostty/repair-fonts.sh`：各自专题安装与修复。
 
 ## 控制边界

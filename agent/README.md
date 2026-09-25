@@ -96,7 +96,7 @@ single distribution entrypoint for:
 - Pi `settings.json` + `mcp.json` + global `AGENTS.md` symlink
 - Antigravity `settings.json` + `mcp_config.json` + skills + global `GEMINI.md` symlink adapter
 - Reasonix `config.json` + skills (no global rules distributed)
-- OpenCode plugin list (rtk, caveman, context-mode)
+- OpenCode V2 plugin list (RTK only; Context Mode remains MCP-only until V2 support exists)
 - MCP profiles (`~/.zshrc`)
 - Hook matchers (console.log guards, destructive op warnings)
 - Skill setup delegates to the registry-driven distributor documented in
@@ -156,9 +156,9 @@ Remote OAuth authorization is runtime readiness, not desired-state drift.
 
 | Tool | Claude Code | Codex CLI | OpenCode | Pi (legacy) | Reasonix | Antigravity |
 |------|:-----------:|:---------:|:--------:|:--:|:--------:|:------------:|
-| **RTK** | ✅ hook+RTK.md | ✅ RTK.md+AGENTS.md | ✅ plugin | ✅ extension + settings.json | ❌ | ❌ |
-| **Caveman** | ✅ plugin+ultra | ✅ skills+hooks | ✅ plugin+ultra | ✅ skill file | ✅ skill file |
-| **Context-mode** | ✅ plugin | ✅ hooks | ✅ plugin | ❌ | ❌ | ❌ |
+| **RTK** | ✅ hook+RTK.md | ✅ RTK.md+AGENTS.md | ✅ V2 plugin | ✅ extension + settings.json | ❌ | ❌ |
+| **Caveman** | ✅ plugin+ultra | ✅ skills+hooks | ❌ V2 plugin not yet managed | ✅ skill file | ✅ skill file |
+| **Context-mode** | ✅ plugin | ✅ hooks | ✅ MCP only; V1 plugin blocked | ❌ | ❌ | ❌ |
 | **CBM** | ✅ MCP | ✅ MCP in config.toml | ✅ MCP | ✅ `mcp.json` | ✅ MCP server | ✅ `mcp_config.json` |
 | **Global rules** | ✅ AGENTS.md + CLAUDE.md symlink | ✅ embedded AGENTS.md | ✅ inline embedded | ✅ AGENTS.md symlink | ❌ | ✅ GEMINI.md symlink |
 ---

@@ -90,9 +90,9 @@
     "opencode": {
       "binary": "opencode",
       "official_docs": [
-        "https://opencode.ai/docs/config",
-        "https://opencode.ai/docs/en/skills",
-        "https://open-code.ai/en/docs/rules"
+        "https://opencode.ai/v2/docs/config",
+        "https://opencode.ai/v2/docs/skills",
+        "https://opencode.ai/v2/docs/rules"
       ],
       "paths": {
         "config": "~/.config/opencode/opencode.json",

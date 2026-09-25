@@ -83,6 +83,29 @@ def test_agent_doctor_checks_prompt_mcp_helper():
     assert 'agent-prompt-mcp helper' not in content
 
 
+def test_opencode_v2_rtk_plugin_uses_v2_api_without_shell_interpolation():
+    plugin = read_template("agent", "opencode", "plugins", "rtk.ts")
+    assert 'from "@opencode/plugin"' in plugin
+    assert "Plugin.define" in plugin
+    assert 'ctx.tool.hook("execute.before"' in plugin
+    assert 'execFileAsync("rtk", ["rewrite", input.command])' in plugin
+    assert "Bun.$" not in plugin
+
+
+def test_opencode_v2_installer_removes_v1_dependency_and_plugin_key():
+    configure = read_template("scripts", "lib", "agent-configure.sh")
+    assert 'npm uninstall --prefix "$(dirname "$OPENCODE_CONFIG")" --save @opencode-ai/plugin' in configure
+    assert 'npm install --prefix "$(dirname "$OPENCODE_CONFIG")" --save @opencode/plugin@2' in configure
+    assert "delete data.plugin" in configure
+    assert 'data.plugins = [...new Set(plugins)]' in configure
+
+
+def test_opencode_v2_doctor_rejects_v1_dependency_and_plugin_key():
+    doctor = read_template("scripts", "agent-doctor.sh")
+    assert '"plugin"[[:space:]]*:' in doctor
+    assert '"@opencode-ai/plugin"' in doctor
+
+
 def test_agent_doctor_delegates_mcp_validation_to_runtime_audit():
     content = read_template("scripts", "agent-doctor.sh")
     assert "audit_mcp_config()" in content

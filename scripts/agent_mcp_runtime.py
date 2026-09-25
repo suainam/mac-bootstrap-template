@@ -218,18 +218,23 @@ def server_args(host: str, spec: ServerSpec) -> tuple[str, ...]:
 def adapt_server(host: str, spec: ServerSpec) -> dict[str, Any]:
     command = server_command(host, spec)
     args = server_args(host, spec)
+    if host == "opencode" and os.path.isabs(command):
+        command = os.path.basename(command)
     if host == "opencode":
         if spec.transport == "remote":
-            return {"enabled": True, "type": "remote", "url": spec.url}
+            return {"disabled": not spec.enabled, "type": "remote", "url": spec.url}
         result: dict[str, Any] = {
-            "enabled": True,
+            "disabled": not spec.enabled,
             "type": "local",
             "command": [command, *args],
         }
-    elif host == "claude" and spec.transport == "remote":
+        if spec.env:
+            result["environment"] = dict(spec.env)
+        return result
+    if host == "claude" and spec.transport == "remote":
         return {"type": "http", "url": spec.url}
-    elif spec.transport == "remote":
-        return {"url": spec.url}
+    if spec.transport == "remote":
+        result = {"url": spec.url}
     else:
         result = {"command": command, "args": list(args)}
 
@@ -240,13 +245,49 @@ def adapt_server(host: str, spec: ServerSpec) -> dict[str, Any]:
     return result
 
 
+def _opencode_mcp_servers(existing: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Extract V2 servers while carrying V1 direct server entries forward."""
+    mcp = deepcopy(dict(existing.get("mcp", {})))
+    native = mcp.pop("servers", {})
+    servers = deepcopy(native) if isinstance(native, dict) else {}
+    for name, value in list(mcp.items()):
+        if name in {"timeout"}:
+            continue
+        if isinstance(value, dict):
+            servers.setdefault(name, deepcopy(value))
+            mcp.pop(name)
+    for value in servers.values():
+        if not isinstance(value, dict):
+            continue
+        enabled = value.pop("enabled", True)
+        if enabled is False:
+            value["disabled"] = True
+        legacy_env = value.pop("env", None)
+        if legacy_env and not value.get("environment"):
+            value["environment"] = legacy_env
+    return mcp, servers
+
+
 def render_json_config(
     host: str,
     existing: Mapping[str, Any],
     desired: Mapping[str, ServerSpec],
 ) -> dict[str, Any]:
-    root_key = "mcp" if host == "opencode" else "mcpServers"
     result = deepcopy(dict(existing))
+    if host == "opencode":
+        mcp, servers = _opencode_mcp_servers(existing)
+        for name in MANAGED_NAMES:
+            if name in desired and host in desired[name].hosts:
+                servers[name] = adapt_server(host, desired[name])
+            else:
+                servers.pop(name, None)
+        for name in RETIRED_ALIASES:
+            servers.pop(name, None)
+        mcp["servers"] = servers
+        result["mcp"] = mcp
+        return result
+
+    root_key = "mcpServers"
     if host == "reasonix":
         result.setdefault("skipSetup", False)
     current = result.get(root_key)
@@ -335,7 +376,7 @@ def _stable_server_view(name: str, value: Any, *, codex: bool = False) -> Any:
         stable.setdefault("enabled", True)
     if name != "context7":
         return stable
-    env = stable.pop("env", None)
+    env = stable.pop("env", None) or stable.pop("environment", None)
     if env:
         valid_env = (
             isinstance(env, dict)
@@ -389,7 +430,18 @@ def audit_config(
         root_key = "mcp_servers"
     observed_value = config.get(root_key, {})
     observed = observed_value if isinstance(observed_value, dict) else {}
-    issues: list[AuditIssue] = []
+    if host == "opencode":
+        if any(
+            name != "servers" and isinstance(value, dict)
+            for name, value in observed.items()
+        ):
+            issues = [AuditIssue("legacy_mcp_layout")]
+        else:
+            issues = []
+        servers_value = observed.get("servers", {})
+        observed = servers_value if isinstance(servers_value, dict) else {}
+    else:
+        issues = []
 
     for name, spec in desired.items():
         if host not in spec.hosts:

@@ -134,22 +134,37 @@ def test_json_host_adapter_preserves_unmanaged_state():
     assert "context-mode" not in result["mcpServers"]
 
 
-@pytest.mark.parametrize("host,root_key", [("claude", "mcpServers"), ("opencode", "mcp")])
-def test_render_removes_retired_server_aliases(host, root_key):
-    current = {
-        root_key: {
-            "code-review-graph": {"command": "old"},
-            "codebase-memory": {"command": "older"},
-            "x-docs": {"url": "https://docs.x.com/mcp"},
-            "xapi": {"command": "old-x-command"},
-        }
+@pytest.mark.parametrize(
+    "host,server_key",
+    [("claude", "mcpServers"), ("opencode", "servers")],
+)
+def test_render_removes_retired_server_aliases(host, server_key):
+    legacy = {
+        "code-review-graph": {"command": "old"},
+        "codebase-memory": {"command": "older"},
+        "x-docs": {"url": "https://docs.x.com/mcp"},
+        "xapi": {"command": "old-x-command"},
     }
+    current = {"mcp": {"servers": legacy}} if host == "opencode" else {"mcpServers": legacy}
     desired = runtime.desired_servers(inputs())
     result = runtime.render_json_config(host, current, desired)
-    assert "code-review-graph" not in result[root_key]
-    assert "codebase-memory" not in result[root_key]
-    assert "x-docs" not in result[root_key]
-    assert "xapi" not in result[root_key]
+    servers = result["mcp"]["servers"] if host == "opencode" else result["mcpServers"]
+    assert "code-review-graph" not in servers
+    assert "codebase-memory" not in servers
+    assert "x-docs" not in servers
+    assert "xapi" not in servers
+
+
+def test_opencode_audit_rejects_v1_mcp_layout():
+    desired = runtime.desired_servers(inputs())
+    v2 = runtime.render_json_config("opencode", {}, desired)
+    v1 = {"mcp": v2["mcp"]["servers"]}
+    assert [(issue.code, issue.server) for issue in runtime.audit_config("opencode", v1, desired)] == [
+        ("legacy_mcp_layout", ""),
+        ("missing_server", "context-mode"),
+        ("missing_server", "codebase-memory-mcp"),
+        ("missing_server", "context7"),
+    ]
 
 
 def test_audit_reports_retired_server_alias():
@@ -167,20 +182,46 @@ def test_reasonix_preserves_or_initializes_skip_setup(existing, expected):
     assert result["skipSetup"] is expected
 
 
-def test_opencode_adapter_uses_local_and_remote_shapes():
+def test_opencode_adapter_uses_v2_mcp_shape():
     result = runtime.render_json_config(
         "opencode", {"mcp": {}}, runtime.desired_servers(inputs())
     )
-    assert result["mcp"]["codebase-memory-mcp"] == {
-        "enabled": True,
+    assert result["mcp"]["servers"]["codebase-memory-mcp"] == {
+        "disabled": False,
         "type": "local",
         "command": ["codebase-memory-mcp"],
     }
-    assert result["mcp"]["context-mode"] == {
-        "enabled": True,
+    assert result["mcp"]["servers"]["context-mode"] == {
+        "disabled": False,
         "type": "local",
         "command": ["context-mode"],
     }
+
+
+def test_opencode_adapter_migrates_v1_mcp_and_preserves_unmanaged_servers():
+    desired = runtime.desired_servers(inputs())
+    result = runtime.render_json_config(
+        "opencode",
+        {
+            "mcp": {
+                "timeout": {"execution": 120000},
+                "mine": {"type": "local", "command": ["mine"]},
+                "off": {"type": "local", "command": ["off"], "enabled": False},
+            }
+        },
+        desired,
+    )
+    assert result["mcp"]["timeout"] == {"execution": 120000}
+    assert result["mcp"]["servers"]["mine"] == {
+        "type": "local",
+        "command": ["mine"],
+    }
+    assert result["mcp"]["servers"]["off"] == {
+        "type": "local",
+        "command": ["off"],
+        "disabled": True,
+    }
+    assert "mine" not in result["mcp"]
 
 
 def test_render_removes_retired_devspace_from_agent_configs():
@@ -191,7 +232,21 @@ def test_render_removes_retired_devspace_from_agent_configs():
         "opencode", {"mcp": {"devspace": {"url": "https://old.example/mcp"}}}, runtime.desired_servers(inputs())
     )
     assert "devspace" not in claude["mcpServers"]
-    assert "devspace" not in opencode["mcp"]
+    assert "devspace" not in opencode["mcp"]["servers"]
+
+
+def test_opencode_adapter_normalizes_context7_absolute_command_for_v2():
+    desired = runtime.desired_servers(inputs(context7_command="/opt/homebrew/bin/context7-mcp"))
+    config = runtime.render_json_config("opencode", {}, desired)
+    assert config["mcp"]["servers"]["context7"]["command"] == ["context7-mcp"]
+    assert runtime.audit_config("opencode", config, desired) == []
+
+
+def test_opencode_v2_context7_audit_accepts_environment_shape():
+    desired = runtime.desired_servers(inputs(http_proxy="http://proxy:7890"))
+    config = runtime.render_json_config("opencode", {}, desired)
+    assert "environment" in config["mcp"]["servers"]["context7"]
+    assert runtime.audit_config("opencode", config, desired) == []
 
 
 def test_non_codex_context7_hosts_remain_keyless():
@@ -202,7 +257,7 @@ def test_non_codex_context7_hosts_remain_keyless():
         "command": "npx",
         "args": ["-y", "@upstash/context7-mcp"],
     }
-    assert opencode["mcp"]["context7"]["command"] == [
+    assert opencode["mcp"]["servers"]["context7"]["command"] == [
         "npx",
         "-y",
         "@upstash/context7-mcp",

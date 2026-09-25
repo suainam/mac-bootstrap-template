@@ -1,5 +1,6 @@
 # ========== Tap ==========
 tap "rtk-ai/tap"
+tap "anomalyco/tap"
 tap "wangnov/tap"
 tap "can1357/tap"
 
@@ -30,7 +31,7 @@ brew "uv"
 
 # ========== Agent 工具链 & 多路复用 ==========
 brew "herdr"
-brew "opencode"
+brew "anomalyco/tap/opencode-v2"
 brew "omp"
 brew "rtk"
 brew "codex-threadripper"

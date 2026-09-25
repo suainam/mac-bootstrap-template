@@ -55,6 +55,7 @@ ensure_agent_dirs() {
   run mkdir -p "$(dirname "$CLAUDE_SETTINGS")" "$(dirname "$CODEX_TOML")" \
     "$(dirname "$OPENCODE_CONFIG")" "$(dirname "$PI_SETTINGS")" \
     "$(dirname "$REASONIX_CONFIG")" "$(dirname "$ANTIGRAVITY_SETTINGS")" \
+    "$OPENCODE_PLUGINS_DIR" \
     "$HOME/.agent/instincts/active" "$HOME/.agent/instincts/archived" \
     "$HOME/.agent/artifacts"
 }
@@ -93,11 +94,52 @@ configure_rtk_step() {
   if have rtk; then
     try_run rtk init --global --auto-patch
     if have codex; then try_run rtk init --global --codex; fi
-    if have opencode; then try_run rtk init --global --opencode --auto-patch; fi
     if have pi; then try_run rtk init --global --agent pi; fi
   else
     echo "  SKIP: rtk not installed"
   fi
+}
+
+configure_opencode_v2_step() {
+  [ -f "$OPENCODE_RTK_PLUGIN" ] || return 0
+  [ -f "$OPENCODE_CONFIG" ] || return 0
+  run mkdir -p "$OPENCODE_PLUGINS_DIR"
+  if [ -f "$OPENCODE_PLUGINS_DIR/rtk.ts" ] && [ ! -L "$OPENCODE_PLUGINS_DIR/rtk.ts" ]; then
+    if ! cmp -s "$OPENCODE_RTK_PLUGIN" "$OPENCODE_PLUGINS_DIR/rtk.ts"; then
+      run cp "$OPENCODE_RTK_PLUGIN" "$OPENCODE_PLUGINS_DIR/rtk.ts"
+    fi
+  else
+    write_managed_symlink "$OPENCODE_RTK_PLUGIN" "$OPENCODE_PLUGINS_DIR/rtk.ts"
+  fi
+  if [ "${DRY_RUN:-0}" -eq 0 ]; then
+    run npm uninstall --prefix "$(dirname "$OPENCODE_CONFIG")" --save @opencode-ai/plugin
+    run npm install --prefix "$(dirname "$OPENCODE_CONFIG")" --save @opencode/plugin@2
+  else
+    echo "DRY-RUN: replace @opencode-ai/plugin with @opencode/plugin@2 in $(dirname "$OPENCODE_CONFIG")"
+  fi
+  if [ "${DRY_RUN:-0}" -eq 0 ]; then
+    node - "$OPENCODE_CONFIG" <<'NODE'
+const fs = require("fs"), path = process.argv[2];
+let data = {};
+if (fs.existsSync(path)) {
+  const raw = fs.readFileSync(path, "utf8").trim();
+  if (raw) data = JSON.parse(raw);
+}
+const legacy = Array.isArray(data.plugin) ? data.plugin : [];
+const plugins = Array.isArray(data.plugins) ? data.plugins : [];
+for (const entry of legacy) {
+  const packageName = Array.isArray(entry) ? entry[0] : entry;
+  if (packageName === "./plugins/rtk.ts") plugins.push(packageName);
+}
+if (!plugins.includes("./plugins/rtk.ts")) plugins.push("./plugins/rtk.ts");
+data.plugins = [...new Set(plugins)];
+delete data.plugin;
+fs.writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
+NODE
+  else
+    echo "DRY-RUN: migrate OpenCode plugin config in $OPENCODE_CONFIG"
+  fi
+  echo "  OpenCode V2 RTK plugin configured"
 }
 
 configure_context_mode_step() {
@@ -106,29 +148,6 @@ configure_context_mode_step() {
     run claude plugin install context-mode@context-mode
     try_run context-mode upgrade
   fi
-
-  if have context-mode && have opencode; then
-    local opencode_config="$OPENCODE_CONFIG"
-    if [ "${DRY_RUN:-0}" -eq 1 ]; then
-      echo "DRY-RUN: update OpenCode plugin list in $opencode_config"
-    else
-      node - "$opencode_config" <<'NODE'
-const fs = require("fs"), path = process.argv[2];
-let data = {};
-if (fs.existsSync(path)) {
-  const r = fs.readFileSync(path, "utf8").trim();
-  if (r) data = JSON.parse(r);
-}
-const pl = Array.isArray(data.plugin) ? data.plugin : [];
-for (const p of ["context-mode", "./plugins/rtk.ts", "./plugins/caveman/plugin.js"]) {
-  if (!pl.includes(p)) pl.push(p);
-}
-data.plugin = pl;
-fs.writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
-NODE
-    fi
-    echo "  OpenCode plugins configured"
-  fi
 }
 
 configure_caveman_step() {
@@ -136,7 +155,7 @@ configure_caveman_step() {
     return 0
   fi
 
-  try_run npx -y github:JuliusBrussee/caveman -- --only claude --only opencode --non-interactive
+  try_run npx -y github:JuliusBrussee/caveman -- --only claude --non-interactive
 
   run mkdir -p "$HOME/.config/caveman"
   if [ "${DRY_RUN:-0}" -eq 1 ]; then

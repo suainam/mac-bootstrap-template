@@ -156,12 +156,16 @@ For verification, `~` is the most general entrypoint. It is fine for shell
 syntax and auto-attach checks, and keeps the workflow closer to a normal new
 terminal session.
 
-AI coding CLIs are managed from this Brewfile where possible: `claude-code` and
-`omp` are Homebrew packages, while Reasonix is installed as a global
-npm package through Homebrew Bundle's `npm` support. Token/context helpers are
-split the same way: RTK and `codex-threadripper` are installed from Homebrew
-taps, and `context-mode` is installed as a global npm package. Antigravity CLI
-follows the official Google installer instead of Homebrew cask packaging.
+AI coding CLIs are managed from this Brewfile where possible: `claude-code`,
+`omp`, and `opencode-v2` are Homebrew packages, while Reasonix is installed as a
+global npm package through Homebrew Bundle's `npm` support. Token/context
+helpers are split the same way: RTK and `codex-threadripper` are installed from
+Homebrew taps, and `context-mode` is installed as a global npm package.
+OpenCode V2 is installed from the `anomalyco/tap` Homebrew tap; its managed RTK
+plugin is provisioned by `scripts/install-agent-tooling.sh`. Context Mode's
+OpenCode V1 plugin is not enabled by this template because the upstream package
+does not currently expose a V2 plugin entrypoint. Antigravity CLI follows the
+official Google installer instead of Homebrew cask packaging.
 OMP is the current default Agent CLI; Pi runtime wiring remains a compatibility layer and does not imply Pi remains installed on this machine.
 
 Machine-level npm globals are tracked in `template/agent/npm-global-packages.txt`.
@@ -513,9 +517,9 @@ make skill-update SOURCE=mattpocock-skills
 
 This configures all agent-facing tools via `scripts/install-agent-tooling.sh`:
 - Symlinks canonical config files from `agent/rules/` to agent home dirs
-- RTK global hook, Codex config, OpenCode plugin, legacy Pi extension
-- Context Mode Claude plugin + OpenCode plugin
-- Caveman with **ultra** mode for Claude, Codex, OpenCode, and legacy Pi
+- RTK global hook, Codex config, OpenCode V2 plugin, legacy Pi extension
+- Context Mode Claude plugin + OpenCode MCP (the incompatible V1 plugin stays disabled)
+- Caveman with **ultra** mode for Claude, Codex, and legacy Pi
 - Agent quality gate policy + runner wiring
 - Codebase Memory MCP installer with auto_index config
 - 12 operating rules embedded in all agent system prompts
