@@ -468,7 +468,7 @@ hook-matchers:
 	./scripts/add-hook-matchers.sh
 
 patch-chrome-gemini:
-	./scripts/patch-chrome-gemini.sh
+	./scripts/patch-chrome-gemini.sh $(if $(USER),$(USER),)
 
 # ── Claude Code Daemon ─────────────────────────────────────
 claude-daemon-install:

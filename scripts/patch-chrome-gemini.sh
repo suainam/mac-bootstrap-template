@@ -5,9 +5,14 @@
 
 set -euo pipefail
 
-CHROME_STATE="$HOME/Library/Application Support/Google/Chrome/Local State"
+TARGET_USER="${1:-$USER}"
+if [ "$TARGET_USER" = "$USER" ]; then
+    CHROME_STATE="$HOME/Library/Application Support/Google/Chrome/Local State"
+else
+    CHROME_STATE="/Users/$TARGET_USER/Library/Application Support/Google/Chrome/Local State"
+fi
 
-echo "🚀 Patching Google Chrome to enable Gemini features..."
+echo "🚀 Patching Google Chrome for user '$TARGET_USER' to enable Gemini features..."
 
 if [ ! -f "$CHROME_STATE" ]; then
     echo "⚠️ Chrome config not found: $CHROME_STATE. Skipping patch."
@@ -52,10 +57,10 @@ if [ $NEEDS_PATCH -eq 0 ]; then
     exit 0
 fi
 
-if pgrep -x "Google Chrome" > /dev/null; then
-    echo "⚠️  WARNING: Chrome is currently running."
-    echo "   The patch will be applied, but Chrome might overwrite it when you quit."
-    echo "   If Gemini disappears later, close Chrome and run: make patch-chrome-gemini"
+if pgrep -u "$TARGET_USER" -x "Google Chrome" > /dev/null 2>&1; then
+    echo "⚠️  WARNING: Chrome is currently running for user '$TARGET_USER'."
+    echo "   The patch will be applied, but Chrome might overwrite it when quit."
+    echo "   If Gemini disappears, close Chrome and rerun: make patch-chrome-gemini USER=$TARGET_USER"
 fi
 
 # Apply the patch using sed directly on the file
