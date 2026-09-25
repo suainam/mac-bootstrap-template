@@ -6,11 +6,8 @@
 set -euo pipefail
 
 TARGET_USER="${1:-$USER}"
-if [ "$TARGET_USER" = "$USER" ]; then
-    CHROME_STATE="$HOME/Library/Application Support/Google/Chrome/Local State"
-else
-    CHROME_STATE="/Users/$TARGET_USER/Library/Application Support/Google/Chrome/Local State"
-fi
+TARGET_HOME="$(eval echo "~$TARGET_USER")"
+CHROME_STATE="$TARGET_HOME/Library/Application Support/Google/Chrome/Local State"
 
 echo "🚀 Patching Google Chrome for user '$TARGET_USER' to enable Gemini features..."
 
