@@ -18,7 +18,10 @@ echo "  npm proxy configured"
 
 echo "=== git proxy ==="
 write_git_proxy_include "$GIT_PROXY_TEMPLATE" "$GIT_PROXY_TARGET"
-echo "  git proxy include configured at $GIT_PROXY_TARGET"
+echo "  git proxy include configured at $GIT_PROXY_TARGET ($HTTP_PROXY_VAL)"
 
 echo ""
 echo "Source: shell/shell_env  |  Docker/Colima reads env vars automatically"
+echo ""
+echo "Notice: Active shell sessions and background agents (Herdr panes / tmux) retain existing environment."
+echo "  Run: source ~/.zshrc (or restart agent session) to pick up the updated proxy variables."

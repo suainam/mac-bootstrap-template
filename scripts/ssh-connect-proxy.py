@@ -4,9 +4,10 @@ import socket, sys, select, os
 host = sys.argv[1]
 port = int(sys.argv[2])
 
+proxy_port = int(os.environ.get('MAC_BOOTSTRAP_SSH_PROXY_PORT', '7897'))
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.settimeout(15)
-s.connect(('127.0.0.1', 7897))
+s.connect(('127.0.0.1', proxy_port))
 
 s.send(f'CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n'.encode())
 resp = s.recv(4096)

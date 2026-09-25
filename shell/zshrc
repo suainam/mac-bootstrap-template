@@ -8,6 +8,8 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
+# Machine-specific proxy defaults must be known before ~/.shell_env enables them.
+source ~/.zshrc.local 2>/dev/null || true
 # Zshrc — Mac 版，适配自 AuroraOps
 # Shared environment
 [[ -f ~/.shell_env ]] && source ~/.shell_env
@@ -21,6 +23,7 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
+
 
 # Interactive UI plugins require both interactive zsh and a real TTY.
 # Keep non-TTY probes and restored/headless shells side-effect free.
@@ -165,8 +168,6 @@ alias rsync-update="rsync -avzu --progress -h"
 alias rsync-synchronize="rsync -avzu --delete --progress -h"
 alias cip="curl cip.cc"
 
-# User local overrides
-source ~/.zshrc.local 2>/dev/null || true
 
 # Host-specific SSH TERM wrappers belong in ~/.zshrc.local or the private
 # overlay, so public template files do not carry private host aliases.
