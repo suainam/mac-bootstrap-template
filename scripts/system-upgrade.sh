@@ -49,6 +49,14 @@ echo "Patching Chrome to ensure Gemini features remain enabled..."
   cd "${ROOT_DIR}"
   make patch-chrome-gemini || true
 )
+if [[ -f "${ROOT_DIR}/../Makefile" ]] && grep -q "mihomo-daemon-sync" "${ROOT_DIR}/../Makefile" 2>/dev/null; then
+  echo "Synchronizing Mihomo daemon subscription and rules..."
+  (
+    cd "${ROOT_DIR}/.."
+    make mihomo-daemon-sync || true
+  )
+fi
+
 
 echo "Refreshing approved external skill bundles..."
 (
