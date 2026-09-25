@@ -5,13 +5,34 @@
 
 set -euo pipefail
 
-TARGET_USER="${1:-$USER}"
+KILL_CHROME="${KILL_CHROME:-0}"
+TARGET_USER=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --kill)
+            KILL_CHROME=1
+            ;;
+        *)
+            if [ -z "$TARGET_USER" ]; then
+                TARGET_USER="$arg"
+            fi
+            ;;
+    esac
+done
+
+TARGET_USER="${TARGET_USER:-$USER}"
+
 TARGET_HOME="$(eval echo "~$TARGET_USER")"
 CHROME_STATE="$TARGET_HOME/Library/Application Support/Google/Chrome/Local State"
 
-echo "🚀 Patching Google Chrome for user '$TARGET_USER' to enable Gemini features..."
-
-if [ ! -f "$CHROME_STATE" ]; then
+if [ ! -e "$CHROME_STATE" ]; then
+    if [ ! -r "$TARGET_HOME/Library" ]; then
+        echo "⚠️ Permission denied: cannot access $TARGET_HOME/Library."
+        echo "   To patch another user, run with sudo or run directly under '$TARGET_USER':"
+        echo "     sudo ./scripts/patch-chrome-gemini.sh $TARGET_USER"
+        exit 1
+    fi
     echo "⚠️ Chrome config not found: $CHROME_STATE. Skipping patch."
     exit 0
 fi
@@ -55,9 +76,20 @@ if [ $NEEDS_PATCH -eq 0 ]; then
 fi
 
 if pgrep -u "$TARGET_USER" -x "Google Chrome" > /dev/null 2>&1; then
-    echo "⚠️  WARNING: Chrome is currently running for user '$TARGET_USER'."
-    echo "   The patch will be applied, but Chrome might overwrite it when quit."
-    echo "   If Gemini disappears, close Chrome and rerun: make patch-chrome-gemini USER=$TARGET_USER"
+    if [ "$KILL_CHROME" = "1" ]; then
+        echo "🛑 Closing Google Chrome for user '$TARGET_USER'..."
+        if [ "$TARGET_USER" = "$USER" ] || [ "$(id -u)" -eq 0 ]; then
+            pkill -u "$TARGET_USER" -x "Google Chrome" || true
+        else
+            sudo pkill -u "$TARGET_USER" -x "Google Chrome" || true
+        fi
+        sleep 1
+    else
+        echo "⚠️  WARNING: Chrome is currently running for user '$TARGET_USER'."
+        echo "   The patch will be applied, but Chrome might overwrite it when quit."
+        echo "   Pass --kill or KILL=1 to close Chrome automatically before patching."
+        echo "   If Gemini disappears, close Chrome and rerun: make patch-chrome-gemini USER=$TARGET_USER KILL=1"
+    fi
 fi
 
 # Apply the patch using sed directly on the file
