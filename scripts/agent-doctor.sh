@@ -57,13 +57,6 @@ OPENCODE_AGENTS="$(json_get_path agents.opencode.paths.instructions)"
 OPENCODE_PLUGINS_DIR="$(json_get_path agents.opencode.paths.plugins)"
 OPENCODE_SKILLS_DIR="$(json_get_path agents.opencode.paths.skills)"
 
-PI_SETTINGS="$(json_get_path agents.pi.paths.settings)"
-PI_MCP_JSON="$(json_get_path agents.pi.paths.mcp)"
-PI_MODELS_JSON="$(json_get_path agents.pi.paths.models_json)"
-PI_AGENTS="$(json_get_path agents.pi.paths.instructions)"
-PI_SKILLS_DIR="$(json_get_path agents.pi.paths.skills)"
-PI_EXTENSIONS_DIR="$(json_get_path agents.pi.paths.extensions)"
-PI_LOCAL_PROVIDER="$(json_get_path agents.pi.paths.local_provider_extension)"
 
 REASONIX_CONFIG="$(json_get_path agents.reasonix.paths.config)"
 REASONIX_SKILLS_DIR="$(json_get_path agents.reasonix.paths.skills)"
@@ -348,60 +341,6 @@ check_contains "OpenCode AGENTS.md Adversarial Review" "$OPENCODE_AGENTS" 'Adver
 check_max_lines "AGENTS.md length" "$OPENCODE_AGENTS" 60
 
 echo ""
-echo "--- Pi ---"
-if command -v pi &>/dev/null; then
-  echo "  OK   pi binary ($(command -v pi))"
-  if [ -f "$PI_SETTINGS" ]; then
-    echo "  OK   settings.json"
-  else
-    echo "  MISS settings.json"
-  fi
-  check_contains "settings.json RTK extension" "$PI_SETTINGS" 'rtk.ts'
-  check_contains "settings.json local provider extension" "$PI_SETTINGS" 'local-openai-provider.ts'
-  check_contains "settings.json pi-mcp-extension package" "$PI_SETTINGS" 'pi-mcp-extension'
-  audit_mcp_config pi "$PI_MCP_JSON"
-  if [ -f "$PI_LOCAL_PROVIDER" ]; then
-    echo "  OK   local-openai-provider.ts"
-  else
-    echo "  MISS local-openai-provider.ts"
-  fi
-  if [ -f "$PI_MODELS_JSON" ]; then
-    MODEL_COUNT=$(python3 - "$PI_MODELS_JSON" <<'PYEOF' 2>/dev/null || echo "?"
-import json, sys
-d = json.load(open(sys.argv[1]))
-print(sum(len(p.get('models',[])) for p in d.get('providers',{}).values()))
-PYEOF
-)
-    echo "  OK   models.json ($MODEL_COUNT models, used by /model picker in session)"
-  else
-    echo "  MISS models.json (run: scripts/install-agent-tooling.sh --configure)"
-  fi
-  if [ -d "$PI_SKILLS_DIR" ]; then
-    SKILL_COUNT=$(find -L "$PI_SKILLS_DIR" -mindepth 2 -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')
-    echo "  OK   skills/ ($SKILL_COUNT SKILL.md files)"
-  fi
-  check_symlink "AGENTS.md" "$PI_AGENTS"
-  if [ -f "$PI_AGENTS" ]; then
-    if grep -q '## Core Operating Rules' "$PI_AGENTS" 2>/dev/null; then
-      echo "  OK   AGENTS.md (canonical global rules)"
-    else
-      echo "  MISS canonical global rules in AGENTS.md"
-    fi
-  fi
-  EXT_LIST=$(pi list 2>/dev/null || true)
-  if echo "$EXT_LIST" | grep -q "rtk.ts"; then
-    echo "  OK   RTK extension registered"
-  else
-    echo "  MISS RTK extension (run: pi install ~/.pi/agent/extensions/rtk.ts)"
-  fi
-  if echo "$EXT_LIST" | grep -q "pi-mcp-extension"; then
-    echo "  OK   pi-mcp-extension package installed"
-  else
-    echo "  MISS pi-mcp-extension package"
-  fi
-fi
-
-echo ""
 echo "--- Reasonix ---"
 if command -v reasonix &>/dev/null; then
   echo "  OK   reasonix binary"
@@ -498,7 +437,6 @@ if command -v npx &>/dev/null; then
   if grep -q 'context7' "$CLAUDE_MCP_JSON" 2>/dev/null || \
      grep -q 'context7' "$CODEX_TOML" 2>/dev/null || \
      grep -q 'context7' "$OPENCODE_CONFIG" 2>/dev/null || \
-     grep -q 'context7' "$PI_MCP_JSON" 2>/dev/null || \
      grep -q 'context7' "$ANTIGRAVITY_MCP_JSON" 2>/dev/null; then
     echo "  OK   context7 MCP (configured in agent configs)"
   else
@@ -538,130 +476,6 @@ find_data_hub_runtime_config() {
   return 1
 }
 
-runtime_config_path="$(find_data_hub_runtime_config || true)"
-if [ -n "$runtime_config_path" ]; then
-  llm_wiki_info="$(python3 - "$runtime_config_path" <<'PY'
-import json
-import os
-import shlex
-import sys
-from pathlib import Path
-
-text = Path(sys.argv[1]).read_text(encoding="utf-8")
-lines = [line for line in text.splitlines() if not line.strip().startswith("//")]
-data = json.loads("\n".join(lines) or "{}")
-config = data.get("llm_wiki", {}) or {}
-
-def as_bool(value):
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in {"1", "true", "yes", "on"}
-    return bool(value)
-
-enabled = as_bool(config.get("enabled", False))
-api_base = str(config.get("api_base", "http://127.0.0.1:19828")).rstrip("/")
-bundle_path = os.path.expanduser(os.path.expandvars(str(config.get("bundle_path", "/Applications/LLM Wiki.app"))))
-project_root = str(config.get("project_root", ""))
-token_env = str(config.get("token_env", "LLM_WIKI_TOKEN"))
-token = str(config.get("token", "")) or os.environ.get(token_env, "")
-mcp = config.get("mcp", {}) or {}
-local = config.get("local", {}) or {}
-def emit(name, value):
-    print(f"{name}={shlex.quote(str(value))}")
-
-emit("enabled", str(enabled).lower())
-emit("api_base", api_base)
-emit("bundle_path", bundle_path)
-emit("project_root", project_root)
-emit("token_env", token_env)
-emit("token_configured", str(bool(token)).lower())
-emit("mcp_enabled", str(as_bool(mcp.get("enabled", False))).lower())
-emit("local_build_required", str(as_bool(local.get("build_required", False))).lower())
-PY
-)"
-  eval "$llm_wiki_info"
-  if [ "${enabled:-false}" = "true" ]; then
-    echo "  OK   llm_wiki enabled via API ($api_base)"
-
-    if command -v curl &>/dev/null; then
-      curl_args=(-fsS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 4)
-      case "$api_base" in
-        http://127.0.0.1*|https://127.0.0.1*|http://localhost*|https://localhost*)
-          curl_args+=(--noproxy "127.0.0.1,localhost")
-          ;;
-      esac
-      if [ "${token_configured:-false}" = "true" ]; then
-        token_value="${!token_env:-}"
-        if [ -n "$token_value" ]; then
-          curl_args+=(-H "Authorization: Bearer $token_value")
-        fi
-      fi
-      api_status="$(curl "${curl_args[@]}" "$api_base/api/v1/projects" 2>/dev/null || true)"
-      case "$api_status" in
-        200|204)
-          echo "  OK   llm_wiki API reachable"
-          ;;
-        401|403)
-          echo "  WARN llm_wiki API reachable but protected ($api_status); configure $token_env for authenticated data-hub access if needed"
-          ;;
-        000|"")
-          if [ -d "$bundle_path" ]; then
-            echo "  INFO llm_wiki API offline at $api_base; start $bundle_path if data-hub needs live API context"
-          else
-            echo "  INFO llm_wiki API offline at $api_base ($bundle_path not installed); data-hub uses local fallback"
-          fi
-          ;;
-        502|503|504)
-          echo "  INFO llm_wiki API offline (gateway $api_status) at $api_base; data-hub uses local fallback"
-          ;;
-        *)
-          echo "  WARN llm_wiki API returned HTTP $api_status at $api_base"
-          ;;
-      esac
-    else
-      echo "  WARN curl missing; cannot probe llm_wiki API"
-    fi
-
-    if [ -d "$bundle_path" ]; then
-      echo "  OK   LLM Wiki.app installed ($bundle_path)"
-      if [ -f "$bundle_path/Contents/Resources/mcp-server/dist/src/index.js" ]; then
-        echo "  INFO LLM Wiki.app bundled MCP server present (optional)"
-      fi
-    fi
-
-    if [ "${mcp_enabled:-false}" = "true" ]; then
-      if [ -f "$bundle_path/Contents/Resources/mcp-server/dist/src/index.js" ]; then
-        echo "  OK   llm_wiki MCP server from app bundle"
-      elif [ -f "${LLM_WIKI_DIR:-$HOME/work/llm_wiki}/mcp-server/dist/index.js" ]; then
-        echo "  OK   llm_wiki MCP build artifact"
-      else
-        echo "  MISS llm_wiki MCP enabled but no MCP server artifact found (run: make llm-wiki-mcp-build)"
-      fi
-    else
-      echo "  INFO llm_wiki MCP not required; data-hub uses API mode"
-    fi
-
-    if [ "${local_build_required:-false}" = "true" ]; then
-      llm_wiki_dir="${LLM_WIKI_DIR:-$HOME/work/llm_wiki}"
-      if [ -d "$llm_wiki_dir" ] && [ -f "$llm_wiki_dir/package.json" ]; then
-        echo "  OK   llm_wiki source checkout ($llm_wiki_dir)"
-      else
-        echo "  MISS llm_wiki source checkout required (run: make llm-wiki-install)"
-      fi
-      if command -v node &>/dev/null && command -v npm &>/dev/null; then
-        echo "  OK   llm_wiki Node/npm prerequisite"
-      else
-        echo "  MISS llm_wiki Node/npm prerequisite (install Node.js 20+)"
-      fi
-      if command -v cargo &>/dev/null; then
-        echo "  OK   llm_wiki Rust prerequisite"
-      else
-        echo "  MISS llm_wiki Rust prerequisite (install Rust 1.70+)"
-      fi
-    fi
-  fi
-fi
 
 # Verify CBM indexed
 if codebase-memory-mcp cli list_projects '{}' 2>/dev/null | grep -q '"name"'; then

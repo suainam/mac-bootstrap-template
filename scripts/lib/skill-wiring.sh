@@ -76,12 +76,6 @@ wire_skill_dir() {
     run rm -rf "$CROSS_AGENT_SKILLS_DIR/${skill_name}"
   fi
 
-  if skill_has_target "$skill_name" "pi"; then
-    run mkdir -p "$PI_SKILLS_DIR"
-    link_skill_target "$src_dir" "$PI_SKILLS_DIR/${skill_name}"
-  else
-    run rm -rf "$PI_SKILLS_DIR/${skill_name}"
-  fi
 
   if skill_has_target "$skill_name" "antigravity"; then
     link_skill_target "$src_dir" "$ANTIGRAVITY_SKILLS_DIR/${skill_name}"

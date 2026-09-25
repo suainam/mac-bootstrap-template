@@ -14,7 +14,7 @@
   "defaults": {
     "external": {
       "scope": "global",
-      "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+      "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
       "distribution_state": "enabled",
       "audit": {
         "required": true,
@@ -114,7 +114,7 @@
       "ref": "https://github.com/vercel-labs/skills",
       "skills": {
         "find-skills": {
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -137,7 +137,7 @@
       "skills": {
         "web-design-guidelines": {
           "distribution_state": "staged",
-          "agents": ["codex", "opencode", "pi"],
+          "agents": ["codex", "opencode"],
           "gate": {
             "manual_approval": true,
             "approved": false,
@@ -154,7 +154,7 @@
       "skills": {
         "pdf": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "pi"],
+          "agents": ["claude", "codex"],
           "gate": {
             "manual_approval": true,
             "approved": false,
@@ -170,7 +170,7 @@
       "ref": "https://github.com/affaan-m/everything-claude-code.git",
       "skills": {
         "python-testing": {
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -185,16 +185,16 @@
         },
         "docker-patterns": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "User-confirmed stage; useful for infra/data projects but not a default global install"
         },
         "data-throughput-accelerator": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "User-confirmed stage; keep source available for ETL/backfill work"
         },
         "search-first": {
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -208,7 +208,7 @@
           }
         },
         "documentation-lookup": {
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -273,13 +273,13 @@
       },
       "skills": {
         "caveman": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "local_shadow_path": "agent-skills/local/shadows/mattpocock/caveman",
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill caveman"
         },
         "diagnosing-bugs": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -295,7 +295,7 @@
           "reason": "User-approved canonical upstream debugging skill for global distribution"
         },
         "improve-codebase-architecture": {
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -309,7 +309,7 @@
           }
         },
         "codebase-design": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -324,7 +324,7 @@
           "reason": "User-approved global architecture workflow skill"
         },
         "code-review": {
-          "agents": ["claude", "codex", "opencode", "pi", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -339,7 +339,7 @@
           "reason": "End-to-end engineering workflow review stage; Reasonix excluded until it supports parent-level parallel review agents"
         },
         "domain-modeling": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -354,7 +354,7 @@
           "reason": "User-approved global domain-modeling workflow skill"
         },
         "grilling": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -369,7 +369,7 @@
           "reason": "User-approved global design-review workflow skill"
         },
         "grill-with-docs": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -384,7 +384,7 @@
           "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
         },
         "handoff": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -399,7 +399,7 @@
           "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
         },
         "implement": {
-          "agents": ["claude", "codex", "opencode", "pi", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -414,7 +414,7 @@
           "reason": "End-to-end engineering workflow implementation stage; Reasonix excluded because its code-review dependency requires unavailable parent-level parallel agents"
         },
         "prototype": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -429,7 +429,7 @@
           "reason": "Required wayfinder dependency for runnable logic or UI decision prototypes"
         },
         "setup-matt-pocock-skills": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -444,7 +444,7 @@
           "reason": "End-to-end engineering workflow setup dependency; Reasonix directory wiring preserves its five referenced templates"
         },
         "tdd": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -459,7 +459,7 @@
           "reason": "Canonical generic TDD skill for the Matt Pocock engineering workflow; directory wiring preserves tests and mocking references"
         },
         "to-spec": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -474,7 +474,7 @@
           "reason": "End-to-end engineering workflow specification stage; requires setup-matt-pocock-skills tracker configuration before publication"
         },
         "to-tickets": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -489,7 +489,7 @@
           "reason": "End-to-end engineering workflow ticket stage; requires setup-matt-pocock-skills tracker configuration before publication"
         },
         "wayfinder": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "dependencies": ["domain-modeling", "grilling", "prototype", "setup-matt-pocock-skills"],
           "audit": {
             "allow_unaudited": true
@@ -514,17 +514,17 @@
         },
         "write-a-skill": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill write-a-skill; stage by default because it is a skill-authoring helper"
         },
         "zoom-out": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill zoom-out; stage by default until routing/noise is confirmed"
         },
         "writing-for-agents": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -539,7 +539,7 @@
         },
         "research": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -554,7 +554,7 @@
         },
         "resolving-merge-conflicts": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -569,7 +569,7 @@
         },
         "pr": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -584,7 +584,7 @@
         },
         "implement-spec": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -610,7 +610,7 @@
       },
       "skills": {
         "ponytail": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -626,7 +626,7 @@
         "ponytail-review": {
           "distribution_state": "disabled",
           "reason": "Disabled to avoid context pollution; core ponytail ladder governs review complexity",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -642,7 +642,7 @@
         "ponytail-audit": {
           "distribution_state": "disabled",
           "reason": "Disabled to avoid context pollution; low-frequency scan not needed globally",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -658,7 +658,7 @@
         "ponytail-debt": {
           "distribution_state": "disabled",
           "reason": "Disabled to avoid context pollution; niche grep for ponytail comment markers",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -674,7 +674,7 @@
         "ponytail-gain": {
           "distribution_state": "disabled",
           "reason": "Disabled; static benchmark scoreboard card with no operational utility",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -690,7 +690,7 @@
         "ponytail-help": {
           "distribution_state": "disabled",
           "reason": "Disabled; static help cheatsheet redundant with core ponytail instructions",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -742,7 +742,7 @@
       "ref": "https://github.com/langgptai/LangGPT/blob/main/README_zh.md#%E6%96%B9%E6%B3%95%E4%BA%94claude-code-skill%E6%8E%A8%E8%8D%90",
       "skills": {
         "langgpt-prompt-writer": {
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "local_shadow_path": "agent-skills/local/shadows/langgpt/langgpt-prompt-writer",
           "reason": "User-confirmed keep-global/routed; LangGPT README recommends Claude Code Skill via marketplace/manual install"
         }
@@ -755,7 +755,7 @@
       "ref": "joeseesun/qiaomu-goal-meta-skill",
       "skills": {
         "qiaomu-goal-meta-skill": {
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "local_shadow_path": "agent-skills/local/shadows/qiaomu/qiaomu-goal-meta-skill",
           "reason": "User-confirmed global distribution; upstream README installs with: npx skills add joeseesun/qiaomu-goal-meta-skill"
         }
@@ -784,7 +784,7 @@
         },
         "neat-freak": {
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "Replaced by the internal global curate-repo-knowledge skill",
           "audit": {
             "allow_unaudited": true
@@ -894,7 +894,7 @@
       "ref": "https://github.com/op7418/Humanizer-zh.git",
       "skills": {
         "humanizer-zh": {
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -949,7 +949,7 @@
         "using-git-worktrees": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -965,7 +965,7 @@
         "writing-plans": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -981,7 +981,7 @@
         "executing-plans": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -997,7 +997,7 @@
         "brainstorming": {
           "distribution_state": "disabled",
           "reason": "User-disabled globally; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -1014,7 +1014,7 @@
         "finishing-a-development-branch": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -1031,7 +1031,7 @@
         "requesting-code-review": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
             "allow_unaudited": true
           },
@@ -1059,7 +1059,7 @@
       "skills": {
         "herdr": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "local_shadow_path": "agent-skills/local/shadows/herdr/herdr",
           "gate": {
             "manual_approval": true,
@@ -1081,7 +1081,7 @@
         "archify": {
           "distribution_state": "enabled",
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -1107,46 +1107,46 @@
         "cavecrew": {
           "scope": "global",
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "pi", "cross-agent"]
+          "agents": ["claude", "codex", "opencode", "cross-agent"]
         },
         "decrypt-materialize": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "cross-agent"],
           "reason": "通用解密/物化工具,支持 TSD/工作簿/smudged文本,跨平台"
         },
         "knowledge-lifecycle-manager": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "沉淀与复用入口，应该全局可用"
         },
         "curate-repo-knowledge": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "通用仓库知识冷启动、权威路由、文档收敛与按需记忆毕业"
         },
         "explain-changes": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "Vendored from nickbasile gist 61a425b0bd79b01649d1ce35c1ffaa47 (upstream author of the plan->implement->explain workflow); not on skills.sh so quarantine fetcher cannot ingest; content verbatim v1.0.0"
         },
         "playwriter": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "基于 Playwright 和 Chrome 扩展的实时浏览器自动化与无头网页交互技能"
         },
         "public-api-index": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "免认证公共 REST API 目录与即时查询工具（天气、地理/IP、加密汇率、DNS网络、知识检索）"
         },
         "herdr-nvim-qa-workspace": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "基于 Herdr + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构"
         },
         "monid": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "Monid CLI 数据端点发现、模式检查与执行技能（https://monid.ai/SKILL.md）"
         }
       }
@@ -1171,7 +1171,7 @@
         "caveman-help": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent"],
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "retired after caveman source moved to mattpocock/skills"
         },
         "caveman-review": {

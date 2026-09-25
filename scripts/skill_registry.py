@@ -24,7 +24,6 @@ VALID_AGENTS = {
     "claude",
     "codex",
     "opencode",
-    "pi",
     "reasonix",
     "antigravity",
     "cross-agent",

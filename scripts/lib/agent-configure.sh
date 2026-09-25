@@ -15,9 +15,6 @@ log_agent_binaries() {
       echo "  missing: $tool"
     fi
   done
-  if have pi; then
-    run pi --version < /dev/null 2>&1 | head -1 || echo "  pi: installed"
-  fi
 }
 
 link_canonical_symlinks() {
@@ -61,10 +58,6 @@ ensure_agent_dirs() {
 }
 
 configure_global_instruction_links() {
-  if [ -d "$(dirname "$PI_AGENTS_MD")" ] || have pi; then
-    write_managed_symlink "$RULES_FILE" "$PI_AGENTS_MD"
-    echo "  LINK  $PI_AGENTS_MD → $RULES_FILE"
-  fi
   write_managed_symlink "$RULES_FILE" "$GLOBAL_GEMINI"
   echo "  LINK  $GLOBAL_GEMINI → $RULES_FILE"
   local omp_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
@@ -94,7 +87,6 @@ configure_rtk_step() {
   if have rtk; then
     try_run rtk init --global --auto-patch
     if have codex; then try_run rtk init --global --codex; fi
-    if have pi; then try_run rtk init --global --agent pi; fi
   else
     echo "  SKIP: rtk not installed"
   fi
@@ -204,7 +196,6 @@ NODE
   fi
 
   install_codex_caveman_assets
-  install_pi_caveman_skill
   install_antigravity_caveman_skill
 }
 
@@ -361,26 +352,6 @@ NODE
   scrub_codex_context_mode_continuity_hooks
 }
 
-install_pi_caveman_skill() {
-  if ! have pi || [ -f "$PI_SKILLS_DIR/caveman/SKILL.md" ]; then
-    return 0
-  fi
-  run mkdir -p "$PI_SKILLS_DIR/caveman"
-  if [ "${DRY_RUN:-0}" -eq 1 ]; then
-    echo "DRY-RUN: write $PI_SKILLS_DIR/caveman/SKILL.md"
-  else
-    cat > "$PI_SKILLS_DIR/caveman/SKILL.md" <<'PISKILL'
----
-name: caveman
-description: Talk terse. Drop articles, filler, pleasantries, hedging.
----
-Talk terse. Drop articles/filler/pleasantries/hedging.
-Fragments OK. Short synonyms. Technical terms exact.
-Active by default. Off only: "normal mode" or "stop caveman".
-PISKILL
-  fi
-  echo "  Pi caveman skill written"
-}
 
 install_antigravity_caveman_skill() {
   if ! have agy || [ -f "$ANTIGRAVITY_SKILLS_DIR/caveman/SKILL.md" ]; then
@@ -532,132 +503,6 @@ link_pi_private_configs() {
   echo "  Pi: $package_dst -> $package_src"
 }
 
-configure_pi_step() {
-
-  if ! have pi; then
-    echo "  Pi binary not installed — skipping package installation"
-    return 0
-  fi
-
-  run mkdir -p "$PI_SKILLS_DIR" "$PI_EXTENSIONS_DIR"
-
-  if [ -f "$PI_LOCAL_PROVIDER_SRC" ]; then
-    if [ "${DRY_RUN:-0}" -eq 1 ]; then
-      echo "DRY-RUN: copy $PI_LOCAL_PROVIDER_SRC -> $PI_LOCAL_PROVIDER"
-    else
-      cp -f "$PI_LOCAL_PROVIDER_SRC" "$PI_LOCAL_PROVIDER"
-    fi
-    echo "  Pi: local provider extension staged"
-  fi
-
-  local pi_packages_file="$BOOTSTRAP/agent/pi-packages.txt"
-  local pi_installed="" registered pname _pkg
-  local pi_pkg_list=()
-  if [ -f "$pi_packages_file" ]; then
-    while IFS= read -r _pkg; do
-      pi_pkg_list+=("$_pkg")
-    done < <(grep -vE '^\s*(#|$)' "$pi_packages_file")
-  fi
-  local pi_pkg_json
-  pi_pkg_json="$(printf '%s\n' "${pi_pkg_list[@]}" | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))' 2>/dev/null || echo "[]")"
-
-  PI_LIST_OK=0
-  if pi_installed="$(capture_with_timeout 5 pi list 2>/dev/null)"; then
-    PI_LIST_OK=1
-  else
-    echo "  WARN: 'pi list' failed or timed out — skipping Pi package/extension registration"
-  fi
-  if [ "$PI_LIST_OK" -eq 1 ]; then
-    for _pkg in "${pi_pkg_list[@]}"; do
-      pname="${_pkg#npm:}"
-      if echo "$pi_installed" | grep -q "$pname"; then
-        echo "  SKIP: $pname already installed"
-      else
-        run pi install "$_pkg"
-        echo "  Pi: $pname installed"
-      fi
-    done
-  fi
-
-
-  local pi_pkg_json_esc
-  pi_pkg_json_esc="$(printf '%s\n' "$pi_pkg_json" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip()))' 2>/dev/null || echo '[]')"
-  write_json_file "$PI_SETTINGS" "
-let cfg = {};
-if (fs.existsSync(path)) {
-  const raw = fs.readFileSync(path, 'utf8').trim();
-  if (raw) cfg = JSON.parse(raw);
-}
-const extensionPath = process.env.HOME + '/.pi/agent/extensions/rtk.ts';
-const localProviderPath = process.env.HOME + '/.pi/agent/extensions/local-openai-provider.ts';
-const skillsPath = process.env.HOME + '/.pi/agent/skills';
-const pkgList = JSON.parse($pi_pkg_json_esc);
-cfg.packages = Array.isArray(cfg.packages) ? cfg.packages : [];
-for (const p of pkgList) {
-  if (!cfg.packages.includes(p)) cfg.packages.push(p);
-}
-cfg.extensions = Array.isArray(cfg.extensions) ? cfg.extensions : [];
-if (!cfg.extensions.includes(extensionPath)) cfg.extensions.push(extensionPath);
-if (!cfg.extensions.includes(localProviderPath)) cfg.extensions.push(localProviderPath);
-cfg.skills = Array.isArray(cfg.skills) ? cfg.skills : [];
-if (!cfg.skills.includes(skillsPath)) cfg.skills.push(skillsPath);
-fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
-"
-  echo "  Pi: settings.json updated"
-
-  configure_pi_mcp_file
-  link_pi_private_configs
-
-  local pi_local_base_url="${PI_LOCAL_PROVIDER_BASE_URL:-http://localhost:20128/v1}"
-  local skip_models="asr|tts|voiceclone|voicedesign|omni"
-  if curl -sf --max-time 3 "$pi_local_base_url/models" -o /tmp/pi_models_raw.json 2>/dev/null && [ -s /tmp/pi_models_raw.json ]; then
-    python3 - "$PI_MODELS_JSON" "$pi_local_base_url" "$skip_models" < /tmp/pi_models_raw.json <<'PY'
-import json, re, sys
-from pathlib import Path
-
-dst, base_url, skip_pat = Path(sys.argv[1]), sys.argv[2], re.compile(sys.argv[3])
-payload = sys.stdin.read().strip()
-if not payload:
-    print(f"  Pi: models endpoint returned empty payload from {base_url} — models.json unchanged")
-    raise SystemExit(0)
-
-try:
-    raw = json.loads(payload)
-except json.JSONDecodeError:
-    print(f"  Pi: models endpoint returned invalid JSON from {base_url} — models.json unchanged")
-    raise SystemExit(0)
-
-models = [{"id": m["id"]} for m in raw.get("data", []) if not skip_pat.search(m["id"])]
-config = {
-    "providers": {
-        "local-openai": {
-            "name": "Local OpenAI-Compatible (RTK proxy)",
-            "baseUrl": base_url,
-            "api": "openai-completions",
-            "apiKey": "local",
-            "compat": {"supportsDeveloperRole": False, "supportsReasoningEffort": False},
-            "models": models,
-        }
-    }
-}
-dst.parent.mkdir(parents=True, exist_ok=True)
-dst.write_text(json.dumps(config, indent=2) + "\n")
-print(f"  Pi: models.json written ({len(models)} models from {base_url})")
-PY
-  else
-    echo "  Pi: local server $pi_local_base_url offline or empty — models.json unchanged"
-  fi
-  rm -f /tmp/pi_models_raw.json
-
-  local rtk_pi_file="$PI_EXTENSIONS_DIR/rtk.ts"
-  if [ -f "$rtk_pi_file" ] && [ "$PI_LIST_OK" -eq 1 ]; then
-    registered="$(printf '%s\n' "$pi_installed" | grep -c "extensions/rtk.ts" || true)"
-    if [ "$registered" -eq 0 ]; then
-      run pi install "$rtk_pi_file"
-      echo "  Pi: RTK extension registered"
-    fi
-  fi
-}
 
 configure_reasonix_step() {
   if ! have reasonix; then

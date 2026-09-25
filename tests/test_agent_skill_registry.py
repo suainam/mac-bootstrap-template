@@ -103,7 +103,6 @@ def test_repo_knowledge_curator_is_globally_distributed_with_its_bundle():
         "claude",
         "codex",
         "opencode",
-        "pi",
         "reasonix",
         "antigravity",
         "cross-agent",
@@ -131,7 +130,7 @@ def test_langgpt_prompt_writer_skill_registered_as_external_shadow():
     )
     registry = load_sources()
     langgpt = registry["sources"]["langgpt"]["skills"][skill]
-    assert langgpt["agents"] == ["claude", "codex", "opencode", "pi", "cross-agent"]
+    assert langgpt["agents"] == ["claude", "codex", "opencode", "cross-agent"]
     assert langgpt.get("distribution_state", "enabled") == "enabled"
     assert (
         langgpt["local_shadow_path"]

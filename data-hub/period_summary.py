@@ -183,7 +183,7 @@ def build_period_summary(
     try:
         packet = retrieval_packet or build_retrieval_packet(
             task_goal=f"{level} summary {coverage.period_id}", keywords=[coverage.period_id],
-            date_from=coverage.period_start, date_to=coverage.coverage_end, include_llm_wiki=True,
+            date_from=coverage.period_start, date_to=coverage.coverage_end, include_llm_wiki=False,
         )
         if retrieval_packet is None:
             packet = dict(packet)
@@ -195,7 +195,7 @@ def build_period_summary(
             )
         evidence = collect_summary_evidence(
             level=level, period=coverage.period_id, query=f"{level} summary {coverage.period_id}",
-            retrieval_packet=packet, llm_wiki_client=llm_wiki_client if llm_wiki_client is not None else make_llm_wiki_client(),
+            retrieval_packet=packet, llm_wiki_client=llm_wiki_client,
         )
         pinned_lower_revisions = current_lower_revision_lineage(
             conn,

@@ -85,10 +85,6 @@ configure_opencode_mcp() {
   echo "  OpenCode: CBM + context7 MCP configured"
 }
 
-configure_pi_mcp_file() {
-  write_mcp_config pi "$PI_MCP_JSON"
-  echo "  Pi: mcp.json updated with CBM + context7"
-}
 
 configure_reasonix_mcp() {
   write_mcp_config reasonix "$REASONIX_CONFIG"

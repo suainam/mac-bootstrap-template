@@ -93,17 +93,17 @@ def test_registry_contains_external_and_internal_examples():
         "agent-skills/external/quarantine/vercel-agent-skills/web-design-guidelines"
     )
     assert vercel.scope == "global"
-    assert vercel.agents == ("codex", "opencode", "pi")
+    assert vercel.agents == ("codex", "opencode")
 
     anthropic = registry.skills[("anthropic-skills", "pdf")]
     assert anthropic.source_type == "external"
     assert anthropic.ref == "anthropics/skills"
-    assert anthropic.agents == ("claude", "codex", "pi")
+    assert anthropic.agents == ("claude", "codex")
 
     find_skills = registry.skills[("vercel-skills", "find-skills")]
     assert find_skills.source_type == "external"
     assert find_skills.ref == "https://github.com/vercel-labs/skills"
-    assert find_skills.agents == ("claude", "codex", "opencode", "pi", "cross-agent")
+    assert find_skills.agents == ("claude", "codex", "opencode", "cross-agent")
 
     knowledge = registry.skills[("local-global", "knowledge-lifecycle-manager")]
     assert knowledge.source_type == "internal"
@@ -112,7 +112,6 @@ def test_registry_contains_external_and_internal_examples():
         "claude",
         "codex",
         "opencode",
-        "pi",
         "reasonix",
         "antigravity",
         "cross-agent",
@@ -205,7 +204,6 @@ def test_skill_targets_match_current_production_distribution():
         "claude": (manifest["agents"]["claude"]["paths"]["skills"], "directory", "symlink"),
         "codex": (manifest["agents"]["codex"]["paths"]["skills"], "directory", "symlink"),
         "opencode": (manifest["agents"]["opencode"]["paths"]["skills"], "directory", "symlink"),
-        "pi": (manifest["agents"]["pi"]["paths"]["skills"], "directory", "symlink"),
         "antigravity": (
             manifest["agents"]["antigravity"]["paths"]["skills"],
             "directory",

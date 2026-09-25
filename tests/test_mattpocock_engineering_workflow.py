@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.skill_supply_chain import DEFAULT_REGISTRY, load_registry  # noqa: E402
 
 
-ALL_AGENTS = ("claude", "codex", "opencode", "pi", "reasonix", "antigravity", "cross-agent")
+ALL_AGENTS = ("claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent")
 DIRECTORY_AGENTS = tuple(agent for agent in ALL_AGENTS if agent != "reasonix")
 
 

@@ -23,11 +23,6 @@
       "format": "directory",
       "strategy": "symlink"
     },
-    "pi": {
-      "path": "~/.pi/agent/skills",
-      "format": "directory",
-      "strategy": "symlink"
-    },
     "antigravity": {
       "path": "~/.gemini/antigravity-cli/skills",
       "format": "directory",

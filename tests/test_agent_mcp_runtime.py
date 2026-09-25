@@ -460,7 +460,7 @@ def test_codex_audit_detects_duplicate_hook_representation():
     assert [issue.code for issue in issues] == ["duplicate_hook_representation"]
 
 
-@pytest.mark.parametrize("host", ["claude", "opencode", "pi", "reasonix", "antigravity"])
+@pytest.mark.parametrize("host", ["claude", "opencode", "reasonix", "antigravity"])
 def test_every_json_host_round_trips_through_semantic_audit(host):
     desired = runtime.desired_servers(inputs())
     config = runtime.render_json_config(host, {"unmanaged": True}, desired)

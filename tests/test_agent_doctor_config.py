@@ -119,8 +119,6 @@ def test_agent_doctor_delegates_mcp_validation_to_runtime_audit():
 
 def test_agent_doctor_avoids_empty_array_expansion_under_nounset():
     content = read_template("scripts", "agent-doctor.sh")
-    assert "curl_args=(-fsS" in content
-    assert 'curl "${curl_args[@]}"' in content
     assert '"${auth_header[@]}"' not in content
     assert 'local -a audit_args=(' in content
     assert '"${policy_args[@]}"' not in content

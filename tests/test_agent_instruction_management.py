@@ -306,7 +306,6 @@ DRY_RUN=0
 BOOTSTRAP="{TEMPLATE}"
 RULES_FILE="{rules}"
 GLOBAL_GEMINI="{global_gemini}"
-PI_AGENTS_MD="{pi_agents}"
 PI_CODING_AGENT_DIR="{omp_dir}"
 WORK_ROOT="{work_root}"
 configure_global_instruction_links
@@ -319,8 +318,6 @@ configure_global_instruction_links
     assert global_gemini.is_symlink()
     assert global_gemini.resolve() == rules.resolve()
 
-    # User-authored file preserved
-    assert pi_agents.is_file() and not pi_agents.is_symlink()
     assert pi_agents.read_text() == "user-authored pi rules\n"
 
     # OMP global instruction symlink created

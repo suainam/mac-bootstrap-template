@@ -64,7 +64,6 @@ RULES_FILE="$(canonical_path canonical.rules_file)"
 RULES_COMMON_SRC="$(canonical_path canonical.rules_common_dir)"
 ADVERSARIAL_REVIEW_SRC="$(canonical_path canonical.adversarial_review_file)"
 RULES_PYTHON_SRC="$(canonical_path canonical.rules_python_dir)"
-PI_LOCAL_PROVIDER_SRC="$(canonical_path canonical.personal_extensions_dir)/local-openai-provider.ts"
 
 CLAUDE_AGENTS_MD="$(json_get_path agents.claude.paths.agents_md)"
 CLAUDE_RULES_COMMON="$(json_get_path agents.claude.paths.rules_common)"
@@ -86,26 +85,6 @@ OPENCODE_SKILLS_DIR="$(json_get_path agents.opencode.paths.skills)"
 OPENCODE_PLUGINS_DIR="$(json_get_path agents.opencode.paths.plugins)"
 OPENCODE_RTK_PLUGIN="$BOOTSTRAP/agent/opencode/plugins/rtk.ts"
 
-PI_SETTINGS="$(json_get_path agents.pi.paths.settings)"
-PI_MCP_JSON="$(json_get_path agents.pi.paths.mcp)"
-PI_MODELS_JSON="$(json_get_path agents.pi.paths.models_json)"
-PI_AGENTS_MD="$(json_get_path agents.pi.paths.instructions)"
-PI_SKILLS_DIR="$(json_get_path agents.pi.paths.skills)"
-PI_EXTENSIONS_DIR="$(json_get_path agents.pi.paths.extensions)"
-PI_LOCAL_PROVIDER="$(json_get_path agents.pi.paths.local_provider_extension)"
-PI_PRIVATE_CONFIG_DIR="${PI_PRIVATE_CONFIG_DIR:-}"
-if [ -z "$PI_PRIVATE_CONFIG_DIR" ]; then
-  for _candidate in \
-    "$BOOTSTRAP/../private/agent/pi" \
-    "$BOOTSTRAP/../../private/agent/pi" \
-    "$BOOTSTRAP/../../../private/agent/pi"
-  do
-    if [ -d "$_candidate" ]; then
-      PI_PRIVATE_CONFIG_DIR="$_candidate"
-      break
-    fi
-  done
-fi
 
 REASONIX_CONFIG="$(json_get_path agents.reasonix.paths.config)"
 REASONIX_SETTINGS="$(json_get_path agents.reasonix.paths.settings)"
@@ -122,7 +101,6 @@ CROSS_AGENT_SKILLS_DIR="$(json_get_path shared.cross_agent_skills_dir)"
 GLOBAL_GEMINI="$(json_get_path agents.antigravity.paths.global_instructions)"
 CLAUDE_RTK="$HOME/.claude/RTK.md"
 CODEX_RTK="$HOME/.codex/RTK.md"
-PI_LIST_OK=0
 RTK_SOURCE=""
 
 log_agent_binaries
@@ -171,9 +149,6 @@ print_step_header "Step 9 — Global instruction links"
 configure_global_instruction_links
 print_step_header "Step 10 — Codex AGENTS.md entry"
 ensure_codex_instructions
-
-print_step_header "Step 10b — Pi Terminal Agent"
-configure_pi_step
 
 print_step_header "Step 11 — Reasonix (DeepSeek Agent)"
 configure_reasonix_step

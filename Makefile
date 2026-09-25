@@ -21,7 +21,6 @@ GIT_HOOK_PYTHON ?= $(shell command -v python3)
 	quality-gate-pre-commit quality-gate-pre-push quality-gate-doctor \
 	quality-gate-hook-inventory quality-gate-hook-install quality-gate-hook-uninstall quality-gate-hook-doctor \
 	devspace-install-agent devspace-unload-agent devspace-status devspace-logs devspace-restart \
-	llm-wiki-install llm-wiki-build llm-wiki-mcp-build llm-wiki-doctor \
 	imgup-install imgup \
 	colima-start colima-stop colima-status colima-doctor \
 	claude-daemon-install claude-daemon-status claude-daemon-logs claude-daemon-unload \
@@ -118,10 +117,6 @@ help:
 	@echo "  devspace-status        Show DevSpace LaunchAgent status and local health"
 	@echo "  devspace-logs          Tail DevSpace LaunchAgent logs"
 	@echo "  devspace-restart       Restart DevSpace LaunchAgents"
-	@echo "  llm-wiki-install       Run official llm_wiki npm install in local checkout"
-	@echo "  llm-wiki-build         Run official llm_wiki desktop build"
-	@echo "  llm-wiki-mcp-build     Build llm_wiki bundled MCP server"
-	@echo "  llm-wiki-doctor        Check llm_wiki checkout and prerequisites"
 	@echo "  colima-start           Start isolated local Docker runtime"
 	@echo "  colima-stop            Stop local Docker runtime"
 	@echo "  colima-status          Show local Docker runtime status"
@@ -151,7 +146,6 @@ help:
 	@echo "  publish-public         Publish public template"
 	@echo ""
 	@echo "── Other ──"
-	@echo "  pi-packages (legacy)  Install legacy Pi packages"
 	@echo "  pm-detect              Detect package manager"
 	@echo "  pm-set                 Set global package manager"
 	@echo "  mcp-profiles           Setup MCP profiles"
@@ -460,18 +454,6 @@ npm-packages:
 
 npm-packages-upgrade:
 	./scripts/install-npm-global-packages.sh --yes --upgrade
-
-llm-wiki-install:
-	./scripts/install-llm-wiki.sh install
-
-llm-wiki-build:
-	./scripts/install-llm-wiki.sh build
-
-llm-wiki-mcp-build:
-	./scripts/install-llm-wiki.sh mcp-build
-
-llm-wiki-doctor:
-	./scripts/install-llm-wiki.sh doctor
 
 pm-detect:
 	@./scripts/detect-package-manager.sh

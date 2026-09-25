@@ -111,7 +111,6 @@ class ServerSpec:
         "codex",
         "claude",
         "opencode",
-        "pi",
         "reasonix",
         "antigravity",
     )
@@ -517,7 +516,7 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="action", required=True)
 
     json_parser = subparsers.add_parser("render-json")
-    json_parser.add_argument("--host", required=True, choices=("claude", "opencode", "pi", "reasonix", "antigravity"))
+    json_parser.add_argument("--host", required=True, choices=("claude", "opencode", "reasonix", "antigravity"))
     json_parser.add_argument("--path", required=True)
     _add_runtime_args(json_parser)
 
@@ -527,8 +526,7 @@ def main() -> int:
     audit_parser = subparsers.add_parser("audit")
     audit_parser.add_argument(
         "--host",
-        required=True,
-        choices=("codex", "claude", "opencode", "pi", "reasonix", "antigravity"),
+        choices=("codex", "claude", "opencode", "reasonix", "antigravity"),
     )
     audit_parser.add_argument("--path", required=True)
     audit_parser.add_argument("--hooks-path")

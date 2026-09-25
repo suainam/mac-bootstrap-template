@@ -1,6 +1,5 @@
-"""Regression checks for llm_wiki install/build wiring."""
+"""Regression checks for llm_wiki retirement (inactive/rollback-only status)."""
 
-import os
 from pathlib import Path
 
 TEMPLATE = Path(__file__).resolve().parent.parent
@@ -10,29 +9,32 @@ def read(*parts: str) -> str:
     return (TEMPLATE / Path(*parts)).read_text(encoding="utf-8")
 
 
-def test_makefile_and_doctor_expose_llm_wiki_ops_surface():
+def test_makefile_and_doctor_retire_active_llm_wiki_surface():
     makefile = read("Makefile")
     doctor = read("scripts", "agent-doctor.sh")
     install_script = read("scripts", "install-llm-wiki.sh")
+    runtime_example = read("data-hub", "data_hub.runtime.jsonc.example")
 
-    assert "llm-wiki-install:" in makefile
-    assert "llm-wiki-build:" in makefile
-    assert "llm-wiki-mcp-build:" in makefile
-    assert "llm-wiki-doctor:" in makefile
+    # Retired from default Makefile targets and help
+    assert "llm-wiki-install:" not in makefile
+    assert "llm-wiki-build:" not in makefile
+    assert "llm-wiki-mcp-build:" not in makefile
+    assert "llm-wiki-doctor:" not in makefile
+
+    # Historical install script preserved for rollback-only
     assert "LLM_WIKI_DIR" in install_script
     assert "cargo" in install_script
-    assert "npm install" in install_script
-    assert "npm run tauri build" in install_script
-    assert "npm run mcp:build" in install_script
-    assert "llm_wiki" in doctor
-    assert "llm-wiki-mcp-build" in doctor
+
+    # Doctor no longer probes LLM Wiki
+    assert "llm_wiki" not in doctor
+    assert "LLM Wiki.app" not in doctor
+
+    # Example runtime config no longer exposes active llm_wiki section
+    assert '"llm_wiki"' not in runtime_example
 
 
-def test_doctor_treats_an_offline_desktop_api_as_state_not_http_failure():
-    doctor = read("scripts", "agent-doctor.sh")
+def test_period_summary_defaults_to_no_llm_wiki():
+    period_summary = read("data-hub", "period_summary.py")
 
-    assert '000|"")' in doctor
-    assert "INFO llm_wiki API offline" in doctor
-    assert 'config.get("bundle_path"' in doctor
-    assert 'if [ -d "$bundle_path" ]' in doctor
-    assert 'if [ -d "/Applications/LLM Wiki.app" ]' not in doctor
+    assert "include_llm_wiki=False" in period_summary
+    assert "make_llm_wiki_client()" not in period_summary

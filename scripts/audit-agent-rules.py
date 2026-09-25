@@ -15,7 +15,6 @@ GLOBAL_HOSTS = [
     ("Claude", HOME / ".claude" / "CLAUDE.md"),
     ("Codex", HOME / ".codex" / "AGENTS.md"),
     ("OpenCode", HOME / ".config" / "opencode" / "AGENTS.md"),
-    ("Pi", HOME / ".pi" / "agent" / "AGENTS.md"),
     ("Gemini/Antigravity", HOME / ".gemini" / "GEMINI.md"),
 ]
 

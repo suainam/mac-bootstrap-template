@@ -80,7 +80,7 @@ def test_distribute_filters_actions_by_surface_and_skill(capsys):
     )
 
     assert result == 0
-    assert "DRY-RUN distribution actions: 7" in capsys.readouterr().out
+    assert "DRY-RUN distribution actions: 6" in capsys.readouterr().out
 
     result = main(
         [
