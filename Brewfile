@@ -27,6 +27,7 @@ brew "yazi"
 brew "topgrade"
 # ========== 语言 & 运行时 ==========
 brew "node"
+brew "bun"
 brew "uv"
 
 # ========== Agent 工具链 & 多路复用 ==========
@@ -61,6 +62,7 @@ cask "maccy"
 cask "vorssaint"
 # ========== 网络 & 安全 ==========
 brew "cloudflared"
+brew "mihomo"
 cask "zerotier-one"
 cask "clash-verge-rev"
 cask "cloudflare-warp"
@@ -72,6 +74,7 @@ cask "bitwarden"
 cask "wpsoffice-cn"
 cask "wechatwork"
 cask "chatgpt"
+cask "doubaoime"
 cask "font-sf-mono-nerd-font-ligaturized"
 
 # ========== npm CLI ==========

@@ -63,6 +63,10 @@
       "app": "doubao.app",
       "optional": true
     },
+    "doubaoime": {
+      "app": "DoubaoIme.app",
+      "optional": true
+    },
     "visual-studio-code": {
       "app": "Visual Studio Code.app"
     },
