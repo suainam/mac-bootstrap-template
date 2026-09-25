@@ -14,6 +14,13 @@ if [ ! -f "$CHROME_STATE" ]; then
     exit 0
 fi
 
+if [ ! -r "$CHROME_STATE" ] || [ ! -w "$CHROME_STATE" ]; then
+    echo "⚠️ Cannot read/write $CHROME_STATE (macOS TCC permission denied)."
+    echo "   Please grant 'Full Disk Access' to your Terminal/Ghostty in:"
+    echo "   System Settings -> Privacy & Security -> Full Disk Access"
+    exit 1
+fi
+
 # Check if patching is even needed
 NEEDS_PATCH=0
 if grep -q '"is_glic_eligible":[[:space:]]*false' "$CHROME_STATE"; then
