@@ -181,7 +181,6 @@ def test_build_install_commands_adds_brew_and_npm_when_missing(tmp_path):
 
     assert commands == [
         ["/opt/homebrew/bin/brew", "install", "node@22"],
-        ["/opt/homebrew/bin/brew", "link", "--overwrite", "--force", "node@22"],
         ["npm", "install", "-g", "@waishnav/devspace"],
     ]
 

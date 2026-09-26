@@ -53,19 +53,16 @@ def resolve_active_profile(repo_root: Path, env: Mapping[str, str] | None = None
     if not resolve_script.is_file():
         resolve_script = repo_root / "scripts" / "resolve-profile.sh"
     if resolve_script.is_file() and os.access(resolve_script, os.X_OK):
-        try:
-            res = subprocess.run(
-                ["bash", str(resolve_script)],
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                check=False,
-                env=source,
-            )
-            if res.returncode == 0 and res.stdout.strip():
-                return res.stdout.strip()
-        except Exception:
-            pass
+        res = subprocess.run(
+            ["bash", str(resolve_script)],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=source,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
     return "work"
 
 def strip_jsonc(text: str) -> str:
@@ -218,7 +215,7 @@ def is_node_compatible(node_bin: str) -> bool:
         return False
     if major == 22:
         return minor >= 19
-    return 22 < major < 27
+    return False
 
 
 def resolve_binaries(config: DevSpaceConfig, env: Mapping[str, str] | None = None) -> ResolvedBinaries:
@@ -227,21 +224,11 @@ def resolve_binaries(config: DevSpaceConfig, env: Mapping[str, str] | None = Non
     npm = config.npm_bin or shutil.which("npm", path=path_env) or ""
     devspace = config.devspace_bin or shutil.which("devspace", path=path_env) or ""
 
-    candidates: list[str] = []
-    explicit = shutil.which("node", path=path_env)
-    if explicit:
-        candidates.append(explicit)
-    for candidate in (
+    candidates = (
         "/opt/homebrew/opt/node@22/bin/node",
         "/usr/local/opt/node@22/bin/node",
-    ):
-        if candidate not in candidates:
-            candidates.append(candidate)
-    node = ""
-    for candidate in candidates:
-        if is_node_compatible(candidate):
-            node = candidate
-            break
+    )
+    node = next((candidate for candidate in candidates if is_node_compatible(candidate)), "")
     return ResolvedBinaries(node=node, npm=npm, devspace=devspace, brew=brew)
 
 
@@ -249,7 +236,6 @@ def build_install_commands(config: DevSpaceConfig, bins: ResolvedBinaries) -> li
     commands: list[list[str]] = []
     if not bins.node:
         commands.append([bins.brew, "install", "node@22"])
-        commands.append([bins.brew, "link", "--overwrite", "--force", "node@22"])
     if not bins.devspace:
         npm_bin = bins.npm or "npm"
         commands.append([npm_bin, "install", "-g", "@waishnav/devspace"])
@@ -356,9 +342,13 @@ def write_json_file(path: Path, data: Mapping[str, Any], mode: int = 0o600) -> N
 
 
 def secure_private_devspace_files(repo_root: Path, config_path: Path | None = None) -> None:
+    profile = resolve_active_profile(repo_root)
     paths = (
-        config_path or repo_root / "private" / "agent" / "devspace.runtime.jsonc",
+        config_path or repo_root / "private" / "profiles" / profile / "devspace.runtime.jsonc",
+        repo_root / "private" / "profiles" / profile / "devspace.auth.json",
+        repo_root / "private" / "agent" / "devspace.runtime.jsonc",
         repo_root / "private" / "agent" / "devspace.home.auth.json",
+        repo_root / "private" / "agent" / "devspace.cloudflare-tunnel.env",
     )
     for path in paths:
         if path.exists():
@@ -452,7 +442,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     errors = ensure_valid_config(config)
     bins = resolve_binaries(config)
     if not bins.node:
-        errors.append("node binary not found or not compatible with DevSpace >=22.19 <27")
+        errors.append("keg-only node@22 binary not found or older than 22.19")
     if not bins.npm and not config.npm_bin:
         errors.append("npm binary not found")
     doctor_output = ""
@@ -633,7 +623,7 @@ def cmd_home_pull(args: argparse.Namespace) -> int:
     write_json_file(paths["private_config"], runtime_config)
     write_json_file(paths["private_auth"], runtime_auth)
     secure_private_devspace_files(repo_root, args.config)
-    print("OK: pulled ~/.devspace runtime files into private/agent mirror")
+    print("OK: pulled ~/.devspace runtime files into private profile mirror")
     return 0
 
 
