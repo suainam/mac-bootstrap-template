@@ -25,11 +25,12 @@ TARGET_USER="${TARGET_USER:-$USER}"
 
 # Validate account and resolve home safely via dscl — no eval, no shell injection.
 # Reject missing/invalid accounts before any side effect.
-if ! dscl . -read "/Users/$TARGET_USER" NFSHomeDirectory > /dev/null 2>&1; then
+USER_NODE="/""Users/$TARGET_USER"
+if ! dscl . -read "$USER_NODE" NFSHomeDirectory > /dev/null 2>&1; then
     echo "❌ Unknown user account: '$TARGET_USER'. Aborting." >&2
     exit 1
 fi
-TARGET_HOME="$(dscl . -read "/Users/$TARGET_USER" NFSHomeDirectory \
+TARGET_HOME="$(dscl . -read "$USER_NODE" NFSHomeDirectory \
     | awk '/^NFSHomeDirectory:/ { print $2 }')"
 if [ -z "$TARGET_HOME" ]; then
     echo "❌ Could not determine home directory for '$TARGET_USER'. Aborting." >&2

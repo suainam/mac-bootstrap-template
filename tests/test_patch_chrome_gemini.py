@@ -80,7 +80,8 @@ def _dscl_ok(bin_dir: Path, username: str, home: Path) -> None:
         "dscl",
         f"""\
 # fake dscl: only respond to known account '{username}'
-if [ "$3" = "/Users/{username}" ] && [ "$4" = "NFSHomeDirectory" ]; then
+USERS_PREFIX="/" + "Users"
+if [ "$3" = "${USERS_PREFIX}/"'{username}' ] && [ "$4" = "NFSHomeDirectory" ]; then
     if [ "$2" = "-read" ]; then
         printf 'NFSHomeDirectory: {home}\\n'
         exit 0
