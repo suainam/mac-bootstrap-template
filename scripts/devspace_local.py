@@ -37,7 +37,36 @@ class ResolvedBinaries:
     npm: str
     devspace: str
     brew: str
+NODE22_BIN_DIR = Path("/opt/homebrew/opt/node@22/bin")
 
+
+def resolve_active_profile(repo_root: Path, env: Mapping[str, str] | None = None) -> str:
+    source = dict(os.environ if env is None else env)
+    if source.get("MAC_BOOTSTRAP_PROFILE"):
+        return source["MAC_BOOTSTRAP_PROFILE"]
+    current_profile_file = repo_root / "private" / "current_profile"
+    if current_profile_file.is_file():
+        val = current_profile_file.read_text(encoding="utf-8").strip()
+        if val:
+            return val
+    resolve_script = repo_root / "template" / "scripts" / "resolve-profile.sh"
+    if not resolve_script.is_file():
+        resolve_script = repo_root / "scripts" / "resolve-profile.sh"
+    if resolve_script.is_file() and os.access(resolve_script, os.X_OK):
+        try:
+            res = subprocess.run(
+                ["bash", str(resolve_script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=source,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+    return "work"
 
 def strip_jsonc(text: str) -> str:
     out: list[str] = []
@@ -83,11 +112,20 @@ def load_devspace_config(
     env: Mapping[str, str] | None = None,
 ) -> DevSpaceConfig:
     repo_root = repo_root.resolve()
-    source_path = (config_path or repo_root / "private" / "agent" / "devspace.runtime.jsonc").resolve()
+    if config_path:
+        source_path = config_path.resolve()
+    else:
+        profile = resolve_active_profile(repo_root, env=env)
+        profile_candidate = repo_root / "private" / "profiles" / profile / "devspace.runtime.jsonc"
+        if profile_candidate.is_file():
+            source_path = profile_candidate.resolve()
+        else:
+            source_path = (repo_root / "private" / "agent" / "devspace.runtime.jsonc").resolve()
+
     if not source_path.exists():
         raise FileNotFoundError(
             f"DevSpace runtime config not found: {source_path}. "
-            "Create private/agent/devspace.runtime.jsonc from template/agent/devspace.runtime.example.jsonc."
+            "Create private/profiles/<profile>/devspace.runtime.jsonc or private/agent/devspace.runtime.jsonc."
         )
     data = json.loads(strip_jsonc(source_path.read_text(encoding="utf-8")))
     paths = data.get("paths") or {}
@@ -229,6 +267,10 @@ def build_run_env(config: DevSpaceConfig, env: Mapping[str, str] | None = None) 
     base["DEVSPACE_ALLOWED_ROOTS"] = ",".join(str(root) for root in config.allowed_roots)
     if config.public_base_url:
         base["DEVSPACE_PUBLIC_BASE_URL"] = config.public_base_url.rstrip("/")
+    if NODE22_BIN_DIR.is_dir() and (NODE22_BIN_DIR / "node").is_file():
+        cur_path = base.get("PATH", "")
+        if not cur_path.startswith(f"{NODE22_BIN_DIR}:"):
+            base["PATH"] = f"{NODE22_BIN_DIR}:{cur_path}"
     return base
 
 
@@ -282,12 +324,21 @@ def ensure_valid_config(config: DevSpaceConfig) -> list[str]:
     return validate_config(config)
 
 
-def devspace_home_paths(home_dir: Path, repo_root: Path) -> dict[str, Path]:
-    private_dir = repo_root / "private" / "agent"
+def devspace_home_paths(home_dir: Path, repo_root: Path, profile: str | None = None) -> dict[str, Path]:
+    active_profile = profile or resolve_active_profile(repo_root)
+    profile_dir = repo_root / "private" / "profiles" / active_profile
+    if (profile_dir / "devspace.config.json").is_file() or (profile_dir / "devspace.auth.json").is_file():
+        private_dir = profile_dir
+        config_name = "devspace.config.json"
+        auth_name = "devspace.auth.json"
+    else:
+        private_dir = repo_root / "private" / "agent"
+        config_name = "devspace.home.config.json"
+        auth_name = "devspace.home.auth.json"
     runtime_dir = home_dir / ".devspace"
     return {
-        "private_config": private_dir / "devspace.home.config.json",
-        "private_auth": private_dir / "devspace.home.auth.json",
+        "private_config": private_dir / config_name,
+        "private_auth": private_dir / auth_name,
         "runtime_config": runtime_dir / "config.json",
         "runtime_auth": runtime_dir / "auth.json",
         "backup_root": private_dir / "backups" / "devspace-home",

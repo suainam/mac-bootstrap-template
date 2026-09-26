@@ -7,17 +7,23 @@ launchd background services.
 ## Files
 
 - Example config: `template/agent/devspace.runtime.example.jsonc`
-- Real config: `private/agent/devspace.runtime.jsonc`
-- Private home mirror config: `private/agent/devspace.home.config.json`
-- Private home mirror auth: `private/agent/devspace.home.auth.json`
+- Real profile config: `private/profiles/<profile>/devspace.runtime.jsonc` (preferred) or `private/agent/devspace.runtime.jsonc` (fallback)
+- Private mirror config: `private/profiles/<profile>/devspace.config.json` or `private/agent/devspace.home.config.json`
+- Private mirror auth: `private/profiles/<profile>/devspace.auth.json` or `private/agent/devspace.home.auth.json`
 - Entrypoint: `template/scripts/devspace-local.sh`
 - Logs: `private/agent/logs/devspace/`
 - Cloudflare Tunnel token: `exposure.cloudflare_tunnel_token` in the private
-  config only
+  config only (or referenced from private profile secret file)
 
-`private/agent/devspace.runtime.jsonc` is the only real runtime config. The
-example file is documentation and shape reference only.
+Runtime configurations are partitioned per profile (e.g. `home` vs `work`), allowing
+independent domain names, public base URLs, and project roots. The active profile is
+resolved automatically via `resolve-profile.sh` or `$MAC_BOOTSTRAP_PROFILE`.
 
+## Node Runtime
+
+DevSpace runs with an isolated, keg-only `node@22` (`/opt/homebrew/opt/node@22/bin/node`)
+prepended to its runtime environment to prevent ESM compatibility issues on Node 26+,
+leaving the system's global Node version untouched.
 ## Home Mirror
 
 - `private/agent/devspace.home.config.json` and
