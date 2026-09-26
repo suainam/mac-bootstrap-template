@@ -115,10 +115,17 @@ if pgrep -u "$TARGET_USER" -x "Google Chrome" > /dev/null 2>&1; then
     fi
 fi
 
-# Apply the patch using sed directly on the file
-sed -i '' -e 's/"is_glic_eligible":[[:space:]]*false/"is_glic_eligible":true/g' \
-          -e 's/"variations_country":[[:space:]]*"[^"]*"/"variations_country":"us"/g' \
-          -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[\)[^]]*\]/\1"us"]/g' \
-          "$CHROME_STATE"
+# Apply the patch using sed directly on the file (portable across macOS BSD sed and Linux GNU sed)
+if sed --version > /dev/null 2>&1; then
+    sed -i -e 's/"is_glic_eligible":[[:space:]]*false/"is_glic_eligible":true/g' \
+           -e 's/"variations_country":[[:space:]]*"[^"]*"/"variations_country":"us"/g' \
+           -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[\)[^]]*\]/\1"us"]/g' \
+           "$CHROME_STATE"
+else
+    sed -i '' -e 's/"is_glic_eligible":[[:space:]]*false/"is_glic_eligible":true/g' \
+              -e 's/"variations_country":[[:space:]]*"[^"]*"/"variations_country":"us"/g' \
+              -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[\)[^]]*\]/\1"us"]/g' \
+              "$CHROME_STATE"
+fi
 
 echo "✅ Chrome Gemini patch applied successfully."
