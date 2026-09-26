@@ -75,10 +75,10 @@ NEEDS_PATCH=0
 if grep -q '"is_glic_eligible":[[:space:]]*false' "$CHROME_STATE"; then
     NEEDS_PATCH=1
 fi
-if grep -q '"variations_country":"[^"]*"' "$CHROME_STATE" && ! grep -q '"variations_country":"us"' "$CHROME_STATE"; then
+if grep -q '"variations_country":[[:space:]]*"[^"]*"' "$CHROME_STATE" && ! grep -q '"variations_country":[[:space:]]*"us"' "$CHROME_STATE"; then
     NEEDS_PATCH=1
 fi
-if grep -q '"variations_permanent_consistency_country":\[[^]]*\]' "$CHROME_STATE" && ! grep -q '"variations_permanent_consistency_country":\[[^]]*"us"\]' "$CHROME_STATE"; then
+if grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[^]]*\]' "$CHROME_STATE" && ! grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[^]]*"us"[^]]*\]' "$CHROME_STATE"; then
     NEEDS_PATCH=1
 fi
 
@@ -116,8 +116,8 @@ fi
 
 # Apply the patch using sed directly on the file
 sed -i '' -e 's/"is_glic_eligible":[[:space:]]*false/"is_glic_eligible":true/g' \
-          -e 's/"variations_country":"[^"]*"/"variations_country":"us"/g' \
-          -e 's/\("variations_permanent_consistency_country":\[[^]]*\)"[^"]*"\]/\1"us"]/g' \
+          -e 's/"variations_country":[[:space:]]*"[^"]*"/"variations_country":"us"/g' \
+          -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[[^]]*\)"[^"]*"\]/\1"us"]/g' \
           "$CHROME_STATE"
 
 echo "✅ Chrome Gemini patch applied successfully."
