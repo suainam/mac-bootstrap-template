@@ -468,7 +468,7 @@ hook-matchers:
 	./scripts/add-hook-matchers.sh
 
 patch-chrome-gemini:
-	KILL_CHROME=$(if $(KILL),$(KILL),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh $(if $(USER),'$(USER)',)
+	TARGET_USER=$(if $(USER),$(USER),) KILL_CHROME=$(if $(KILL),$(KILL),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh
 
 # ── Claude Code Daemon ─────────────────────────────────────
 claude-daemon-install:

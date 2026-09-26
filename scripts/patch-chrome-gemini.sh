@@ -31,7 +31,7 @@ if ! dscl . -read "$USER_NODE" NFSHomeDirectory > /dev/null 2>&1; then
     exit 1
 fi
 TARGET_HOME="$(dscl . -read "$USER_NODE" NFSHomeDirectory \
-    | awk '/^NFSHomeDirectory:/ { print $2 }')"
+    | sed -n 's/^NFSHomeDirectory:[[:space:]]*//p')"
 if [ -z "$TARGET_HOME" ]; then
     echo "❌ Could not determine home directory for '$TARGET_USER'. Aborting." >&2
     exit 1
@@ -79,7 +79,7 @@ fi
 if grep -q '"variations_country":[[:space:]]*"[^"]*"' "$CHROME_STATE" && ! grep -q '"variations_country":[[:space:]]*"us"' "$CHROME_STATE"; then
     NEEDS_PATCH=1
 fi
-if grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[^]]*\]' "$CHROME_STATE" && ! grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[^]]*"us"[^]]*\]' "$CHROME_STATE"; then
+if grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[^]]*\]' "$CHROME_STATE" && ! grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[[:space:]]*"us"[[:space:]]*\]' "$CHROME_STATE"; then
     NEEDS_PATCH=1
 fi
 
@@ -118,7 +118,7 @@ fi
 # Apply the patch using sed directly on the file
 sed -i '' -e 's/"is_glic_eligible":[[:space:]]*false/"is_glic_eligible":true/g' \
           -e 's/"variations_country":[[:space:]]*"[^"]*"/"variations_country":"us"/g' \
-          -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[[^]]*\)"[^"]*"\]/\1"us"]/g' \
+          -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[\)[^]]*\]/\1"us"]/g' \
           "$CHROME_STATE"
 
 echo "✅ Chrome Gemini patch applied successfully."
