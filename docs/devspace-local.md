@@ -21,9 +21,13 @@ resolved automatically via `resolve-profile.sh` or `$MAC_BOOTSTRAP_PROFILE`.
 
 ## Node Runtime
 
-DevSpace runs with an isolated, keg-only `node@22` (`/opt/homebrew/opt/node@22/bin/node`)
-prepended to its runtime environment to prevent ESM compatibility issues on Node 26+,
-leaving the system's global Node version untouched.
+DevSpace runs with a keg-only `node@22` (`/opt/homebrew/opt/node@22/bin/node`)
+prepended only to its child process environment; `brew install node@22` does
+not link it into the global PATH. The system's global Node version remains
+unchanged. A profile needs its own Cloudflare Tunnel token and hostname route:
+changing `public_base_url` while reusing a different profile's token does not
+provision the new hostname. Do not start a profile tunnel with an empty token.
+
 ## Home Mirror
 
 - `private/agent/devspace.home.config.json` and
