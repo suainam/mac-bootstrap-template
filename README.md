@@ -611,7 +611,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `make install-cache-agent` | Install weekly cache cleanup job |
 | `make organize-downloads` | Sort files from `~/Downloads` |
 | `make install-downloads-agent` | Install auto-organizer for downloads |
-| `make patch-chrome-gemini` | Apply patch to enable Gemini features in Chrome Local State |
+| `make patch-chrome-gemini [USER=<username>] [KILL=1]` | Apply patch to enable Gemini features in Chrome Local State; `KILL=1` terminates Chrome first and fails if Chrome stays running after a bounded wait (safe to rerun) |
 | `make maxfiles-limit-install` | Install LaunchDaemon raising launchd maxfiles (sudo) |
 
 ## Cache cleanup

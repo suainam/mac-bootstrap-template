@@ -23,7 +23,19 @@ done
 
 TARGET_USER="${TARGET_USER:-$USER}"
 
-TARGET_HOME="$(eval echo "~$TARGET_USER")"
+# Validate account and resolve home safely via dscl — no eval, no shell injection.
+# Reject missing/invalid accounts before any side effect.
+if ! dscl . -read "/Users/$TARGET_USER" NFSHomeDirectory > /dev/null 2>&1; then
+    echo "❌ Unknown user account: '$TARGET_USER'. Aborting." >&2
+    exit 1
+fi
+TARGET_HOME="$(dscl . -read "/Users/$TARGET_USER" NFSHomeDirectory \
+    | awk '/^NFSHomeDirectory:/ { print $2 }')"
+if [ -z "$TARGET_HOME" ]; then
+    echo "❌ Could not determine home directory for '$TARGET_USER'. Aborting." >&2
+    exit 1
+fi
+
 CHROME_STATE="$TARGET_HOME/Library/Application Support/Google/Chrome/Local State"
 
 if [ ! -e "$CHROME_STATE" ]; then
@@ -83,7 +95,17 @@ if pgrep -u "$TARGET_USER" -x "Google Chrome" > /dev/null 2>&1; then
         else
             sudo pkill -u "$TARGET_USER" -x "Google Chrome" || true
         fi
-        sleep 1
+        # Bounded wait: up to 5 seconds; fail if Chrome still running.
+        _waited=0
+        while pgrep -u "$TARGET_USER" -x "Google Chrome" > /dev/null 2>&1; do
+            if [ "$_waited" -ge 5 ]; then
+                echo "❌ Chrome is still running after ${_waited}s. Aborting to avoid data loss." >&2
+                echo "   Close Chrome manually and rerun: make patch-chrome-gemini USER=$TARGET_USER KILL=1" >&2
+                exit 1
+            fi
+            sleep 1
+            _waited=$((_waited + 1))
+        done
     else
         echo "⚠️  WARNING: Chrome is currently running for user '$TARGET_USER'."
         echo "   The patch will be applied, but Chrome might overwrite it when quit."
