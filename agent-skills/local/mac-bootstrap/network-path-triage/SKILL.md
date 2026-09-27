@@ -118,5 +118,7 @@ re-deriving the path model.
 - Read `REFERENCE.md` for the command set, path map, and interpretation checklist.
 - Read `references/platform-mapping.md` when the current incident is clearly
   platform-bound and you need the nearest equivalent check surface.
+- Read `references/app-owned-proxy.md` when diagnosing an app- or agent-owned
+  proxy environment, including a shared Codex daemon holding a stale port.
 - Re-read `private/clash/corplink-experience.md` when the issue involves company
   domains, PAC, TUN, or the route snapshot helper.
