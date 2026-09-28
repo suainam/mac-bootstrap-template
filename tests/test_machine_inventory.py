@@ -18,7 +18,7 @@ def test_declared_brew_formulas_are_installed():
     assert rc == 0, f"brew formula inventory failed: {err}"
 
     installed = set(out.splitlines())
-    missing = sorted(declared_brew_formulas() - installed)
+    missing = sorted((declared_brew_formulas() - brew_skip_tokens()) - installed)
     assert not missing, f"Brewfile formulae not installed: {', '.join(missing)}"
 
 

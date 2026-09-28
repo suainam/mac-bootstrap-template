@@ -2,17 +2,6 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "version": 1,
   "description": "Declarative manifest of non-brew CLI tools, standalone binaries, and external GUI apps managed by mac-bootstrap",
-  "npm_globals": [
-    "@monid-ai/cli",
-    "@moonrepo/cli",
-    "@upstash/context7-mcp",
-    "@waishnav/devspace",
-    "codebase-memory-mcp",
-    "context-mode",
-    "playwriter",
-    "pnpm",
-    "reasonix"
-  ],
   "standalone_binaries": [
     {
       "name": "agy",
@@ -45,6 +34,30 @@
       "bundle_id": "com.prismbrowser.desktop",
       "description": "Prism desktop multi-app container browser",
       "homepage": "https://prismbrowser.com"
+    },
+    {
+      "name": "CorpLink",
+      "app": "CorpLink.app",
+      "bundle_id": "com.volcengine.corplink",
+      "description": "火山引擎企业安全准入与 VPN 客户端"
+    },
+    {
+      "name": "无影云电脑",
+      "app": "无影云电脑.app",
+      "bundle_id": "com.aliyun.wuying.osx",
+      "description": "阿里云无影云电脑客户端"
+    },
+    {
+      "name": "MAXHUB 传屏助手",
+      "app": "MAXHUBShare.app",
+      "bundle_id": "com.cvte.MAXHUBShare",
+      "description": "MAXHUB 会议平板无线传屏助手"
+    },
+    {
+      "name": "Muse",
+      "app": "Muse.app",
+      "bundle_id": "com.meta.endo",
+      "description": "Meta AI 长期目标与任务规划助手 (由 local/tools tap 接管)"
     }
   ]
 }

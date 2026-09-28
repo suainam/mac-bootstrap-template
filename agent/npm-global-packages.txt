@@ -12,3 +12,4 @@ reasonix
 @moonrepo/cli
 playwriter
 pnpm
+js-yaml

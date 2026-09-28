@@ -21,8 +21,12 @@ elif [ -d "$DIR/../private" ]; then
   PRIVATE_DIR="$(cd "$DIR/../private" && pwd)"
 fi
 
-if [ -z "${MAC_BOOTSTRAP_PROFILE:-}" ] && [ -x "$DIR/resolve-profile.sh" ]; then
-  PROFILE="$("$DIR/resolve-profile.sh" 2>/dev/null || true)"
+if [ -z "${MAC_BOOTSTRAP_PROFILE:-}" ]; then
+  if [ -x "$DIR/scripts/resolve-profile.sh" ]; then
+    PROFILE="$("$DIR/scripts/resolve-profile.sh" 2>/dev/null || true)"
+  elif [ -x "$DIR/resolve-profile.sh" ]; then
+    PROFILE="$("$DIR/resolve-profile.sh" 2>/dev/null || true)"
+  fi
 else
   PROFILE="${MAC_BOOTSTRAP_PROFILE:-}"
 fi
@@ -97,16 +101,6 @@ should_skip_manual_cask() {
 
 while IFS= read -r line; do
   case "$line" in
-    brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
-      token="${line#*\"}"
-      token="${token%\"*}"
-      if is_skipped "$token"; then
-        echo "Skip $token: in private brew skip list."
-        continue
-      fi
-      ;;
-  esac
-  case "$line" in
     cask\ \"*\")
       token="${line#cask \"}"
       token="${token%\"}"
@@ -118,5 +112,33 @@ while IFS= read -r line; do
   esac
   printf '%s\n' "$line" >> "$TMP_BREWFILE"
 done < "$BREWFILE"
+
+# 2. Additive Profile & Experimental Brewfiles
+EXTRA_BREWFILES=()
+if [ -n "$PRIVATE_DIR" ] && [ -n "$PROFILE" ]; then
+  if [ -f "$PRIVATE_DIR/profiles/$PROFILE/Brewfile" ]; then
+    EXTRA_BREWFILES+=("$PRIVATE_DIR/profiles/$PROFILE/Brewfile")
+  fi
+  if [ -f "$PRIVATE_DIR/profiles/$PROFILE/Brewfile.experimental" ]; then
+    EXTRA_BREWFILES+=("$PRIVATE_DIR/profiles/$PROFILE/Brewfile.experimental")
+  fi
+fi
+
+for extra in "${EXTRA_BREWFILES[@]}"; do
+  echo "Applying extra Brewfile ($PROFILE): $extra"
+  while IFS= read -r line; do
+    case "$line" in
+      cask\ \"*\")
+        token="${line#cask \"}"
+        token="${token%\"}"
+        if should_skip_manual_cask "$token"; then
+          echo "Skip $token: app already exists outside Homebrew."
+          continue
+        fi
+        ;;
+    esac
+    printf '%s\n' "$line" >> "$TMP_BREWFILE"
+  done < "$extra"
+done
 
 brew bundle --file="$TMP_BREWFILE"
