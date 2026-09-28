@@ -101,6 +101,16 @@ should_skip_manual_cask() {
 
 while IFS= read -r line; do
   case "$line" in
+    brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
+      token="${line#*\"}"
+      token="${token%\"*}"
+      if is_skipped "$token"; then
+        echo "Skip $token: in private brew skip list."
+        continue
+      fi
+      ;;
+  esac
+  case "$line" in
     cask\ \"*\")
       token="${line#cask \"}"
       token="${token%\"}"
@@ -127,6 +137,16 @@ fi
 for extra in "${EXTRA_BREWFILES[@]}"; do
   echo "Applying extra Brewfile ($PROFILE): $extra"
   while IFS= read -r line; do
+    case "$line" in
+      brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
+        token="${line#*\"}"
+        token="${token%\"*}"
+        if is_skipped "$token"; then
+          echo "Skip $token: in private brew skip list."
+          continue
+        fi
+        ;;
+    esac
     case "$line" in
       cask\ \"*\")
         token="${line#cask \"}"

@@ -174,7 +174,7 @@ def test_fetch_external_bundle_catalogs_staged_content_without_runtime_write(
     registry = load_registry(DEFAULT_REGISTRY)
     bundle = registry.bundles["mattpocock-skills"]
 
-    def fake_run(command, cwd, env, text, capture_output, check):
+    def fake_run(command, cwd, env, text, capture_output, check, **kwargs):
         skill = Path(cwd) / ".agents/skills/alpha"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("# alpha\n", encoding="utf-8")

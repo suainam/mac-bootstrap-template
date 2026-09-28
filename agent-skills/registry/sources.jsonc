@@ -1244,10 +1244,14 @@
           "projects": ["product_strategy"],
           "reason": "O2O重点店/中心店效益评估与卡片导出(TOP500/TOP200/跨渠道TOP80/中心店蜂窝品，支持店均规模量化归因)"
         },
-        "ps-new-store-benefit-report": {
+        "hpm-performance-review": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "reason": "新店效益分析与90天考核宽表直算（涵盖32项标准中文字段融合、月保本指标折算、O2O线上折算、对抗性审查门禁及模板化Excel导出）"
+          "reason": "HPM 季度绩效自评：基线复盘、指标证据核验、文本撰写与仅保存草稿"
+        },
+        "ps-new-store-benefit-report": {
+          "scope": "project",
+          "projects": ["product_strategy"]
         }
       }
     },

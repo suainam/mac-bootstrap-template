@@ -73,11 +73,6 @@
       "app": "Clash Verge.app",
       "optional": true
     },
-    "cloudflare-warp": {
-      "app": "Cloudflare WARP.app",
-      "command": "warp-cli",
-      "optional": true
-    },
     "uuremote": {
       "app": "UU\u8fdc\u7a0b.app",
       "optional": true

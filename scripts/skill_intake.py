@@ -127,14 +127,25 @@ def fetch_external_skill(
     env = os.environ.copy()
     env["DISABLE_TELEMETRY"] = "1"
     env.setdefault("npm_config_cache", str(tmp_work.parent / "npm-cache"))
-    completed = subprocess.run(
-        command,
-        cwd=tmp_work,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=tmp_work,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=int(os.environ.get("SKILL_INTAKE_TIMEOUT", "120")),
+        )
+    except subprocess.TimeoutExpired as exc:
+        return CommandResult(
+            command=tuple(command),
+            cwd=tmp_work,
+            destination=destination,
+            returncode=124,
+            stdout=exc.stdout or "",
+            stderr=f"command timed out after {exc.timeout}s",
+        )
     if completed.returncode != 0:
         return CommandResult(
             command=tuple(command),
@@ -257,14 +268,25 @@ def fetch_external_bundle(
     env = os.environ.copy()
     env["DISABLE_TELEMETRY"] = "1"
     env.setdefault("npm_config_cache", str(tmp_work.parent / "npm-cache"))
-    completed = subprocess.run(
-        command,
-        cwd=tmp_work,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=tmp_work,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=int(os.environ.get("SKILL_INTAKE_TIMEOUT", "120")),
+        )
+    except subprocess.TimeoutExpired as exc:
+        return CommandResult(
+            command=tuple(command),
+            cwd=tmp_work,
+            destination=destination,
+            returncode=124,
+            stdout=exc.stdout or "",
+            stderr=f"command timed out after {exc.timeout}s",
+        )
     if completed.returncode != 0:
         return CommandResult(
             command=tuple(command),
