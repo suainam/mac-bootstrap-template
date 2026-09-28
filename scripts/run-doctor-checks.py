@@ -138,14 +138,20 @@ def check_chrome_gemini(manifest: dict) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
-        print("Usage: run-doctor-checks.py <Brewfile> <manifest.json>", file=sys.stderr)
+    if len(argv) < 3:
+        print("Usage: run-doctor-checks.py <Brewfile> <manifest.json> [profile_brewfiles...]", file=sys.stderr)
         return 2
 
     brewfile = Path(argv[1])
     template_root = brewfile.parent
     manifest = json.loads(Path(argv[2]).read_text())
     declared = parse_brewfile(brewfile)
+    for extra in argv[3:]:
+        extra_path = Path(extra)
+        if extra_path.is_file():
+            extra_declared = parse_brewfile(extra_path)
+            for k in declared:
+                declared[k].extend(extra_declared.get(k, []))
 
     formulas = brew_list("--formula")
     casks = brew_list("--cask")

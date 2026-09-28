@@ -40,3 +40,24 @@ or need `make doctor` cask overrides so the template stays rerunnable.
 - 路径：`~/Library/Input Methods/DoubaoIme.app`
 - 下载：从官网 [shurufa.doubao.com](https://shurufa.doubao.com/) 下载，解压缩后运行其中的安装器应用（`DoubaoImeInstaller_v*.app`）进行安装。
 - 说明：目前无官方 Homebrew cask。必须运行官方 GUI 安装器进行安装，以确保系统服务（如设置界面 `DoubaoImeSettings.app`）正常注册，不建议直接进行文件拷贝。
+
+## Muse (muse.ai)
+
+- 路径：`/Applications/Muse.app`（bundle id `com.meta.endo`）
+- Homebrew cask：`local/tools/muse`（对应官方 cask `muse`）
+- 现状：Homebrew 官方 cask 声明的下载地址 `https://muse.ai/api/hatch/app-download/mac` 存在 Meta 账号/地域准入限制（直接请求返回 403 `{"error":"not_eligible"}`）。本机通过 Sparkle Appcast CDN 提取 v4.1 DMG 并通过 `local/tools/muse` 完成接管。
+- 用途：Meta AI 长期目标与任务规划桌面助手。
+
+## 企业专有与非 Brew 托管应用
+
+以下应用属于企业内部准入、特定硬件配套或专有客户端，无公共 Homebrew cask，统一记录于 `template/manifests/external-tools.json`：
+
+1. **CorpLink**：
+   - 路径：`/Applications/CorpLink.app`（bundle id `com.volcengine.corplink`）
+   - 来源：火山引擎 / 字节企业内部安全准入与 VPN 客户端，由企业内网门户分发。
+2. **阿里云无影云电脑**：
+   - 路径：`/Applications/无影云电脑.app`（bundle id `com.aliyun.wuying.osx`）
+   - 来源：阿里云官网分发，远程开发与云桌面客户端。
+3. **MAXHUB 传屏助手**：
+   - 路径：`/Applications/MAXHUBShare.app`（bundle id `com.cvte.MAXHUBShare`）
+   - 来源：MAXHUB 会议平板配套无线投屏客户端。

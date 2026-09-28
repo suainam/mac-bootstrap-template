@@ -98,3 +98,18 @@ def test_npm_global_manifest_documents_bare_package_names_only():
     manifest = read("agent", "npm-global-packages.txt")
     assert "bare npm package name" in manifest
     assert "no version pins or aliases" in manifest
+
+def test_brewfile_and_npm_manifest_parity():
+    """Verify that template/Brewfile npm declarations match agent/npm-global-packages.txt 1:1."""
+    brewfile_lines = read("Brewfile").splitlines()
+    brew_npm_pkgs = {
+        line.split('"')[1]
+        for line in brewfile_lines
+        if line.strip().startswith('npm "') and line.strip().endswith('"')
+    }
+    manifest_pkgs = {
+        line.strip()
+        for line in read("agent", "npm-global-packages.txt").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    assert brew_npm_pkgs == manifest_pkgs, f"Drift detected: {brew_npm_pkgs ^ manifest_pkgs}"
