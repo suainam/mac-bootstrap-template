@@ -19,7 +19,8 @@ def make_fake_context7(directory: Path) -> Path:
     executable.write_text(
         "#!/bin/sh\n"
         "printf '%s' \"${CONTEXT7_API_KEY-}\" > \"$CAPTURE_ENV\"\n"
-        "printf '%s' \"$*\" > \"$CAPTURE_ARGS\"\n",
+        "printf '%s' \"$*\" > \"$CAPTURE_ARGS\"\n"
+        "env | grep -E '^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|http_proxy|https_proxy|all_proxy|NODE_USE_ENV_PROXY)=' > \"$CAPTURE_PROXY\" || true\n",
         encoding="utf-8",
     )
     executable.chmod(0o755)
@@ -37,12 +38,14 @@ def run_bridge(tmp_path: Path, config_text: str | None) -> tuple[subprocess.Comp
     make_fake_context7(bin_dir)
     capture_env = tmp_path / "captured-env"
     capture_args = tmp_path / "captured-args"
+    capture_proxy = tmp_path / "captured-proxy"
     env = {
         **os.environ,
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "MAC_BOOTSTRAP_PRIVATE_DIR": str(private_dir),
         "CAPTURE_ENV": str(capture_env),
         "CAPTURE_ARGS": str(capture_args),
+        "CAPTURE_PROXY": str(capture_proxy),
     }
     result = subprocess.run(
         [PYTHON, str(BRIDGE), "--probe"],
@@ -51,6 +54,15 @@ def run_bridge(tmp_path: Path, config_text: str | None) -> tuple[subprocess.Comp
         env=env,
     )
     return result, capture_env, capture_args
+
+
+def test_bridge_uses_direct_connection_even_when_parent_has_proxy(tmp_path: Path, monkeypatch):
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        monkeypatch.setenv(name, "http://127.0.0.1:7890")
+    monkeypatch.setenv("NODE_USE_ENV_PROXY", "1")
+    result, _, _ = run_bridge(tmp_path, None)
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "captured-proxy").read_text().strip() == "NODE_USE_ENV_PROXY=0"
 
 
 def test_bridge_injects_private_key_into_child_only(tmp_path: Path):

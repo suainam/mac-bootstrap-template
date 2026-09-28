@@ -7,16 +7,26 @@ launchd background services.
 ## Files
 
 - Example config: `template/agent/devspace.runtime.example.jsonc`
-- Real config: `private/agent/devspace.runtime.jsonc`
-- Private home mirror config: `private/agent/devspace.home.config.json`
-- Private home mirror auth: `private/agent/devspace.home.auth.json`
+- Real profile config: `private/profiles/<profile>/devspace.runtime.jsonc` (preferred) or `private/agent/devspace.runtime.jsonc` (fallback)
+- Private mirror config: `private/profiles/<profile>/devspace.config.json` or `private/agent/devspace.home.config.json`
+- Private mirror auth: `private/profiles/<profile>/devspace.auth.json` or `private/agent/devspace.home.auth.json`
 - Entrypoint: `template/scripts/devspace-local.sh`
 - Logs: `private/agent/logs/devspace/`
 - Cloudflare Tunnel token: `exposure.cloudflare_tunnel_token` in the private
-  config only
+  config only (or referenced from private profile secret file)
 
-`private/agent/devspace.runtime.jsonc` is the only real runtime config. The
-example file is documentation and shape reference only.
+Runtime configurations are partitioned per profile (e.g. `home` vs `work`), allowing
+independent domain names, public base URLs, and project roots. The active profile is
+resolved automatically via `resolve-profile.sh` or `$MAC_BOOTSTRAP_PROFILE`.
+
+## Node Runtime
+
+DevSpace runs with a keg-only `node@22` (`/opt/homebrew/opt/node@22/bin/node`)
+prepended only to its child process environment; `brew install node@22` does
+not link it into the global PATH. The system's global Node version remains
+unchanged. A profile needs its own Cloudflare Tunnel token and hostname route:
+changing `public_base_url` while reusing a different profile's token does not
+provision the new hostname. Do not start a profile tunnel with an empty token.
 
 ## Home Mirror
 
@@ -80,6 +90,9 @@ The repo-managed tunnel runs `cloudflared tunnel run --protocol http2`.
 default QUIC transport intermittently fails to dial the edge
 (`no recent network activity`) and the public URL returns HTTP 530. The TCP
 based `http2` transport survives that environment.
+The supervisor sets `TUNNEL_METRICS=localhost:0` by default so this connector
+can coexist with another local `cloudflared` process using the default metrics
+port. Override `TUNNEL_METRICS` only when a fixed metrics address is required.
 
 The tunnel supervisor also probes the public `/mcp` endpoint every
 `TUNNEL_CHECK_INTERVAL_SECONDS` (default 60s). After `TUNNEL_MAX_FAILURES`

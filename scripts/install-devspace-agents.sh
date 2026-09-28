@@ -139,8 +139,12 @@ logs_agents() {
 restart_agents() {
   local label
   for label in "${LABELS[@]}"; do
-    launchctl kickstart -k "$DOMAIN/$label"
-    echo "Restarted launch agent: $label"
+    if launchctl print "$DOMAIN/$label" >/dev/null 2>&1; then
+      launchctl kickstart -k "$DOMAIN/$label"
+      echo "Restarted launch agent: $label"
+    else
+      echo "Launch agent not loaded (skipped): $label"
+    fi
   done
 }
 

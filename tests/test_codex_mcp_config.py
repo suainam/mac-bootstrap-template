@@ -50,7 +50,7 @@ def test_sync_codex_mcp_config_deduplicates_managed_tables():
         assert 'model = "gpt-5"' in content
 
 
-def test_render_codex_mcp_block_emits_proxy_variants():
+def test_render_codex_mcp_block_keeps_context7_direct():
     script = os.path.join(TEMPLATE, "scripts", "render-codex-mcp-block.py")
     env = {
         **os.environ,
@@ -70,8 +70,7 @@ def test_render_codex_mcp_block_emits_proxy_variants():
         '[mcp_servers.context7]\nenabled = true\n'
         f'command = "{TEMPLATE}/scripts/context7-mcp-bridge.py"\nargs = []'
     ) in result.stdout
-    assert 'all_proxy = "http://127.0.0.1:7897"' in result.stdout
-    assert 'NO_PROXY = "localhost,127.0.0.1,::1"' in result.stdout
+    assert '[mcp_servers.context7.env]' not in result.stdout
     assert '[mcp_servers.agent-prompt-library]' not in result.stdout
     assert str(Path.home() / ".local/bin/agent-prompt-mcp") not in result.stdout
     assert 'default_tools_approval_mode = "approve"' in result.stdout

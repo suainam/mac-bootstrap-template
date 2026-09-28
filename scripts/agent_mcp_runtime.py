@@ -328,7 +328,7 @@ def render_codex_toml(desired: Mapping[str, ServerSpec]) -> str:
             lines.append(f"enabled_tools = {_toml_array(spec.tool_approvals)}")
             lines.append('default_tools_approval_mode = "approve"')
         sections.append("\n".join(lines))
-        if spec.env:
+        if spec.env and name != "context7":
             env_lines = [f"[mcp_servers.{name}.env]"]
             env_lines.extend(
                 f"{key} = {_toml_string(value)}" for key, value in spec.env.items()
@@ -352,7 +352,7 @@ def _codex_server(spec: ServerSpec) -> dict[str, Any]:
         }
         if spec.startup_timeout_sec is not None:
             result["startup_timeout_sec"] = spec.startup_timeout_sec
-    if spec.env:
+    if spec.env and spec.name != "context7":
         result["env"] = dict(spec.env)
     if spec.tool_approvals:
         result["enabled_tools"] = list(spec.tool_approvals)

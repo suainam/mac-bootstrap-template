@@ -49,6 +49,74 @@ def test_load_devspace_config_expands_home_and_validates_allowed_roots(tmp_path,
     assert cfg.log_dir == repo / "private" / "agent" / "logs" / "devspace"
     assert devspace_local.validate_config(cfg) == []
 
+def test_load_devspace_config_prefers_profile_directory(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    work_dir = repo / "private" / "profiles" / "work"
+    work_dir.mkdir(parents=True)
+    allowed_work = repo / "work_project"
+    allowed_work.mkdir(parents=True)
+    (work_dir / "devspace.runtime.jsonc").write_text(
+        json.dumps({
+            "paths": {"allowed_roots": [str(allowed_work)]},
+            "server": {"host": "127.0.0.1", "port": 7677},
+            "exposure": {"public_base_url": "https://devspace-work.example.com"},
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MAC_BOOTSTRAP_PROFILE", "work")
+
+    cfg = devspace_local.load_devspace_config(repo_root=repo)
+
+    assert cfg.source_path == (work_dir / "devspace.runtime.jsonc").resolve()
+    assert cfg.port == 7677
+    assert cfg.public_base_url == "https://devspace-work.example.com"
+    assert cfg.allowed_roots == [allowed_work]
+
+
+def test_devspace_home_paths_prefers_profile_directory(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    home_profile_dir = repo / "private" / "profiles" / "home"
+    home_profile_dir.mkdir(parents=True)
+    (home_profile_dir / "devspace.config.json").write_text("{}", encoding="utf-8")
+    (home_profile_dir / "devspace.auth.json").write_text("{}", encoding="utf-8")
+
+    paths = devspace_local.devspace_home_paths(
+        home_dir=tmp_path / "userhome",
+        repo_root=repo,
+        profile="home",
+    )
+
+    assert paths["private_config"] == home_profile_dir / "devspace.config.json"
+    assert paths["private_auth"] == home_profile_dir / "devspace.auth.json"
+    assert paths["backup_root"] == home_profile_dir / "backups" / "devspace-home"
+
+
+def test_build_run_env_prepends_keg_only_node22_if_available(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    cfg = devspace_local.DevSpaceConfig(
+        source_path=tmp_path / "cfg.jsonc",
+        allowed_roots=[allowed],
+        host="127.0.0.1",
+        port=7676,
+        public_base_url="https://devspace.example.com",
+        cloudflare_tunnel_token="",
+        node_preference="auto",
+        install_mode="brew+npm",
+        devspace_bin="",
+        npm_bin="",
+        log_dir=tmp_path / "logs",
+    )
+    fake_node22_bin = tmp_path / "fake_node22_bin"
+    fake_node22_bin.mkdir(parents=True)
+    (fake_node22_bin / "node").write_text("#!/bin/sh\nexit 0")
+    (fake_node22_bin / "node").chmod(0o755)
+
+    monkeypatch.setattr(devspace_local, "NODE22_BIN_DIR", fake_node22_bin)
+    env = devspace_local.build_run_env(cfg, env={"PATH": "/usr/bin:/bin"})
+    assert env["PATH"].startswith(f"{fake_node22_bin}:")
+
 
 def test_validate_config_reports_missing_allowed_root_and_bad_port(tmp_path):
     cfg = devspace_local.DevSpaceConfig(
@@ -113,7 +181,6 @@ def test_build_install_commands_adds_brew_and_npm_when_missing(tmp_path):
 
     assert commands == [
         ["/opt/homebrew/bin/brew", "install", "node@22"],
-        ["/opt/homebrew/bin/brew", "link", "--overwrite", "--force", "node@22"],
         ["npm", "install", "-g", "@waishnav/devspace"],
     ]
 
