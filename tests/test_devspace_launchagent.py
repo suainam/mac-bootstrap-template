@@ -36,7 +36,7 @@ def test_devspace_supervisor_contract():
     assert "STARTUP_TIMEOUT_SECONDS=180" in content
     assert "CHECK_INTERVAL_SECONDS=30" in content
     assert "MAX_FAILURES=3" in content
-    assert 'export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
+    assert 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
     assert "trap terminate TERM INT" in content
 
 
@@ -46,7 +46,8 @@ def test_devspace_tunnel_supervisor_contract():
     assert "./scripts/devspace-local.sh --dry-run tunnel-run" in content
     assert "./scripts/devspace-local.sh tunnel-run" in content
     assert "<redacted>" in content
-    assert 'export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
+    assert 'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' in content
+    assert 'export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin' not in content
     assert "cloudflare_tunnel_token" not in content
 
 
@@ -61,6 +62,7 @@ def test_devspace_tunnel_supervisor_has_public_health_watchdog():
     assert "TUNNEL_MAX_FAILURES" in content
     assert "200|401|405" in content
     assert "consecutive public probe failures" in content
+    assert '--noproxy "localhost,127.0.0.1,::1"' in content
 
 
 def test_devspace_agent_installer_contract():

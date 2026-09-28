@@ -246,17 +246,22 @@ def build_run_command(config: DevSpaceConfig, bins: ResolvedBinaries) -> list[st
     return [bins.devspace, "serve"]
 
 
-def build_run_env(config: DevSpaceConfig, env: Mapping[str, str] | None = None) -> dict[str, str]:
+def build_devspace_env(env: Mapping[str, str] | None = None) -> dict[str, str]:
     base = dict(os.environ if env is None else env)
+    if NODE22_BIN_DIR.is_dir() and (NODE22_BIN_DIR / "node").is_file():
+        cur_path = base.get("PATH", "")
+        if not cur_path.startswith(f"{NODE22_BIN_DIR}:"):
+            base["PATH"] = f"{NODE22_BIN_DIR}:{cur_path}"
+    return base
+
+
+def build_run_env(config: DevSpaceConfig, env: Mapping[str, str] | None = None) -> dict[str, str]:
+    base = build_devspace_env(env)
     base["HOST"] = config.host
     base["PORT"] = str(config.port)
     base["DEVSPACE_ALLOWED_ROOTS"] = ",".join(str(root) for root in config.allowed_roots)
     if config.public_base_url:
         base["DEVSPACE_PUBLIC_BASE_URL"] = config.public_base_url.rstrip("/")
-    if NODE22_BIN_DIR.is_dir() and (NODE22_BIN_DIR / "node").is_file():
-        cur_path = base.get("PATH", "")
-        if not cur_path.startswith(f"{NODE22_BIN_DIR}:"):
-            base["PATH"] = f"{NODE22_BIN_DIR}:{cur_path}"
     return base
 
 
@@ -286,6 +291,7 @@ def get_devspace_doctor_output(devspace_bin: str) -> tuple[int, str]:
         result = subprocess.run(
             [devspace_bin, "doctor"],
             check=False,
+            env=build_devspace_env(),
             capture_output=True,
             text=True,
         )

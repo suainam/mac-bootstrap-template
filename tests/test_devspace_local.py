@@ -114,8 +114,22 @@ def test_build_run_env_prepends_keg_only_node22_if_available(monkeypatch, tmp_pa
     (fake_node22_bin / "node").chmod(0o755)
 
     monkeypatch.setattr(devspace_local, "NODE22_BIN_DIR", fake_node22_bin)
-    env = devspace_local.build_run_env(cfg, env={"PATH": "/usr/bin:/bin"})
-    assert env["PATH"].startswith(f"{fake_node22_bin}:")
+    base_path = "/usr/bin:/bin"
+    env = devspace_local.build_run_env(cfg, env={"PATH": base_path})
+    assert env["PATH"].split(":")[0] == str(fake_node22_bin)
+    assert base_path in env["PATH"]
+
+def test_devspace_cli_env_scopes_node22_without_changing_parent(monkeypatch, tmp_path):
+    fake_node22_bin = tmp_path / "node22"
+    fake_node22_bin.mkdir()
+    (fake_node22_bin / "node").write_text("#!/bin/sh\nexit 0")
+    monkeypatch.setattr(devspace_local, "NODE22_BIN_DIR", fake_node22_bin)
+    parent = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin"}
+
+    child = devspace_local.build_devspace_env(parent)
+
+    assert child["PATH"] == f"{fake_node22_bin}:{parent['PATH']}"
+    assert parent["PATH"] == "/opt/homebrew/bin:/usr/bin:/bin"
 
 
 def test_validate_config_reports_missing_allowed_root_and_bad_port(tmp_path):

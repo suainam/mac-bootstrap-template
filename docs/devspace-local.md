@@ -94,11 +94,12 @@ The supervisor sets `TUNNEL_METRICS=localhost:0` by default so this connector
 can coexist with another local `cloudflared` process using the default metrics
 port. Override `TUNNEL_METRICS` only when a fixed metrics address is required.
 
-The tunnel supervisor also probes the public `/mcp` endpoint every
-`TUNNEL_CHECK_INTERVAL_SECONDS` (default 60s). After `TUNNEL_MAX_FAILURES`
-(default 5) consecutive unhealthy probes it exits so launchd restarts
-cloudflared with fresh state — a stuck cloudflared can retry a dead edge for
-hours even after the network path recovers.
+The tunnel supervisor probes the public `/mcp` endpoint every
+`TUNNEL_CHECK_INTERVAL_SECONDS` (default 60s) through the active profile's
+`proxy.env` port. It excludes the local DevSpace address from proxying. After
+`TUNNEL_MAX_FAILURES` (default 5) consecutive unhealthy probes, it exits so
+launchd restarts cloudflared with fresh state. This recovers from a stuck
+connector after the network path recovers.
 
 Install missing dependencies without starting the service:
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export TUNNEL_METRICS="${TUNNEL_METRICS:-localhost:0}"
 
 log() {
@@ -11,6 +11,25 @@ log() {
 }
 
 cd "$REPO_ROOT"
+PROFILE="$(./scripts/resolve-profile.sh)"
+PRIVATE_DIR="${MAC_BOOTSTRAP_PRIVATE_DIR:-}"
+if [[ -z "$PRIVATE_DIR" || ! -d "$PRIVATE_DIR" ]]; then
+  if [[ -d "$REPO_ROOT/../private" ]]; then
+    PRIVATE_DIR="$(cd "$REPO_ROOT/../private" && pwd)"
+  else
+    PRIVATE_DIR="$REPO_ROOT/private"
+  fi
+fi
+PROXY_ENV="$PRIVATE_DIR/profiles/$PROFILE/proxy.env"
+PROXY_PORT=""
+if [[ -r "$PROXY_ENV" ]]; then
+  PROXY_PORT="$(sed -n 's/^PROXY_PORT=//p' "$PROXY_ENV")"
+fi
+if [[ "$PROXY_PORT" =~ ^[0-9]{1,5}$ ]] && ((PROXY_PORT >= 1 && PROXY_PORT <= 65535)); then
+  HEALTH_PROXY_ARGS=(--proxy "http://127.0.0.1:$PROXY_PORT" --noproxy "localhost,127.0.0.1,::1")
+else
+  HEALTH_PROXY_ARGS=(--noproxy '*')
+fi
 
 log "validating Cloudflare Tunnel configuration; token output stays <redacted>"
 ./scripts/devspace-local.sh --dry-run tunnel-run >/dev/null
@@ -29,7 +48,7 @@ MAX_FAILURES="${TUNNEL_MAX_FAILURES:-5}"
 failures=0
 while kill -0 "$CLOUDFLARED_PID" 2>/dev/null; do
   sleep "$CHECK_INTERVAL_SECONDS"
-  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 --noproxy '*' "$PUBLIC_MCP_URL" 2>/dev/null || echo 000)"
+  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "${HEALTH_PROXY_ARGS[@]}" "$PUBLIC_MCP_URL" 2>/dev/null || echo 000)"
   case "$code" in
     200|401|405)
       failures=0
