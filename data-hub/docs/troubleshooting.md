@@ -39,6 +39,39 @@
 2. `knowledge_candidates` 是否被孤儿清理误删
 3. 是否手工修改了 SQLite 或跳过了标准脚本
 
+## 6. LLM backend 全部失败或 summary 长期未生成
+
+表现：
+- 候选生成、自动审核、总结构建持续数周/数月无输出
+- `execution_log` 显示所有 summary 任务 `failed` 或 `degraded`
+- telemetry 出现 `timeout after 10 seconds` 或 `All models rate-limited`
+
+检查顺序：
+1. 确认 HTTP backend 模型 ID 与远程 endpoint 实际可用列表一致；如 `freellmapi-qwen3` 的 `model` 应为 `qwenqwen3.6-35b-a3b` 而非 `Qwen/Qwen3.6-35B-A3B`
+2. 确认 CLI backend (`opencode_cli`/`codex_cli`/`agy_cli`/`claude_cli`) 的 `timeout` >= 90s；这些 CLI 工具冷启动需 40-50s，10s 超时必定失败
+3. 跑最小探针确认链路恢复：
+
+```bash
+cd ~/work/config/mac-bootstrap
+template/.venv/bin/python -c '
+import sys
+sys.path.insert(0, "template/data-hub")
+from llm_filter import call_llm_raw
+print(call_llm_raw("Reply with exactly: OK"))
+'
+```
+
+4. 若仍全链路失败，逐个检查 backend：
+   - HTTP 401/403：检查 `api_key` 或账号状态
+   - HTTP 429：检查 endpoint 配额或模型 ID 是否触发内部路由失败
+   - CLI timeout：提高 `timeout` 至 120s 并重试
+
+历史案例（2026-07-10 至 2026-09-28）：
+- `freellmapi-qwen3` 模型 ID 写成 `Qwen/Qwen3.6-35B-A3B`（HuggingFace 格式），触发 endpoint 404，进而耗尽整个 endpoint 配额池
+- `huang-gpt` 返回 `401 USER_INACTIVE`
+- 所有 CLI backend 设置 `timeout: 10`，实际需要 45s，100% 超时失败
+- 结果：174 个候选滞留 `pending_review`，62 个 daily summary 失败，持续近 3 个月零输出
+
 ## 7. 晚间 summary schedule 未自动运行
 
 检查顺序：
