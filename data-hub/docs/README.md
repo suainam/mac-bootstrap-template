@@ -13,7 +13,7 @@
 
 - [ops.md](./ops.md) — 日常运行、补跑、恢复、回归、隔离验收
 - [reference.md](./reference.md) — knowledge root、runtime config、source bucket、canonical/projection 约定
-- [troubleshooting.md](./troubleshooting.md) — 常见故障定位路径
+- [llm-wiki-enablement.md](./llm-wiki-enablement.md) — 安装/更新后启用与验证 `llm_wiki` 集成的 checklist
 - [cron-setup.md](./cron-setup.md) — 现行 launchd 09:00 / 17:30 / 18:00 调度与可选 Cron fallback
 - [summary-engine-implementation-report.md](./summary-engine-implementation-report.md) — 分阶段提交、复审修复、五层 E2E 与最终门禁证据
 
