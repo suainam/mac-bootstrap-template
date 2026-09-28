@@ -90,6 +90,9 @@ The repo-managed tunnel runs `cloudflared tunnel run --protocol http2`.
 default QUIC transport intermittently fails to dial the edge
 (`no recent network activity`) and the public URL returns HTTP 530. The TCP
 based `http2` transport survives that environment.
+The supervisor sets `TUNNEL_METRICS=localhost:0` by default so this connector
+can coexist with another local `cloudflared` process using the default metrics
+port. Override `TUNNEL_METRICS` only when a fixed metrics address is required.
 
 The tunnel supervisor also probes the public `/mcp` endpoint every
 `TUNNEL_CHECK_INTERVAL_SECONDS` (default 60s). After `TUNNEL_MAX_FAILURES`

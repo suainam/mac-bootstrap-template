@@ -212,6 +212,16 @@ neither fact proves that system DNS or transparent routing was changed.
   1. **条件性剥离环境变量**：切换非数据库存储时，环境变量必须完全剔除 `PGSTORE_DSN`，避免 Go 二进制判定数据库驱动优先于本地文件。
   2. **挂载点对齐**：启用 S3/R2 双向同步时，将宿主机目录定向到容器的 `objectstore` 路径（如 `/opt/dockers/<app>/objectstore:/app/objectstore`），由内部驱动负责监听与自动拉取。
   3. **受控强制覆写**：为配置下发设立显式 `force_overwrite` 开关；日常幂等部署不覆盖在线 WebUI 修改，受控切换时才开启全量覆写。
+
+### 6. Darwin/macOS 异构环境与定时任务透传 (Mac mini & LaunchAgent)
+- **动态 Token 与代码即配置 (SSOT)**：
+  - 涉及频繁自动刷新 OAuth Token（如 Rclone/OneDrive/GDrive）的服务，严禁散落于各节点私有配置或依赖手工浏览器授权。
+  - 将运行期最新有效 Token 提取后，以标准独立 Ansible Vault 文件（如 `inventories/group_vars/all/rclone_vault.yml`）形式纳入版本控制管理，彻底解决跨节点部署过期和重复授权问题。
+- **通用 Timer/Service 嵌套任务层级与环境变量穿透**：
+  - `managed_timer` 与 `application_service` 嵌套调用时，底层 timer unit 严禁静默覆盖上层独立生成的同名 service unit（导致 `Environment` 参数丢失并以默认参数运行失败）。
+  - 必须在上层显式透传 `app_timer_environment` 并保持 service 与 timer 职责解耦。
+- **macOS 容器底座与目录权限边界**：
+  - macOS (Darwin) 环境下容器运行时（Colima）通常以非 root 用户执行，宿主机数据卷目录（如 `backup_source_docker_dir`）必须省略 `owner: root` / `group: root` 及 `become: true`，避免遭遇 `Operation not permitted` (EPERM)。
 ## Disclosed Reference & Automation
 
 - **Lifecycle Contract & Matrix**: Detailed definitions and stage rules in [references/lifecycle_contract.md](references/lifecycle_contract.md).

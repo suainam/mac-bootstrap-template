@@ -111,6 +111,9 @@ def main() -> int:
 
     environment = os.environ.copy()
     environment.pop("CONTEXT7_API_KEY", None)
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        environment.pop(name, None)
+    environment["NODE_USE_ENV_PROXY"] = "0"
     if key is not None:
         environment["CONTEXT7_API_KEY"] = key
 

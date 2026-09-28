@@ -22,7 +22,7 @@ def run_renderer(*args: str, env: dict[str, str] | None = None):
     )
 
 
-def test_renderer_uses_normalized_proxy_without_api_key_argument():
+def test_renderer_keeps_context7_direct_without_api_key_argument():
     env = {
         **os.environ,
         "HTTP_PROXY": "http://127.0.0.1:7897",
@@ -36,8 +36,7 @@ def test_renderer_uses_normalized_proxy_without_api_key_argument():
         f'command = "{ROOT / "scripts" / "context7-mcp-bridge.py"}"\nargs = []'
     ) in result.stdout
     assert "abc" not in result.stdout
-    assert 'HTTP_PROXY = "http://127.0.0.1:7897"' in result.stdout
-    assert 'HTTPS_PROXY = "http://127.0.0.1:7898"' in result.stdout
+    assert '[mcp_servers.context7.env]' not in result.stdout
 
 
 def test_renderer_excludes_web_only_devspace():

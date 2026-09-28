@@ -286,7 +286,7 @@ def test_codex_toml_is_rendered_from_normalized_specs():
     assert ".tools." not in rendered
     assert 'command = "/repo/scripts/context7-mcp-bridge.py"' in rendered
     assert '[mcp_servers.context7]\nenabled = true\ncommand = "/repo/scripts/context7-mcp-bridge.py"\nargs = []' in rendered
-    assert '[mcp_servers.context7.env]' in rendered
+    assert '[mcp_servers.context7.env]' not in rendered
     assert '[mcp_servers.devspace]' not in rendered
 
 
