@@ -193,10 +193,6 @@ echo "=== Configure Ghostty ==="
 
 echo "=== Configure Herdr (Terminal Multiplexer) ==="
 "$DIR/multiplexer/herder/install.sh"
-echo "=== Configure Topgrade ==="
-mkdir -p "$HOME/.config"
-ln -sf "$DIR/system/topgrade/topgrade.toml" "$HOME/.config/topgrade.toml"
-echo "  ~/.config/topgrade.toml -> system/topgrade/topgrade.toml"
 
 echo "=== Setup SSH config ==="
 "$DIR/scripts/ssh-manage.sh" install

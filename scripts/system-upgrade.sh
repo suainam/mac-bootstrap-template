@@ -18,7 +18,6 @@ fi
 export HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS="${HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS:-1}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BREW_BIN="${BREW_BIN:-$(command -v brew 2>/dev/null || echo '')}"
-TOPGRADE_BIN="${TOPGRADE_BIN:-$(command -v topgrade 2>/dev/null || echo '')}"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/.venv/bin/python}"
 SKILL_SOURCE="${SKILL_SOURCE:-}"
 
@@ -31,19 +30,42 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   exit 1
 fi
 
-if [[ -n "${TOPGRADE_BIN}" && -x "${TOPGRADE_BIN}" ]]; then
-  echo "Running Topgrade universal upgrade..."
-  "${TOPGRADE_BIN}" --disable node
-else
-  echo "Running Homebrew update and upgrade in the current terminal..."
-  "${BREW_BIN}" update
-  "${BREW_BIN}" upgrade
+echo "Updating Homebrew and reconciling packages from Brewfile..."
+"${BREW_BIN}" update
+if [[ -x "${ROOT_DIR}/scripts/brew-bundle.sh" ]]; then
+  "${ROOT_DIR}/scripts/brew-bundle.sh" || {
+    echo "Warning: brew-bundle encountered warnings or skipped items (some casks may require interactive sudo or DMG)" >&2
+  }
+fi
+"${BREW_BIN}" upgrade
+"${BREW_BIN}" cleanup
+
+BUN_BIN="$(command -v bun 2>/dev/null || echo '')"
+if [[ -n "${BUN_BIN}" && -x "${BUN_BIN}" ]]; then
+  echo "Upgrading global Bun packages..."
+  "${BUN_BIN}" update -g 2>/dev/null || true
+fi
+
+UV_BIN="$(command -v uv 2>/dev/null || echo '')"
+if [[ -n "${UV_BIN}" && -x "${UV_BIN}" ]]; then
+  echo "Upgrading uv managed tools..."
+  "${UV_BIN}" tool upgrade --all 2>/dev/null || true
+fi
+
+CLAUDE_BIN="$(command -v claude 2>/dev/null || echo '')"
+if [[ -n "${CLAUDE_BIN}" && -x "${CLAUDE_BIN}" ]]; then
+  echo "Updating Claude Code plugin marketplaces..."
+  "${CLAUDE_BIN}" plugin marketplace update 2>/dev/null || true
 fi
 echo "Upgrading managed global npm packages..."
 (
   cd "${ROOT_DIR}"
   ./scripts/install-npm-global-packages.sh --yes --upgrade
 )
+echo "Updating global skills..."
+if command -v npx >/dev/null 2>&1; then
+  npx --yes skills update --global 2>/dev/null || true
+fi
 echo "Patching Chrome to ensure Gemini features remain enabled..."
 (
   cd "${ROOT_DIR}"

@@ -23,7 +23,6 @@ brew "zoxide"
 brew "eza"
 brew "bat"
 brew "yazi"
-brew "topgrade"
 # ========== 语言 & 运行时 ==========
 brew "node"
 brew "bun"

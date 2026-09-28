@@ -185,38 +185,26 @@ walkthrough.
 its own git repository under `~/work/projects`, with its own `.envrc`, `.env`,
 and runtime state.
 
-## 全生态统一升级 (Topgrade & System Upgrade)
+## 全生态统一升级 (System Upgrade)
 
-系统将多渠道包管理器与工具链聚合至 `system-upgrade`：Topgrade 负责通用系统/包管理，manifest helper 负责 npm globals；Topgrade 配置真源维护在 `template/system/topgrade/topgrade.toml` 并自动软链至 `~/.config/topgrade.toml`。
+系统将声明式包管理器与工具链聚合至 `system-upgrade`（`scripts/system-upgrade.sh`），严格遵循单一真源原则：Homebrew 通过分层 `Brewfile` 声明对齐与升级，npm globals 经清单管理，Python 工具由 `uv` 托管，Agent 技能供应链分发及 Chrome Gemini 补丁全自动串联。
 
 ```mermaid
 flowchart TD
-    All[已安装工具与应用] --> PKG[标准包管理 - Topgrade 原生接管]
-    All --> Sparkle[自带更新引擎 - 打开自动静默更新]
-    All --> Enterprise[企业与系统托管]
-    All --> Manual[独立孤立安装 - 手动或自更新]
-
-    PKG --> P1[Homebrew: Formula + Cask]
-    PKG --> P2[NPM Global: context-mode 等]
-    PKG --> P3[Bun Global: opencode2 等]
-    PKG --> P4[uv tool: ruff, basedpyright, ansible 等]
-    PKG --> P6[mas: Mac App Store 应用]
-
-    Sparkle --> S1[Ghostty, Hammerspoon, Maccy, OBS 等]
-    Enterprise --> E1[企业 MDM 与配套 CLI: 随应用升级]
-    Manual --> M1[独立下载应用: 自带更新或手动替换]
+    All[统一生态升级入口: make system-upgrade] --> Brew[Homebrew 分层 Brewfile 对齐 + 升级 + 清理]
+    All --> Bun[Bun 全局 CLI: opencode2 等]
+    All --> UV[uv tool: ansible 等 CLI 工具]
+    All --> NPM[npm globals 清单驱动升级]
+    All --> Skills[技能全生态: global skills + 供应链 external bundles]
+    All --> Chrome[Chrome Gemini 补丁自动保持]
+    All --> Mihomo[Mihomo 守护进程订阅同步]
 ```
 
-- **真源路径**: `template/system/topgrade/topgrade.toml`
-- **动态探测机制**: Topgrade 在运行时动态查询其负责的已安装工具（如 `brew outdated`、`bun pm ls -g`）；npm globals 由 `template/agent/npm-global-packages.txt` 显式管理。**已卸载的软件绝对不会被重新下载或自动升级**。
 - **编排与分工**:
-  - **`make system-upgrade`（推荐日常唯一入口）**: 权威入口，依次调度 `topgrade --disable node` $\rightarrow$ manifest npm globals $\rightarrow$ `make patch-chrome-gemini`（Chrome Gemini 补丁） $\rightarrow$ Agent 技能供应链刷新与分发。
-  - **`topgrade`（底层多包引擎）**: 单独运行仅执行包管理器与插件更新。
+  - **`make system-upgrade`（日常唯一推荐入口）**: 权威入口，依序对齐分层 Brewfile 并升级 $\rightarrow$ 更新 Bun 全局包 $\rightarrow$ `uv tool upgrade` $\rightarrow$ manifest npm globals $\rightarrow$ global skills $\rightarrow$ `make patch-chrome-gemini`（Chrome Gemini 补丁） $\rightarrow$ Agent 技能供应链刷新与分发。
 - **使用方式**:
   ```bash
-  make system-upgrade   # 推荐：全生态升级（含 manifest npm globals） + Chrome 补丁 + 技能供应链分发
-  topgrade --dry-run    # 演练查看待更新项
-  topgrade              # 仅更新多包管理器与运行时插件
+  make system-upgrade   # 全生态声明式升级 + Chrome 补丁 + 技能供应链分发
   ```
 
 ## Public template + private overlay

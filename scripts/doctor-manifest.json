@@ -29,7 +29,6 @@
     "~/.hammerspoon/init.lua": "desktop/hammerspoon/init.lua",
     "~/.config/ghostty/config": "terminals/ghostty/config",
     "~/.config/herdr/config.toml": "multiplexer/herder/config.toml",
-    "~/.config/topgrade.toml": "system/topgrade/topgrade.toml",
     "~/.local/bin/switch-terminal-theme.sh": "scripts/switch-terminal-theme.sh",
     "~/.local/bin/proxy-on.sh": "scripts/configure-proxies.sh",
     "~/.local/bin/proxy-off.sh": "scripts/clear-proxies.sh",

@@ -27,7 +27,10 @@ def test_system_upgrade_keeps_password_and_brew_ownership_explicit() -> None:
 
     assert '"${BREW_BIN}" update' in script
     assert '"${BREW_BIN}" upgrade' in script
-    assert '"${TOPGRADE_BIN}" --disable node' in script
+    assert '"${ROOT_DIR}/scripts/brew-bundle.sh"' in script
+    assert 'skills update --global' in script
+    assert 'make patch-chrome-gemini' in script
+    assert "topgrade" not in script.lower()
     assert './scripts/install-npm-global-packages.sh --yes --upgrade' in script
     assert "\nsudo " not in script
     assert "password" not in script.lower()
