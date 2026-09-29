@@ -20,6 +20,8 @@ make claude-daemon-logs      # tail structured run summaries
 make claude-daemon-unload    # stop and remove the LaunchAgent
 ```
 
+`make claude-daemon-install` re-renders and replaces the loaded LaunchAgent from the current template.
+
 ## Logs
 
 - Structured run summaries: `~/Library/Logs/claude-daemon/daemon.log`
