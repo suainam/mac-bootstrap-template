@@ -724,6 +724,28 @@
       }
     },
 
+    "ppt-master": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/hugohe3/ppt-master",
+      "skills": {
+        "ppt-master": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_hash": "sha256:1731f4f796c42877a7c1f2eb7abd0183f6a096e756829f51d90b1087937fab1b",
+            "reason": "User-requested upstream PPT editing Skill; byte-identical to previously installed copy apart from generated __pycache__"
+          }
+        }
+      }
+    },
+
     "guizang-ppt-skill": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -1252,6 +1274,11 @@
         "ps-new-store-benefit-report": {
           "scope": "project",
           "projects": ["product_strategy"]
+        },
+        "ps-reduction-scope-config-maintenance": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "非目录商品缩铺范围配置规则的编码核对、开发库验证、全量覆写与生产回读校验"
         }
       }
     },
@@ -1309,6 +1336,11 @@
         "network-path-triage": {
           "scope": "project",
           "projects": ["mac-bootstrap"]
+        },
+        "dispatch-codex": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "OMP-hosted Herdr dispatch skill for Codex lanes; adapted from bestony/herdr-dispatch for OMP orchestration with no-push default"
         }
       }
     },
