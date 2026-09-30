@@ -57,7 +57,7 @@ class StateTransitionError(Exception):
     pass
 
 
-def lint_task_contract(task_path: Path, delegation_level: str = "OUTCOME_ONLY") -> None:
+def lint_task_contract(task_path: Path) -> None:
     if not task_path.is_file():
         raise TaskContractError(f"Task file '{task_path}' does not exist.")
 
@@ -83,21 +83,20 @@ def lint_task_contract(task_path: Path, delegation_level: str = "OUTCOME_ONLY") 
             "Action required: Formulate a compliant 7-section specification via /skill:qiaomu-goal-meta-skill."
         )
 
-    # 2. Anti-Pseudo-Delegation check: reject raw diffs or code patches under OUTCOME_ONLY
-    if delegation_level == "OUTCOME_ONLY":
-        patch_patterns = [
-            r"^\s*diff --git",
-            r"^\s*@@\s+-\d+,\d+\s+\+\d+,\d+\s+@@",
-            r"^\s*(\+\+\+|---)\s+[ab]/",
-        ]
-        for pat in patch_patterns:
-            if re.search(pat, content, re.MULTILINE):
-                raise TaskContractError(
-                    f"Pseudo-Delegation detected in '{task_path}'!\n"
-                    "The orchestrator must specify WHAT & ACCEPTANCE (outcomes, boundaries, verification commands),\n"
-                    "NEVER line-by-line patch code or raw diffs (HOW).\n"
-                    "Action required: Remove the raw diff/patch from the task specification."
-                )
+    # 2. Anti-Pseudo-Delegation check: absolute barrier against inlining raw diffs or patch code
+    patch_patterns = [
+        r"^\s*diff --git",
+        r"^\s*@@\s+-\d+(?:,\d+)?\s+\+\d+(?:,\d+)?\s+@@",
+        r"^\s*(\+\+\+|---)\s+[ab]/",
+    ]
+    for pat in patch_patterns:
+        if re.search(pat, content, re.MULTILINE):
+            raise TaskContractError(
+                f"Pseudo-Delegation detected in '{task_path}'!\n"
+                "The orchestrator must specify WHAT & ACCEPTANCE (outcomes, boundaries, verification commands),\n"
+                "NEVER line-by-line patch code or raw diffs (HOW).\n"
+                "Action required: Remove the raw diff/patch from the task specification."
+            )
 
 
 def resolve_state_file(repo_path: Optional[str] = None) -> Path:
@@ -128,7 +127,7 @@ class OrchestratorState:
     lanes: Dict[str, Dict[str, Any]]
     known_facts: Dict[str, Any]
     awaiting_human_gate: bool
-
+    extra_data: Dict[str, Any]
     @classmethod
     def load(cls, path: Path) -> OrchestratorState:
         default_state = cls(
@@ -140,6 +139,7 @@ class OrchestratorState:
             lanes={},
             known_facts={},
             awaiting_human_gate=False,
+            extra_data={},
         )
         if not path.is_file():
             return default_state
@@ -169,20 +169,39 @@ class OrchestratorState:
             print(f"Warning: Unknown phase '{raw_phase}', defaulting to INIT.", file=sys.stderr)
             phase = Phase.INIT
 
+        def _safe_int(val: Any, fallback: int) -> int:
+            if val is None:
+                return fallback
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return fallback
+
+        # Preserve extra metadata (e.g. worktrees, completed_milestones) so they are not dropped
+        standard_keys = {
+            "schema", "task_id", "phase", "review_round", "max_review_rounds",
+            "lanes", "active_panes", "known_facts", "discovered_facts", "awaiting_human_gate"
+        }
+        extra = {k: v for k, v in data.items() if k not in standard_keys}
+
         return cls(
-            schema=int(data.get("schema", 2)),
+            schema=_safe_int(data.get("schema"), 2),
             task_id=str(data.get("task_id", "default")),
             phase=phase,
-            review_round=int(data.get("review_round", 0)),
-            max_review_rounds=int(data.get("max_review_rounds", 2)),
+            review_round=_safe_int(data.get("review_round"), 0),
+            max_review_rounds=_safe_int(data.get("max_review_rounds"), 2),
             lanes=lanes,
             known_facts=known if isinstance(known, dict) else {},
             awaiting_human_gate=bool(data.get("awaiting_human_gate", False)),
+            extra_data=extra,
         )
+
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         raw = asdict(self)
         raw["phase"] = self.phase.value
+        extra = raw.pop("extra_data", {})
+        raw.update(extra)
         path.write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     def advance(self, target: Phase) -> None:
@@ -310,8 +329,8 @@ def cmd_state(args: argparse.Namespace) -> int:
 def cmd_lint(args: argparse.Namespace) -> int:
     task_file = Path(args.task)
     try:
-        lint_task_contract(task_file, delegation_level=args.delegation_level)
-        print(f"OK: Task contract '{task_file}' is valid ({args.delegation_level}).")
+        lint_task_contract(task_file)
+        print(f"OK: Task contract '{task_file}' is valid.")
         return 0
     except TaskContractError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -334,14 +353,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Lint subcommand
     p_lint = subparsers.add_parser("lint", help="Lint a task contract file")
     p_lint.add_argument("task", help="Path to task file")
-    p_lint.add_argument(
-        "--delegation-level",
-        choices=["OUTCOME_ONLY", "WITH_HINTS"],
-        default="OUTCOME_ONLY",
-        help="Delegation boundary level",
-    )
     p_lint.set_defaults(func=cmd_lint)
-
     return parser
 
 

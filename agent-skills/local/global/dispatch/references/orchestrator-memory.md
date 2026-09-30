@@ -13,14 +13,13 @@ This reference governs how the **Orchestrator** maintains continuous memory acro
 4. Burns 20,000+ tokens and 5+ minutes on zero-progress re-exploration.
 
 ### Root Cause:
-The Orchestrator treats each turn as a blank-slate task instead of maintaining a **Persistent Orchestration Ledger** (`.dispatch/ORCHESTRATOR_STATE.json`).
+The Orchestrator treats each turn as a blank-slate task instead of consulting the **Persistent Orchestration Ledger** (managed via `dispatch.py state`).
 
 ---
 
 ## 2. Persistent Orchestration Ledger Contract
 
-The Orchestrator MUST persist its operational state inside `.dispatch/ORCHESTRATOR_STATE.json` at the repo root (or active session):
-
+The Orchestrator state is anchored to the repository's git common directory (`<git-common-dir>/dispatch/ORCHESTRATOR_STATE.json`), guaranteeing that the main checkout and all worktrees share an identical, synchronized state machine. Individual lane metadata stays in each worktree's `.dispatch/`.
 ```json
 {
   "task_id": "example-feature-fix",
@@ -57,9 +56,10 @@ The Orchestrator MUST persist its operational state inside `.dispatch/ORCHESTRAT
 
 Before executing ANY exploratory tool call (`find`, `grep`, `herdr pane list`, `git branch`):
 
-1. **Read Ledger First**:
+1. **Check Ledger & Next Permitted Action**:
    ```bash
-   test -f .dispatch/ORCHESTRATOR_STATE.json && cat .dispatch/ORCHESTRATOR_STATE.json
+   python3 <skill-dir>/scripts/dispatch.py state next --repo "$PWD"
+   python3 <skill-dir>/scripts/dispatch.py state show --repo "$PWD"
    ```
 2. **If Ledger Exists**:
    - **TRUST EXISTING FACTS**: Do NOT re-run `command -v gitleaks`, do NOT re-list `herdr worktree`, do NOT re-read `network_topology.yml`!

@@ -32,7 +32,7 @@ BASE=""
 PRINT=false
 AUTO=false
 YOLO=false
-DELEGATION_LEVEL="OUTCOME_ONLY"
+# Delegation level is strictly OUTCOME_ONLY
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
     --branch) BRANCH="$2"; shift 2 ;;
     --base) BASE="$2"; shift 2 ;;
     --print) PRINT=true; ROLE="researcher"; shift ;;
-    --delegation-level) DELEGATION_LEVEL="$2"; shift 2 ;;
+    --delegation-level) shift 2 ;;
     --auto) AUTO=true; shift ;;
     --yolo|--dangerously-skip-permissions) YOLO=true; shift ;;
     --push)
@@ -70,7 +70,7 @@ if [[ -z "${TASK}" ]]; then
 fi
 
 # Pre-flight Gate: Enforce Qiaomu Goal Contract & Anti-Pseudo-Delegation via dispatch_engine.py
-python3 "${ENGINE_PY}" lint "${TASK}" --delegation-level "${DELEGATION_LEVEL}"
+python3 "${ENGINE_PY}" lint "${TASK}"
 
 # Auto-route agent kind based on Diamond role if not explicitly provided
 if [[ -z "${KIND}" ]]; then

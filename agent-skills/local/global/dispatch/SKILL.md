@@ -1,7 +1,7 @@
 ---
 name: dispatch
 description: Dispatch tasks to heterogeneous agents (Codex, OpenCode, Claude Code, Antigravity, OMP) running in Herdr-managed isolated worktrees. Features task-based model routing, quota failover, two-step trust handshake, zero-token watchdog supervision, and fire-and-yield handoff. Use when dispatching implementation, refactoring, review, PR release, or audit tasks to background agents.
-argument-hint: '--task <file> [--role <writer|skeptic|researcher>] [--kind <codex|opencode|claude|agy|omp>] [--model <model>] [--name <name>] [--base <ref>] [--delegation-level <OUTCOME_ONLY|WITH_HINTS>] [--auto] [--cwd <path>]'
+argument-hint: '--task <file> [--role <writer|skeptic|researcher>] [--kind <codex|opencode|claude|agy|omp>] [--model <model>] [--name <name>] [--base <ref>] [--auto] [--cwd <path>]'
 ---
 
 # Unified Agent Dispatch & Orchestration Engine
@@ -73,7 +73,20 @@ Never dispatch a free-form or single-line prompt to an agent. The task definitio
 6. **完成条件 (Stop when)**: Observable evidence satisfying every acceptance criterion.
 7. **暂停条件 (Pause if)**: External secrets, production mutation, ambiguous ownership, or severe merge conflicts.
 
-**Completion criterion**: A compliant task specification exists in `.dispatch/TASK.md` or a structured argument.
+**MANDATORY Execution Gate**:
+Before creating worktrees or launching agents, the task specification file MUST pass linting:
+```bash
+python3 <skill-dir>/scripts/dispatch.py lint "$TASK_FILE" || exit 1
+```
+*(Linting mechanically asserts that all 7 sections contain non-trivial content and rejects any raw diff/patch blocks)*
+
+Before spawning any agent, consult and advance the state machine:
+```bash
+# Check next permitted action:
+python3 <skill-dir>/scripts/dispatch.py state next --repo "$PWD"
+# Advance state to target phase (will enforce Review Convergence Ceiling):
+python3 <skill-dir>/scripts/dispatch.py state advance --to-phase <writer_implementation|skeptic_review|awaiting_human_gate> --repo "$PWD"
+```
 
 ---
 

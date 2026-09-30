@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import re
+import subprocess
 import sys
 import pytest
 
@@ -37,6 +38,29 @@ def test_bash_wrapper_resolves_engine():
     assert target_file.is_file(), f"Engine target file does not exist: {target_file}"
 
 
+def test_resolve_state_file_anchors_to_common_dir(tmp_path: Path):
+    """B2 & N-03: State file must be anchored to git-common-dir across worktrees."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@test.local"], check=True)
+    (repo / "init.txt").write_text("hello", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "init.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)
+
+    wt = tmp_path / "wt"
+    subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q", str(wt), "-b", "feature"], check=True)
+
+    main_state_file = resolve_state_file(str(repo))
+    wt_state_file = resolve_state_file(str(wt))
+
+    assert main_state_file == wt_state_file, "State file must be identical across main repo and worktrees"
+    assert main_state_file.name == "ORCHESTRATOR_STATE.json"
+    assert main_state_file.parent.name == "dispatch"
+    assert main_state_file.parent.parent.name == ".git"
+
+
 def test_lint_task_contract_valid(tmp_path: Path):
     task_file = tmp_path / "TASK.md"
     task_file.write_text(
@@ -58,7 +82,7 @@ pytest tests/
         encoding="utf-8",
     )
     # Should not raise
-    lint_task_contract(task_file, delegation_level="OUTCOME_ONLY")
+    lint_task_contract(task_file)
 
 
 def test_lint_task_contract_empty_headings(tmp_path: Path):
@@ -80,7 +104,7 @@ def test_lint_task_contract_empty_headings(tmp_path: Path):
 
 
 def test_lint_task_contract_rejects_pseudo_delegation_diff(tmp_path: Path):
-    """F-13: Outright diff headers must trigger pseudo-delegation rejection."""
+    """F-13 & B3: Diff headers must trigger pseudo-delegation rejection unconditionally."""
     task_file = tmp_path / "TASK.md"
     task_file.write_text(
         """# 目标 (Outcome)
@@ -99,18 +123,18 @@ pytest tests/
 遇到阻断或外部依赖
 
 diff --git a/foo.py b/foo.py
-@@ -1,3 +1,3 @@
+@@ -1 +1,2 @@
 -old
 +new
 """,
         encoding="utf-8",
     )
     with pytest.raises(TaskContractError, match="Pseudo-Delegation detected"):
-        lint_task_contract(task_file, delegation_level="OUTCOME_ONLY")
+        lint_task_contract(task_file)
 
 
 def test_state_machine_schema_compatibility_and_recovery(tmp_path: Path):
-    """N-02 & N-06: Schema compatibility with doc schema and corrupted file tolerance."""
+    """N-02 & N-06 & S1: Schema compatibility, null handling, and corrupted file tolerance."""
     state_file = tmp_path / "ORCHESTRATOR_STATE.json"
 
     # Corrupted JSON should fall back gracefully
@@ -118,13 +142,21 @@ def test_state_machine_schema_compatibility_and_recovery(tmp_path: Path):
     recovered = OrchestratorState.load(state_file)
     assert recovered.phase == Phase.INIT
 
-    # Doc schema compatibility
+    # Null values in integer fields should not crash with TypeError (S1)
+    state_file.write_text('{"phase":"init","review_round":null,"schema":null}', encoding="utf-8")
+    null_tolerant = OrchestratorState.load(state_file)
+    assert null_tolerant.review_round == 0
+    assert null_tolerant.schema == 2
+
+    # Doc schema compatibility & preserving extra keys
     state_file.write_text(
         """{
   "task_id": "compat-test",
   "phase": "writer_implementation",
   "active_panes": {"writer": "w1:p1"},
-  "discovered_facts": {"pr": 120}
+  "discovered_facts": {"pr": 120},
+  "worktrees": {"writer": "/path/to/wt"},
+  "completed_milestones": ["m1"]
 }""",
         encoding="utf-8",
     )
@@ -132,6 +164,14 @@ def test_state_machine_schema_compatibility_and_recovery(tmp_path: Path):
     assert doc_compat.task_id == "compat-test"
     assert doc_compat.phase == Phase.WRITER_IMPLEMENTATION
     assert doc_compat.known_facts == {"pr": 120}
+    assert doc_compat.lanes == {"writer": "w1:p1"}
+    assert doc_compat.extra_data["worktrees"] == {"writer": "/path/to/wt"}
+    assert doc_compat.extra_data["completed_milestones"] == ["m1"]
+
+    # Verify saving preserves extra_data back to root
+    doc_compat.save(state_file)
+    reloaded = OrchestratorState.load(state_file)
+    assert reloaded.extra_data["worktrees"] == {"writer": "/path/to/wt"}
 
 
 def test_state_machine_transitions(tmp_path: Path):
