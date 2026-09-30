@@ -44,7 +44,7 @@ def test_resolve_state_file_anchors_to_common_dir(tmp_path: Path):
     repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
-    subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@test.local"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "runner@example.com"], check=True)
     (repo / "init.txt").write_text("hello", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", "init.txt"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)

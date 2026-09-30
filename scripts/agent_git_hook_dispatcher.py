@@ -96,6 +96,11 @@ def _run(
     input_bytes: bytes | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     clean_env = clean_git_local_environment(cwd, env)
+    # During pre-commit / write-tree in submodules, Git locks the index file and exports GIT_INDEX_FILE
+    # pointing to index.lock. Stripping it causes sub-commands (like write-tree) to attempt re-locking the index.
+    index_file = (env or os.environ).get("GIT_INDEX_FILE")
+    if index_file:
+        clean_env["GIT_INDEX_FILE"] = index_file
     return subprocess.run(
         list(command),
         cwd=cwd,
