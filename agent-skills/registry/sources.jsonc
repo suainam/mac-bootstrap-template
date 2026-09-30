@@ -596,6 +596,22 @@
             "approved_hash": "sha256:72831ec425699dd16d41827c5dcf6ac4b0dbbd32ce0c419d30f52ded735cf0ad",
             "reason": "Multi-subagent worktree concurrent implementation workflow"
           }
+        },
+        "retro": {
+          "distribution_state": "enabled",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-09-30",
+            "approved_hash": "sha256:09c4f9fe72fc5bc8e486a2bbb32dd785ca6264c56a53dd1bf9a334af72586efd",
+            "reason": "User-authorized upstream retrospective skill; quarantined content matches upstream raw and local bundle copy"
+          },
+          "reason": "Engineering workflow retrospective stage; suggest environment improvements from session logs"
         }
       }
     },
@@ -1161,6 +1177,11 @@
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "免认证公共 REST API 目录与即时查询工具（天气、地理/IP、加密汇率、DNS网络、知识检索）"
         },
+        "dispatch": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "通用异构多Agent编排与派发引擎（支持Codex/OpenCode/Claude/Agy/OMP），内置任务模型路由、额度降级、两步法握手与看门狗"
+        },
         "herdr-nvim-qa-workspace": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
@@ -1341,6 +1362,31 @@
           "scope": "project",
           "projects": ["mac-bootstrap"],
           "reason": "OMP-hosted Herdr dispatch skill for Codex lanes; adapted from bestony/herdr-dispatch for OMP orchestration with no-push default"
+        },
+        "dispatch-opencode": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "OMP-hosted Herdr dispatch skill for OpenCode workers (#112); nudge-driven with safe default approvals"
+        },
+        "dispatch-claude": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "OMP-hosted Herdr dispatch skill for Claude Code workers (#113); native session resume and isolated worktree"
+        },
+        "dispatch-agy": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "OMP-hosted Herdr dispatch skill for Antigravity CLI (agy) workers (#114); distinguishes kind agy from antigravity-cli integration"
+        },
+        "dispatch-omp": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "OMP-hosted Herdr dispatch skill for OMP worker lanes (#115); isolated session directory and native resume (Pi worker documented absent)"
+        },
+        "dispatch-fleet": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "OMP-hosted heterogeneous multi-lane dispatch and supervision (#116); guards worktree isolation and publication boundary"
         }
       }
     },

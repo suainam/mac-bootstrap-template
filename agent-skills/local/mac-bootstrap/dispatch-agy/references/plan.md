@@ -12,16 +12,15 @@ Resolve `git rev-parse --show-toplevel`. Empty → stop, tell user in Chinese th
 repo. If `git rev-parse --git-dir` and `--git-common-dir` differ, you are in a linked worktree;
 stop and ask user to re-run from the main checkout.
 
-Use the local checked-out HEAD as the default base; if the user requested a remote
-base, confirm network access before fetching and show the exact ref in the plan.
-No implicit `fetch origin`: dispatch does not require a remote.
+Use current branch or specified `--base` as base ref; avoid network fetch (`git fetch origin`)
+without explicit user authorization.
 
 Run id: six lowercase alphanumerics from `date +%s | tail -c 7 | head -c 6`. State dir
-`~/.omp/<skill-name>/<run-id>/` — `<skill-name>` is this skill's own name (`dispatch-codex`).
+`~/.omp/<skill-name>/<run-id>/` — `<skill-name>` is this skill's own name (`dispatch-agy`).
 `mkdir -p` it. If another run dir for this repo still holds non-terminal lanes, ask the user
 (via `ask`) whether to resume, archive, or abort — do not start a second run silently.
 
-Record in the state file before anything is created: `skill`, `agent_kind` (`codex`), `flags`,
+Record in the state file before anything is created: `skill`, `agent_kind` (`agy`), `flags`,
 `repo`, `base`, `orchestrator_pane` (from `$HERDR_PANE_ID`).
 
 **Publishing preflight.** Check only (do not install or authenticate anything):
@@ -33,7 +32,7 @@ Record in the state file before anything is created: `skill`, `agent_kind` (`cod
 Record each result. None failing is a reason to abort — they only determine what §6f can do.
 **If `--push` was not passed, skip the `gh` check entirely — no PR will be opened.**
 
-**Agent preflight.** Run `codex --version` once (not `command -v` — see driver §5a). Record the
+**Agent preflight.** Run `agy --version` once (not `command -v` — see driver §5a). Record the
 version string.
 
 ---
@@ -52,11 +51,8 @@ targets; never invent commands.
 Present in Chinese: lane table (lane / 分支 / 包含的任务), then under each lane its 实施计划
 (ordered steps) and 验收标准 bullets. Then **three disclosure lines**:
 
-1. **Agent and approval posture** — keep the configured approval/sandbox policy by default.
-   A bypass removes Codex's sandbox as well as prompts; require explicit user approval
-   of that exact posture before passing `--dangerously-bypass-approvals-and-sandbox`.
-2. **How each lane is driven** — Codex goal mode (`/goal`); auto-continues across turns; supervision
-   is a repair path, not the engine.
+1. **Agent and approval posture** — 默认安全审批（工具权限请求由监督循环按需审批），或显式指定 `--yolo`（绕过权限检查：`--dangerously-skip-permissions`）.
+2. **How each lane is driven** — agy nudge 驱动模式：单次提示驱动；监督循环负责续跑与状态推进.
 3. **What happens when a lane finishes** — by default: `验证通过后分支留在本地，不 push，不开 PR。
    传 --push 才会 push 到 origin（gh 已登录时自动开 PR）。`
 
@@ -86,7 +82,9 @@ to the state file as it is created (crash recovery).
 Write between §5a (pre-flight) and §5c (launch). File: `<checkout>/.dispatch/TASK.md`.
 
     mkdir -p <checkout>/.dispatch
-    printf '.dispatch/\n' >> <checkout>/.git/info/exclude
+    exclude_file="$(git -C <checkout> rev-parse --git-path info/exclude)"
+    mkdir -p "$(dirname "$exclude_file")"
+    printf '.dispatch/\n' >> "$exclude_file"
 
 Brief contents (in English):
 - **Objective**
@@ -97,10 +95,10 @@ Brief contents (in English):
   lane's files; **never push, never merge, never open a PR** — committing ends your job
 - **Commit policy** (quote verbatim):
 
-> **Commit policy.** Commit continuously as you work, never as one lump at the end. Each commit
-> is one coherent unit — a module, a file, a self-contained behaviour change — with a Conventional
-> Commits message: `<type>(<scope>): <description>`. Stage only the paths belonging to the unit
-> (`git add <paths>`, never `git add -A`). Do not amend or rebase a commit already made.
+> **Commit policy.** Follow the repository's convention: if commits are required, commit coherent
+> units with Conventional Commits messages (`<type>(<scope>): <description>`). If committing is
+> not explicitly requested or required by the task, working tree changes are sufficient.
+> Stage only the paths belonging to the change (`git add <paths>`, never `git add -A`).
 
 - **Progress protocol** (quote verbatim):
 

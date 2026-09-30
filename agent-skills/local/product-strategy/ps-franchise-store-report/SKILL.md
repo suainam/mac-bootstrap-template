@@ -71,6 +71,10 @@ description: 加盟店组货汇报（同比与环比）：涵盖大盘基准对�
 - **完成标准**：Ledger 校验通过，源端流出与终端流入严格守恒，图表通过文字防碰撞检查，词表严格对齐批准规范。
 - **深入参考**：[references/sankey-style-contract.md](references/sankey-style-contract.md)、[references/sankey-wording-templates.md](references/sankey-wording-templates.md)。
 
+### Branch E: 单页加盟效益 PPT 换期
+当用户需要按新截止日更新已有“智能组货-加盟店效益”单页 PPT 时，先跑 Branch B、C，并阅读 [单页 PPT 风格与换期规范](references/ppt-style-and-refresh.md)。以两份同期 Excel 为数值源更新模板中的 KPI、双年横条和六大区表，逐项对账并做视觉检查；原 PPT 保留不覆盖。
+
+
 ## 规范与质量门禁
 
 - **用词规范**：严禁使用“损耗”，必须使用“汰换”；占比一律使用“%”。
@@ -84,6 +88,7 @@ description: 加盟店组货汇报（同比与环比）：涵盖大盘基准对�
 - `references/sankey-style-contract.md`：桑基图双列布局、图例、字号与防重叠合同。
 - `references/sankey-wording-templates.md`：批准汇报文案结构与措辞节奏。
 - `references/adversarial-review.md`：硬编码与破坏性审查清单。
+- `references/ppt-style-and-refresh.md`：加盟效益单页 PPT 风格、两份工作簿的数据映射、制作工具与换期示例。
 - `scripts/verify_market_baseline.py`：大盘指标 ODPS 直算与比对器。
 - `scripts/validate_sankey_ledger.py`：桑基图流量守恒验证器。
 - `scripts/inspect_workbook.py`：导出的 Excel 工作簿图表与结构审查。

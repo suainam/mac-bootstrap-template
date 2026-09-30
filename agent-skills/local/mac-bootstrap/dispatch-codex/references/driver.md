@@ -28,19 +28,20 @@ Then write the brief (§5b in plan.md) before launching.
 Launch with **no positional prompt** (goal is set by slash command after startup):
 
     herdr agent start <lane> --kind codex --pane <pane> --timeout 120000 -- \
-      --no-alt-screen -c 'tui.status_line=["context-remaining"]' \
-      --dangerously-bypass-approvals-and-sandbox
+      --no-alt-screen -c 'tui.status_line=["context-remaining"]'
 
 - `--no-alt-screen`: inline output, readable scrollback via `agent read --source recent-unwrapped`.
 - `-c 'tui.status_line=["context-remaining"]'`: forces `Context N% left` wording (a config that
   renders `Context N% used` causes `context left` grep to find nothing silently).
 - `--timeout 120000`: cold start is 6–9 s; MCP boot can be much longer.
 - **Never** pass `--full-auto` — removed in codex 0.151.0.
-- `--dangerously-bypass-approvals-and-sandbox` is on by default (yolo). Drop **only** when user
-  passed `--no-yolo`; then the lane inherits the user's own approval config and §6g handles overlays.
+Default: retain configured approval/sandbox policy. Only when the user explicitly approved
+`--yolo` for this run, append `--dangerously-bypass-approvals-and-sandbox` to the launch flags.
+Worktree isolation is not a sandbox: the worker may still access the home directory.
 
 **Three disclosure lines §3 owes the user (driver's wording):**
-- Approval posture: `yolo（已绕过审批与沙箱）` or `--no-yolo（沿用你自己的审批配置）`
+- Approval posture: `沿用当前 Codex 审批与沙箱配置` by default; with approved `--yolo`,
+  `绕过审批与沙箱（工作树不是安全边界）`.
 - Drive mode: `以 codex goal 模式运行（/goal 长任务）：跨 turn 自动续跑，中途暂停/限流由监督循环恢复`
 - Rate limits: `所有 lane 共享一个 Codex 账号，速率窗口共享，可能同时限流`
 
@@ -49,16 +50,15 @@ Launch with **no positional prompt** (goal is set by slash command after startup
 
     herdr agent read <lane> --source visible
 
-If visible text matches `Do you trust the contents of this directory`, send:
-
-    herdr agent send-keys <lane> enter
+If a folder trust dialog appears, stop and ask the user to confirm that specific
+disposable checkout. Never auto-confirm trust based solely on the planned lane.
 
 Re-read until the `› Ask Codex to do anything` composer is visible. Then:
 
     herdr agent prompt <lane> "/goal Work through .dispatch/TASK.md in this directory: follow its plan in order, satisfy every acceptance criterion, keep .dispatch/progress.md updated after every checklist item, and finish by writing .dispatch/DONE and running the notify-back command TASK.md gives you."
 
-Record the lane as phase `implementing` with its session uuid (from
-`herdr agent get <lane> | jq -r '.result.agent.agent_session.value'`).
+Record phase `implementing`, launch time, the Herdr pane id and the Codex session UUID
+only after matching its rollout metadata to this checkout (§6a).
 
 On `/goal` error, fall back to one-shot prompt (same objective; record `goal_skipped`):
 
@@ -74,16 +74,14 @@ If `~/.omp/dispatch-codex/bin/lane_state.py` is absent, write it, then call:
 
     python3 ~/.omp/dispatch-codex/bin/lane_state.py <session-uuid>
 
-Get session uuid — **herdr 0.9.2 does NOT expose `agent_session` in `herdr agent get`** (field
-absent). Fallback: scan the rollout dir for the newest file matching this lane's workspace cwd
-and launch time. Record the uuid (filename suffix) in the state file for `codex resume <uuid>`.
-A lane restarted via §6h gets a new uuid — re-record after the first turn of the fresh thread.
-Rollout path: `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`. Find via:
-
-    ls -t ~/.codex/sessions/$(date +%Y/%m/%d)/rollout-*.jsonl 2>/dev/null | head -1
-
-When `agent_session` is present in future herdr versions, prefer:
-`herdr agent get <lane> | jq -r '.result.agent.agent_session.value'` (O(1) lookup).
+Herdr 0.9.2 does not expose a Codex `agent_session` in `herdr agent get`. After the
+first turn, find the rollout whose `session_meta.payload.cwd` resolves to the recorded
+checkout and whose `session_meta.payload.timestamp` is after this lane's recorded launch.
+If zero or multiple candidates match, surface an identity ambiguity; never pick the
+newest unrelated Codex rollout. Record the UUID from the selected filename and verify
+the same UUID and pane before each steering action. A restarted thread needs a new UUID.
+Future Herdr versions may expose `agent_session.value`: use it only after checking
+that its rollout belongs to the recorded checkout and launch.
 
 Helper reads only the **tail** (~2 MB) and reports:
 - `used_pct` — `last_token_usage.input_tokens / model_context_window × 100` (not `total_token_usage`)

@@ -454,6 +454,15 @@ Regression notes:
   `claude-daemon` tests can collide on the live lock file and produce false
   `SKIP: another instance running` failures.
 
+## Maintenance LaunchAgents
+
+Install or refresh the scheduled Claude keepalive, cache cleanup, and Downloads organizer jobs:
+
+```bash
+make install-maintenance-agents
+```
+
+Per-agent install/unload and lifecycle details: [Maintenance LaunchAgents](docs/maintenance-agents.md).
 ## Claude daemon
 
 `launchd/io.local.mac-bootstrap.claude-daemon.plist` runs

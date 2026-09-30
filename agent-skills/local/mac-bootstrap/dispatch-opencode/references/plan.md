@@ -12,16 +12,15 @@ Resolve `git rev-parse --show-toplevel`. Empty → stop, tell user in Chinese th
 repo. If `git rev-parse --git-dir` and `--git-common-dir` differ, you are in a linked worktree;
 stop and ask user to re-run from the main checkout.
 
-Use the local checked-out HEAD as the default base; if the user requested a remote
-base, confirm network access before fetching and show the exact ref in the plan.
-No implicit `fetch origin`: dispatch does not require a remote.
+Prefer current branch / HEAD as base ref. Do not fetch from origin without explicit user
+authorization or verified network need. With no remote, use local branch and say so.
 
 Run id: six lowercase alphanumerics from `date +%s | tail -c 7 | head -c 6`. State dir
-`~/.omp/<skill-name>/<run-id>/` — `<skill-name>` is this skill's own name (`dispatch-codex`).
+`~/.omp/<skill-name>/<run-id>/` — `<skill-name>` is this skill's own name (`dispatch-opencode`).
 `mkdir -p` it. If another run dir for this repo still holds non-terminal lanes, ask the user
 (via `ask`) whether to resume, archive, or abort — do not start a second run silently.
 
-Record in the state file before anything is created: `skill`, `agent_kind` (`codex`), `flags`,
+Record in the state file before anything is created: `skill`, `agent_kind` (`opencode`), `flags`,
 `repo`, `base`, `orchestrator_pane` (from `$HERDR_PANE_ID`).
 
 **Publishing preflight.** Check only (do not install or authenticate anything):
@@ -33,7 +32,7 @@ Record in the state file before anything is created: `skill`, `agent_kind` (`cod
 Record each result. None failing is a reason to abort — they only determine what §6f can do.
 **If `--push` was not passed, skip the `gh` check entirely — no PR will be opened.**
 
-**Agent preflight.** Run `codex --version` once (not `command -v` — see driver §5a). Record the
+**Agent preflight.** Run `opencode --version` in the pane once (see driver §5a). Record the
 version string.
 
 ---
@@ -52,32 +51,28 @@ targets; never invent commands.
 Present in Chinese: lane table (lane / 分支 / 包含的任务), then under each lane its 实施计划
 (ordered steps) and 验收标准 bullets. Then **three disclosure lines**:
 
-1. **Agent and approval posture** — keep the configured approval/sandbox policy by default.
-   A bypass removes Codex's sandbox as well as prompts; require explicit user approval
-   of that exact posture before passing `--dangerously-bypass-approvals-and-sandbox`.
-2. **How each lane is driven** — Codex goal mode (`/goal`); auto-continues across turns; supervision
-   is a repair path, not the engine.
-3. **What happens when a lane finishes** — by default: `验证通过后分支留在本地，不 push，不开 PR。
-   传 --push 才会 push 到 origin（gh 已登录时自动开 PR）。`
+1. **Agent and approval posture** — 默认安全模式（手动审批权限）；若显式传入 `--auto` 或 `--yolo` 则自动批准权限请求。
+2. **How each lane is driven** — 单次提示+循环续跑（无 goal 模式）：每轮需要监督循环主动续跑。
+3. **What happens when a lane finishes** — 默认：`验证通过后分支留在本地，不 push，不开 PR。传 --push 才会 push 到 origin（gh 已登录时自动开 PR）。`
 
 Use `ask` to confirm: 按此派发 / 计划或验收标准要改 / 合并成更少的 lane / 我来调整.
 **Create nothing before the user answers.** If changes requested, rework and ask again.
 
 ---
 
-## §4 One workspace per lane
+## §4 One workspace per lane (via Herdr worktree create)
 
-Snapshot workspace ids before and after `herdr worktree create` (it creates TWO workspaces):
+Use `herdr worktree create` to create an isolated linked git worktree:
 
-    herdr workspace list | jq -r '.result.workspaces[].workspace_id'   # before
     herdr worktree create --cwd <repo> --branch <branch> --base <base> --label <lane> --no-focus
-    herdr workspace list | jq -r '.result.workspaces[].workspace_id'   # after — diff for new ids
 
-Read `workspace_id`, `root_pane.pane_id`, `worktree.path` from JSON — never guess opaque ids.
+Extract from the JSON result:
+- `workspace_id`: from `result.workspace.workspace_id`
+- `pane_id`: from `result.root_pane.pane_id`
+- `checkout_path`: from `result.worktree.path`
 
-On name/label/path collision, apply §3's collision rule (append run-id tail) and retry once. Any
-other failure → record lane as `failed`, continue with the rest, report at end. Append each lane
-to the state file as it is created (crash recovery).
+On name/label/path collision, append run-id tail and retry once. Any other failure → record lane as
+`failed`, continue with the rest, report at end. Append each lane to the state file as it is created.
 
 ---
 
@@ -86,29 +81,21 @@ to the state file as it is created (crash recovery).
 Write between §5a (pre-flight) and §5c (launch). File: `<checkout>/.dispatch/TASK.md`.
 
     mkdir -p <checkout>/.dispatch
-    printf '.dispatch/\n' >> <checkout>/.git/info/exclude
-
-Brief contents (in English):
+    exclude_file="$(git -C <checkout> rev-parse --git-path info/exclude)"
+    mkdir -p "$(dirname "$exclude_file")"
+    printf '.dispatch/\n' >> "$exclude_file"
 - **Objective**
 - **Plan** — the §3-confirmed plan verbatim; instruction to record deviations in progress.md
 - **Checklist** as `- [ ]` items
 - **Acceptance criteria** — the §3-confirmed criteria verbatim; DONE written only when all hold
 - **Boundaries**: work only in this checkout; never cd to main checkout; never touch another
-  lane's files; **never push, never merge, never open a PR** — committing ends your job
-- **Commit policy** (quote verbatim):
-
-> **Commit policy.** Commit continuously as you work, never as one lump at the end. Each commit
-> is one coherent unit — a module, a file, a self-contained behaviour change — with a Conventional
-> Commits message: `<type>(<scope>): <description>`. Stage only the paths belonging to the unit
-> (`git add <paths>`, never `git add -A`). Do not amend or rebase a commit already made.
-
+  lane's files; **never push, never merge, never open a PR**
 - **Progress protocol** (quote verbatim):
 
 > **Progress protocol.** Keep `.dispatch/progress.md` current after each checklist item: rewrite
 > it with checklist tick state, what you just did, what you are about to do, and any decision a
-> fresh reader needs. Assume your context may be compacted at any moment and this file is all you
-> keep. When every checklist item is done, every acceptance criterion holds, and `git status` is
-> clean, write `.dispatch/DONE` with a one-line summary.
+> fresh reader needs. When every checklist item is done, every acceptance criterion holds, and
+> changes are verified, write `.dispatch/DONE` with a one-line summary.
 
 - **Notify-back** (substitute `<orch-pane>`, `<run-id>`, `<lane>`, `<skill>` literally):
 
