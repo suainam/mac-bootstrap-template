@@ -24,6 +24,9 @@ This reference codifies the real-world behavioral bugs, blind spots, and archite
 ├───────────────────────────────┼──────────────────────────────────┼──────────────────────────────┤
 │ 5. Blind Interactive Flag     │ Passing `-m` to bare `opencode`  │ Confusing headless CLI flags │
 │    (裸命令参数盲猜)           │ causing immediate exit 1         │ with interactive TUI flags   │
+├───────────────────────────────┼──────────────────────────────────┼──────────────────────────────┤
+│ 6. Misrouted Notify Target    │ Prompting child without binding  │ Child broadcasts to user     │
+│    (回报目标地址错乱)         │ actual `herdr pane current` ID   │ or wrong sibling pane        │
 └───────────────────────────────┴──────────────────────────────────┴──────────────────────────────┘
 ```
 
@@ -70,3 +73,9 @@ This reference codifies the real-world behavioral bugs, blind spots, and archite
 - **Manifestation**: An interactive agent exits (e.g. OpenCode exits after writing DONE). The orchestrator attempts to send `herdr agent prompt <exited_pane>` without checking if the agent is still registered, leading to stalled inputs or input leakage into the raw bash shell.
 - **Hard Guard**:
   > **State Verification**: Before targeting an agent, verify `herdr agent get <name>` reports `agent_status` as `idle` or `working`. If `agent_not_found`, do NOT prompt; read the pane buffer directly.
+
+### Bug 6: Misrouted Notify Target (汇报目标地址错乱 / 占位符泄露)
+- **Manifestation**: Child agent finishes work and executes `herdr agent prompt <orch-pane> ...`, but `<orch-pane>` was either pasted verbatim, left as a generic placeholder, or guessed without querying `herdr pane current`. As a result, the notification either fails or is broadcast into the human conversation instead of waking the parent orchestrator session.
+- **Root Cause**: The orchestrator failed to dynamically inspect and bind its own `pane_id` before constructing the child prompt.
+- **Hard Guard**:
+  > **Invariant**: Before calling `herdr agent prompt <name>`, the orchestrator MUST resolve `ORCH_PANE="$(herdr pane current | jq -r '.result.pane.pane_id')"`. Injected strings MUST contain the evaluated coordinate (e.g. `herdr agent prompt w3:p1 ...`), NEVER an unevaluated variable or placeholder.

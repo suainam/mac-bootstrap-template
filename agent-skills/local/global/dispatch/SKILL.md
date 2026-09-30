@@ -56,12 +56,14 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    Send enter if `Accessing workspace...` prompt appears until interactive composer prompt (`❯`, `›`, `>`, `Ask anything...`) is confirmed.
 
 ### Phase 3: External File Prompt & Todo Blocker Guard
-1. **External Contract Injection**:
-   Write long prompts/tasks to `.dispatch/TASK.md` or `/tmp/<task>.md`. Inject reference only:
+1. **External Contract & Explicit Coordinate Injection**:
+   The orchestrator MUST dynamically inspect its own pane ID via `ORCH_PANE="$(herdr pane current | jq -r '.result.pane.pane_id')"`.
+   Write long prompts/tasks to `.dispatch/TASK.md` or `/tmp/<task>.md`. Inject task reference with evaluated parent coordinate:
    ```bash
    herdr agent prompt <name> "Read .dispatch/TASK.md. When complete, write ~/Documents/handoffs/<name>-handoff-$(date +%Y%m%d_%H%M%S).md and run:
-   herdr agent prompt <orch_pane_id> '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<handoff-filename>'"
+   herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<handoff-filename>'"
    ```
+   *(NEVER inject raw `<orch_pane_id>` or unevaluated placeholders; bind actual pane coordinate to avoid misrouting).*
 2. **Todo Blocker Invariant**:
    If tracking progress via `todo`, you MUST block the waiting task to prevent harness reminder loops:
    ```bash

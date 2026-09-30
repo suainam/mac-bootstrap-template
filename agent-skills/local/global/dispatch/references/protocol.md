@@ -37,13 +37,17 @@ Sending `herdr agent prompt` immediately after `agent start` causes the prompt b
    - Agy: `> `
    - OpenCode: `Ask anything...`
 
-4. **Step 2: Prompt Injection with Explicit Notify-Back Mandate**:
-   Only after passing the readiness gate, inject the task and explicitly command the child agent to notify back:
+4. **Step 2: Prompt Injection with Explicit Orchestrator Coordinate Binding**:
+   The orchestrator MUST explicitly obtain its own pane ID before dispatching:
+   ```bash
+   ORCH_PANE="$(herdr pane current | jq -r '.result.pane.pane_id')"
+   ```
+   Only after passing the readiness gate, inject the task. The prompt MUST bind this explicit `ORCH_PANE` coordinate so the child agent notifies the exact parent, never guessing or misrouting:
    ```bash
    herdr agent prompt <name> "Read <task-file> (or .dispatch/TASK.md) and execute. When complete, write ~/Documents/handoffs/<name>-handoff.md and run:
-   herdr agent prompt <orch-pane> '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<name>-handoff.md'"
+   herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<name>-handoff.md'"
    ```
-   *(CRITICAL: If the prompt omits this notify-back instruction, the child agent finishes silently. The orchestrator must never guess or take over the child's work, but wait for or harvest its output directly).*
+   *(CRITICAL: If the orchestrator uses a placeholder `<orch-pane>` without substituting its actual `herdr pane current` ID, the child agent either sends to a broken placeholder or misroutes to the human user / sibling panes).*
 ---
 
 ## 2. Standardized Notify-Back & Precision Coordinate Signature
