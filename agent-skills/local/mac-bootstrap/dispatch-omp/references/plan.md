@@ -1,7 +1,7 @@
 # Dispatch — §2 to §5b (agent-independent, OMP edition)
 
-Adapted from upstream `bestony/herdr-dispatch` skills/_shared/plan.md for OMP.
-Key differences: state dir is `~/.omp/<skill-name>/`, `ask` replaces `AskUserQuestion`,
+Adapted from `dispatch-codex` references/plan.md for OMP worker dispatch (`dispatch-omp`).
+Key differences: state dir is `~/.omp/dispatch-omp/`, `ask` replaces `AskUserQuestion`,
 push/PR requires explicit `--push` flag (default is no-push, no-PR).
 
 ---
@@ -12,16 +12,16 @@ Resolve `git rev-parse --show-toplevel`. Empty → stop, tell user in Chinese th
 repo. If `git rev-parse --git-dir` and `--git-common-dir` differ, you are in a linked worktree;
 stop and ask user to re-run from the main checkout.
 
-Use the local checked-out HEAD as the default base; if the user requested a remote
-base, confirm network access before fetching and show the exact ref in the plan.
-No implicit `fetch origin`: dispatch does not require a remote.
+Resolve base ref locally: prefer the current branch or specified `--base <ref>`. Avoid
+unauthorized network `fetch origin` calls unless the user explicitly requested network synchronization.
+With no remote, use the local branch and say so.
 
 Run id: six lowercase alphanumerics from `date +%s | tail -c 7 | head -c 6`. State dir
-`~/.omp/<skill-name>/<run-id>/` — `<skill-name>` is this skill's own name (`dispatch-codex`).
+`~/.omp/<skill-name>/<run-id>/` — `<skill-name>` is this skill's own name (`dispatch-omp`).
 `mkdir -p` it. If another run dir for this repo still holds non-terminal lanes, ask the user
 (via `ask`) whether to resume, archive, or abort — do not start a second run silently.
 
-Record in the state file before anything is created: `skill`, `agent_kind` (`codex`), `flags`,
+Record in the state file before anything is created: `skill`, `agent_kind` (`omp`), `flags`,
 `repo`, `base`, `orchestrator_pane` (from `$HERDR_PANE_ID`).
 
 **Publishing preflight.** Check only (do not install or authenticate anything):
@@ -33,7 +33,7 @@ Record in the state file before anything is created: `skill`, `agent_kind` (`cod
 Record each result. None failing is a reason to abort — they only determine what §6f can do.
 **If `--push` was not passed, skip the `gh` check entirely — no PR will be opened.**
 
-**Agent preflight.** Run `codex --version` once (not `command -v` — see driver §5a). Record the
+**Agent preflight.** Run `omp --version` once (not `command -v` — see driver §5a). Record the
 version string.
 
 ---
@@ -52,11 +52,8 @@ targets; never invent commands.
 Present in Chinese: lane table (lane / 分支 / 包含的任务), then under each lane its 实施计划
 (ordered steps) and 验收标准 bullets. Then **three disclosure lines**:
 
-1. **Agent and approval posture** — keep the configured approval/sandbox policy by default.
-   A bypass removes Codex's sandbox as well as prompts; require explicit user approval
-   of that exact posture before passing `--dangerously-bypass-approvals-and-sandbox`.
-2. **How each lane is driven** — Codex goal mode (`/goal`); auto-continues across turns; supervision
-   is a repair path, not the engine.
+1. **Agent and approval posture** — 默认安全审批（safe manual approval 处理文件与命令交互）；仅在用户明确指定 `--yolo` 时自动放行。
+2. **How each lane is driven** — 单次提示驱动（OMP worker 模型交互）；监督循环负责续跑与状态恢复。
 3. **What happens when a lane finishes** — by default: `验证通过后分支留在本地，不 push，不开 PR。
    传 --push 才会 push 到 origin（gh 已登录时自动开 PR）。`
 
@@ -95,13 +92,11 @@ Brief contents (in English):
 - **Acceptance criteria** — the §3-confirmed criteria verbatim; DONE written only when all hold
 - **Boundaries**: work only in this checkout; never cd to main checkout; never touch another
   lane's files; **never push, never merge, never open a PR** — committing ends your job
-- **Commit policy** (quote verbatim):
+- **Change tracking policy** (quote verbatim):
 
-> **Commit policy.** Commit continuously as you work, never as one lump at the end. Each commit
-> is one coherent unit — a module, a file, a self-contained behaviour change — with a Conventional
-> Commits message: `<type>(<scope>): <description>`. Stage only the paths belonging to the unit
-> (`git add <paths>`, never `git add -A`). Do not amend or rebase a commit already made.
-
+> **Change tracking policy.** Commit self-contained units of work as appropriate (`<type>(<scope>): <description>`).
+> Stage only the paths belonging to the unit (`git add <paths>`, never `git add -A`). Do not amend or rebase
+> commits already made.
 - **Progress protocol** (quote verbatim):
 
 > **Progress protocol.** Keep `.dispatch/progress.md` current after each checklist item: rewrite
