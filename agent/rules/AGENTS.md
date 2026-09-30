@@ -8,6 +8,7 @@ Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
 Choose the smallest existing path that satisfies the request. Reject extra
 agents, files, services, abstractions, and documentation unless evidence
 requires them. If a simpler solution works, use it.
+Apply the `ponytail` skill to eliminate over-engineering: ladder (YAGNI → existing code → stdlib → platform native → installed dep → one line → minimal code). High-intelligence models (e.g. `gpt-6.1-sol`, `gpt-6-luna`) MUST NOT introduce speculative abstractions, boilerplate, unrequested helpers, or multi-file sprawl.
 
 ### Rule 1 — Think Before Coding
 State assumptions explicitly. If uncertain, ask rather than guess.

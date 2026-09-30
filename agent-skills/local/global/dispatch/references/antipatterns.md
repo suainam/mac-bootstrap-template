@@ -37,6 +37,12 @@ This reference codifies the real-world behavioral bugs, blind spots, and archite
 - **Hard Guard**:
   > **Invariant**: `herdr agent prompt <worker>` with `[NOTIFY]` MUST be the terminal action of that phase. The orchestrator MUST immediately yield control or call non-blocking wait. All probe tools are strictly prohibited for 30s after prompt injection.
 
+### Bug 1.1: The Todo Reminder Trap (Todo 催促引起的虚假忙碌)
+- **Manifestation**: After dispatching a child agent, the orchestrator intends to yield, but the harness's `todo` reminder wakes the session up every turn with "You have open todos", forcing the orchestrator into a frenzy of useless probes.
+- **Root Cause**: Leaving an active/pending todo unblocked during external background waiting.
+- **Hard Guard**:
+  > **Invariant**: When yielding for external agent execution, ALWAYS execute `todo(op="block", task="...", reason="Waiting for child agent <name> IPC [NOTIFY]")`. Never leave an open unblocked todo while waiting.
+
 ### Bug 2: The Infinite Review Loop (无限套娃审查死循环)
 - **Manifestation**:
   1. Writer finishes code.

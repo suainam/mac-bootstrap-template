@@ -26,6 +26,20 @@ The optimal strategy combines **Primary Event Interrupts** with **Secondary Zero
            │ 2. agent_status == idle     → Silent turn finish. Intervene.       │
            │ 3. state_change_seq stalled → Stalled/looping. Issue Nudge/Abort.  │
            └────────────────────────────────────────────────────────────────────┘
+
+### Redline: Todo Blocker Guard (Suppressing Anxious Wakeups)
+OMP and agent harness runtimes frequently maintain active `todo` monitoring (`todo.reminders = true`). If an orchestrator yields control while a task in `todo` remains active or pending, the harness automatically revives the session with stop reminders ("You have open todos!"), triggering an anxiety loop of empty probing.
+
+**Invariant**:
+Immediately before yielding control for background execution, the Orchestrator MUST block the waiting task:
+```bash
+# If managing state via todo:
+todo(op="block", task="<current-task>", reason="Awaiting background child agent <name> IPC [NOTIFY]")
+```
+When the child agent's `[NOTIFY]` arrives or when harvesting output:
+```bash
+todo(op="unblock", task="<current-task>")
+```
 ```
 
 ---
