@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# herdr-dispatch.sh — Unified, Diamond-integrated agent dispatch CLI
-# Usage:
-#   herdr-dispatch.sh --task <task-description-or-file> \
-#                     [--role <researcher|writer|skeptic>] \
-#                     [--kind <codex|opencode|claude|agy|omp>] \
-#                     [--model <model-name>] \
-#                     [--name <lane-name>] \
-#                     [--cwd <repo-path>] \
-#                     [--branch <branch-name>] \
-#                     [--auto] \
-#                     [--yolo]
+# herdr-dispatch.sh — Thin, deterministic entrypoint for dispatch skill
+# Forwards execution and contract validation to dispatch_engine.py
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENGINE_PY="${SCRIPT_DIR}/dispatch_engine.py"
+
+# Subcommands: state, lint
+if [[ $# -gt 0 ]]; then
+  case "$1" in
+    state|lint)
+      exec python3 "${ENGINE_PY}" "$@"
+      ;;
+  esac
+fi
 
 if [[ "${HERDR_ENV:-}" != "1" || -z "${HERDR_PANE_ID:-}" ]]; then
   echo "Error: Must be run inside an active Herdr pane." >&2
@@ -25,8 +28,11 @@ TASK=""
 MODEL=""
 REPO="${PWD}"
 BRANCH=""
+BASE=""
+PRINT=false
 AUTO=false
 YOLO=false
+DELEGATION_LEVEL="OUTCOME_ONLY"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,8 +47,15 @@ while [[ $# -gt 0 ]]; do
     --model) MODEL="$2"; shift 2 ;;
     --cwd) REPO="$2"; shift 2 ;;
     --branch) BRANCH="$2"; shift 2 ;;
+    --base) BASE="$2"; shift 2 ;;
+    --print) PRINT=true; ROLE="researcher"; shift ;;
+    --delegation-level) DELEGATION_LEVEL="$2"; shift 2 ;;
     --auto) AUTO=true; shift ;;
     --yolo|--dangerously-skip-permissions) YOLO=true; shift ;;
+    --push)
+      echo "Error: --push is strictly prohibited. Deployment and pushing MUST go through Human Gate." >&2
+      exit 2
+      ;;
     --wait)
       echo "Notice: --wait is deprecated. Dispatch enforces non-blocking Fire-and-Yield." >&2
       shift
@@ -52,9 +65,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${TASK}" ]]; then
-  echo "Error: --task <description-or-file> is required." >&2
+  echo "Error: --task <file> is required." >&2
   exit 1
 fi
+
+# Pre-flight Gate: Enforce Qiaomu Goal Contract & Anti-Pseudo-Delegation via dispatch_engine.py
+python3 "${ENGINE_PY}" lint "${TASK}" --delegation-level "${DELEGATION_LEVEL}"
 
 # Auto-route agent kind based on Diamond role if not explicitly provided
 if [[ -z "${KIND}" ]]; then
@@ -66,31 +82,43 @@ if [[ -z "${KIND}" ]]; then
   esac
 fi
 
+# Portable timeout execution helper
+run_with_timeout() {
+  local duration="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${duration}" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "${duration}" "$@"
+  elif command -v perl >/dev/null 2>&1; then
+    perl -e 'alarm shift; exec @ARGV' "${duration}" "$@"
+  else
+    "$@"
+  fi
+}
+
 # ── Diamond: Researcher (Zero-Worktree, Non-Interactive Print Mode) ────────────
 if [[ "${ROLE}" == "researcher" ]]; then
   echo "==> [Diamond:Researcher] Running non-interactive read-only probe via ${KIND} (timeout 180s)..."
-  TASK_TEXT="${TASK}"
-  if [[ -f "${TASK}" ]]; then
-    TASK_TEXT="$(cat "${TASK}")"
-  fi
+  TASK_TEXT="$(cat "${TASK}")"
   case "${KIND}" in
     opencode)
       if [[ -n "${MODEL}" ]]; then
-        timeout 180 opencode run --auto -m "${MODEL}" "${TASK_TEXT}"
+        run_with_timeout 180 opencode run --auto -m "${MODEL}" "${TASK_TEXT}"
       else
-        timeout 180 opencode run --auto "${TASK_TEXT}"
+        run_with_timeout 180 opencode run --auto "${TASK_TEXT}"
       fi
       ;;
     agy)
       AGY_BIN="$(command -v agy 2>/dev/null || echo "${HOME}/.local/bin/agy")"
       if [[ -n "${MODEL}" ]]; then
-        timeout 180 "$AGY_BIN" -p "${TASK_TEXT}" --model "${MODEL}"
+        run_with_timeout 180 "$AGY_BIN" -p "${TASK_TEXT}" --model "${MODEL}"
       else
-        timeout 180 "$AGY_BIN" -p "${TASK_TEXT}"
+        run_with_timeout 180 "$AGY_BIN" -p "${TASK_TEXT}"
       fi
       ;;
     *)
-      timeout 180 opencode run --auto "${TASK_TEXT}"
+      run_with_timeout 180 opencode run --auto "${TASK_TEXT}"
       ;;
   esac
   exit 0
@@ -98,8 +126,12 @@ fi
 
 # ── Diamond: Writer / Skeptic (Isolated Worktree Execution) ────────────────────
 if [[ -z "${NAME}" ]]; then
-  # UUID tail to guarantee zero collision in parallel lanes
   NAME="${ROLE}-$(uuidgen | tr '[:upper:]' '[:lower:]' | head -c 6)"
+fi
+
+if ! [[ "${NAME}" =~ ^[a-z][a-z0-9_-]{0,31}$ ]]; then
+  echo "Error: Lane name '${NAME}' is invalid. Must match regex ^[a-z][a-z0-9_-]{0,31}$ (lowercase, no dots, length <= 32)." >&2
+  exit 1
 fi
 
 if [[ -z "${BRANCH}" ]]; then
@@ -113,14 +145,21 @@ if [[ -z "${REPO_ROOT}" ]]; then
 fi
 
 echo "==> [Diamond:${ROLE}] Creating Herdr worktree for lane '${NAME}' (branch: ${BRANCH})..."
-CREATE_JSON="$(herdr worktree create --cwd "${REPO_ROOT}" --branch "${BRANCH}" --label "${NAME}" --no-focus)"
+CREATE_ARGS=(--cwd "${REPO_ROOT}" --branch "${BRANCH}" --label "${NAME}" --no-focus)
+if [[ -n "${BASE}" ]]; then
+  CREATE_ARGS+=(--base "${BASE}")
+fi
+CREATE_JSON="$(herdr worktree create "${CREATE_ARGS[@]}")"
 
 PANE_ID="$(echo "${CREATE_JSON}" | jq -r '.result.root_pane.pane_id')"
 CHECKOUT="$(echo "${CREATE_JSON}" | jq -r '.result.worktree.path')"
 WORKSPACE_ID="$(echo "${CREATE_JSON}" | jq -r '.result.workspace.workspace_id')"
 REPO_SLUG="$(basename "${REPO_ROOT}")"
 
-echo "==> Worktree ready: ${CHECKOUT} (pane: ${PANE_ID}, workspace: ${WORKSPACE_ID})"
+# Enforce pane semantic renaming (Label is display-only; pane_id remains addressable)
+herdr pane rename "${PANE_ID}" "${NAME}" >/dev/null 2>&1 || true
+
+echo "==> Worktree ready: ${CHECKOUT} (pane: ${PANE_ID}, label: ${NAME}, workspace: ${WORKSPACE_ID})"
 
 # Setup .dispatch directory & telemetry initialization
 mkdir -p "${CHECKOUT}/.dispatch"
@@ -163,59 +202,11 @@ Assert the Handoff file exists and is non-empty before notifying:
   test -s \"${HOME}/Documents/handoffs/${HANDOFF_FILENAME}\" && \\
   herdr agent prompt ${HERDR_PANE_ID} \"\n[NOTIFY] ${NOTIFY_SIGNATURE}\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/${HANDOFF_FILENAME}\""
 
-if [[ -f "${TASK}" ]]; then
-  # Lint Qiaomu Goal Contract (Mandatory Pre-flight Gate)
-  MISSING=()
-  grep -qiE '目标|outcome' "${TASK}" || MISSING+=("目标(Outcome)")
-  grep -qiE '验证|verification' "${TASK}" || MISSING+=("验证(Verification)")
-  grep -qiE '约束|constraints' "${TASK}" || MISSING+=("约束(Constraints)")
-  grep -qiE '边界|boundaries' "${TASK}" || MISSING+=("边界(Boundaries)")
-  grep -qiE '迭代策略|iteration policy' "${TASK}" || MISSING+=("迭代策略(Iteration Policy)")
-  grep -qiE '完成条件|stop when' "${TASK}" || MISSING+=("完成条件(Stop when)")
-  grep -qiE '暂停条件|pause if' "${TASK}" || MISSING+=("暂停条件(Pause if)")
-  if [[ ${#MISSING[@]} -gt 0 ]]; then
-    echo "Error: Task file '${TASK}' violates Qiaomu Goal Contract." >&2
-    echo "Missing mandatory sections: ${MISSING[*]}" >&2
-    echo "Action required: Use /skill:qiaomu-goal-meta-skill to formulate a valid task before dispatch." >&2
-    exit 1
-  fi
-  cp "${TASK}" "${CHECKOUT}/.dispatch/TASK.md"
-  {
-    echo ""
-    echo "${HANDOFF_BLOCK}"
-  } >> "${CHECKOUT}/.dispatch/TASK.md"
-else
-  cat <<EOF > "${CHECKOUT}/.dispatch/TASK.md"
-# 目标 (Outcome - ${ROLE})
-${TASK}
-
-# 验证 (Verification)
-运行项目提供的最小相关检查、测试或状态核验，获取运行时真实证据，并在 .dispatch/progress.md 与 Handoff 中保留输出/证据。
-
-# 约束与脱敏 (Constraints & Security)
-- 严禁在控制台输出、progress.md 或生成报告中打印或暴露任何密钥、Token、密码、凭据或隐私信息！必须脱敏！
-- 调用 gh / git 远端交互若遇超时，防御性使用 env -u http_proxy -u https_proxy -u all_proxy 规避失效代理。
-- 不修改与当前任务无关的文件，除非明确要求。
-
-# 写入边界 (Boundaries)
-只修改当前隔离 worktree 内与任务直接相关的文件；低权限临时目录（/tmp/ 与 .dispatch/）的读写全自动批准。
-
-# 迭代策略 (Iteration Policy)
-一次实现一个聚焦步骤，每次有意义改动后重跑检查；重试前先读日志，同工具连续失败 3 次需在 progress.md 记录 NEED_HELP 并暂停请示。
-
-# 完成条件 (Stop when)
-所有目标与验收标准达成且有验证证据支持，写出 .dispatch/DONE 与 Handoff 文件。
-
-# 暂停条件 (Pause if)
-需要远端 git push、生产变更、删除数据库/敏感资产、未知账密或发现所有权/方案存在重大歧义时暂停并请示人类。
-
-# 进度更新 (Progress Protocol)
-Keep .dispatch/progress.md updated after every major step.
-When all items are finished and verified, write .dispatch/DONE with a concise summary.
-
-${HANDOFF_BLOCK}
-EOF
-fi
+cp "${TASK}" "${CHECKOUT}/.dispatch/TASK.md"
+{
+  echo ""
+  echo "${HANDOFF_BLOCK}"
+} >> "${CHECKOUT}/.dispatch/TASK.md"
 
 cat <<EOF > "${CHECKOUT}/.dispatch/progress.md"
 # Progress (${ROLE})
@@ -248,9 +239,8 @@ case "${KIND}" in
     fi
     ;;
   opencode)
-    if [[ -n "${MODEL}" ]]; then
-      AGENT_ARGS+=("-m" "${MODEL}")
-    fi
+    # Bare opencode starts the interactive TUI and does not accept -m/--model.
+    # Only pass --auto for non-blocking permission handling.
     if [[ "${AUTO}" == "true" ]]; then
       AGENT_ARGS+=("--auto")
     fi

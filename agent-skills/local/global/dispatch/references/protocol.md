@@ -12,39 +12,56 @@ Sending `herdr agent prompt` immediately after `agent start` causes the prompt b
 
 **The Protocol**:
 1. **Step 1: Start & Resolve Modals**:
+   Launch using the verified CLI flags for the bare agent executable:
+   - **OpenCode**: `herdr agent start <name> --kind opencode --pane "$PANE" --timeout 60000 -- --auto`
+     *(Note: Bare `opencode` launches the interactive TUI and does NOT take `-m` or `--model`. Pass `--auto` to auto-approve).*
+   - **Claude Code**: `herdr agent start <name> --kind claude --pane "$PANE" --timeout 60000 -- --model <model> [--dangerously-skip-permissions]`
+   - **Antigravity (Agy)**: `herdr agent start <name> --kind agy --pane "$PANE" --timeout 60000 -- --model <model> [--dangerously-skip-permissions]`
+   - **Codex**: `herdr agent start <name> --kind codex --pane "$PANE" --timeout 60000 -- -m <model>`
+
+2. **Inspect-on-Failure Gate**:
+   If `agent start` returns an error, times out, or fails to detect:
+   **MANDATORY**: Run `herdr pane read "$PANE" --source visible` immediately! Inspect the real stderr/crash output. Never blindly retry or run arbitrary commands without diagnosing the pane failure.
+
+3. **Modal Resolution & Readiness Gate**:
    ```bash
-   PANE=$(herdr worktree create --cwd <repo> --branch <branch> --label <name> --no-focus | jq -r '.result.root_pane.pane_id')
-   herdr agent start <name> --kind <kind> --pane "$PANE" --timeout 60000 -- <args>
-   sleep 2
    VISIBLE="$(herdr pane read "$PANE" --source visible)"
    if echo "$VISIBLE" | grep -qE "trust|Trust|Accessing workspace|trust this folder"; then
      herdr pane send-keys "$PANE" enter
      sleep 1
    fi
    ```
-2. **Readiness Gate**:
    Assert that `interactive_ready: true` AND the real composer prompt is rendered:
    - Claude: `❯ `
    - Codex: `› Ask Codex to do anything`
    - Agy: `> `
    - OpenCode: `Ask anything...`
-3. **Step 2: Prompt Injection**:
-   Only after passing the readiness gate, inject the task:
-   ```bash
-   herdr agent prompt <name> "Read .dispatch/TASK.md and work through it..."
-   ```
 
+4. **Step 2: Prompt Injection with Explicit Notify-Back Mandate**:
+   Only after passing the readiness gate, inject the task and explicitly command the child agent to notify back:
+   ```bash
+   herdr agent prompt <name> "Read /tmp/auroraops_goal_task.md (or .dispatch/TASK.md) and execute. When complete, write ~/Documents/handoffs/<name>-handoff.md and run:
+   herdr agent prompt <orch-pane> '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<name>-handoff.md'"
+   ```
+   *(CRITICAL: If the prompt omits this notify-back instruction, the child agent finishes silently. The orchestrator must never guess or take over the child's work, but wait for or harvest its output directly).*
 ---
 
-## 2. Standardized Notify-Back + Handoff Signature
+## 2. Standardized Notify-Back & Precision Coordinate Signature
 
-Every child agent writes `.dispatch/DONE` plus a standard Handoff file, then notifies. The signature MUST encode origin coordinates plus handoff pointer:
+Every child agent writes `.dispatch/DONE` plus a structured Handoff file, then notifies the orchestrator.
 
-$$\text{Signature} = \left[\langle\text{pane\_id}\rangle\_\langle\text{agent\_kind}\rangle\_\langle\text{repo\_slug}\rangle\right] + \text{Handoff path}$$
+### Redline: Second-Level Precision Handoff Timestamp
+Never use day-only dates (`%Y%m%d`) which cause overwrites and collision across multiple runs on the same day.
+**MANDATORY**: Timestamps MUST use second-level precision: `$(date +%Y%m%d_%H%M%S)`.
+
+$$\text{Handoff Path} = \sim/\text{Documents/handoffs/}\langle\text{repo\_slug}\rangle-\langle\text{name}\rangle\text{-handoff-}\mathbf{YYYYMMDD\_HHMMSS}\text{.md}$$
 
 ### Exact Multi-Line Specification:
 ```bash
-mkdir -p ~/Documents/handoffs
+HANDOFF_TS="$(date +%Y%m%d_%H%M%S)"
+HANDOFF_FILENAME="${REPO_SLUG}-${NAME}-handoff-${HANDOFF_TS}.md"
+mkdir -p "${HOME}/Documents/handoffs"
+
 # Assert handoff exists, then notify:
 test -s "${HOME}/Documents/handoffs/${HANDOFF_FILENAME}" && \
 herdr agent prompt <orch-pane> "\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner core conclusion>\nHandoff: ~/Documents/handoffs/${HANDOFF_FILENAME}"
@@ -57,12 +74,19 @@ DONE: PR #120 created, squashed and merged, unit tests 100% pass
 Handoff: ~/Documents/handoffs/auroraops-control-releaser-handoff-20260930_164500.md
 ```
 
-*Benefits:*
-- Distinct 3-line format prevents notifications from blending with terminal prose.
-- First line identifies origin; second line yields the decisive outcome; third line gives the direct file pointer.
 ---
 
-## 3. Fire-and-Yield Handoff Principle
+## 3. Convergence & Skeptic Re-work Loop (Diamond Pattern)
+
+When a **Skeptic** reviewer finishes its independent adversarial review:
+1. **Did Skeptic uncover defects?**
+   - **YES**: The Orchestrator routes the review findings back to the **Writer** (the original implementation worker in the code worktree) to fix the defects (e.g. version skew, missing env keys). The Orchestrator does NOT terminate or skip to merge.
+   - **NO**: All tests pass and no defects remain $\rightarrow$ Proceed to **Human Gate** for push/PR authorization.
+2. **Orchestrator Transparency Redline**:
+   Whenever routing review findings back to the Writer, the Orchestrator MUST broadcast a one-line progress update to the Human user, stating what Skeptic found and why re-work is triggered.
+
+---
+## 4. Fire-and-Yield Handoff Principle
 
 The Orchestrator MUST NEVER run blocking waits or polling loops on the main session thread.
 

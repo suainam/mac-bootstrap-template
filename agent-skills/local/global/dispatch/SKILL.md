@@ -1,7 +1,7 @@
 ---
 name: dispatch
 description: Dispatch tasks to heterogeneous agents (Codex, OpenCode, Claude Code, Antigravity, OMP) running in Herdr-managed isolated worktrees. Features task-based model routing, quota failover, two-step trust handshake, zero-token watchdog supervision, and fire-and-yield handoff. Use when dispatching implementation, refactoring, review, PR release, or audit tasks to background agents.
-argument-hint: '<task-description> [--kind <codex|opencode|claude|agy|omp>] [--model <model>] [--print] [--auto] [--push] [--base <ref>]'
+argument-hint: '--task <file> [--role <writer|skeptic|researcher>] [--kind <codex|opencode|claude|agy|omp>] [--model <model>] [--name <name>] [--base <ref>] [--delegation-level <OUTCOME_ONLY|WITH_HINTS>] [--auto] [--cwd <path>]'
 ---
 
 # Unified Agent Dispatch & Orchestration Engine
@@ -13,18 +13,27 @@ You are the **Orchestrator**. You split work into isolated lanes, select the bes
 ## Quick Reference Navigation
 
 - **Diamond Orchestration Integration**: [references/diamond.md](references/diamond.md)
+- **Orchestrator Antipatterns & Failure Modes**: [references/antipatterns.md](references/antipatterns.md)
+- **Orchestrator Session Memory & Anti-Amnesia**: [references/orchestrator-memory.md](references/orchestrator-memory.md)
 - **Sub-Worker Telemetry & 12-Factor Rules**: [references/observability.md](references/observability.md)
 - **Task-to-Model Routing & Quota Failover**: [references/routing.md](references/routing.md)
 - **Two-Step Handshake & Notify-Back Signature**: [references/protocol.md](references/protocol.md)
 - **Zero-Token Watchdog & Polling Principles**: [references/supervision.md](references/supervision.md)
-- **Workflow Scenarios & Lifecycle Examples**: [examples/workflow.md](examples/workflow.md)
+- **Workflow Scenarios & Production Cases**: [examples/workflow.md](examples/workflow.md)
+## 0. Diamond Architecture Governance & Anti-Amnesia Redlines
 
----
+Diamond (defined in `mac-bootstrap/AGENTS.md`) is the upper-level governance topology; Dispatch is the execution transport.
 
-## 0. Diamond Architecture Governance & Real-World Hard Rules
-
-Diamond (defined in `mac-bootstrap/AGENTS.md`) is the upper-level governance topology; Dispatch is the execution transport:
-
+### Orchestrator Anti-Amnesia & Delegation Separation Redlines (Mandatory)
+The Orchestrator must NEVER suffer from contextual amnesia or micromanagement degradation:
+1. **Anti-Micromanagement (No Pseudo-Delegation)**:
+   - The Orchestrator sets the **Outcome, Boundaries, and Verification Criteria (WHAT & ACCEPTANCE)**, NEVER the line-by-line patch code or exact keystroke steps (HOW).
+   - If the Orchestrator writes the exact diff/code inside the prompt and treats the child worker as a mindless typist, **delegation is broken**. Either let the child worker inspect and implement autonomously, or do it directly if human approval authorizes single-agent execution.
+2. **Trust Prior Discoveries**: Once a child agent (or previous step) extracts facts, paths, or root causes, the orchestrator MUST record and trust them in `.dispatch/ORCHESTRATOR_STATE.json`.
+3. **Zero Redundant Exploration**: NEVER run `git status`, `herdr pane list`, `command -v ...`, `grep`, or read makefiles/catalogs to re-discover things already known!
+4. **Anti-Worktakeover**: When a child agent finishes, NEVER redo its investigation by reading the codebase yourself. Read the child's output directly (`herdr pane read <pane> --source recent-unwrapped --lines 120`).
+5. **Direct Task Handoff**: When delegating the next phase, issue a concrete outcome prompt directly targeting the verified files/lines. Do NOT perform a multi-round re-audit of the entire repository.
+### Role Boundaries:
 1. **Planner (Top Apex)**: Orchestrator + User formulate the plan, establish acceptance criteria, and enforce Occam Gate. Divergence begins only after human approval.
 2. **Researcher (Divergence - Probe)**: Fast read-only inquiries. **Never create a git worktree**. Run via non-interactive print mode (`opencode run --auto` / `agy -p`) directly to stdout.
 3. **Writer (Divergence - Implement & Ops)**: Implementation and ops lanes. Created via `herdr worktree create` (1 file, 1 writer, isolated branch).
@@ -33,7 +42,6 @@ Diamond (defined in `mac-bootstrap/AGENTS.md`) is the upper-level governance top
 5. **Cross-Agent Dynamic Coordination**: Orchestrator dynamically routes context across lanes (e.g. passing discovered nodes from Lane A to Lane B), and diagnoses cross-cutting blocks (e.g. clearing stale environment flags like `CHECKIN_PROXY_URL`).
 6. **Proxy Defensive Sanitization**: Stale/unroutable proxy env vars cause `gh` / git network timeouts. Sanitize via `env -u http_proxy -u https_proxy -u all_proxy <cmd>` on network operations.
 7. **Human Gate (Bottom Apex - Deploy)**: Orchestrator summarizes findings and presents high-risk actions (`git push`, PR merge, cleanup) to the human user for final authorization.
-
 ---
 
 ## 1. Task-to-Model Routing Matrix
@@ -69,25 +77,53 @@ Never dispatch a free-form or single-line prompt to an agent. The task definitio
 
 ---
 
-## 3. Phase 2: Dispatch Protocol (Two-Step Handshake)
+## 3. Phase 2: Herdr Panel Topology & Dispatch Protocol (/skill:herdr)
 
-Never pump prompts into a fresh agent pane immediately; pre-flight trust dialogs will swallow the text.
+Strictly follow `/skill:herdr` to create the target panel and launch the agent. Never guess CLI flags.
 
-1. **Step 1 (Start & Trust Resolution)**:
-   - Create worktree: `PANE=$(herdr worktree create --cwd <repo> --branch <branch> --label <name> --no-focus | jq -r '.result.root_pane.pane_id')`
-   - Start agent: `herdr agent start <name> --kind <kind> --pane "$PANE" -- <args>`
-   - Inspect screen: `herdr pane read "$PANE" --source visible`
-   - If a trust dialog appears (`Accessing workspace...`), confirm: `herdr pane send-keys "$PANE" enter`
-   - Verify that the active composer prompt (`>`, `›`, `Ask anything...`) is visible.
-2. **Step 2 (Prompt Injection)**:
-   - Inject the task prompt only when the composer is active and ready:
-     `herdr agent prompt <name> "Read .dispatch/TASK.md and execute..."`
+### 1. Panel & Layout Provisioning
+- **Writer / Skeptic (Mandatory Worktree Isolation)**:
+  ```bash
+  CREATE_RES=$(herdr worktree create --cwd <repo> --branch <branch> --label <name> --no-focus)
+  PANE=$(echo "$CREATE_RES" | jq -r '.result.root_pane.pane_id')
+  ```
+- **Interactive Sibling Pane (Same-Directory Inspection)**:
+  ```bash
+  SPLIT_RES=$(herdr pane split --current --direction right --cwd "$PWD" --no-focus)
+  PANE=$(echo "$SPLIT_RES" | jq -r '.result.pane.pane_id')
+  ```
 
-*Implementation Detail*: Automated dispatch helper `scripts/herdr-dispatch.sh` encodes this protocol and validates the Phase 1 Goal Contract before executing.
+### 2. Strict Agent Interactive Startup
+Start the interactive agent CLI inside the pane. Pass only flags supported by the bare agent executable:
+- **OpenCode**: `herdr agent start <name> --kind opencode --pane "$PANE" --timeout 60000 -- --auto`
+  *(Crucial: bare `opencode` starts the interactive TUI. It does NOT take `-m` or `--model`; models are managed inside the TUI or configured via OpenCode config/plugins. Passing `-m` here causes immediate exit 1).*
+- **Claude Code**: `herdr agent start <name> --kind claude --pane "$PANE" --timeout 60000 -- --model <model> [--dangerously-skip-permissions]`
+- **Antigravity (Agy)**: `herdr agent start <name> --kind agy --pane "$PANE" --timeout 60000 -- --model <model> [--dangerously-skip-permissions]`
+- **Codex**: `herdr agent start <name> --kind codex --pane "$PANE" --timeout 60000 -- -m <model>`
+### 3. Inspect-on-Failure & Two-Step Handshake Gate
+1. If `agent start` fails or times out:
+   **MANDATORY**: Inspect the screen immediately:
+   ```bash
+   herdr pane read "$PANE" --source visible
+   ```
+   Diagnose the exact stderr or crash before retrying. Never retry blindly.
+2. If trust modal appears (`Accessing workspace...`), confirm:
+   ```bash
+   herdr pane send-keys "$PANE" enter
+   ```
+3. Verify the active composer prompt is visible (`>`, `›`, `❯`, `Ask anything...`).
+
+### 4. Prompt Injection & Protocol Enforcement
+When injecting prompt into the child agent, the orchestrator MUST mandate the completion and notification protocol:
+```bash
+herdr agent prompt <name> "Read .dispatch/TASK.md (or specified contract). When finished, write findings to ~/Documents/handoffs/<name>-handoff.md, then run:
+herdr agent prompt <orch_pane_id> '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>] <one-liner conclusion> | Handoff: ~/Documents/handoffs/<name>-handoff.md'"
+```
+*(Failure to instruct the child agent to notify back results in orphaned completions where the orchestrator must poll manually).*
 
 ---
 
-## 4. Phase 3: Standardized Notify-Back + Handoff Signature
+## 4. Phase 3: Standardized Notify-Back + Result Harvest Protocol
 
 Every child agent MUST write `.dispatch/DONE` and a standard Handoff file, then notify with the exact coordinate signature:
 
@@ -100,7 +136,17 @@ mkdir -p ~/Documents/handoffs
 herdr agent prompt <orch-pane> "\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>] <one-liner core conclusion> | Handoff: ~/Documents/handoffs/${HANDOFF_FILENAME}"
 ```
 
-Example: `\n[NOTIFY] [w3:pAY_opencode_auroraops-control] JWT auth implemented, tests pass | Handoff: ~/Documents/handoffs/auroraops-control-jwt-auth-handoff-20260930.md`
+### Orchestrator Result Harvest Redline:
+When the child agent enters `idle` (or sends `[NOTIFY]`):
+1. **DO NOT take over the child's work**: The orchestrator must NEVER re-read the entire codebase or redo the investigation that the child agent already performed!
+2. **Read the Child's Direct Output**:
+   ```bash
+   # If handoff file exists:
+   read ~/Documents/handoffs/<handoff-file>
+   # Otherwise capture from pane directly:
+   herdr pane read <pane_id> --source recent-unwrapped --lines 120
+   ```
+3. **Synthesize & Deliver**: Summarize the child's findings directly to the human user.
 
 ---
 

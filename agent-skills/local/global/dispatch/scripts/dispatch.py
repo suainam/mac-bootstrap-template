@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+"""Dispatch CLI & Automation Engine.
+
+Self-contained inside dispatch skill.
+Handles contract validation, state machine transitions, and Herdr process management.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import uuid
+from dataclasses import asdict, dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+
+class Phase(str, Enum):
+    INIT = "init"
+    RESEARCH = "research"
+    WRITER_IMPLEMENTATION = "writer_implementation"
+    SKEPTIC_REVIEW = "skeptic_review"
+    AWAITING_HUMAN_GATE = "awaiting_human_gate"
+    CLOSED = "closed"
+
+
+VALID_TRANSITIONS: Dict[Phase, List[Phase]] = {
+    Phase.INIT: [Phase.RESEARCH, Phase.WRITER_IMPLEMENTATION],
+    Phase.RESEARCH: [Phase.WRITER_IMPLEMENTATION],
+    Phase.WRITER_IMPLEMENTATION: [Phase.SKEPTIC_REVIEW, Phase.AWAITING_HUMAN_GATE],
+    Phase.SKEPTIC_REVIEW: [Phase.WRITER_IMPLEMENTATION, Phase.AWAITING_HUMAN_GATE],
+    Phase.AWAITING_HUMAN_GATE: [Phase.CLOSED],
+    Phase.CLOSED: [],
+}
+
+MANDATORY_GOAL_SECTIONS = [
+    "目标",
+    "验证",
+    "约束",
+    "边界",
+    "迭代策略",
+    "完成条件",
+    "暂停条件",
+]
+
+
+class TaskContractError(Exception):
+    pass
+
+
+class StateTransitionError(Exception):
+    pass
+
+
+def lint_task_contract(task_path: Path, delegation_level: str = "OUTCOME_ONLY") -> None:
+    if not task_path.is_file():
+        raise TaskContractError(f"Task file '{task_path}' does not exist.")
+
+    content = task_path.read_text(encoding="utf-8")
+
+    # 1. 7 mandatory sections validation
+    missing: List[str] = []
+    for sec in MANDATORY_GOAL_SECTIONS:
+        if not re.search(sec, content, re.IGNORECASE):
+            missing.append(sec)
+
+    if missing:
+        raise TaskContractError(
+            f"Task file '{task_path}' violates Qiaomu Goal Contract. "
+            f"Missing mandatory sections: {', '.join(missing)}.\n"
+            "Action required: Formulate a compliant 7-section specification via /skill:qiaomu-goal-meta-skill."
+        )
+
+    # 2. Anti-Pseudo-Delegation check
+    if delegation_level == "OUTCOME_ONLY":
+        patch_patterns = [
+            r"^\s*diff --git",
+            r"^\s*@@ -\d",
+            r"^\s*(\+\+\+|---) [ab]/",
+        ]
+        for pat in patch_patterns:
+            if re.search(pat, content, re.MULTILINE):
+                raise TaskContractError(
+                    f"Pseudo-Delegation detected in '{task_path}'!\n"
+                    "The orchestrator must specify WHAT & ACCEPTANCE (outcomes, boundaries, verification commands),\n"
+                    "NEVER line-by-line patch code or raw diffs (HOW).\n"
+                    "Action required: Remove the raw diff/patch from the task specification."
+                )
+
+
+@dataclass
+class OrchestratorState:
+    schema: int
+    task_id: str
+    phase: Phase
+    review_round: int
+    max_review_rounds: int
+    lanes: Dict[str, Dict[str, Any]]
+    known_facts: Dict[str, Any]
+    awaiting_human_gate: bool
+
+    @classmethod
+    def load(cls, path: Path) -> OrchestratorState:
+        if not path.is_file():
+            return cls(
+                schema=2,
+                task_id="default",
+                phase=Phase.INIT,
+                review_round=0,
+                max_review_rounds=2,
+                lanes={},
+                known_facts={},
+                awaiting_human_gate=False,
+            )
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["phase"] = Phase(data["phase"])
+        return cls(**data)
+
+    def save(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        raw = asdict(self)
+        raw["phase"] = self.phase.value
+        path.write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    def advance(self, target: Phase) -> None:
+        allowed = VALID_TRANSITIONS.get(self.phase, [])
+        if target not in allowed:
+            raise StateTransitionError(
+                f"Illegal state transition: cannot transition from '{self.phase.value}' to '{target.value}'. "
+                f"Allowed transitions: {[p.value for p in allowed]}"
+            )
+
+        if target == Phase.SKEPTIC_REVIEW:
+            if self.review_round >= self.max_review_rounds:
+                raise StateTransitionError(
+                    f"Review Convergence Ceiling reached! review_round={self.review_round} >= max={self.max_review_rounds}. "
+                    "Cannot spawn another Skeptic session. Next permitted action MUST be 'awaiting_human_gate'."
+                )
+            self.review_round += 1
+
+        self.phase = target
+        self.awaiting_human_gate = (target == Phase.AWAITING_HUMAN_GATE)
+
+    def next_action(self) -> Dict[str, Any]:
+        if self.phase == Phase.INIT:
+            return {
+                "permitted_action": "dispatch_researcher_or_writer",
+                "phase": self.phase.value,
+                "review_round": self.review_round,
+            }
+        elif self.phase == Phase.RESEARCH:
+            return {
+                "permitted_action": "dispatch_writer",
+                "phase": self.phase.value,
+                "review_round": self.review_round,
+            }
+        elif self.phase == Phase.WRITER_IMPLEMENTATION:
+            if self.review_round < self.max_review_rounds:
+                return {
+                    "permitted_action": "dispatch_skeptic_or_human_gate",
+                    "phase": self.phase.value,
+                    "review_round": self.review_round,
+                }
+            return {
+                "permitted_action": "awaiting_human_gate",
+                "reason": "Review Convergence Ceiling reached",
+                "phase": self.phase.value,
+                "review_round": self.review_round,
+            }
+        elif self.phase == Phase.SKEPTIC_REVIEW:
+            return {
+                "permitted_action": "harvest_skeptic_review",
+                "phase": self.phase.value,
+                "review_round": self.review_round,
+            }
+        elif self.phase == Phase.AWAITING_HUMAN_GATE:
+            return {
+                "permitted_action": "request_human_authorization",
+                "actions": ["git push", "gh pr create", "gh pr merge", "worktree cleanup"],
+                "phase": self.phase.value,
+                "review_round": self.review_round,
+            }
+        elif self.phase == Phase.CLOSED:
+            return {"permitted_action": "done", "phase": self.phase.value}
+        return {"permitted_action": "unknown"}
+
+
+def cmd_state(args: argparse.Namespace) -> int:
+    state_file = Path(args.repo) / ".dispatch" / "ORCHESTRATOR_STATE.json"
+    state = OrchestratorState.load(state_file)
+
+    if args.state_op == "next":
+        print(json.dumps(state.next_action(), ensure_ascii=False, indent=2))
+        return 0
+    elif args.state_op == "advance":
+        target = Phase(args.to_phase)
+        try:
+            state.advance(target)
+            state.save(state_file)
+            print(f"State successfully advanced to: {state.phase.value} (round={state.review_round})")
+            return 0
+        except StateTransitionError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+    elif args.state_op == "show":
+        raw = asdict(state)
+        raw["phase"] = state.phase.value
+        print(json.dumps(raw, ensure_ascii=False, indent=2))
+        return 0
+    return 0
+
+
+def cmd_lint(args: argparse.Namespace) -> int:
+    task_file = Path(args.task)
+    try:
+        lint_task_contract(task_file, delegation_level=args.delegation_level)
+        print(f"OK: Task contract '{task_file}' is valid ({args.delegation_level}).")
+        return 0
+    except TaskContractError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Dispatch Automation Engine")
+    subparsers = parser.add_subparsers(dest="subcommand", required=True)
+
+    # State subcommands
+    p_state = subparsers.add_parser("state", help="Manage orchestrator state machine")
+    p_state.add_argument("state_op", choices=["next", "advance", "show"])
+    p_state.add_argument("--repo", default=os.getcwd(), help="Target repository root")
+    p_state.add_argument("--to-phase", choices=[p.value for p in Phase], help="Target phase for advance")
+    p_state.set_defaults(func=cmd_state)
+
+    # Lint subcommand
+    p_lint = subparsers.add_parser("lint", help="Lint a task contract file")
+    p_lint.add_argument("task", help="Path to task file")
+    p_lint.add_argument(
+        "--delegation-level",
+        choices=["OUTCOME_ONLY", "WITH_HINTS"],
+        default="OUTCOME_ONLY",
+        help="Delegation boundary level",
+    )
+    p_lint.set_defaults(func=cmd_lint)
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+    sys.exit(args.func(args))
+
+
+if __name__ == "__main__":
+    main()

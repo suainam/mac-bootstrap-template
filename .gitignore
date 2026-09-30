@@ -20,6 +20,7 @@ __pycache__/
 # Generated agent runtime output
 .agents/
 skills-lock.json
+.dispatch/
 
 # Generated skill supply-chain artifacts
 agent-skills/external/quarantine/

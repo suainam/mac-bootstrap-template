@@ -100,6 +100,5 @@ Together they form a closed-loop engineering system:
 ## 4. 单一真源 (SSOT) 维护原则
 
 `dispatch` 技能及其附属执行脚本、配置、模板在仓库内部**只维护一份绝对真源**（`template/agent-skills/local/global/dispatch/`）：
-- 严禁跨目录反向复制代码文件；
-- 外部便捷调用入口（如 `template/scripts/herdr-dispatch.sh`）必须一律使用相对软链接直接指向真源；
+- 严禁跨目录反向复制代码文件或在外部建立多余的快捷软链接；入口一律通过 skill 及其自包含的 `scripts/` 访问；
 - 任何流程演进与优化只需就地修改真源，一次改动全局生效。
