@@ -1361,6 +1361,11 @@
           "scope": "project",
           "projects": ["mac-bootstrap"],
           "reason": "OMP-hosted Herdr dispatch skill for OMP worker lanes (#115); isolated session directory and native resume (Pi worker documented absent)"
+        },
+        "dispatch-fleet": {
+          "scope": "project",
+          "projects": ["mac-bootstrap"],
+          "reason": "OMP-hosted heterogeneous multi-lane dispatch and supervision (#116); guards worktree isolation and publication boundary"
         }
       }
     },
