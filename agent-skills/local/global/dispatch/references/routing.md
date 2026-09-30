@@ -7,7 +7,7 @@ When `--kind` is omitted, the orchestrator classifies the task and assigns the o
 | Task Class | Preferred Agent | Default Model | Reasoning Effort / Flags | Role & Rationale |
 | :--- | :--- | :--- | :--- | :--- |
 | **代码实现 (Implementation)** | **Codex** | `gpt-6-luna` | `-c model_reasoning_effort="xhigh"` (or `"max"`) | Deep multi-step architecture & greenfield coding |
-| **代码重构 (Refactoring)** | **Codex** 或 **Claude** | `gpt-6-sol` / `claude-sonnet-5` | Codex: `low` effort; Claude: `--dangerously-skip-permissions` | Fast syntactic & structural refactoring with low token cost |
+| **代码重构 (Refactoring)** | **Codex** 或 **Claude** | `gpt-6.1-sol` / `claude-sonnet-5` | Codex: `low` effort; Claude: `--dangerously-skip-permissions` | Fast syntactic & structural refactoring with low token cost |
 | **代码审查与前端 (Review/Frontend)** | **Agy** | `gemini-3.8-flash-medium` | `--effort medium`, `verbosity: "low"` | Astute code auditing, contract verification, taste-driven UI |
 | **轻量查询/PR/审计 (Lightweight/PR)** | **OpenCode** | Free Model Pool (Cloudflare/Zen) | `--auto` | Deterministic git operations, PR release, zero-cost queries |
 

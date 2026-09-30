@@ -51,7 +51,7 @@ When `--kind` is omitted, classify the task and assign the optimal worker kind:
 | Task Class | Preferred Agent | Default Model | Reasoning Effort / Flags | Quota Fallback Chain |
 | :--- | :--- | :--- | :--- | :--- |
 | **代码实现 (Implementation)** | **Codex** | `gpt-6-luna` | `-c model_reasoning_effort="xhigh"` (or `"max"`) | Codex 5h 0% $\rightarrow$ **Agy** (`gemini-3.8-flash-medium`) $\rightarrow$ **OpenCode** |
-| **代码重构 (Refactoring)** | **Codex** 或 **Claude** | `gpt-6-sol` / `claude-sonnet-5` | Codex: `low` effort; Claude: `--dangerously-skip-permissions` | Claude 额度不足 $\rightarrow$ **Codex** (`gpt-6-sol`) $\rightarrow$ **Agy** |
+| **代码重构 (Refactoring)** | **Codex** 或 **Claude** | `gpt-6.1-sol` / `claude-sonnet-5` | Codex: `low` effort; Claude: `--dangerously-skip-permissions` | Claude 额度不足 $\rightarrow$ **Codex** (`gpt-6.1-sol`) $\rightarrow$ **Agy** |
 | **代码审查与前端 (Review/Frontend)** | **Agy** | `gemini-3.8-flash-medium` | `--effort medium`, `verbosity: "low"` | Agy $\rightarrow$ **Claude** $\rightarrow$ **OpenCode** |
 | **轻量查询/PR/审计 (Lightweight/PR)** | **OpenCode** (免费池) | Free Pool | `--auto` (或单次直出 `opencode run --auto`) | OpenCode $\rightarrow$ **Agy** (`-p`) |
 
