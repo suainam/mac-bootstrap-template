@@ -1,15 +1,15 @@
 # Golden Dispatch Workflows & Complete Real-World Cases
 
-This reference provides end-to-end executable blueprints tested in production environments (`mac-bootstrap` and `auroraops-control`).
+This reference provides end-to-end executable blueprints tested in production environments.
 
 ---
 
 ## Golden Case 1: Complex Multi-Step Task Dispatched to Interactive OpenCode Panel
 
 ### 1. Context & Task Formulation (Phase 1)
-User requests: "Investigate GitHub Issue #11 and PR #115 in auroraops-control, audit code evidence, and formulate solutions without mutating repository files."
+User requests: "Investigate GitHub Issue #120 and PR #125, audit code evidence, and formulate solutions without mutating repository files."
 
-First, formulate a structured 7-section task specification via `/skill:qiaomu-goal-meta-skill` and write it to `/tmp/auroraops_goal_task.md`:
+First, formulate a structured 7-section task specification via `/skill:qiaomu-goal-meta-skill` and write it to `/tmp/investigate_goal_task.md`:
 ```markdown
 # 目标 (Outcome)
 只读分析 GitHub Issue #11 与 PR #115，分别产出基于当前仓库与 issue/PR 记录的证据化解决方案。
@@ -51,7 +51,7 @@ if echo "$VISIBLE" | grep -qE "trust|Trust|Accessing workspace"; then
 fi
 
 # Step 4: Inject pre-flight contract file
-herdr agent prompt issue-pr-solution "Read /tmp/auroraops_goal_task.md and execute step by step. Report findings when complete."
+herdr agent prompt issue-pr-solution "Read /tmp/investigate_goal_task.md and execute step by step. Report findings when complete."
 
 # Step 5: Fire-and-Yield
 # Orchestrator immediately yields control back to user without blocking or busy polling.

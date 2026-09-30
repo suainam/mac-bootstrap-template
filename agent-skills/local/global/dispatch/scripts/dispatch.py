@@ -63,25 +63,32 @@ def lint_task_contract(task_path: Path, delegation_level: str = "OUTCOME_ONLY") 
 
     content = task_path.read_text(encoding="utf-8")
 
-    # 1. 7 mandatory sections validation
+    # 1. 7 mandatory sections validation with non-empty content checking
     missing: List[str] = []
     for sec in MANDATORY_GOAL_SECTIONS:
-        if not re.search(sec, content, re.IGNORECASE):
+        # Require section heading plus non-trivial content after it
+        pattern = rf"(?:^|\n)#+\s*.*{sec}.*\n+([\s\S]+?)(?=\n#+\s*|\Z)"
+        match = re.search(pattern, content, re.IGNORECASE)
+        if not match:
             missing.append(sec)
+        else:
+            section_body = match.group(1).strip()
+            if len(section_body) < 5:
+                missing.append(f"{sec}(内容过短或为空)")
 
     if missing:
         raise TaskContractError(
             f"Task file '{task_path}' violates Qiaomu Goal Contract. "
-            f"Missing mandatory sections: {', '.join(missing)}.\n"
+            f"Missing or empty mandatory sections: {', '.join(missing)}.\n"
             "Action required: Formulate a compliant 7-section specification via /skill:qiaomu-goal-meta-skill."
         )
 
-    # 2. Anti-Pseudo-Delegation check
+    # 2. Anti-Pseudo-Delegation check: reject raw diffs or code patches under OUTCOME_ONLY
     if delegation_level == "OUTCOME_ONLY":
         patch_patterns = [
             r"^\s*diff --git",
-            r"^\s*@@ -\d",
-            r"^\s*(\+\+\+|---) [ab]/",
+            r"^\s*@@\s+-\d+,\d+\s+\+\d+,\d+\s+@@",
+            r"^\s*(\+\+\+|---)\s+[ab]/",
         ]
         for pat in patch_patterns:
             if re.search(pat, content, re.MULTILINE):
@@ -91,6 +98,24 @@ def lint_task_contract(task_path: Path, delegation_level: str = "OUTCOME_ONLY") 
                     "NEVER line-by-line patch code or raw diffs (HOW).\n"
                     "Action required: Remove the raw diff/patch from the task specification."
                 )
+
+
+def resolve_state_file(repo_path: Optional[str] = None) -> Path:
+    """Resolve the state file path anchored to git-common-dir to prevent split-brain in worktrees."""
+    target_dir = Path(repo_path) if repo_path else Path.cwd()
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=target_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        common_dir = Path(res.stdout.strip())
+        return common_dir / "dispatch" / "ORCHESTRATOR_STATE.json"
+    except Exception:
+        # Fallback to local .dispatch inside target directory
+        return target_dir / ".dispatch" / "ORCHESTRATOR_STATE.json"
 
 
 @dataclass
@@ -106,21 +131,54 @@ class OrchestratorState:
 
     @classmethod
     def load(cls, path: Path) -> OrchestratorState:
+        default_state = cls(
+            schema=2,
+            task_id="default",
+            phase=Phase.INIT,
+            review_round=0,
+            max_review_rounds=2,
+            lanes={},
+            known_facts={},
+            awaiting_human_gate=False,
+        )
         if not path.is_file():
-            return cls(
-                schema=2,
-                task_id="default",
-                phase=Phase.INIT,
-                review_round=0,
-                max_review_rounds=2,
-                lanes={},
-                known_facts={},
-                awaiting_human_gate=False,
-            )
-        data = json.loads(path.read_text(encoding="utf-8"))
-        data["phase"] = Phase(data["phase"])
-        return cls(**data)
+            return default_state
 
+        try:
+            raw_text = path.read_text(encoding="utf-8")
+            data = json.loads(raw_text)
+        except Exception as e:
+            print(f"Warning: Corrupted state file '{path}' ({e}). Falling back to clean state.", file=sys.stderr)
+            return default_state
+
+        if not isinstance(data, dict):
+            print(f"Warning: State file '{path}' is not a JSON object. Falling back to clean state.", file=sys.stderr)
+            return default_state
+
+        # Schema compatibility: support discovered_facts / active_panes mapping
+        known = data.get("known_facts") or data.get("discovered_facts") or {}
+        lanes = data.get("lanes") or data.get("active_panes") or {}
+        if not isinstance(lanes, dict):
+            lanes = {}
+
+        # Safe Phase parsing
+        raw_phase = data.get("phase", Phase.INIT.value)
+        try:
+            phase = Phase(raw_phase)
+        except ValueError:
+            print(f"Warning: Unknown phase '{raw_phase}', defaulting to INIT.", file=sys.stderr)
+            phase = Phase.INIT
+
+        return cls(
+            schema=int(data.get("schema", 2)),
+            task_id=str(data.get("task_id", "default")),
+            phase=phase,
+            review_round=int(data.get("review_round", 0)),
+            max_review_rounds=int(data.get("max_review_rounds", 2)),
+            lanes=lanes,
+            known_facts=known if isinstance(known, dict) else {},
+            awaiting_human_gate=bool(data.get("awaiting_human_gate", False)),
+        )
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         raw = asdict(self)
@@ -191,13 +249,16 @@ class OrchestratorState:
 
 
 def cmd_state(args: argparse.Namespace) -> int:
-    state_file = Path(args.repo) / ".dispatch" / "ORCHESTRATOR_STATE.json"
+    state_file = resolve_state_file(args.repo)
     state = OrchestratorState.load(state_file)
 
     if args.state_op == "next":
         print(json.dumps(state.next_action(), ensure_ascii=False, indent=2))
         return 0
     elif args.state_op == "advance":
+        if not args.to_phase:
+            print("Error: --to-phase is required for 'advance'.", file=sys.stderr)
+            return 1
         target = Phase(args.to_phase)
         try:
             state.advance(target)
@@ -207,6 +268,37 @@ def cmd_state(args: argparse.Namespace) -> int:
         except StateTransitionError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
+    elif args.state_op == "set-facts":
+        if not args.json:
+            print("Error: --json is required for 'set-facts'.", file=sys.stderr)
+            return 1
+        try:
+            payload = json.loads(args.json)
+            if isinstance(payload, dict):
+                state.known_facts.update(payload)
+            state.save(state_file)
+            print(f"Updated known_facts in '{state_file}'.")
+            return 0
+        except Exception as e:
+            print(f"Error parsing --json: {e}", file=sys.stderr)
+            return 1
+    elif args.state_op == "reset":
+        if not args.confirm:
+            print("Error: Resetting state requires --confirm flag.", file=sys.stderr)
+            return 1
+        clean_state = OrchestratorState(
+            schema=2,
+            task_id="default",
+            phase=Phase.INIT,
+            review_round=0,
+            max_review_rounds=2,
+            lanes={},
+            known_facts={},
+            awaiting_human_gate=False,
+        )
+        clean_state.save(state_file)
+        print(f"Orchestrator state reset to INIT in '{state_file}'.")
+        return 0
     elif args.state_op == "show":
         raw = asdict(state)
         raw["phase"] = state.phase.value
@@ -232,9 +324,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     # State subcommands
     p_state = subparsers.add_parser("state", help="Manage orchestrator state machine")
-    p_state.add_argument("state_op", choices=["next", "advance", "show"])
+    p_state.add_argument("state_op", choices=["next", "advance", "show", "set-facts", "reset"])
     p_state.add_argument("--repo", default=os.getcwd(), help="Target repository root")
     p_state.add_argument("--to-phase", choices=[p.value for p in Phase], help="Target phase for advance")
+    p_state.add_argument("--json", help="JSON string for set-facts")
+    p_state.add_argument("--confirm", action="store_true", help="Confirmation flag for reset")
     p_state.set_defaults(func=cmd_state)
 
     # Lint subcommand

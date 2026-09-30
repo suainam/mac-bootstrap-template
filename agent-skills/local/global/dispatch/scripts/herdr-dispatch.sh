@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # herdr-dispatch.sh — Thin, deterministic entrypoint for dispatch skill
-# Forwards execution and contract validation to dispatch_engine.py
+# Forwards execution and contract validation to dispatch.py
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENGINE_PY="${SCRIPT_DIR}/dispatch_engine.py"
+ENGINE_PY="${SCRIPT_DIR}/dispatch.py"
 
 # Subcommands: state, lint
 if [[ $# -gt 0 ]]; then
@@ -151,9 +151,15 @@ if [[ -n "${BASE}" ]]; then
 fi
 CREATE_JSON="$(herdr worktree create "${CREATE_ARGS[@]}")"
 
-PANE_ID="$(echo "${CREATE_JSON}" | jq -r '.result.root_pane.pane_id')"
-CHECKOUT="$(echo "${CREATE_JSON}" | jq -r '.result.worktree.path')"
-WORKSPACE_ID="$(echo "${CREATE_JSON}" | jq -r '.result.workspace.workspace_id')"
+PANE_ID="$(jq -er '.result.root_pane.pane_id' <<<"${CREATE_JSON}")" || { echo "Error: Failed to parse root_pane.pane_id from herdr response." >&2; exit 1; }
+CHECKOUT="$(jq -er '.result.worktree.path' <<<"${CREATE_JSON}")" || { echo "Error: Failed to parse worktree.path from herdr response." >&2; exit 1; }
+WORKSPACE_ID="$(jq -er '.result.workspace.workspace_id' <<<"${CREATE_JSON}")" || { echo "Error: Failed to parse workspace_id from herdr response." >&2; exit 1; }
+
+if [[ -z "${PANE_ID}" || "${PANE_ID}" == "null" || -z "${CHECKOUT}" || "${CHECKOUT}" == "null" ]]; then
+  echo "Error: herdr worktree create returned null coordinates: pane=${PANE_ID}, checkout=${CHECKOUT}" >&2
+  exit 1
+fi
+
 REPO_SLUG="$(basename "${REPO_ROOT}")"
 
 # Enforce pane semantic renaming (Label is display-only; pane_id remains addressable)
@@ -163,7 +169,8 @@ echo "==> Worktree ready: ${CHECKOUT} (pane: ${PANE_ID}, label: ${NAME}, workspa
 
 # Setup .dispatch directory & telemetry initialization
 mkdir -p "${CHECKOUT}/.dispatch"
-EXCLUDE_FILE="$(git -C "${CHECKOUT}" rev-parse --git-path info/exclude)"
+COMMON_GIT_DIR="$(git -C "${CHECKOUT}" rev-parse --path-format=absolute --git-common-dir)"
+EXCLUDE_FILE="${COMMON_GIT_DIR}/info/exclude"
 mkdir -p "$(dirname "${EXCLUDE_FILE}")"
 grep -qxF '.dispatch/' "${EXCLUDE_FILE}" 2>/dev/null || echo '.dispatch/' >> "${EXCLUDE_FILE}"
 

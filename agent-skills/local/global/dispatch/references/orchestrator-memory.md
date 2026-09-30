@@ -23,32 +23,31 @@ The Orchestrator MUST persist its operational state inside `.dispatch/ORCHESTRAT
 
 ```json
 {
-  "task_id": "auroraops-pr115-fix",
+  "task_id": "example-feature-fix",
   "phase": "writer_implementation",
   "active_panes": {
-    "orchestrator": "w1R:p1",
-    "writer_pane": "w1R:p2",
+    "orchestrator": "w1:p1",
+    "writer_pane": "w1:p2",
     "skeptic_pane": null
   },
   "discovered_facts": {
-    "pr_number": 115,
-    "pr_branch": "feat/add-gitleaks",
-    "ci_failure_cause": "Missing permissions: { contents: read, pull-requests: read } in gitleaks.yml (403)",
-    "gitleaks_toml_issue": "Missing [extend] useDefault = true and {{.*?}} allowlist is too broad",
+    "pr_number": 120,
+    "pr_branch": "feat/example-feature",
+    "ci_failure_cause": "Missing permissions in workflow (403)",
     "working_models": {
-      "opencode": "Muse Spark 1.3 Free (TUI via --auto, no -m flag)",
+      "opencode": "default-free",
       "agy": "gemini-3.8-flash-medium",
       "codex": "gpt-6-luna"
     }
   },
   "worktrees": {
-    "writer": "/Users/suai/work/projects/auroraops-control"
+    "writer": "/path/to/worktrees/example-feature"
   },
   "completed_milestones": [
-    "research_completed_by_opencode_w1R:p2",
+    "research_completed_by_worker",
     "findings_harvested_and_confirmed"
   ],
-  "next_action": "instruct_opencode_in_w1R:p2_to_apply_fixes"
+  "next_action": "instruct_worker_to_apply_fixes"
 }
 ```
 

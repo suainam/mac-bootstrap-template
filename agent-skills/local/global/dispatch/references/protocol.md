@@ -40,7 +40,7 @@ Sending `herdr agent prompt` immediately after `agent start` causes the prompt b
 4. **Step 2: Prompt Injection with Explicit Notify-Back Mandate**:
    Only after passing the readiness gate, inject the task and explicitly command the child agent to notify back:
    ```bash
-   herdr agent prompt <name> "Read /tmp/auroraops_goal_task.md (or .dispatch/TASK.md) and execute. When complete, write ~/Documents/handoffs/<name>-handoff.md and run:
+   herdr agent prompt <name> "Read <task-file> (or .dispatch/TASK.md) and execute. When complete, write ~/Documents/handoffs/<name>-handoff.md and run:
    herdr agent prompt <orch-pane> '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<name>-handoff.md'"
    ```
    *(CRITICAL: If the prompt omits this notify-back instruction, the child agent finishes silently. The orchestrator must never guess or take over the child's work, but wait for or harvest its output directly).*
@@ -69,9 +69,9 @@ herdr agent prompt <orch-pane> "\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\
 
 ### Example Rendered Notification:
 ```text
-[NOTIFY] [w3:pAY_opencode_auroraops-control]
+[NOTIFY] [w3:pAY_opencode_example-repo]
 DONE: PR #120 created, squashed and merged, unit tests 100% pass
-Handoff: ~/Documents/handoffs/auroraops-control-releaser-handoff-20260930_164500.md
+Handoff: ~/Documents/handoffs/example-repo-releaser-handoff-20260930_164500.md
 ```
 
 ---
