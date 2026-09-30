@@ -116,3 +116,52 @@ def test_tunnel_run_forces_http2_protocol():
     public URL returns 530. Regression guard for 2026-08-24 outage."""
     content = read("scripts/devspace_local.py")
     assert '"--protocol", "http2"' in content
+
+def test_maintenance_agent_renderer_expands_paths_for_every_task(tmp_path):
+    import os
+    import plistlib
+    import subprocess
+
+    home = tmp_path / "home"
+    launch_agents = home / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    calls = fake_bin / "launchctl-calls"
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$LAUNCHCTL_CALLS\"\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "LAUNCHCTL_CALLS": str(calls),
+    }
+    subprocess.run(
+        [str(ROOT / "scripts" / "install-maintenance-agents.sh"), "install"],
+        check=True,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    expected = {
+        "claude-daemon": "claude-daemon.sh",
+        "cache-cleanup": "clean-cache.sh",
+        "downloads-organizer": "organize-downloads.sh",
+    }
+    for name, script in expected.items():
+        plist = launch_agents / f"io.local.mac-bootstrap.{name}.plist"
+        with plist.open("rb") as fh:
+            data = plistlib.load(fh)
+        assert data["ProgramArguments"][1] == str(ROOT / "scripts" / script)
+        assert "{{BOOTSTRAP}}" not in plist.read_text(encoding="utf-8")
+
+    calls_text = calls.read_text(encoding="utf-8")
+    assert calls_text.count("bootout gui/") == 3
+    assert calls_text.count("bootstrap gui/") == 3
+

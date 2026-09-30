@@ -10,7 +10,7 @@ GIT_HOOK_APPROVALS ?=
 GIT_HOOK_PYTHON ?= $(shell command -v python3)
 
 .PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
-	install-cache-agent organize-downloads install-downloads-agent \
+	install-cache-agent organize-downloads install-downloads-agent install-maintenance-agents unload-maintenance-agents \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
 	omp-extensions \
@@ -470,18 +470,16 @@ hook-matchers:
 patch-chrome-gemini:
 	TARGET_USER=$(if $(USER),$(USER),) KILL_CHROME=$(if $(KILL),$(KILL),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh
 
-# ── Claude Code Daemon ─────────────────────────────────────
+install-maintenance-agents:
+	./scripts/install-maintenance-agents.sh install
+
+unload-maintenance-agents:
+	./scripts/install-maintenance-agents.sh unload
+
+
 claude-daemon-install:
-	@mkdir -p "$(HOME)/Library/LaunchAgents"
-	for plist in launchd/io.local.mac-bootstrap.claude-daemon.plist; do \
-		name="$$(basename "$$plist")"; \
-		cp "$$plist" "$(HOME)/Library/LaunchAgents/$$name"; \
-		sed -i '' "s|{{BOOTSTRAP}}|$(CURDIR)|g" "$(HOME)/Library/LaunchAgents/$$name"; \
-		echo "  $$name -> ~/Library/LaunchAgents/"; \
-	done
-	launchctl bootstrap gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || \
-		launchctl enable gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon
-	@echo "=== Claude daemon installed. Logs: ~/Library/Logs/claude-daemon/ ==="
+	./scripts/install-maintenance-agents.sh install claude-daemon
+
 
 claude-daemon-status:
 	@echo "=== claude-daemon ==="
@@ -492,9 +490,8 @@ claude-daemon-logs:
 	tail -20 "$(HOME)/Library/Logs/claude-daemon/daemon.log" 2>/dev/null || echo "(no daemon.log)"
 
 claude-daemon-unload:
-	launchctl bootout gui/$$(id -u) "$(HOME)/Library/LaunchAgents/io.local.mac-bootstrap.claude-daemon.plist" 2>/dev/null || true
+	./scripts/install-maintenance-agents.sh unload claude-daemon
 	@echo "=== Claude daemon unloaded ==="
-
 # ── System maxfiles limit (survives reboot) ─────────────────
 # launchd's default global soft limit (256) is too low for tools like
 # codex/context-mode that fan out many fds; this raises it at every boot.

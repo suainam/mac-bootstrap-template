@@ -10,8 +10,35 @@ The probe contract is identical to upstream; refer to driver.md §6a.
 
 ---
 
-## §6b Poll the whole fleet in one call
+## §6b Fleet monitoring, event-driven wakeups, and backoff
 
+### 1. Primary: Event-Driven Prompt-Back (Zero-Token Ingress)
+The child lane actively pushes its milestones and DONE notification directly into the orchestrator's
+pane via Herdr IPC prompt-back:
+
+    herdr agent prompt <orch-pane> "[dispatch-opencode <run-id>] lane <lane> wrote DONE — run one dispatch-opencode --resume sweep now."
+
+This delivers directly into the orchestrator's terminal, waking it immediately upon turn completion.
+While waiting for prompt-back, the orchestrator MUST NOT poll screens in tight loops.
+
+### 2. Secondary: Zero-Token Native Blocking (`herdr agent wait`)
+When waiting synchronously for an in-flight lane without polling terminal text, use Herdr's OS-level
+lifecycle waiter:
+
+    herdr agent wait <lane> --timeout 300000
+
+This suspends execution until the agent transitions to a settled state (`idle`, `done`, or `blocked`)
+without issuing screen reads or burning LLM tokens.
+
+### 3. Fallback: Exponential Backoff with Jitter for Active Sweeps
+Never poll panes or run supervision sweeps at fixed short intervals (such as 10s). If background
+sweeping is required before a child notification arrives, compute interval dynamically:
+
+$$T_{\text{interval}} = \min(60s,\ 5s \times 2^{\text{sweep\_attempt}}) + \text{jitter}(0, 2s)$$
+
+Back off from 5s to 10s, 20s, 40s, and cap at 60s. This eliminates >70% of redundant polling tokens.
+
+### 4. Fleet Sweep Protocol
 `herdr agent list` returns every lane's `agent_status` and `state_change_seq`. Do not read panes
 during a normal sweep.
 

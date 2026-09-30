@@ -33,6 +33,7 @@ brew "anomalyco/tap/opencode-v2"
 brew "omp"
 brew "rtk"
 brew "codex-threadripper"
+cask "codex"
 brew "gh"
 brew "lazygit"
 
