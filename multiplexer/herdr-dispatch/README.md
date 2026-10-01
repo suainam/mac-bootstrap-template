@@ -13,6 +13,7 @@ Status: TB-01 and TB-02 implemented. TB-03 onward is not here yet.
 | Lane isolation gate | `lib/lane_isolation.py` | pure policy; claims a worktree+branch or raises |
 | Closeout lifecycle gate | `lib/closeout_gate.py` | pure policy; decides, never destroys |
 | Prompt protocol gate | `lib/prompt_protocol.py` | pure policy; judges, never rewrites |
+| Gate A reflex gate | `lib/orchestrator_guard.py` | judges a tool call at the PreToolUse boundary; whitelist, mechanical, then Jev |
 | Gate D semantic watchdog | `lib/watchdog_judge.py` | System One (TypeSafe Jev); autonomous lease extension |
 | Single-writer audit gate | `../../scripts/dispatch-single-writer-gate.py` | repo gate, wired into `make repo-check` |
 | omp-side extension | `agent/omp/extensions/dispatch-omp/` | in-process; brain loop, routing, gate, heartbeats |
@@ -501,6 +502,144 @@ Agent **lifecycle** reporting is not in this table on purpose: Herdr's own
 `make dispatch-single-writer-gate` fails the build if dispatch code takes it
 over. For the same reason dispatch records an expected resume command but never
 attaches one itself.
+
+## Gate A: PreToolUse reflex gate (Issue #133)
+
+The phase whitelist polices *named orchestrator steps*. A tool call is not a
+named step, and that gap is how "just checking" turns into child-work takeover:
+the orchestrator reaches into a worker's file with `read_file` and never appears
+in the action matrix at all. Gate A closes it at the tool boundary, in three
+layers ordered by cost — the cheap layer refusing first is the whole design,
+because spending a model call to learn that `git reset --hard` is destructive
+would be spending tokens on a fact.
+
+| Order | Layer | Decides | Cost |
+|---|---|---|---|
+| **0** | **Destructive root check** | a destructive command aimed at a canonical root checkout | local, deterministic |
+| 1 | Whitelist bypass | `todo`, the state file, the handoffs directory, the orchestrator's own task contract | local, no socket |
+| 2 | Mechanical | a business-code read while parked; a probe | local, deterministic |
+| 3 | Jev semantics | `is_role_boundary_violation`, `is_illegal_probe_while_parked` (Noul, block > 0.40) | one batched call, or offline heuristics |
+
+**The destructive check runs before the bypass, and that ordering is the whole
+point.** The whitelist is a bypass, and a bypass placed ahead of a mechanical
+rule swallows it: `cat handoffs/x.md && git reset --hard` is a management read
+followed by the destruction of a root checkout, and reading the leading path
+first waves the entire line through. Every layer is individually correct, so no
+per-layer test catches this — only the composition does.
+`is_management_call` disqualifies destructive text as a second, redundant
+defence, so the property survives either mechanism being removed.
+
+```bash
+# Judge one tool call; exits 2 on a refusal
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py gate \
+    --phase yield_and_guard --tool read_file --target .worktrees/1-4/src/app.py
+```
+
+`--phase` defaults to whatever the state file records, for the same reason the
+`guard` command does: the gate polices the brain as it is, not as the caller
+believes it to be. `--offline` skips layer 3 entirely.
+
+### Root checkout protection
+
+Destructive commands — `git reset --hard`, `git clean -fd`, `git checkout -- .`,
+`git push --force`, `rm -rf`, `git branch -D` — are refused **in every phase**
+unless the working directory is an isolated lane worktree.
+
+This is an incident written down. In a canonical root checkout the working tree
+is the *only* copy of whatever is uncommitted there, so a reset there loses work
+that no lane can restore and no other branch holds. The park is not the only
+thing that should have prevented it, which is why this rule is phase-independent
+rather than folded into the `yield_and_guard` checks.
+
+The destructive set is deliberately wider than the two commands from the report:
+a gate drawn at exactly the commands that have already fired is a gate one flag
+away from failing again. Read-only `git` is unaffected — the incident was about
+destroying a tree, not reading one — and neither are `--soft` or `--mixed`
+resets, which keep the working tree.
+
+Two details are easy to get wrong, and both have tests:
+
+- **The rule is not gated on the tool class.** A destructive command is a fact
+  about the *command*; naming a tool this gate has not heard of must not silence
+  it. Only the probe rule consults the tool name, because "is this a probe" is a
+  question about a command line and the tool name is the only signal that the
+  input is one.
+- **The path is normalised before the segment check.** A substring test on the
+  raw string admits `<root>/.worktrees/../<root>` — the root checkout wearing a
+  worktree's name. Normalisation is lexical rather than filesystem-resolving, so
+  a lane worktree that has not been created yet is still permitted.
+
+Isolation is judged from every directory the command could act on, not only the
+cwd: `git -C <root> clean -fd` run from a lane worktree is a root checkout
+reached through the back door, and the checks are a conjunction so one named
+root is enough to refuse.
+
+**The same reasoning governs the whitelist.** Its markers are a substring list, so
+the path is normalised before the comparison — otherwise
+`.dispatch/../src/app.py` contains the marker and the whitelist vouches for a
+read of a lane's source. For the same reason the parked source rule keys on the
+*path* rather than the tool name: renaming `read_file` to `read` would otherwise
+turn the rule off with no other symptom.
+
+### What this gate is not
+
+It matches commands **as text** and never parses a shell, so `sh -c` with an
+encoded payload, a script file, or an alias is outside what it can see. Matching
+the text does catch `&&` chaining, subshells and `xargs` as substrings, which
+covers most of the realistic accidental cases. And it is not a sandbox: it
+refuses what it recognises, it cannot stop a process that already started. The
+boundary it enforces is the orchestrator's own tool calls, which is where the
+incident happened.
+
+The Jev endpoint comes from `TYPESAFE_API_URL` and the bearer token from
+`TYPESAFE_API_KEY` — both the operator's own environment, and the same trust
+boundary `handoff_judge.py` and `watchdog_judge.py` already use. A misconfigured
+`TYPESAFE_API_URL` would send the key elsewhere; restricting it would be a change
+to all three gates, not to this one.
+
+An endpoint answer that cannot be read — `"high"`, `null`, a missing question, a
+`NaN`, a value outside `[0, 1]` — is **no answer**, not a zero. `_noul` returns
+`(value, usable)` and the caller falls back to the heuristics, because collapsing
+"unusable" into `0.0` is the one direction a gate must never fail in: `0.0` is
+indistinguishable from the model being confident there is no violation. The
+model name the endpoint reports is sanitised to a single short token before it
+reaches a report, a steer or a log.
+
+### The `cwd` dependency
+
+Isolation is judged from a working directory, and a tool event does not carry
+one. `index.ts` therefore forwards the session's `cwd` from the handler context —
+the same place `session_start` reads it from. If it were dropped, every
+destructive command would look like it runs in a root checkout and none would be
+allowed: correct, but it would also refuse a lane resetting its own worktree, and
+a gate that refuses correct work is one people route around. Both directions are
+pinned by tests, using the context shape a real host produces.
+
+**Isolation roots, and one deviation.** The rule accepts `.worktrees/`,
+`.herdr/worktrees/`, and `worktrees/`. The issue text named only
+`.herdr/worktrees/`; the other two are this repository's own established lane
+locations (`agent/rules/adversarial-review-gate.md` mandates `.worktrees/<name>`),
+and a boundary that refused them would refuse the lanes it exists to protect. The
+deviation is recorded here rather than left implicit.
+
+### Why a refusal injects a steer
+
+A block that only says "no" leaves the model to pick a replacement, and the
+cheapest replacement is the behaviour just refused. So every refusal carries a
+corrective steer naming the legal next action — wait for worker IPC, or use a
+lane worktree for destructive commands — delivered to the session as an `aside`.
+
+### Two halves, one policy
+
+`lib/orchestrator_guard.py` is the authority; `reflex.ts` is the in-process fast
+path that runs before it, so the in-session block needs no subprocess. Each rule
+appears in both, and `tests/dispatch-reflex.test.ts` asserts they still agree —
+constant sets textually, and every classifier behaviourally by running one
+corpus through the real Python module and requiring identical answers. A rule
+added on one side only shows up there as a disagreement rather than as a hole in
+the seam. That behavioural half earned its place: it is what caught a
+case-folding bug that turned every handoff and task contract ending in `.py`
+into a business-code read in the fast path while the authority whitelisted it.
 
 ## `/dispatch` — the global slash command (Issue #137)
 
