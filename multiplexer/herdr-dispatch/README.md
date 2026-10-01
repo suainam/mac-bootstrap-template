@@ -326,6 +326,61 @@ its goal statement enumerates the keywords. Requiring the term to appear in a
 directive position would be gameable by rephrasing, so the limit is documented
 rather than papered over.
 
+## The unified dispatch bus
+
+Dispatching a lane was six manual steps — `lint`, `claim`, pane rename,
+timestamp, envelope assembly, state flush — and any one could be skipped. The
+omissions were invisible until closeout: a lane running with no state entry, a
+pane still called `worker-3`, a handoff referenced by a filename nobody minted.
+
+One command now does all of it, in order, atomically:
+
+```bash
+python3 bin/dispatch_plugin.py --repo "$PWD" dispatch \
+  --task .dispatch/TASK.md --lane 1-3 --lane-name 1-3-dispatch \
+  --target w3:p9 --signature "1-3-dispatch_opencode" \
+  [--worktree <path> --branch <branch>] \
+  --highlight "<core result>" --risk "<leftover>"
+```
+
+| Step | What it does |
+|---|---|
+| 1 | lane-name convention `^[0-9]+-[0-9]+-[a-z0-9_-]+$`, exit 2 |
+| 2 | contract lint (7 sections + Issue #125), exit 1 |
+| 3 | claim gate on worktree/branch, exit 2 |
+| 4 | mints `YYYYMMDD_HHMMSS` and the handoff path — never typed by hand |
+| 5 | assembles the `[NOTIFY]` envelope with real `0x0A` newlines |
+| 6 | writes the lane to `ORCHESTRATOR_STATE.json`, walks the brain into `yield_and_guard` |
+| 7 | delivers through the prompt gate, prints a receipt |
+
+### Why atomicity needed a structural change
+
+The contract is: **if any gate refuses, nothing may be renamed, nothing written,
+nothing delivered.** That is not achievable by validating inside a sequence of
+mutations, because the mutation before the failure already happened.
+
+So the work splits in two:
+
+- `DispatchPlan.plan` is **pure** — it runs every gate, mints the timestamp and
+  assembles the envelope, raising before producing a value. A refusal provably
+  cannot have mutated anything.
+- `DispatchPlan.commit` performs the three mutations in least-observable-first
+  order: state, then rename, then delivery. Delivery is last because it is the
+  only step the worker can see.
+
+Gates are ordered by cost so one error surfaces per round trip. A malformed lane
+name is reported even when the contract is also broken.
+
+Exit codes are deliberately distinct: `1` means "your task file is wrong", `2`
+means "this lane is unsafe".
+
+### Lane naming is enforced, not documented
+
+`research-agy` is refused with exit 2, and the error says why: a bare slug
+carries no lane coordinates, so nothing can tell which wave owns it or who is
+responsible for it. `handoff_path` re-validates the name, so a nonconforming
+lane cannot reach a handoff filename by another route either.
+
 ## Ownership boundaries
 
 Writes are partitioned so the short-lived Herdr plugin process and the
