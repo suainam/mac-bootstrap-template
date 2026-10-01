@@ -102,6 +102,8 @@ WRITER_PLUGIN_OWNED = frozenset(
         "watchdog_verdict",
         "watchdog_evaluated_at_unix_ms",
         "watchdog_lease_until_unix_ms",
+        "consecutive_extensions",
+        "last_seen_seq",
     }
 )
 WRITER_EXTENSION_OWNED = frozenset({"phase", "handoff", "notified_at"})

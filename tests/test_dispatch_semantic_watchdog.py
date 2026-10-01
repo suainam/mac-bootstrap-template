@@ -114,7 +114,8 @@ def test_jev_judgment_legitimate_compilation() -> None:
         assert judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE
         assert judgment.p_legitimate == 0.88
         assert judgment.p_stalled == 0.05
-        assert judgment.lease_extension_seconds == 600  # 10 minutes
+        # 1st step: 180s ± 15s jitter (3 minutes)
+        assert 165 <= judgment.lease_extension_seconds <= 195
 
 
 def test_jev_judgment_legitimate_pytest() -> None:
@@ -148,7 +149,7 @@ def test_jev_judgment_legitimate_pytest() -> None:
 
         assert judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE
         assert judgment.p_legitimate == 0.92
-        assert judgment.lease_extension_seconds == 600
+        assert 165 <= judgment.lease_extension_seconds <= 195
 
 
 def test_jev_judgment_interactive_prompt_hang() -> None:
@@ -231,7 +232,7 @@ def test_offline_heuristic_compilation_and_test() -> None:
     )
     assert judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE
     assert judgment.p_legitimate >= 0.70
-    assert judgment.lease_extension_seconds == 600
+    assert 165 <= judgment.lease_extension_seconds <= 195
 
 
 def test_offline_heuristic_prompt_hang() -> None:
@@ -334,3 +335,224 @@ def test_plugin_watchdog_command_evaluation(monkeypatch: pytest.MonkeyPatch, tmp
     reloaded = brain.load(state_file)
     assert reloaded["lanes"]["1-4"]["watchdog_verdict"] == "EXTEND_LEASE"
     assert reloaded["lanes"]["1-4"]["watchdog_lease_until_unix_ms"] > int(time.time() * 1000)
+    assert reloaded["lanes"]["1-4"]["consecutive_extensions"] == 1
+    assert reloaded["lanes"]["1-4"]["last_seen_seq"] == 10
+
+
+def test_plugin_watchdog_command_stepped_and_reset(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI plugin tracks consecutive extensions on same seq, and resets counter on newer seq."""
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["lanes"] = {"1-4": {"lane": "1-4", "status": "working", "pane_id": "w3:p4"}}
+    brain.save(state_file, state)
+
+    seq_holder = {"seq": 10}
+
+    monkeypatch.setattr(plugin, "state_path", lambda args: state_file)
+    monkeypatch.setattr(plugin.herdr, "in_herdr", lambda: True)
+    monkeypatch.setattr(
+        plugin.herdr,
+        "run_herdr",
+        lambda args: {"text": "Compiling crate v1\nBuilding [====> ] 50/100"},
+    )
+    monkeypatch.setattr(
+        plugin.herdr,
+        "agent_info",
+        lambda pane: {"process_name": "cargo", "agent_status": "working", "state_change_seq": seq_holder["seq"]},
+    )
+
+    # 1st run: seq 10 -> consecutive becomes 1
+    assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
+    out1 = json.loads(capsys.readouterr().out)
+    assert out1["results"][0]["consecutive_extensions"] == 1
+    lane1 = brain.load(state_file)["lanes"]["1-4"]
+    assert lane1["consecutive_extensions"] == 1
+    assert lane1["last_seen_seq"] == 10
+
+    # 2nd run: still seq 10 -> consecutive becomes 2
+    assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
+    out2 = json.loads(capsys.readouterr().out)
+    assert out2["results"][0]["consecutive_extensions"] == 2
+    lane2 = brain.load(state_file)["lanes"]["1-4"]
+    assert lane2["consecutive_extensions"] == 2
+
+    # 3rd run: seq advances to 11 -> counter resets to 0 before award, then becomes 1
+    seq_holder["seq"] = 11
+    assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
+    out3 = json.loads(capsys.readouterr().out)
+    assert out3["results"][0]["consecutive_extensions"] == 1
+    lane3 = brain.load(state_file)["lanes"]["1-4"]
+    assert lane3["consecutive_extensions"] == 1
+    assert lane3["last_seen_seq"] == 11
+
+
+
+# --------------------------------------------------------------------------
+# Stepped Exponential Backoff with Jitter & Self-Healing Resets
+# --------------------------------------------------------------------------
+
+
+def test_compute_stepped_lease_seconds_progression() -> None:
+    """1st extension 3m (180s) -> 2nd 5m (300s) -> 3rd+ 10m (600s ceiling)."""
+    assert watchdog.compute_stepped_lease_seconds(0, jitter_range=0) == 180
+    assert watchdog.compute_stepped_lease_seconds(1, jitter_range=0) == 300
+    assert watchdog.compute_stepped_lease_seconds(2, jitter_range=0) == 600
+    assert watchdog.compute_stepped_lease_seconds(3, jitter_range=0) == 600
+    assert watchdog.compute_stepped_lease_seconds(10, jitter_range=0) == 600
+
+
+def test_compute_stepped_lease_seconds_jitter() -> None:
+    """Jitter is strictly bounded within [-15s, +15s] and adds variance."""
+    import random
+
+    # Deterministic test with fixed seed
+    rng = random.Random(42)
+    val = watchdog.compute_stepped_lease_seconds(0, jitter_range=15, rng=rng)
+    assert 165 <= val <= 195
+
+    # Statistical distribution test across multiple calls
+    results = [watchdog.compute_stepped_lease_seconds(0, jitter_range=15) for _ in range(50)]
+    assert all(165 <= r <= 195 for r in results)
+    assert len(set(results)) > 1, "Jitter should introduce variance across calls"
+
+    results_step2 = [watchdog.compute_stepped_lease_seconds(1, jitter_range=15) for _ in range(50)]
+    assert all(285 <= r <= 315 for r in results_step2)
+
+    results_step3 = [watchdog.compute_stepped_lease_seconds(2, jitter_range=15) for _ in range(50)]
+    assert all(585 <= r <= 615 for r in results_step3)
+
+
+def test_apply_lease_extension_stepped_sequence(tmp_path: Path) -> None:
+    """Consecutive extensions without state movement advance 180s -> 300s -> 600s."""
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["lanes"] = {"1-4": {"lane": "1-4", "status": "working", "pane_id": "w3:p4"}}
+    brain.save(state_file, state)
+
+    now = 1_000_000_000
+
+    # 1st extension: consecutive becomes 1, lease +180s
+    res1 = watchdog.apply_lease_extension(
+        state_path=state_file,
+        lane_id="1-4",
+        verdict=watchdog.WatchdogVerdict.EXTEND_LEASE,
+        current_seq=10,
+        now_ms=now,
+        jitter_range=0,
+    )
+    lane1 = res1["lanes"]["1-4"]
+    assert lane1["consecutive_extensions"] == 1
+    assert lane1["last_seen_seq"] == 10
+    assert lane1["watchdog_lease_until_unix_ms"] == now + 180_000
+
+    # 2nd consecutive extension with same seq (10): consecutive becomes 2, lease +300s
+    res2 = watchdog.apply_lease_extension(
+        state_path=state_file,
+        lane_id="1-4",
+        verdict=watchdog.WatchdogVerdict.EXTEND_LEASE,
+        current_seq=10,
+        now_ms=now,
+        jitter_range=0,
+    )
+    lane2 = res2["lanes"]["1-4"]
+    assert lane2["consecutive_extensions"] == 2
+    assert lane2["last_seen_seq"] == 10
+    assert lane2["watchdog_lease_until_unix_ms"] == now + 300_000
+
+    # 3rd consecutive extension with same seq (10): consecutive becomes 3, lease +600s
+    res3 = watchdog.apply_lease_extension(
+        state_path=state_file,
+        lane_id="1-4",
+        verdict=watchdog.WatchdogVerdict.EXTEND_LEASE,
+        current_seq=10,
+        now_ms=now,
+        jitter_range=0,
+    )
+    lane3 = res3["lanes"]["1-4"]
+    assert lane3["consecutive_extensions"] == 3
+    assert lane3["last_seen_seq"] == 10
+    assert lane3["watchdog_lease_until_unix_ms"] == now + 600_000
+
+
+def test_apply_lease_extension_forward_progress_resets_counter(tmp_path: Path) -> None:
+    """When state_change_seq advances, consecutive counter resets to 0 and lease returns to 3m."""
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["lanes"] = {
+        "1-4": {
+            "lane": "1-4",
+            "status": "working",
+            "pane_id": "w3:p4",
+            "consecutive_extensions": 3,
+            "last_seen_seq": 10,
+        }
+    }
+    brain.save(state_file, state)
+
+    now = 1_000_000_000
+
+    # Agent made progress: seq moved from 10 to 11
+    res = watchdog.apply_lease_extension(
+        state_path=state_file,
+        lane_id="1-4",
+        verdict=watchdog.WatchdogVerdict.EXTEND_LEASE,
+        current_seq=11,
+        now_ms=now,
+        jitter_range=0,
+    )
+    lane = res["lanes"]["1-4"]
+    # Counter was reset to 0 then incremented to 1 for this 1st extension
+    assert lane["consecutive_extensions"] == 1
+    assert lane["last_seen_seq"] == 11
+    # Lease is back to 180s (3 minutes)
+    assert lane["watchdog_lease_until_unix_ms"] == now + 180_000
+
+
+def test_apply_lease_extension_non_extend_verdict_resets_on_progress(tmp_path: Path) -> None:
+    """Non-extend verdict (e.g. NUDGE) also resets counter on forward progress."""
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["lanes"] = {
+        "1-4": {
+            "lane": "1-4",
+            "status": "working",
+            "pane_id": "w3:p4",
+            "consecutive_extensions": 2,
+            "last_seen_seq": 10,
+        }
+    }
+    brain.save(state_file, state)
+
+    now = 1_000_000_000
+    res = watchdog.apply_lease_extension(
+        state_path=state_file,
+        lane_id="1-4",
+        verdict=watchdog.WatchdogVerdict.NUDGE,
+        current_seq=15,
+        now_ms=now,
+    )
+    lane = res["lanes"]["1-4"]
+    assert lane["consecutive_extensions"] == 0
+    assert lane["last_seen_seq"] == 15
+    assert "watchdog_lease_until_unix_ms" not in lane
+
+
+def test_single_writer_partition_allows_watchdog_stepped_fields(tmp_path: Path) -> None:
+    """Plugin writer owns consecutive_extensions and last_seen_seq without violating single-writer."""
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["lanes"] = {"1-4": {"lane": "1-4"}}
+    brain.save(state_file, state)
+
+    updated = brain.update_lane(
+        state_file,
+        "1-4",
+        {"consecutive_extensions": 2, "last_seen_seq": 42},
+        writer="plugin",
+    )
+    lane = updated["lanes"]["1-4"]
+    assert lane["consecutive_extensions"] == 2
+    assert lane["last_seen_seq"] == 42
+

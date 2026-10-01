@@ -511,8 +511,14 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
         if not lane_id:
             continue
 
+        lane_record = state.get("lanes", {}).get(lane_id, {})
+        consecutive = int(lane_record.get("consecutive_extensions") or 0)
+        prev_seq = lane_record.get("last_seen_seq")
+
         buffer_text = ""
         process_name = ""
+        current_seq: Optional[int] = getattr(args, "seq", None)
+
         if getattr(args, "buffer", ""):
             buffer_text = getattr(args, "buffer", "")
             process_name = getattr(args, "process", "")
@@ -528,12 +534,19 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
             try:
                 info = herdr.agent_info(pane_id)
                 process_name = info.get("process_name") or info.get("command") or ""
+                if current_seq is None and isinstance(info.get("state_change_seq"), int):
+                    current_seq = info.get("state_change_seq")
             except herdr.HerdrError:
                 pass
+
+        # Progress self-healing: if sequence advanced, reset consecutive counter before evaluation
+        if current_seq is not None and prev_seq is not None and current_seq > prev_seq:
+            consecutive = 0
 
         judgment = watchdog.evaluate_watchdog_state(
             buffer_tail=buffer_text,
             process_name=process_name,
+            consecutive_extensions=consecutive,
         )
 
         res: Dict[str, Any] = {
@@ -547,14 +560,24 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
         }
 
         if judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE:
-            watchdog.apply_lease_extension(
+            updated_state = watchdog.apply_lease_extension(
                 state_path(args),
                 lane_id,
                 judgment.verdict,
                 extension_seconds=judgment.lease_extension_seconds,
+                current_seq=current_seq,
             )
+            updated_lane = updated_state.get("lanes", {}).get(lane_id, {})
             res["lease_extended_seconds"] = judgment.lease_extension_seconds
+            res["consecutive_extensions"] = updated_lane.get("consecutive_extensions", consecutive + 1)
         elif judgment.verdict == watchdog.WatchdogVerdict.NUDGE:
+            if current_seq is not None:
+                watchdog.apply_lease_extension(
+                    state_path(args),
+                    lane_id,
+                    judgment.verdict,
+                    current_seq=current_seq,
+                )
             if pane_id and herdr.in_herdr() and judgment.nudge_command:
                 try:
                     herdr.run_herdr(["pane", "send-keys", pane_id, judgment.nudge_command])
@@ -570,7 +593,8 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
         for r in results:
             print(f"[{r['verdict']}] Lane {r['lane']} (pane {r['pane_id']}): {r['reason']}")
             if "lease_extended_seconds" in r:
-                print(f"  -> Watchdog lease extended by {r['lease_extended_seconds']}s")
+                cons = r.get("consecutive_extensions", 1)
+                print(f"  -> Watchdog lease extended by {r['lease_extended_seconds']}s (consecutive={cons})")
 
     return 0
 
@@ -711,6 +735,13 @@ def build_parser() -> argparse.ArgumentParser:
     watchdog_p.add_argument("--sweep", action="store_true", help="sweep all awaiting lanes")
     watchdog_p.add_argument("--buffer", default="", help="test buffer override")
     watchdog_p.add_argument("--process", default="", help="test process name override")
+    watchdog_p.add_argument(
+        "--inactivity-threshold",
+        type=int,
+        default=watchdog.DEFAULT_BASE_INSPECTION_SECONDS,
+        help="inactivity threshold in seconds before semantic inspection (default: 180s / 3m)",
+    )
+    watchdog_p.add_argument("--seq", type=int, default=None, help="override current state_change_seq")
     watchdog_p.add_argument("--json", action="store_true")
     watchdog_p.set_defaults(func=cmd_watchdog)
 

@@ -153,7 +153,7 @@ export const PHASE0_TODOS = Object.freeze([
  * nothing new.
  */
 export const DEFAULT_STALL_INTERVAL_MS = 60_000;
-export const DEFAULT_STALL_POLLS = 10;
+export const DEFAULT_STALL_POLLS = 3;
 export const STALL_THRESHOLD_MS =
   DEFAULT_STALL_POLLS * DEFAULT_STALL_INTERVAL_MS;
 

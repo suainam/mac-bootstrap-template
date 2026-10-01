@@ -401,7 +401,7 @@ long-lived omp extension cannot clobber each other:
 
 | Writer | May write |
 |---|---|
-| Herdr plugin (`update_lane(writer="plugin")`) | lane `tokens`, `status`, `pane_id`, `agent_name`, `watchdog_verdict`, `watchdog_evaluated_at_unix_ms`, `watchdog_lease_until_unix_ms` |
+| Herdr plugin (`update_lane(writer="plugin")`) | lane `tokens`, `status`, `pane_id`, `agent_name`, `watchdog_verdict`, `watchdog_evaluated_at_unix_ms`, `watchdog_lease_until_unix_ms`, `consecutive_extensions`, `last_seen_seq` |
 | omp extension (`update_lane(writer="extension")`) | lane `phase`, `handoff`, `notified_at` |
 | omp extension only | Phase 0 (`orchestrator_phase`, `blocked_reason`, `brain`, `active_panes`) |
 
@@ -409,13 +409,14 @@ Crossing a partition raises rather than silently dropping the write.
 
 ## Gate D: Zero-Token Semantic Watchdog (Issue #134)
 
-When a child lane is quiet for $\ge$ 10 minutes (measured by monotonic `state_change_seq`),
+When a child lane is quiet for $\ge$ 3 minutes (measured by monotonic `state_change_seq`),
 the semantic watchdog (`lib/watchdog_judge.py`) evaluates whether the lane is engaged in
 legitimate heavy computation (e.g. `cargo build`, `pytest`, `npm install`) or is hung:
 
 - **Non-autoregressive classification**: Invokes TypeSafe Jev System One endpoint for typed Noul probabilities, consuming zero conversational tokens.
 - **Strict buffer truncation**: Extracts at most the tail 15 lines of sanitized terminal output with ANSI sequences stripped.
-- **Autonomous lease extension**: When $P(\text{legitimate}) > 0.70$, automatically extends the watchdog lease by 10 minutes (`watchdog_lease_until_unix_ms`), preventing false alarms to human operators.
+- **Dynamic stepped backoff & jitter**: When $P(\text{legitimate}) > 0.70$, automatically extends the watchdog lease with stepped backoff (1st extension: 3m, 2nd: 5m, 3rd+: 10m cap) plus $\pm 15$s random jitter to prevent API thundering herds.
+- **Forward progress self-healing**: When `state_change_seq` advances, the consecutive extension counter resets to 0 (next extension returns to 3m baseline).
 - **Prompt nudge / abort**: When $P(\text{stalled}) > 0.65$, triggers an automated soft nudge (`\n`) for interactive input prompts or aborts fatal deadlocks.
 
 ```bash

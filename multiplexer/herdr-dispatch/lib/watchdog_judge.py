@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import time
 import urllib.error
@@ -36,7 +37,10 @@ ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 # Default endpoints and models
 DEFAULT_TYPESAFE_API_URL = "https://api.typesafe.ai/v1/systemone"
 DEFAULT_JEV_MODEL = "jev-latest"
-DEFAULT_LEASE_EXTENSION_SECONDS = 600  # 10 minutes
+DEFAULT_BASE_INSPECTION_SECONDS = 180  # 3 minutes base inactivity inspection
+LEASE_STEP_SECONDS: Sequence[int] = (180, 300, 600)  # 3m -> 5m -> 10m (cap)
+DEFAULT_JITTER_SECONDS = 15
+DEFAULT_LEASE_EXTENSION_SECONDS = 180  # Default 1st step base (3 minutes)
 
 # Thresholds per Issue #134 specification
 THRESHOLD_LEGITIMATE_LONG_RUNNING = 0.70
@@ -129,7 +133,42 @@ def extract_tail_buffer(text: str, max_lines: int = 15) -> str:
     return "\n".join(tail)
 
 
-def _heuristic_judgment(buffer_tail: str, process_name: str) -> WatchdogJudgment:
+def compute_stepped_lease_seconds(
+    consecutive_extensions: int,
+    jitter_range: int = DEFAULT_JITTER_SECONDS,
+    rng: Optional[random.Random] = None,
+) -> int:
+    """Compute lease extension duration using stepped backoff and random jitter.
+
+    Steps:
+    - 1st extension (consecutive=0): 180s (3m)
+    - 2nd extension (consecutive=1): 300s (5m)
+    - 3rd+ extension (consecutive>=2): 600s (10m ceiling)
+
+    Jitter:
+    - Adds uniform random integer in [-jitter_range, +jitter_range] (default ±15s).
+    - Result clamped to at least 60s for safety.
+    """
+    count = max(0, int(consecutive_extensions))
+    idx = min(count, len(LEASE_STEP_SECONDS) - 1)
+    base = LEASE_STEP_SECONDS[idx]
+
+    if jitter_range > 0:
+        rand_func = rng.randint if rng is not None else random.randint
+        delta = rand_func(-jitter_range, jitter_range)
+    else:
+        delta = 0
+
+    return max(60, base + delta)
+
+
+def _heuristic_judgment(
+    buffer_tail: str,
+    process_name: str,
+    consecutive_extensions: int = 0,
+    jitter_range: int = DEFAULT_JITTER_SECONDS,
+    rng: Optional[random.Random] = None,
+) -> WatchdogJudgment:
     """Offline heuristic judgment based on common compiler/toolchain signatures."""
     combined = f"{process_name}\n{buffer_tail}"
 
@@ -138,12 +177,15 @@ def _heuristic_judgment(buffer_tail: str, process_name: str) -> WatchdogJudgment
     has_prompt = bool(INTERACTIVE_PROMPT_PATTERNS.search(combined))
 
     if has_legitimate and not has_prompt:
+        ext_sec = compute_stepped_lease_seconds(
+            consecutive_extensions, jitter_range=jitter_range, rng=rng
+        )
         return WatchdogJudgment(
             verdict=WatchdogVerdict.EXTEND_LEASE,
             p_legitimate=0.88,
             p_stalled=0.05,
             reason="Heuristic: Legitimate compilation/test activity detected in tail buffer",
-            lease_extension_seconds=DEFAULT_LEASE_EXTENSION_SECONDS,
+            lease_extension_seconds=ext_sec,
             model="heuristic-fallback",
         )
 
@@ -185,6 +227,9 @@ def evaluate_watchdog_state(
     timeout: float = 5.0,
     api_url: Optional[str] = None,
     model: Optional[str] = None,
+    consecutive_extensions: int = 0,
+    jitter_range: int = DEFAULT_JITTER_SECONDS,
+    rng: Optional[random.Random] = None,
 ) -> WatchdogJudgment:
     """Evaluate child lane state using TypeSafe Jev System One or offline fallback."""
     clean_tail = extract_tail_buffer(buffer_tail, max_lines=15)
@@ -202,7 +247,13 @@ def evaluate_watchdog_state(
                 pass
 
     if not resolved_key:
-        return _heuristic_judgment(clean_tail, process_name)
+        return _heuristic_judgment(
+            clean_tail,
+            process_name,
+            consecutive_extensions=consecutive_extensions,
+            jitter_range=jitter_range,
+            rng=rng,
+        )
 
     endpoint = api_url or os.environ.get("TYPESAFE_API_URL") or DEFAULT_TYPESAFE_API_URL
     target_model = model or os.environ.get("TYPESAFE_MODEL") or DEFAULT_JEV_MODEL
@@ -260,7 +311,13 @@ def evaluate_watchdog_state(
             parsed = json.loads(resp_data)
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError):
         # Graceful fallback on network or API failure
-        return _heuristic_judgment(clean_tail, process_name)
+        return _heuristic_judgment(
+            clean_tail,
+            process_name,
+            consecutive_extensions=consecutive_extensions,
+            jitter_range=jitter_range,
+            rng=rng,
+        )
 
     answers = parsed.get("answers", {})
     p_legit = float(answers.get("is_legitimate_long_running", {}).get("noul", 0.0))
@@ -268,12 +325,15 @@ def evaluate_watchdog_state(
     actual_model = parsed.get("model", target_model)
 
     if p_legit > THRESHOLD_LEGITIMATE_LONG_RUNNING:
+        ext_sec = compute_stepped_lease_seconds(
+            consecutive_extensions, jitter_range=jitter_range, rng=rng
+        )
         return WatchdogJudgment(
             verdict=WatchdogVerdict.EXTEND_LEASE,
             p_legitimate=p_legit,
             p_stalled=p_stalled,
             reason=f"TypeSafe Jev: Legitimate long-running work confirmed (P={p_legit:.2f} > {THRESHOLD_LEGITIMATE_LONG_RUNNING})",
-            lease_extension_seconds=DEFAULT_LEASE_EXTENSION_SECONDS,
+            lease_extension_seconds=ext_sec,
             model=actual_model,
         )
 
@@ -322,19 +382,60 @@ def apply_lease_extension(
     state_path: Path,
     lane_id: str,
     verdict: WatchdogVerdict,
-    extension_seconds: int = DEFAULT_LEASE_EXTENSION_SECONDS,
+    extension_seconds: Optional[int] = None,
+    current_seq: Optional[int] = None,
     now_ms: Optional[int] = None,
+    jitter_range: int = DEFAULT_JITTER_SECONDS,
+    rng: Optional[random.Random] = None,
 ) -> Dict[str, Any]:
-    """Persist watchdog evaluation verdict and lease extension into state file."""
+    """Persist watchdog evaluation verdict and lease extension into state file.
+
+    Handles stepped backoff tracking and forward progress reset:
+    - If current_seq > last_seen_seq, forward progress occurred: reset consecutive_extensions = 0.
+    - If verdict is EXTEND_LEASE, computes stepped lease seconds (if extension_seconds is None)
+      and increments consecutive_extensions += 1.
+    - Persists last_seen_seq if current_seq is provided.
+    """
     import orchestrator_state as brain
 
     current_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+
+    try:
+        current_state = brain.load(state_path)
+        lane = current_state.get("lanes", {}).get(lane_id, {})
+        if not isinstance(lane, Mapping):
+            lane = {}
+    except (brain.StateError, OSError):
+        lane = {}
+
+    prev_seq = lane.get("last_seen_seq")
+    consecutive = int(lane.get("consecutive_extensions") or 0)
+
+    # Forward progress self-healing: if state_change_seq advanced, reset consecutive counter
+    if current_seq is not None and prev_seq is not None and current_seq > prev_seq:
+        consecutive = 0
+
     fields: Dict[str, Any] = {
         "watchdog_verdict": verdict.value if isinstance(verdict, WatchdogVerdict) else str(verdict),
         "watchdog_evaluated_at_unix_ms": current_ms,
     }
 
+    if current_seq is not None:
+        fields["last_seen_seq"] = current_seq
+
     if verdict == WatchdogVerdict.EXTEND_LEASE:
-        fields["watchdog_lease_until_unix_ms"] = current_ms + (extension_seconds * 1000)
+        if extension_seconds is None:
+            actual_seconds = compute_stepped_lease_seconds(
+                consecutive, jitter_range=jitter_range, rng=rng
+            )
+        else:
+            actual_seconds = extension_seconds
+
+        fields["watchdog_lease_until_unix_ms"] = current_ms + (actual_seconds * 1000)
+        fields["consecutive_extensions"] = consecutive + 1
+    else:
+        if current_seq is not None and prev_seq is not None and current_seq > prev_seq:
+            fields["consecutive_extensions"] = 0
 
     return brain.update_lane(state_path, lane_id, fields, writer="plugin")
+
