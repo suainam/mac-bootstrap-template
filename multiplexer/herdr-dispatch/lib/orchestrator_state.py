@@ -93,7 +93,19 @@ WAKE_SIGNALS: frozenset[str] = frozenset({"notify", "stall_alarm", "human"})
 # Fields each writer owns. Enforced so the two processes never race on the
 # same key: the plugin process owns lane presentation, the extension owns
 # everything else.
-WRITER_PLUGIN_OWNED = frozenset({"tokens", "status", "pane_id", "agent_name"})
+WRITER_PLUGIN_OWNED = frozenset(
+    {
+        "tokens",
+        "status",
+        "pane_id",
+        "agent_name",
+        "watchdog_verdict",
+        "watchdog_evaluated_at_unix_ms",
+        "watchdog_lease_until_unix_ms",
+        "consecutive_extensions",
+        "last_seen_seq",
+    }
+)
 WRITER_EXTENSION_OWNED = frozenset({"phase", "handoff", "notified_at"})
 WRITER_BRAIN_OWNED = frozenset(
     {

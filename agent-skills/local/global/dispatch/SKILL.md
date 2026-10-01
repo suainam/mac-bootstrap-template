@@ -159,7 +159,7 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 
 ### Phase 4: Fire-and-Yield Supervision
 - **Yield immediately**: The `herdr agent prompt` call and `todo(op="block")` are terminal actions. Stop and yield control to user.
-- **Zero-Token L2 Watchdog**: Run `herdr agent get <name>` only on suspected stall ($\ge$ 10 min without state change). Details in [references/supervision.md](references/supervision.md).
+- **Zero-Token L2 Watchdog & Gate D Semantic Watchdog**: Check `herdr agent get <name>` on suspected stall ($\ge$ 10 min without state change). Gate D (`dispatch_plugin.py watchdog --lane <id>`) parses tail 15-line buffer via TypeSafe Jev System One: extends lease by 10 min if $P(\text{legitimate}) > 0.70$ (zero false alarms); sends soft nudge or aborts if $P(\text{stalled}) > 0.65$. Details in [references/supervision.md](references/supervision.md).
 
 ### Phase 5: Result Harvest & Human Gate
 1. **Unblock Todo**: `todo(op="unblock", task="<task>")` when `[NOTIFY]` arrives or when harvesting.

@@ -36,6 +36,7 @@ import lane_isolation as isolation  # noqa: E402
 import orchestrator_guard as guard_mod  # noqa: E402
 import orchestrator_state as brain  # noqa: E402
 import prompt_protocol as promptproto  # noqa: E402
+import watchdog_judge as watchdog  # noqa: E402
 
 PLUGIN_SOURCE = "plugin:herdr-dispatch"
 
@@ -471,6 +472,133 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_watchdog(args: argparse.Namespace) -> int:
+    """Gate D: Zero-Token Semantic Watchdog check (Issue #134).
+
+    Evaluates whether a quiet child lane is running heavy computation (compilation/test)
+    or is stalled/deadlocked. If legitimate, extends lease by 10m (zero false alarms).
+    If stalled, nudges or alerts.
+    """
+    path = state_path(args)
+    try:
+        state = brain.load(path)
+    except brain.StateError:
+        state = _state(getattr(args, "repo", None))
+    lanes = _lanes(state)
+    target_lanes: List[Dict[str, Any]] = []
+
+    if args.lane:
+        matched = [l for l in lanes if l.get("lane") == args.lane]
+        if matched:
+            target_lanes = matched
+        else:
+            lane_dict = state.get("lanes", {}).get(args.lane, {})
+            target_lanes = [{"lane": args.lane, "pane_id": lane_dict.get("pane_id") or lane_dict.get("pane")}]
+    elif args.sweep:
+        awaiting = state.get("brain", {}).get("awaiting_lanes", [])
+        if awaiting:
+            target_lanes = [l for l in lanes if l.get("lane") in awaiting]
+        else:
+            target_lanes = lanes
+    else:
+        print("dispatch watchdog: specify --lane <lane> or --sweep", file=sys.stderr)
+        return 1
+
+    results = []
+    for lane_entry in target_lanes:
+        lane_id = lane_entry.get("lane")
+        pane_id = lane_entry.get("pane_id") or lane_entry.get("pane")
+        if not lane_id:
+            continue
+
+        lane_record = state.get("lanes", {}).get(lane_id, {})
+        consecutive = int(lane_record.get("consecutive_extensions") or 0)
+        prev_seq = lane_record.get("last_seen_seq")
+
+        buffer_text = ""
+        process_name = ""
+        current_seq: Optional[int] = getattr(args, "seq", None)
+
+        if getattr(args, "buffer", ""):
+            buffer_text = getattr(args, "buffer", "")
+            process_name = getattr(args, "process", "")
+        elif pane_id and herdr.in_herdr():
+            try:
+                read_res = herdr.run_herdr(["pane", "read", pane_id, "--source", "visible"])
+                if isinstance(read_res, Mapping):
+                    buffer_text = read_res.get("text", "")
+                elif isinstance(read_res, str):
+                    buffer_text = read_res
+            except herdr.HerdrError:
+                buffer_text = ""
+            try:
+                info = herdr.agent_info(pane_id)
+                process_name = info.get("process_name") or info.get("command") or ""
+                if current_seq is None and isinstance(info.get("state_change_seq"), int):
+                    current_seq = info.get("state_change_seq")
+            except herdr.HerdrError:
+                pass
+
+        # Progress self-healing: if sequence advanced, reset consecutive counter before evaluation
+        if current_seq is not None and prev_seq is not None and current_seq > prev_seq:
+            consecutive = 0
+
+        judgment = watchdog.evaluate_watchdog_state(
+            buffer_tail=buffer_text,
+            process_name=process_name,
+            consecutive_extensions=consecutive,
+        )
+
+        res: Dict[str, Any] = {
+            "lane": lane_id,
+            "pane_id": pane_id or "",
+            "verdict": judgment.verdict.value,
+            "p_legitimate": judgment.p_legitimate,
+            "p_stalled": judgment.p_stalled,
+            "reason": judgment.reason,
+            "model": judgment.model,
+        }
+
+        if judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE:
+            updated_state = watchdog.apply_lease_extension(
+                state_path(args),
+                lane_id,
+                judgment.verdict,
+                extension_seconds=judgment.lease_extension_seconds,
+                current_seq=current_seq,
+            )
+            updated_lane = updated_state.get("lanes", {}).get(lane_id, {})
+            res["lease_extended_seconds"] = judgment.lease_extension_seconds
+            res["consecutive_extensions"] = updated_lane.get("consecutive_extensions", consecutive + 1)
+        elif judgment.verdict == watchdog.WatchdogVerdict.NUDGE:
+            if current_seq is not None:
+                watchdog.apply_lease_extension(
+                    state_path(args),
+                    lane_id,
+                    judgment.verdict,
+                    current_seq=current_seq,
+                )
+            if pane_id and herdr.in_herdr() and judgment.nudge_command:
+                try:
+                    herdr.run_herdr(["pane", "send-keys", pane_id, judgment.nudge_command])
+                    res["nudge_sent"] = True
+                except herdr.HerdrError:
+                    res["nudge_sent"] = False
+
+        results.append(res)
+
+    if args.json:
+        print(json.dumps({"results": results}, indent=2, ensure_ascii=False))
+    else:
+        for r in results:
+            print(f"[{r['verdict']}] Lane {r['lane']} (pane {r['pane_id']}): {r['reason']}")
+            if "lease_extended_seconds" in r:
+                cons = r.get("consecutive_extensions", 1)
+                print(f"  -> Watchdog lease extended by {r['lease_extended_seconds']}s (consecutive={cons})")
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dispatch-plugin", description="herdr-dispatch plugin commands (TB-03)"
@@ -597,6 +725,25 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--highlight", action="append", default=[])
     dispatch.add_argument("--risk", action="append", default=[])
     dispatch.set_defaults(func=cmd_dispatch)
+
+    watchdog_p = sub.add_parser(
+        "watchdog",
+        help="Gate D: evaluate semantic watchdog on quiet lane(s) (Issue #134)",
+    )
+    watchdog_p.add_argument("--lane", default="", help="lane id to evaluate, e.g. 1-4")
+    watchdog_p.add_argument("--repo", default=None, help="repository root")
+    watchdog_p.add_argument("--sweep", action="store_true", help="sweep all awaiting lanes")
+    watchdog_p.add_argument("--buffer", default="", help="test buffer override")
+    watchdog_p.add_argument("--process", default="", help="test process name override")
+    watchdog_p.add_argument(
+        "--inactivity-threshold",
+        type=int,
+        default=watchdog.DEFAULT_BASE_INSPECTION_SECONDS,
+        help="inactivity threshold in seconds before semantic inspection (default: 180s / 3m)",
+    )
+    watchdog_p.add_argument("--seq", type=int, default=None, help="override current state_change_seq")
+    watchdog_p.add_argument("--json", action="store_true")
+    watchdog_p.set_defaults(func=cmd_watchdog)
 
     return parser
 

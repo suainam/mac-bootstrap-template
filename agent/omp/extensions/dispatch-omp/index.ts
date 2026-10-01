@@ -153,7 +153,7 @@ export const PHASE0_TODOS = Object.freeze([
  * nothing new.
  */
 export const DEFAULT_STALL_INTERVAL_MS = 60_000;
-export const DEFAULT_STALL_POLLS = 10;
+export const DEFAULT_STALL_POLLS = 3;
 export const STALL_THRESHOLD_MS =
   DEFAULT_STALL_POLLS * DEFAULT_STALL_INTERVAL_MS;
 
@@ -544,6 +544,15 @@ export default function dispatchBrain(pi) {
       }
 
       if (!info) continue;
+
+      // Gate D: Semantic Watchdog lease extension (Issue #134). If an active lease
+      // was granted (verified heavy compilation / test), do not alarm the human.
+      const leaseUntil = lanes?.[laneId]?.watchdog_lease_until_unix_ms;
+      if (Number.isFinite(leaseUntil) && leaseUntil > Date.now()) {
+        stallByLane.set(laneId, 0);
+        alarmedLanes.delete(laneId);
+        continue;
+      }
 
       const current = Number.isFinite(info.state_change_seq) ? info.state_change_seq : null;
       const previous = lastSeq.get(laneId) ?? null;
