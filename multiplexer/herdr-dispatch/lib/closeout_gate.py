@@ -19,14 +19,18 @@ The gate
 :attr:`CloseoutReport.allowed` is true, and only then may the caller destroy
 anything. The order matters and is enforced by :data:`CLOSEOUT_STEPS`:
 
-1. ``docs_aligned`` — authoritative docs reconciled with the change;
-2. ``child_pushed`` — the child/submodule branch is on the remote;
-3. ``parent_pointer_updated`` — the parent gitlink points at that pushed commit;
-4. ``pr_merged`` — the PR is merged into the default branch;
-5. ``worktree_removed`` — the worktree is physically gone.
+1. ``handoff_truthful`` — the worker's Done claim survived the Gate C
+   truthfulness review (Issue #132). This step is *supplied*, not computed: a
+   caller that has not run the reviewer omits it, and the ladder then behaves
+   exactly as it did before Gate C existed.
+2. ``docs_aligned`` — authoritative docs reconciled with the change;
+3. ``child_pushed`` — the child/submodule branch is on the remote;
+4. ``parent_pointer_updated`` — the parent gitlink points at that pushed commit;
+5. ``pr_merged`` — the PR is merged into the default branch;
+6. ``worktree_removed`` — the worktree is physically gone.
 
 A failure stops the ladder. Reporting every remaining step as failed would be
-noise, and acting on step 5 while step 2 is untrue is the whole bug.
+noise, and acting on step 6 while step 3 is untrue is the whole bug.
 
 Verdicts are computed from *facts the caller supplies*, not from shelling out
 here. This module stays a pure, testable policy object; a caller resolves each
@@ -56,8 +60,15 @@ CLOSEOUT_STEPS: tuple[str, ...] = (
     "worktree_removed",
 )
 
+# Gate C: the supplied precondition (Issue #132). It is not part of
+# :data:`CLOSEOUT_STEPS` because it is not a lifecycle step — it judges whether
+# the work was real before the lifecycle begins. A caller that has not run
+# ``verify-handoff`` omits it, and the ladder is unchanged.
+HANDOFF_TRUTHFUL_STEP = "handoff_truthful"
+
 # Human-readable labels, so a report reads as prose rather than as identifiers.
 STEP_LABELS: Dict[str, str] = {
+    HANDOFF_TRUTHFUL_STEP: "handoff survived the Gate C truthfulness review",
     "docs_aligned": "authoritative docs aligned with the change",
     "child_pushed": "child/submodule branch pushed to the remote",
     "parent_pointer_updated": "parent gitlink points at the pushed child commit",
@@ -77,11 +88,20 @@ PANE_CLOSE_GATE_STEP = "worktree_removed"
 # unproven step must block. This is the fail-loud property from the orchestrator
 # lessons doc, applied to closeout.
 STEP_FACTS: Dict[str, tuple[str, ...]] = {
+    HANDOFF_TRUTHFUL_STEP: ("handoff_verdict", "handoff_accepted", "verified"),
     "docs_aligned": ("docs_reconciled",),
     "child_pushed": ("branch_pushed", "remote_contains_head"),
     "parent_pointer_updated": ("pointer_at_pushed_commit",),
     "pr_merged": ("pr_merged", "default_branch_contains_head"),
     "worktree_removed": ("worktree_absent",),
+}
+
+# Facts whose *value* must be one of a fixed set, not merely truthy. The Gate C
+# verdict is checked against this before any truthiness test, so a report
+# carrying "UNVERIFIED_CLAIMS" is refused and named in the detail rather than
+# being waved through by a stale ``accepted: true`` elsewhere in the bundle.
+STEP_FACT_VALUES: Dict[str, Dict[str, frozenset]] = {
+    HANDOFF_TRUTHFUL_STEP: {"handoff_verdict": frozenset({"ACCEPTED"})},
 }
 
 
@@ -196,6 +216,24 @@ def evaluate_step(
         return StepResult(step=step, passed=False, detail=f"unknown closeout step {step!r}")
 
     supplied = dict(facts or {})
+
+    # Value constraints are checked before truthiness, so a report that names a
+    # failing verdict is refused *and* the detail quotes that verdict. Checking
+    # truthiness first would let a bundle whose other flags are false report only
+    # "handoff_accepted is false" and hide what actually went wrong.
+    for name, allowed in STEP_FACT_VALUES.get(step, {}).items():
+        if name in supplied and supplied[name] not in allowed:
+            permitted = ", ".join(sorted(allowed))
+            return StepResult(
+                step=step,
+                passed=False,
+                detail=(
+                    f"failing: {name} is {supplied[name]!r}, "
+                    f"only {permitted} may proceed"
+                ),
+                facts=supplied,
+            )
+
     missing = [name for name in required if name not in supplied]
     falsey = [
         name for name in required if name in supplied and not bool(supplied[name])
@@ -221,12 +259,19 @@ def evaluate_closeout(
     *,
     steps: Sequence[str] = CLOSEOUT_STEPS,
     stop_at_first_failure: bool = True,
+    truthfulness: Optional[Mapping[str, Any]] = None,
 ) -> CloseoutReport:
     """Run the closeout ladder and report whether destruction is permitted.
 
     ``evidence`` maps a step name to its facts, as produced by the caller's git
     and ``gh`` probes. A step absent from ``evidence`` is evaluated as having no
     facts, which fails it.
+
+    ``truthfulness`` supplies the Gate C precondition from Issue #132. When
+    present it is evaluated *first*, before any lifecycle step, because pushing
+    and merging an unverified lane is the expensive version of the mistake. When
+    absent the ladder is exactly :data:`CLOSEOUT_STEPS`, so existing callers are
+    unaffected.
 
     ``stop_at_first_failure`` keeps the report honest about ordering: later
     steps are reported as not reached rather than as independently broken, so
@@ -236,7 +281,11 @@ def evaluate_closeout(
     supplied = dict(evidence or {})
     failure_seen = False
 
-    for step in steps:
+    ladder: List[str] = list(steps)
+    if truthfulness is not None:
+        ladder.insert(0, HANDOFF_TRUTHFUL_STEP)
+
+    for step in ladder:
         if failure_seen and stop_at_first_failure:
             report.steps.append(
                 StepResult(
@@ -246,7 +295,10 @@ def evaluate_closeout(
                 )
             )
             continue
-        result = evaluate_step(step, supplied.get(step, {}))
+        if step == HANDOFF_TRUTHFUL_STEP:
+            result = evaluate_step(step, truthfulness or {})
+        else:
+            result = evaluate_step(step, supplied.get(step, {}))
         report.steps.append(result)
         if not result.passed:
             failure_seen = True
@@ -257,6 +309,8 @@ def evaluate_closeout(
 def assert_closeout_allowed(
     lane_id: str,
     evidence: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    *,
+    truthfulness: Optional[Mapping[str, Any]] = None,
 ) -> CloseoutReport:
     """Gate for a destructive action: return the report, or raise.
 
@@ -264,7 +318,7 @@ def assert_closeout_allowed(
     close`` or ``git worktree remove``. Refusing loudly is the point — a silent
     skip here is how the premature-destruction lesson repeats.
     """
-    report = evaluate_closeout(lane_id, evidence)
+    report = evaluate_closeout(lane_id, evidence, truthfulness=truthfulness)
     if not report.allowed:
         raise CloseoutGateError(report.render())
     return report

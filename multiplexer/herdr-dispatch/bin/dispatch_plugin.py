@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 import closeout_gate as gate  # noqa: E402
 import dispatch_bus as bus  # noqa: E402
+import handoff_judge as handoff  # noqa: E402
 import herdr_client as herdr  # noqa: E402
 import lane_isolation as isolation  # noqa: E402
 import orchestrator_guard as guard_mod  # noqa: E402
@@ -278,12 +279,141 @@ def cmd_closeout(args: argparse.Namespace) -> int:
             return 2
         evidence = {k: v for k, v in loaded.items() if isinstance(v, dict)}
 
-    report = gate.evaluate_closeout(args.lane, evidence)
+    truthfulness, truth_err = _truthfulness(args)
+    if truth_err:
+        print(truth_err, file=sys.stderr)
+        return 2
+
+    report = gate.evaluate_closeout(args.lane, evidence, truthfulness=truthfulness)
     if args.json:
         print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
     else:
         print(report.render())
     return 0 if report.allowed else EXIT_GATE_REFUSED
+
+
+def _truthfulness(args: argparse.Namespace) -> tuple[Optional[Dict[str, Any]], str]:
+    """Load a Gate C report supplied as ``--handoff-report`` into gate facts.
+
+    Returns ``(None, "")`` when no report was supplied, which leaves the
+    lifecycle ladder untouched. A report that is present but unusable is an
+    error, not an omission: quietly dropping a malformed report would re-open
+    exactly the hole the reviewer was installed to close.
+    """
+    raw = getattr(args, "handoff_report", None)
+    if not raw:
+        return None, ""
+    # Accept either a path to a Gate C report or the report itself, so a caller
+    # can pipe it in the same way every other evidence input is supplied.
+    if os.path.exists(raw):
+        try:
+            raw = Path(os.path.expanduser(raw)).read_text(encoding="utf-8")
+        except OSError as exc:
+            return None, f"dispatch: cannot read --handoff-report {raw} ({exc})"
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return None, f"dispatch: --handoff-report is not valid JSON ({exc})"
+    if not isinstance(loaded, dict) or "verdict" not in loaded:
+        return None, (
+            "dispatch: --handoff-report must be a Gate C report object "
+            "carrying a 'verdict' field"
+        )
+    accepted = bool(loaded.get("accepted"))
+    return {
+        "handoff_verdict": loaded.get("verdict"),
+        "handoff_accepted": accepted,
+        "verified": accepted,
+    }, ""
+
+
+def _read_evidence_input(
+    inline: Optional[str], path: Optional[str], label: str
+) -> tuple[str, str]:
+    """Resolve one evidence input from an inline string or a file.
+
+    ``-`` means stdin, which is how a caller pipes a handoff or a live test log
+    without staging a temp file. Returns ``(text, error)`` rather than raising,
+    so the caller decides the exit code.
+    """
+    if inline is not None:
+        return inline, ""
+    if not path:
+        return "", ""
+    if path == "-":
+        return sys.stdin.read(), ""
+    resolved = Path(os.path.expanduser(path))
+    try:
+        return resolved.read_text(encoding="utf-8", errors="replace"), ""
+    except OSError as exc:
+        return "", f"dispatch: cannot read {label} {resolved} ({exc})"
+
+
+def cmd_verify_handoff(args: argparse.Namespace) -> int:
+    """Gate C: review a worker's Done claim against its physical evidence.
+
+    Facts are decided in code and semantic judgment is delegated to Jev, so a red
+    suite is refused without spending a model call. Exits 2 when the claim is not
+    corroborated; the rendered report carries the message to hand back to the
+    worker.
+    """
+    raw_exit = args.exit_code
+    if raw_exit is None:
+        print(
+            "dispatch verify-handoff: pass --exit-code <n> from the test command. "
+            "A Done claim without a physical exit code cannot be verified.",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+    try:
+        test_exit_code = int(raw_exit)
+    except (TypeError, ValueError):
+        print(
+            f"dispatch verify-handoff: --exit-code must be an integer (got {raw_exit!r})",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+
+    # Inputs are resolved before any judging, so a typo in a path is reported as
+    # a bad path rather than as a failed truthfulness review.
+    handoff_text, err = _read_evidence_input(args.handoff_text, args.handoff, "handoff")
+    if err:
+        print(err, file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    test_output, err = _read_evidence_input(args.test_log_text, args.test_log, "test log")
+    if err:
+        print(err, file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    diff_summary, err = _read_evidence_input(args.diff_text, args.diff, "diff summary")
+    if err:
+        print(err, file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    report = handoff.verify_handoff(
+        handoff_text=handoff_text,
+        test_exit_code=test_exit_code,
+        test_output=test_output,
+        diff_summary=diff_summary,
+        expected_files=tuple(args.expect_file or ()),
+        # An explicit empty key forces the offline heuristic, so --offline
+        # exercises the fallback path deterministically.
+        key="" if args.offline else None,
+    )
+
+    if args.json:
+        payload = report.as_dict()
+        payload["lane"] = args.lane or ""
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(f"handoff truth gate: lane={args.lane or '-'}")
+        print(report.render())
+
+    if not report.accepted:
+        print(
+            f"dispatch verify-handoff: closeout is blocked for lane {args.lane or '-'}",
+            file=sys.stderr,
+        )
+    return 0 if report.accepted else EXIT_GATE_REFUSED
 
 
 def cmd_prompt(args: argparse.Namespace) -> int:
@@ -641,6 +771,11 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument(
         "--evidence", default="", help="JSON object of closeout step facts"
     )
+    closeout.add_argument(
+        "--handoff-report",
+        default="",
+        help="Gate C report JSON; a non-ACCEPTED verdict blocks closeout",
+    )
     closeout.add_argument("--json", action="store_true")
     closeout.set_defaults(func=cmd_closeout)
 
@@ -744,6 +879,39 @@ def build_parser() -> argparse.ArgumentParser:
     watchdog_p.add_argument("--seq", type=int, default=None, help="override current state_change_seq")
     watchdog_p.add_argument("--json", action="store_true")
     watchdog_p.set_defaults(func=cmd_watchdog)
+
+    verify = sub.add_parser(
+        "verify-handoff",
+        help="Gate C: review a Done claim against its test exit code and git diff",
+    )
+    verify.add_argument("--lane", default="", help="lane label for the report")
+    handoff_source = verify.add_mutually_exclusive_group()
+    handoff_source.add_argument("--handoff", default=None, help="handoff file ('-' for stdin)")
+    handoff_source.add_argument("--handoff-text", default=None, help="the handoff itself")
+    log_source = verify.add_mutually_exclusive_group()
+    log_source.add_argument("--test-log", default=None, help="captured test output file")
+    log_source.add_argument("--test-log-text", default=None, help="captured test output")
+    diff_source = verify.add_mutually_exclusive_group()
+    diff_source.add_argument("--diff", default=None, help="git diff summary file ('-' for stdin)")
+    diff_source.add_argument("--diff-text", default=None, help="git diff summary")
+    verify.add_argument(
+        "--exit-code",
+        default=None,
+        help="exit code of the test command; a non-zero value blocks in code",
+    )
+    verify.add_argument(
+        "--expect-file",
+        action="append",
+        default=[],
+        help="file the handoff claims to change; repeatable",
+    )
+    verify.add_argument(
+        "--offline",
+        action="store_true",
+        help="skip the Jev call and use the built-in heuristics",
+    )
+    verify.add_argument("--json", action="store_true")
+    verify.set_defaults(func=cmd_verify_handoff)
 
     return parser
 
