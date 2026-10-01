@@ -226,6 +226,19 @@ herdr agent prompt w3:p1 $'\n[NOTIFY] [w5:p1]\nDONE: landed\nHandoff: /tmp/x.md'
 single-quoted payload is repaired even if it reaches the gate. Use
 `--keep-escapes` to opt out.
 
+### When a note still appears after delivery
+
+`prompt --send` prints a note when backslash escapes remain literal in the
+delivered text. There are two causes, and the note names both:
+
+- the escapes are inside a **fenced code block**, left verbatim on purpose;
+- the text contains a **doubled backslash** (`\\n`), which is not expanded
+  because shell `$'...'` owns that escape.
+
+In the second case, write a **single** `\n` for a real line break. This is not a
+failure — it usually means the payload arrived through a layer that already
+consumed one level of escaping.
+
 ### What expansion does, and deliberately does not do
 
 `normalise_escapes` expands **only** `\n`, `\r` and `\t`, and only outside fenced

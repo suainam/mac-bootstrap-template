@@ -336,8 +336,9 @@ def cmd_prompt(args: argparse.Namespace) -> int:
             return 2
         if promptproto.has_literal_escape(payload) and not args.json:
             print(
-                "dispatch: warning - literal escapes remain inside a fenced code block "
-                "(left intact by design)",
+                "dispatch: note - some backslash escapes remain literal "
+                "(expected inside fenced code, or a doubled backslash such as "
+                "\\\\n). Write a single \\n for a real line break.",
                 file=sys.stderr,
             )
         print(f"dispatch: prompt delivered to {args.target}")
