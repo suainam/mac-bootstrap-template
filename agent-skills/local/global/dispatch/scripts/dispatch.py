@@ -55,6 +55,12 @@ MANDATORY_GOAL_SECTIONS = [
 #
 # Matched case-insensitively against the whole document, so the clause may live
 # in any section rather than being forced into a particular heading.
+#
+# Known limitation: this is a vocabulary check, not a commitment check. A contract
+# that merely *describes* these terms -- quoting the list to explain what the
+# rule requires -- satisfies it. That is the same trade every mechanical lint
+# makes, and tightening it toward "must appear in a directive position" would
+# be trivially gameable by rephrasing.
 EFFICIENCY_CRITERIA: List[str] = [
     "rtk",
     "caveman ultra",
@@ -65,7 +71,6 @@ SKILL_TOOLCHAIN: List[str] = [
     "to-spec",
     "to-tickets",
     "implement-spec",
-    "to-tickets",
     "implement",
     "wayfinder",
 ]

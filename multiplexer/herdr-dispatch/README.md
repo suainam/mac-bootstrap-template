@@ -319,6 +319,13 @@ check into box-ticking. Contracts predating the issue are grandfathered with
 `--allow-legacy`, which warns loudly on stderr rather than passing silently — a
 skipped check must never look like a passing one.
 
+**What it does not do:** this is a vocabulary check, not a commitment check. A
+contract that merely quotes the term list to explain what the rule requires
+satisfies it — observed live, when this repository's own contract passed because
+its goal statement enumerates the keywords. Requiring the term to appear in a
+directive position would be gameable by rephrasing, so the limit is documented
+rather than papered over.
+
 ## Ownership boundaries
 
 Writes are partitioned so the short-lived Herdr plugin process and the
