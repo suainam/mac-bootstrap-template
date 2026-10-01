@@ -313,6 +313,39 @@ def test_dispatch_parks_the_brain(repo: Path, task_file: Path, calls: dict) -> N
     assert state["orchestrator_phase"] == "yield_and_guard"
 
 
+def test_dispatch_records_the_lane_as_awaited(repo: Path, task_file: Path, calls: dict) -> None:
+    """A brain that parks without naming the lane is waiting on nothing.
+
+    Found by a live self-dispatch: `awaiting_lanes` came back empty while the
+    worker was demonstrably running, because the park was handed the previous
+    wait list instead of the lane just dispatched.
+    """
+    plugin.main(_argv(repo, task_file))
+    state = brain.load(brain.state_path(repo))
+    assert "1-3" in state["brain"]["awaiting_lanes"]
+
+
+def test_dispatch_walks_a_legal_transition_path(repo: Path, task_file: Path, calls: dict) -> None:
+    """contract -> topology -> yield_and_guard, never an illegal jump."""
+    assert plugin.main(_argv(repo, task_file)) == 0
+    state = brain.load(brain.state_path(repo))
+    # advance() raises on an illegal jump, so reaching the park proves the path
+    # was legal rather than forced.
+    assert state["orchestrator_phase"] == "yield_and_guard"
+
+
+def test_dispatch_refuses_when_the_brain_cannot_reach_the_park(repo, task_file, calls) -> None:
+    """A brain already past the park is refused, not silently rewound."""
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    state["orchestrator_phase"] = "closed"
+    brain.save(path, state)
+
+    assert plugin.main(_argv(repo, task_file)) == 2
+    assert calls["prompt"] == []
+    assert brain.load(path)["orchestrator_phase"] == "closed"
+
+
 # --------------------------------------------------------------------------
 # Atomicity — the property that makes the bus worth having
 # --------------------------------------------------------------------------

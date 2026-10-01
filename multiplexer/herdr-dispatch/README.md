@@ -374,6 +374,18 @@ name is reported even when the contract is also broken.
 Exit codes are deliberately distinct: `1` means "your task file is wrong", `2`
 means "this lane is unsafe".
 
+### Two properties worth knowing
+
+**The parked brain names the lane it waits for.** Parking with the *previous*
+wait list instead of the newly dispatched lane produces a brain that believes it
+is waiting on nothing while a worker demonstrably runs. Found by a live
+self-dispatch, not by reading code — the unit tests passed because the brain
+started empty, which hides exactly this bug.
+
+**A brain past the park is refused, not rewound.** If the state machine cannot
+reach `yield_and_guard` legally, the bus says so and mutates nothing. Rewinding a
+`closed` brain to re-dispatch would quietly discard a finished run.
+
 ### Lane naming is enforced, not documented
 
 `research-agy` is refused with exit 2, and the error says why: a bare slug
