@@ -163,12 +163,13 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 repo-check:
-	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
+	+$(MAKE) syntax-check skill-check privacy-audit dispatch-single-writer-gate pytest-parallel
 
 repo-check-serial:
 	$(MAKE) syntax-check
 	$(MAKE) skill-check
 	./scripts/privacy-audit.sh
+	$(MAKE) dispatch-single-writer-gate
 	$(MAKE) pytest
 
 repo-check-parallel: repo-check
@@ -409,6 +410,11 @@ system-upgrade:
 
 skill-check:
 	$(PYTHON) scripts/skill_supply_chain.py check
+
+# Fails when dispatch-owned code takes ownership of agent lifecycle
+# reporting, which Herdr's own `herdr:omp` integration already owns.
+dispatch-single-writer-gate:
+	$(PYTHON) scripts/dispatch-single-writer-gate.py
 
 prompt-sync:
 	./scripts/sync-agent-prompts.sh
