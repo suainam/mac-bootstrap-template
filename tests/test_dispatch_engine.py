@@ -26,6 +26,33 @@ StateTransitionError = dispatch.StateTransitionError
 TaskContractError = dispatch.TaskContractError
 lint_task_contract = dispatch.lint_task_contract
 resolve_state_file = dispatch.resolve_state_file
+check_toolchain_contract = dispatch.check_toolchain_contract
+
+# A structurally valid contract carrying *both* Issue #125 clauses. Each clause
+# is a separate substring so a test can strip one without emptying the section --
+# otherwise the structural check fires first and the toolchain check under test
+# never runs.
+_EFFICIENCY_CLAUSE = "并用 rtk 控制 token 开销"
+_SKILL_CLAUSE = "使用 to-spec 与 to-tickets 执行, "
+_BASE_BODY = """# 目标 (Outcome)
+实现功能模块与接口测试
+# 验证 (Verification)
+pytest tests/
+# 约束 (Constraints)
+无凭证与敏感信息
+# 边界 (Boundaries)
+仅本工作区目录
+# 迭代策略 (Iteration Policy)
+小步迭代重跑检查
+# 完成条件 (Stop when)
+所有测试验证全部通过
+# 暂停条件 (Pause if)
+遇到阻断或外部依赖
+"""
+
+_CONTRACT_BODY = _BASE_BODY.replace(
+    "小步迭代重跑检查", f"小步迭代重跑检查; {_SKILL_CLAUSE}{_EFFICIENCY_CLAUSE}"
+)
 
 
 def test_bash_wrapper_resolves_engine():
@@ -73,7 +100,7 @@ pytest tests/
 # 边界 (Boundaries)
 仅本工作区目录
 # 迭代策略 (Iteration Policy)
-小步迭代重跑检查
+小步迭代重跑检查; 使用 rtk 与 codebase-memory-mcp 控制开销, 执行流走 to-spec
 # 完成条件 (Stop when)
 所有测试验证全部通过
 # 暂停条件 (Pause if)
@@ -83,6 +110,110 @@ pytest tests/
     )
     # Should not raise
     lint_task_contract(task_file)
+
+
+def _contract_without(*clauses: str) -> str:
+    """``_CONTRACT_BODY`` with the named clauses stripped.
+
+    Asserts each removal actually happened. ``str.replace`` returns the input
+    unchanged when the needle is absent, which silently turns a test that
+    should be exercising a *missing* clause into one that exercises a present
+    one -- a vacuous pass that looks green.
+    """
+    body = _CONTRACT_BODY
+    for clause in clauses:
+        assert clause in body, f"fixture no longer contains {clause!r}"
+        body = body.replace(clause, "")
+    return body
+
+
+def test_lint_task_contract_requires_efficiency_clause(tmp_path: Path):
+    """Issue #125: a contract must say how the work is done efficiently."""
+    task_file = tmp_path / "TASK.md"
+    task_file.write_text(_contract_without(_EFFICIENCY_CLAUSE), encoding="utf-8")
+    with pytest.raises(TaskContractError, match="效能准则"):
+        lint_task_contract(task_file)
+
+
+def test_lint_task_contract_requires_skill_toolchain(tmp_path: Path):
+    """Issue #125: a contract must name the standard skill pipeline."""
+    task_file = tmp_path / "TASK.md"
+    task_file.write_text(_contract_without(_SKILL_CLAUSE), encoding="utf-8")
+    with pytest.raises(TaskContractError, match="标准 Skill 执行流"):
+        lint_task_contract(task_file)
+
+
+def test_a_contract_with_neither_clause_is_refused(tmp_path: Path):
+    task_file = tmp_path / "TASK.md"
+    task_file.write_text(
+        _contract_without(_EFFICIENCY_CLAUSE, _SKILL_CLAUSE), encoding="utf-8"
+    )
+    with pytest.raises(TaskContractError, match="toolchain contract"):
+        lint_task_contract(task_file)
+
+
+@pytest.mark.parametrize(
+    "efficiency",
+    ["rtk", "caveman ultra", "codebase-memory-mcp"],
+)
+def test_any_efficiency_clause_satisfies_the_efficiency_check(tmp_path: Path, efficiency: str):
+    """Alternatives, not all-of: naming any one is enough for its own clause."""
+    task_file = tmp_path / "TASK.md"
+    body = _contract_without(_EFFICIENCY_CLAUSE).replace(
+        "小步迭代重跑检查", f"小步迭代重跑检查, 采用 {efficiency} 方案"
+    )
+    assert efficiency in body
+    task_file.write_text(body, encoding="utf-8")
+    lint_task_contract(task_file)
+
+
+@pytest.mark.parametrize(
+    "skill", ["to-spec", "to-tickets", "implement-spec"]
+)
+def test_any_skill_clause_satisfies_the_skill_check(tmp_path: Path, skill: str):
+    task_file = tmp_path / "TASK.md"
+    body = _contract_without(_SKILL_CLAUSE).replace(
+        "小步迭代重跑检查", f"小步迭代重跑检查, 执行流 {skill}"
+    )
+    assert skill in body
+    task_file.write_text(body, encoding="utf-8")
+    lint_task_contract(task_file)
+
+
+def test_toolchain_check_is_case_insensitive(tmp_path: Path):
+    task_file = tmp_path / "TASK.md"
+    task_file.write_text(
+        _CONTRACT_BODY.replace("to-spec", "TO-SPEC").replace("rtk", "RTK"),
+        encoding="utf-8",
+    )
+    lint_task_contract(task_file)
+
+
+def test_allow_legacy_grandfathers_but_warns(tmp_path: Path, capsys):
+    """The migration path must be loud — a skipped check must never look passed."""
+    task_file = tmp_path / "TASK.md"
+    task_file.write_text(
+        _contract_without(_EFFICIENCY_CLAUSE, _SKILL_CLAUSE), encoding="utf-8"
+    )
+    lint_task_contract(task_file, allow_legacy=True)
+    err = capsys.readouterr().err
+    assert "allow-legacy" in err
+    assert "125" in err
+
+
+def test_allow_legacy_does_not_warn_on_a_compliant_contract(tmp_path: Path, capsys):
+    task_file = tmp_path / "TASK.md"
+    task_file.write_text(_CONTRACT_BODY, encoding="utf-8")
+    lint_task_contract(task_file, allow_legacy=True)
+    assert capsys.readouterr().err == ""
+
+
+def test_structural_failure_is_reported_before_the_toolchain(tmp_path: Path):
+    """A file missing a whole section should hear that first."""
+    task_file = tmp_path / "TASK.md"
+    task_file.write_text("# 目标\n做点事\n", encoding="utf-8")
+    with pytest.raises(TaskContractError, match="Missing or empty mandatory sections"):
+        lint_task_contract(task_file)
 
 
 def test_lint_task_contract_empty_headings(tmp_path: Path):

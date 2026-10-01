@@ -48,6 +48,28 @@ MANDATORY_GOAL_SECTIONS = [
     "暂停条件",
 ]
 
+# Issue #125 — a task contract must also state HOW the work is done efficiently
+# and WHICH standard skill pipeline executes it. Both clauses are alternatives,
+# not all-of: a trivial task has no use for every tool, and demanding all of them
+# turns a contract check into box-ticking.
+#
+# Matched case-insensitively against the whole document, so the clause may live
+# in any section rather than being forced into a particular heading.
+EFFICIENCY_CRITERIA: List[str] = [
+    "rtk",
+    "caveman ultra",
+    "codebase-memory-mcp",
+]
+
+SKILL_TOOLCHAIN: List[str] = [
+    "to-spec",
+    "to-tickets",
+    "implement-spec",
+    "to-tickets",
+    "implement",
+    "wayfinder",
+]
+
 
 class TaskContractError(Exception):
     pass
@@ -57,7 +79,34 @@ class StateTransitionError(Exception):
     pass
 
 
-def lint_task_contract(task_path: Path) -> None:
+def _find_any(content: str, needles: List[str]) -> str:
+    """Return the first needle present in ``content``, or "" if none is."""
+    lowered = content.lower()
+    for needle in needles:
+        if needle.lower() in lowered:
+            return needle
+    return ""
+
+
+def check_toolchain_contract(content: str) -> List[str]:
+    """Return the Issue #125 clauses the contract does not satisfy.
+
+    Pure: returns names of missing clauses, raises nothing, so the caller decides
+    whether a miss is fatal.
+    """
+    missing: List[str] = []
+    if not _find_any(content, EFFICIENCY_CRITERIA):
+        missing.append(
+            f"效能准则 (any of: {', '.join(EFFICIENCY_CRITERIA)})"
+        )
+    if not _find_any(content, SKILL_TOOLCHAIN):
+        missing.append(
+            f"标准 Skill 执行流 (any of: {', '.join(dict.fromkeys(SKILL_TOOLCHAIN))})"
+        )
+    return missing
+
+
+def lint_task_contract(task_path: Path, *, allow_legacy: bool = False) -> None:
     if not task_path.is_file():
         raise TaskContractError(f"Task file '{task_path}' does not exist.")
 
@@ -97,6 +146,35 @@ def lint_task_contract(task_path: Path) -> None:
                 "NEVER line-by-line patch code or raw diffs (HOW).\n"
                 "Action required: Remove the raw diff/patch from the task specification."
             )
+
+    # 3. Issue #125 — efficiency criteria and standard skill toolchain.
+    #
+    # Checked after the structural rules so a contract that is missing a whole
+    # section is told that first; fixing the structure and then the toolchain is
+    # two edits, but reporting the toolchain miss on an otherwise-broken file
+    # buries the bigger problem.
+    if allow_legacy:
+        missing_clauses = check_toolchain_contract(content)
+        if missing_clauses:
+            # Loud, not silent: a grandfathered contract should never look
+            # compliant by accident.
+            print(
+                f"Warning: '{task_path}' lacks {', '.join(missing_clauses)} "
+                "(Issue #125 grandfathered via --allow-legacy).",
+                file=sys.stderr,
+            )
+        return
+
+    missing_clauses = check_toolchain_contract(content)
+    if missing_clauses:
+        raise TaskContractError(
+            f"Task file '{task_path}' violates the Issue #125 toolchain contract.\n"
+            f"Missing: {', '.join(missing_clauses)}.\n"
+            "A contract must say how the work is done efficiently and which standard\n"
+            "skill pipeline executes it, so a lane cannot silently reinvent both.\n"
+            "Action required: add the missing clause(s) to any section, or re-lint with\n"
+            "--allow-legacy to grandfather a pre-Issue-125 contract."
+        )
 
 
 def resolve_state_file(repo_path: Optional[str] = None) -> Path:
@@ -329,7 +407,7 @@ def cmd_state(args: argparse.Namespace) -> int:
 def cmd_lint(args: argparse.Namespace) -> int:
     task_file = Path(args.task)
     try:
-        lint_task_contract(task_file)
+        lint_task_contract(task_file, allow_legacy=getattr(args, "allow_legacy", False))
         print(f"OK: Task contract '{task_file}' is valid.")
         return 0
     except TaskContractError as e:
@@ -353,6 +431,12 @@ def build_parser() -> argparse.ArgumentParser:
     # Lint subcommand
     p_lint = subparsers.add_parser("lint", help="Lint a task contract file")
     p_lint.add_argument("task", help="Path to task file")
+    p_lint.add_argument(
+        "--allow-legacy",
+        action="store_true",
+        help="grandfather a contract that predates the Issue #125 toolchain clauses "
+        "(warns loudly rather than passing silently)",
+    )
     p_lint.set_defaults(func=cmd_lint)
     return parser
 
