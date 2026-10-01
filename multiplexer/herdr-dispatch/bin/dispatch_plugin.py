@@ -51,6 +51,13 @@ EXIT_GATE_REFUSED = 2
 # file has a lane marked working that no worker will ever pick up.
 EXIT_DELIVERY_FAILED = 3
 
+# The status a lane carries when the dispatch committed but the worker was never
+# told to start. Distinct from "working" because the two mean opposite things to
+# a watchdog: "working" implies a running process, and a stall alarm on a lane
+# that was never dispatched sends the orchestrator to investigate a worker that
+# does not exist.
+UNDELIVERED_STATUS = "undelivered"
+
 
 def state_path(args: argparse.Namespace) -> Path:
     return brain.state_path(Path(args.repo) if args.repo else None)
@@ -427,6 +434,41 @@ def cmd_guard(args: argparse.Namespace) -> int:
     return 0 if verdict.allowed else EXIT_GATE_REFUSED
 
 
+def _mark_undelivered(plan: bus.DispatchPlan) -> None:
+    """Correct the state record after a delivery failure.
+
+    ``commit`` wrote the lane as ``working``, which is a claim about a process
+    that does not exist — the worker was never told to start. Left alone it
+    poisons two consumers: the stall watchdog would eventually alarm on a lane
+    with no worker to investigate, and a human reading the board would look for
+    a running agent that was never spawned. The lane still *holds* its claim —
+    that part is real — so the status is corrected rather than the entry removed.
+
+    Best effort by design. This runs after the dispatch has already failed for
+    a reason the caller must hear about; failing to write the correction must
+    not replace that message with a different one.
+    """
+    try:
+        path = brain.state_path(plan.repo)
+        state = brain.load(path)
+        lane = state.get("lanes", {}).get(plan.lane)
+        if not isinstance(lane, dict):
+            return
+        lane["status"] = UNDELIVERED_STATUS
+        lane["delivered"] = False
+        lane["delivery_error"] = (
+            "the dispatch committed but the prompt was never delivered; "
+            f"the worker never received {plan.handoff}"
+        )
+        brain.save(path, state)
+    except (brain.StateError, OSError) as exc:  # pragma: no cover - best effort
+        print(
+            f"dispatch: could not correct the lane record to "
+            f"{UNDELIVERED_STATUS!r} ({exc})",
+            file=sys.stderr,
+        )
+
+
 def cmd_dispatch(args: argparse.Namespace) -> int:
     """Dispatch a lane in one atomic command.
 
@@ -479,19 +521,28 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
         herdr.run_herdr(["agent", "prompt", plan.target, plan.envelope])
     except herdr.HerdrError as exc:
         # Distinct from a gate refusal, and the distinction is the whole point:
-        # the plan has already committed, so lane `plan.lane` is recorded as
-        # working and holds the claim on plan.worktree. Re-running dispatch
-        # would collide with the lane this run created. Say so, and name the
-        # lane to unwind.
+        # the plan has already committed, so the lane is recorded and holds a
+        # claim on its worktree.
+        #
+        # Re-running is *not* refused — a lane re-claiming its own worktree is
+        # exempt from the collision gate by design. So the cost of a careless
+        # retry is not an error, it is a second timestamp: the first handoff path
+        # is minted and then orphaned, and the worker is told to report to a file
+        # the orchestrator will no longer be watching. The record is therefore
+        # corrected to say the lane was never told to start.
+        _mark_undelivered(plan)
         print(
             f"dispatch: delivery failed after commit ({exc})\n"
-            f"  lane {plan.lane} ({plan.lane_name}) IS recorded as working and "
-            f"claims {plan.worktree or '(no worktree)'} @ "
-            f"{plan.branch or '(no branch)'}, but nothing was sent to "
-            f"{plan.target}.\n"
-            "  Re-running dispatch will refuse: the claim is already held. "
-            f"Either re-deliver by hand, or close the lane out with "
-            f"`dispatch_plugin.py closeout --lane {plan.lane}` before retrying.",
+            f"  lane {plan.lane} ({plan.lane_name}) is recorded with status "
+            f"'{UNDELIVERED_STATUS}' — it holds "
+            f"{plan.worktree or '(no worktree)'} @ {plan.branch or '(no branch)'}, "
+            f"but nothing was ever sent to {plan.target}.\n"
+            f"  The handoff path {plan.handoff} was minted and never delivered.\n"
+            "  Re-running dispatch is NOT refused (a lane is exempt from its own\n"
+            "  claim), but it mints a NEW timestamp and orphans that handoff.\n"
+            "  Prefer re-delivering by hand, or run\n"
+            f"    dispatch_plugin.py closeout --lane {plan.lane}\n"
+            "  to release the lane before retrying.",
             file=sys.stderr,
         )
         return EXIT_DELIVERY_FAILED

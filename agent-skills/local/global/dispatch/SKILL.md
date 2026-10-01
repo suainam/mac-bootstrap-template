@@ -71,9 +71,16 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    - Exit `1` means the contract is malformed; exit `2` means a rule refused.
      Exit `1` is "fix your task file"; exit `2` is "this lane is unsafe".
      Exit `3` means delivery failed **after** the dispatch was committed: the
-     lane is recorded as working and holds its claim, but nothing was sent. Do
-     NOT re-run — the claim gate will refuse it. Re-deliver by hand or run
-     `closeout --lane <lane>` first.
+     lane is recorded `undelivered` and holds its claim, but nothing was sent.
+     Re-running is *allowed* (a lane is exempt from its own claim) — but it mints
+     a NEW timestamp and orphans the handoff the worker was told to report to.
+     Re-deliver by hand, or `closeout --lane <lane>` first.
+- `--signature` is **reconciled against the lane, not honoured**: the leading
+     token is the lane id. A signature naming another lane (or only a pane
+     coordinate, e.g. `w3:p9_...`) is rewritten to `<lane>_<pane>` and the
+     rewrite is reported in the receipt. This is not cosmetic — `awaiting_lanes`
+     is keyed by lane id, so a mismatched signature parks the orchestrator
+     forever against a lane that demonstrably reported.
    - **Do not hand-assemble the redundant arguments.** The lane id, worktree,
      branch and report bullets are all derived: the lane id from the lane name,
      the worktree and branch from the target pane's cwd and its git HEAD, the

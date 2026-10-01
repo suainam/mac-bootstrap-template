@@ -206,6 +206,25 @@ export function parseDispatchArgs(raw) {
       if (value === undefined) {
         return { ok: false, reason: `${flag} needs a value` };
       }
+      // A flag never takes the next flag as its value. Without this,
+      // `--highlight --risk x` parses as highlight="--risk" and the --risk flag
+      // vanishes entirely — the option the caller asked for is silently dropped
+      // and the surviving one carries a literal "--risk" as its text. The
+      // omission is invisible in the argv and surfaces much later as a strange
+      // report bullet.
+      //
+      // Only a leading "--" is refused. A single-dash token or a bare "-x" is a
+      // legitimate value (`--worktree -` is a path-ish argument), so refusing
+      // those would be a new way to reject valid input.
+      if (value.startsWith("--")) {
+        return {
+          ok: false,
+          reason:
+            `${flag} needs a value, but was followed by ${value}. ` +
+            `Give the value as a separate argument (${flag} <value>) or ` +
+            `inline it (${flag}=<value>); ${value} is read as another option.`,
+        };
+      }
     }
 
     if (repeatable.has(flag)) {
@@ -336,14 +355,15 @@ export function describeRefusal(code, stderr) {
     case EXIT_REFUSED:
       return `a dispatch rule refused (exit 2) — nothing was renamed, written or delivered.\n${detail}`;
     case EXIT_DELIVERY_FAILED:
-      // The one case where "just run it again" is the wrong advice. The plan
-      // committed before delivery, so the lane holds its own claim.
+      // Re-running is NOT refused — a lane is exempt from its own claim — so
+      // promising a refusal would be false. The real cost is a second
+      // timestamp, which orphans the handoff the worker was told to report to.
       return (
         `delivery failed after the dispatch was committed (exit 3) — the lane is ` +
-        `recorded as working and holds its worktree, but nothing was sent.\n${detail}\n` +
-        "Do NOT re-run /dispatch: the claim gate will refuse it, because the " +
-        "claim is held by the lane this run created. Re-deliver by hand, or " +
-        "close the lane out first."
+        `recorded as 'undelivered' and holds its worktree, but nothing was sent.\n${detail}\n` +
+        "Re-running /dispatch is allowed, but it mints a NEW timestamp and " +
+        "orphans the previous handoff. Re-deliver by hand, or close the lane " +
+        "out before retrying."
       );
     default:
       return `the dispatch bus failed unexpectedly (exit ${code}).\n${detail}`;
@@ -360,9 +380,11 @@ export const DISPATCH_DESCRIPTION = [
   "Optional: --signature, --lane, --worktree, --branch, --highlight, --risk, --repo.",
   "",
   "The lane id, worktree, branch and report bullets are derived, not typed.",
+  "An option never takes the next option as its value; use --flag=value.",
   "Exit 1 = the contract is malformed; fix the file.",
   "Exit 2 = a rule refused; nothing was changed.",
-  "Exit 3 = delivery failed after commit; the lane holds its own claim, so unwind before retrying.",
+  "Exit 3 = delivery failed after commit; re-running is allowed but mints a new",
+  "timestamp and orphans the previous handoff, so unwind first.",
 ].join("\n");
 
 /**
@@ -399,11 +421,13 @@ export function registerDispatchCommand(pi, options = {}) {
       const reason = result.reason ?? "dispatch refused";
       ctx?.ui?.notify?.(reason.split("\n")[0], "error");
       // What to do next differs per exit code, so it is not a fixed string.
-      // Telling someone to re-run after a post-commit delivery failure is how
-      // a lane ends up wedged against its own claim.
+      // A blanket "fix the cause and re-run" is wrong after a post-commit
+      // delivery failure: the retry succeeds and silently orphans the handoff
+      // path the worker was already told to report to.
       const next =
         result.code === EXIT_DELIVERY_FAILED
-          ? "Do NOT re-run /dispatch — the lane this run created holds its own claim. Unwind first."
+          ? "Re-running is allowed but mints a NEW timestamp, orphaning the " +
+            "previous handoff. Re-deliver by hand, or close the lane out first."
           : "Nothing was renamed, no state was written and no prompt was delivered. " +
             "Fix the cause above and re-run /dispatch.";
       try {

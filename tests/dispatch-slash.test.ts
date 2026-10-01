@@ -27,6 +27,7 @@ import dispatchBrain, {
   EXIT_REFUSED,
   describeRefusal,
   findPlugin,
+  laneFromSignature,
   parseDispatchArgs,
   registerDispatchCommand,
   runDispatch,
@@ -223,6 +224,96 @@ test("an escaped space reaches the bus as one argument", () => {
 // Tokenising — the component whose failure mode is a silently mis-split path
 // --------------------------------------------------------------------------
 
+// --------------------------------------------------------------------------
+// Signature attribution — the prefix is the lane, and the two parsers must agree
+// --------------------------------------------------------------------------
+
+/**
+ * One table, asserted on both sides.
+ *
+ * `dispatch_bus.signature_lane` (Python) and `laneFromSignature` (TypeScript)
+ * are two implementations of one rule, split across the language boundary. They
+ * are the write and the read of the same field, so a disagreement is silent in
+ * the worst way: the bus writes a signature the extension cannot attribute, and
+ * the park never opens. `test_dispatch_param_derivation.py` asserts the same
+ * table against the Python half; if these two ever list different cases, one of
+ * the tests is wrong and the pairing has broken.
+ */
+const SIGNATURE_TABLE: Array<[string, string]> = [
+  ["1-3_opencode_repo", "1-3"],
+  ["w3:p9_opencode_repo", "w3:p9"],
+  ["2-10_w9:p2_codex", "2-10"],
+  ["no-underscore", ""],
+  ["1-3-dispatch", ""],
+  ["", ""],
+];
+
+describe("laneFromSignature", () => {
+  for (const [signature, lane] of SIGNATURE_TABLE) {
+    test(`${JSON.stringify(signature)} -> ${JSON.stringify(lane)}`, () => {
+      expect(laneFromSignature(signature)).toBe(lane);
+    });
+  }
+  test("undefined is not a lane", () => {
+    expect(laneFromSignature(undefined)).toBe("");
+  });
+});
+
+// --------------------------------------------------------------------------
+// A flag never eats the next flag
+// --------------------------------------------------------------------------
+
+describe("an option never swallows the following option", () => {
+  test("--highlight --risk is refused rather than consuming --risk", () => {
+    // The original defect: `--highlight` took `--risk` as its value, so the
+    // --risk option vanished entirely and the surviving bullet was the literal
+    // text "--risk". The omission is invisible in the argv.
+    const parsed = parseDispatchArgs(
+      "--task T.md --lane-name 1-3-dispatch --target w3:p9 --highlight --risk x",
+    );
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toContain("--highlight");
+    expect(parsed.reason).toContain("--risk");
+  });
+
+  test("the refusal explains both ways to supply a value", () => {
+    const parsed = parseDispatchArgs("--task --lane-name 1-3-dispatch");
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toContain("--task=<value>");
+  });
+
+  test("a single-dash value is still accepted", () => {
+    // Only a leading "--" is refused. `-` is a legitimate argument elsewhere in
+    // this CLI (`--handoff -` means stdin), so refusing it would be a new way
+    // to reject valid input.
+    const parsed = parseDispatchArgs(
+      "--task T.md --lane-name 1-3-dispatch --target w3:p9 --worktree -",
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.argv[parsed.argv.indexOf("--worktree") + 1]).toBe("-");
+  });
+
+  test("the inline form still works, so the refusal has an escape hatch", () => {
+    // A value that genuinely starts with "--" must remain expressible.
+    const parsed = parseDispatchArgs(
+      "--task=T.md --lane-name=1-3-dispatch --target=w3:p9 --worktree=--weird",
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.argv).toContain("--weird");
+  });
+
+  test("a trailing flag with no value at all is still caught", () => {
+    const parsed = parseDispatchArgs("--task T.md --lane-name 1-3-dispatch --target");
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.reason).toContain("needs a value");
+  });
+});
+
 describe("tokenizeArgs", () => {
   test("splits on whitespace", () => {
     expect(tokenizeArgs("a b  c")).toEqual(["a", "b", "c"]);
@@ -322,12 +413,21 @@ test("the two refusals are never flattened into one generic failure", () => {
 test("exit 3 is not reported as 'nothing was changed'", () => {
   // The whole point of the third code. Delivery can fail *after* the plan
   // commits, so the lane is recorded and holding its claim — telling the caller
-  // nothing was written would be false, and telling them to re-run would
-  // collide with the lane they just created.
+  // nothing was written would be false.
   const reason = describeRefusal(EXIT_DELIVERY_FAILED, "worker pane is gone");
   expect(reason).not.toContain("nothing was renamed, written or delivered");
-  expect(reason).toContain("Do NOT re-run");
   expect(reason).toContain("worker pane is gone");
+});
+
+test("exit 3 does not promise a refusal that will not come", () => {
+  // A lane re-claiming its own worktree is exempt from the collision gate by
+  // design, so re-running after exit 3 succeeds. The honest warning is the
+  // second timestamp, which orphans the handoff — not a gate error.
+  const reason = describeRefusal(EXIT_DELIVERY_FAILED, "x");
+  expect(reason).toContain("Re-running /dispatch is allowed");
+  expect(reason).toContain("NEW timestamp");
+  expect(reason).toContain("orphan");
+  expect(reason).not.toContain("Do NOT re-run");
 });
 
 test("exit 3 passes through runDispatch unchanged", () => {
@@ -337,7 +437,7 @@ test("exit 3 passes through runDispatch unchanged", () => {
     runner,
   });
   expect(result.code).toBe(EXIT_DELIVERY_FAILED);
-  expect(result.reason).toContain("Do NOT re-run");
+  expect(result.reason).toContain("NEW timestamp");
 });
 
 test("a killed bus is reported as broken, not as a refusal", () => {
@@ -700,7 +800,10 @@ describe("against the real bus", () => {
       );
       expect(result.ok).toBe(false);
       expect(result.code).not.toBe(EXIT_REFUSED);
-      expect(result.reason).toContain("Do NOT re-run");
+      // The bus's own message is carried through verbatim, so its correction
+      // of the re-run claim reaches the caller.
+      expect(result.reason).toContain("NOT refused");
+      expect(result.reason).toContain("undelivered");
     });
   });
 

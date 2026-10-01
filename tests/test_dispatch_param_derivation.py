@@ -554,6 +554,60 @@ def test_the_derived_signature_leads_with_the_lane_id(repo, task_file) -> None:
     assert plan.signature == "1-3_w3:p9"
 
 
-def test_an_explicit_signature_is_not_overwritten(repo, task_file) -> None:
+def test_a_signature_naming_another_lane_is_rewritten_and_reported(repo, task_file) -> None:
+    """The blocker: a mismatched signature parks the brain forever.
+
+    `consumeNotify` attributes a report by the signature's leading token and
+    drops that lane's park entry. A signature naming a lane the brain is *not*
+    waiting on therefore leaves `awaiting_lanes` untouched — the orchestrator
+    re-nudges forever against a lane that demonstrably reported.
+    """
+    plan = _plan(repo, task_file, signature="9-9-other_w9:p9")
+    assert plan.signature == "1-3_w3:p9"
+    assert any("9-9-other" in note for note in plan.notes)
+
+
+def test_a_pane_coordinate_signature_is_rewritten_too(repo, task_file) -> None:
+    """`w3:p9_...` names a pane, not a lane — so it names the wrong thing here.
+
+    This is the form the dispatch SKILL.md used to recommend. It is exactly the
+    shape that deadlocks: the brain awaits `1-3`, the report resolves to `w3:p9`.
+    """
     plan = _plan(repo, task_file, signature="w3:p9_opencode_mac-bootstrap")
-    assert plan.signature == "w3:p9_opencode_mac-bootstrap"
+    assert plan.signature == "1-3_w3:p9"
+
+
+def test_a_signature_already_naming_the_lane_is_kept_verbatim(repo, task_file) -> None:
+    """Reconciliation owns the prefix, not the whole string.
+
+    A caller who wants a richer signature — an agent kind, a repo slug — keeps
+    it, as long as the attribution prefix is right.
+    """
+    plan = _plan(repo, task_file, signature="1-3_opencode_mac-bootstrap")
+    assert plan.signature == "1-3_opencode_mac-bootstrap"
+    assert not any("rewritten" in note for note in plan.notes)
+
+
+def test_an_empty_signature_is_adopted_not_rewritten(repo, task_file) -> None:
+    """No caller input, so nothing to report — a note would be noise."""
+    plan = _plan(repo, task_file, signature="")
+    assert plan.signature == "1-3_w3:p9"
+    assert not any("rewritten" in note for note in plan.notes)
+
+
+@pytest.mark.parametrize(
+    "signature,named",
+    [
+        ("1-3_opencode_repo", "1-3"),
+        ("w3:p9_opencode_repo", "w3:p9"),
+        ("2-10_w9:p2_codex", "2-10"),
+        ("no-underscore", ""),
+        # A bare lane *name* is not a signature: the lane id has to be a
+        # complete leading token, or the suffix would be read as part of it.
+        ("1-3-dispatch", ""),
+        ("", ""),
+        (None, ""),
+    ],
+)
+def test_the_python_signature_parser_reads_both_forms(signature, named) -> None:
+    assert bus.signature_lane(signature or "") == named

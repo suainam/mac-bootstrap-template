@@ -244,12 +244,22 @@ class DispatchPlan:
         # honoured, so the two can never disagree about which lane is running.
         lane = _derive_lane(lane_name, lane, notes)
 
-        # Derivation 1b — the report signature. Derived from the *resolved* lane
-        # id, leading with it, because the brain parks on lane ids: a signature
-        # that named only the pane would resolve to a lane the brain is not
-        # waiting on, and `awaiting_lanes` would never empty. See
-        # notify.laneFromSignature, which reads both forms.
-        signature = signature or f"{lane}_{target}"
+        # Derivation 1b — the report signature, reconciled against the lane.
+        #
+        # The signature is how a worker's report gets attributed back to a lane:
+        # `notify.laneFromSignature` reads its prefix, and `consumeNotify` drops
+        # the park's entry for whichever lane that resolves to. So a signature
+        # naming a *different* lane than the one just dispatched is not a
+        # cosmetic mismatch — it silently breaks the wake path, and
+        # `awaiting_lanes` never empties. The orchestrator then sits parked on a
+        # lane that demonstrably reported, re-nudging forever.
+        #
+        # Reconciled rather than honoured. Honouring a caller-supplied signature
+        # would keep the exact divergence this derivation exists to remove, and
+        # there is no safe reading of "trust the caller's signature here": the
+        # orchestrator cannot know the shape a worker will report back with, and
+        # a wrong one costs a permanent deadlock rather than a wrong label.
+        signature = _reconcile_signature(lane, target, signature, notes)
 
         # Gate 2 — the contract. ContractError carries exit_code 1 so the
         # caller can distinguish "your file is wrong" from "the lane is unsafe".
@@ -429,6 +439,58 @@ def _derive_lane(lane_name: str, override: str, notes: List[str]) -> str:
 def _derive_report_items(task: Path) -> tuple[List[str], List[str]]:
     """Parse the contract's own report sections."""
     return _deriving(derive.report_items_from_task, task)
+
+
+def _reconcile_signature(lane: str, target: str, supplied: str, notes: List[str]) -> str:
+    """Force the signature to name the lane that was actually dispatched.
+
+    The invariant is narrow and absolute: **the leading token of the signature
+    is the lane id.** Everything after it is free-form, so a caller who cares
+    about a richer signature keeps it — only the attribution prefix is owned by
+    the bus.
+
+    Three cases:
+
+    - empty -> adopt ``<lane>_<pane>``, the canonical form;
+    - already names this lane -> keep the caller's form verbatim, suffix and all;
+    - names a different lane -> rewrite to the canonical form and say so in the
+      receipt, because a silently-rewritten input leaves the caller believing a
+      report will be attributed to something it will not be.
+    """
+    canonical = f"{lane}_{target}"
+    supplied = (supplied or "").strip()
+    if not supplied:
+        return canonical
+
+    named = signature_lane(supplied)
+    if named == lane:
+        return supplied
+
+    notes.append(
+        f"signature {supplied!r} names lane {named or '(unparseable)'}, not "
+        f"{lane!r}; rewritten to {canonical!r} so the worker's report is "
+        "attributed to the lane that was dispatched"
+    )
+    return canonical
+
+
+def signature_lane(signature: str) -> str:
+    """The lane a signature names, or "" when it names none.
+
+    Mirrors ``notify.laneFromSignature`` exactly: a pane coordinate first
+    (``w3:p9_...``), then a lane id (``1-3_...``). The two prefixes cannot
+    collide — a pane coordinate always contains a colon and a lane id never does
+    — so the order is not load-bearing.
+
+    Duplicated across the language boundary on purpose: the omp side is
+    TypeScript and cannot be imported here. A test asserts both parsers agree on
+    one table, which is what keeps the copy honest.
+    """
+    pane = re.match(r"^([A-Za-z0-9]+:[A-Za-z0-9]+)_", signature or "")
+    if pane:
+        return pane.group(1)
+    lane = re.match(r"^([0-9]+-[0-9]+)_", signature or "")
+    return lane.group(1) if lane else ""
 
 
 def _derive_placement(

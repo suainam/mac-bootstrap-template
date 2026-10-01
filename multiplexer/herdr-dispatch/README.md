@@ -536,15 +536,24 @@ looking somewhere other than where the collision is:
 | `0` | dispatched; the receipt shows what was derived | — |
 | `1` | the task contract is malformed | fix the contract file |
 | `2` | a rule refused: bad lane name, worktree collision, failed derivation | fix the lane or the pane — **nothing was renamed, written or delivered** |
-| `3` | delivery failed *after* the plan committed | **do not re-run** — see below |
+| `3` | delivery failed *after* the plan committed | see below |
 
 Exit `3` exists because "a rule refused, nothing happened" stops being true once
 `commit()` has run. If the worker pane dies between the rename and the delivery,
-the state file holds lane `1-3` marked working and holding a claim on its
-worktree, while nothing was ever sent. Re-running `dispatch` at that point
-refuses — the claim gate sees the lane the previous run created — so a lane
-wedged against itself is the default outcome if the failure is reported as a
-plain refusal. The bus names the lane to unwind instead.
+the state file holds lane `1-3` with a live claim on its worktree, while nothing
+was ever sent.
+
+**Re-running is not refused.** A lane re-claiming its *own* worktree is exempt
+from the collision gate by design — that exemption is what lets a worker renew
+its claim without a closeout. So the cost of a careless retry is not an error;
+it is a **second timestamp**, which mints a new handoff path and orphans the one
+the worker was told to report to. The command says so rather than promising a
+refusal that will not come.
+
+The lane's record is corrected to `status: undelivered` with `delivered: false`
+and a `delivery_error` naming the orphaned handoff. `working` is a claim about a
+process that does not exist, and leaving it in place has the stall watchdog
+eventually alarming on a lane with no worker to investigate.
 
 A killed bus (signal, no exit status) is also not reported as a refusal: nothing
 is knowable about a process that died mid-flight, so the honest answer is "check
@@ -558,12 +567,35 @@ overrides the search for a fork or an unusual worktree layout, and
 ### The derived signature has to be attributable
 
 The bus parks the brain on **lane ids** (`awaiting_lanes` holds `1-3`), so a
-report has to name one. A signature derived from the lane *name*
-(`1-3-dispatch_w3:p9`) does not resolve to `1-3` under
-`notify.laneFromSignature`, and the report is then either rejected as belonging
-to another lane or accepted without clearing `awaiting_lanes`. Either way the
-orchestrator sits parked on a lane that demonstrably reported — so the derived
-signature leads with the resolved lane id: `1-3_w3:p9`.
+report has to name one. `notify.laneFromSignature` reads the signature's leading
+token and `consumeNotify` drops the park entry for whichever lane that resolves
+to — so a signature naming a *different* lane leaves `awaiting_lanes` untouched
+and the orchestrator re-nudges forever against a lane that demonstrably
+reported.
+
+`--signature` is therefore **reconciled against the lane, not honoured**. The
+invariant is narrow: the leading token is the lane id, and everything after it
+is free-form. Three cases:
+
+| supplied | result |
+|---|---|
+| empty | adopted as `<lane>_<pane>` |
+| already names this lane | kept verbatim, suffix and all |
+| names a different lane | rewritten to `<lane>_<pane>`, with a receipt note |
+
+That last row is the one that used to deadlock. `w3:p9_opencode_mac-bootstrap`
+— the form the dispatch SKILL.md used to recommend — names a *pane*, not a lane,
+so a worker reporting with it resolved to a lane the brain was not waiting on.
+
+Reconciliation owns the prefix only, because there is no safe alternative:
+honouring the caller's signature keeps the divergence, and guessing wrong costs
+a permanent deadlock rather than a wrong label.
+
+`signature_lane` (Python) and `laneFromSignature` (TypeScript) are two
+implementations of one rule split across the language boundary. Both are
+asserted against **one shared table** in
+`tests/test_dispatch_param_derivation.py` and `tests/dispatch-slash.test.ts`,
+which is what keeps the copy honest.
 
 `tests/dispatch-e2e.test.ts` runs the whole round trip — dispatch, read the
 delivered text, feed it back to the extension — because each half is separately

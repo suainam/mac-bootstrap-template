@@ -394,6 +394,73 @@ def test_dispatch_refuses_when_the_brain_cannot_reach_the_park(repo, task_file, 
 # --------------------------------------------------------------------------
 
 
+def test_a_post_commit_delivery_failure_marks_the_lane_undelivered(
+    repo: Path, task_file: Path, calls: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The worker never started, so the record must not say it is working.
+
+    `working` is a claim about a process. Left uncorrected it poisons two
+    consumers: the stall watchdog alarms on a lane with no worker to
+    investigate, and a human reading the board looks for an agent that was never
+    spawned.
+    """
+
+    def dead_pane(argv, **kwargs):
+        if argv[:2] == ["pane", "get"]:
+            return {"result": {"pane": {"pane_id": argv[2], "cwd": os.fspath(repo)}}}
+        raise plugin.herdr.HerdrError("pane is gone")
+
+    monkeypatch.setattr(plugin.herdr, "run_herdr", dead_pane)
+
+    assert plugin.main(_argv(repo, task_file)) == plugin.EXIT_DELIVERY_FAILED
+
+    lane = brain.load(brain.state_path(repo))["lanes"]["1-3"]
+    assert lane["status"] == "undelivered"
+    assert lane["delivered"] is False
+    assert "never delivered" in lane["delivery_error"]
+
+
+def test_the_exit_3_message_does_not_claim_a_rerun_would_be_refused(
+    repo: Path, task_file: Path, calls: dict, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A lane re-claiming its own worktree is exempt from the collision gate.
+
+    So the earlier wording — "re-running dispatch will refuse: the claim is
+    already held" — was factually wrong. The real cost of a careless retry is a
+    second timestamp, which orphans the handoff path the worker was told to
+    report to.
+    """
+
+    def dead_pane(argv, **kwargs):
+        if argv[:2] == ["pane", "get"]:
+            return {"result": {"pane": {"pane_id": argv[2], "cwd": os.fspath(repo)}}}
+        raise plugin.herdr.HerdrError("pane is gone")
+
+    monkeypatch.setattr(plugin.herdr, "run_herdr", dead_pane)
+    plugin.main(_argv(repo, task_file))
+    err = capsys.readouterr().err
+
+    assert "NOT refused" in err
+    assert "NEW timestamp" in err
+    assert "will refuse" not in err
+
+
+def test_a_signature_naming_another_lane_is_reconciled_not_honoured(
+    repo: Path, task_file: Path, calls: dict
+) -> None:
+    """End to end: the delivered report must be attributable to this lane.
+
+    `consumeNotify` drops the park entry for whichever lane the signature
+    resolves to. A signature naming a different lane leaves `awaiting_lanes`
+    untouched and the orchestrator parked forever against a lane that
+    demonstrably reported.
+    """
+    plugin.main(_argv(repo, task_file, signature="9-9-other_w9:p9"))
+    delivered = calls["prompt"][0][3]
+    assert "[NOTIFY] [1-3_w3:p9]" in delivered
+    assert "9-9-other" not in delivered
+
+
 def test_a_bad_lane_name_blocks_every_side_effect(repo, task_file, calls) -> None:
     """Named in the issue: research-agy must be refused outright."""
     assert plugin.main(_argv(repo, task_file, lane_name="research-agy")) == 2
