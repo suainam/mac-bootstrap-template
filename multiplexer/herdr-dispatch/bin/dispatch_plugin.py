@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 import closeout_gate as gate  # noqa: E402
 import herdr_client as herdr  # noqa: E402
 import lane_isolation as isolation  # noqa: E402
+import orchestrator_guard as guard_mod  # noqa: E402
 import orchestrator_state as brain  # noqa: E402
 import prompt_protocol as promptproto  # noqa: E402
 
@@ -387,6 +388,36 @@ def cmd_notify(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_guard(args: argparse.Namespace) -> int:
+    """Enforce the orchestrator permission whitelist for one action.
+
+    The phase defaults to whatever the shared state file records, because the
+    whole point is to police the brain as it actually is rather than what the
+    caller believes it is.
+    """
+    phase = args.phase
+    if not phase:
+        state = _state(args.repo)
+        phase = str(state.get("orchestrator_phase") or brain.DEFAULT_BRAIN_PHASE)
+
+    try:
+        guard = guard_mod.OrchestratorGuard(phase, wake_signal=args.wake_signal or "")
+    except ValueError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    if args.list:
+        print(json.dumps({"phase": phase, "allowed": guard.allowed_actions()}, indent=2))
+        return 0
+
+    verdict = guard.evaluate(args.action)
+    if args.json:
+        print(json.dumps(verdict.as_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(verdict.render(), file=sys.stdout if verdict.allowed else sys.stderr)
+    return 0 if verdict.allowed else EXIT_GATE_REFUSED
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dispatch-plugin", description="herdr-dispatch plugin commands (TB-03)"
@@ -478,6 +509,21 @@ def build_parser() -> argparse.ArgumentParser:
     notify.add_argument("--send", action="store_true", help="deliver instead of printing")
     notify.set_defaults(func=cmd_notify)
 
+    guard = sub.add_parser(
+        "guard",
+        help="check an orchestrator action against the per-phase permission whitelist",
+    )
+    guard.add_argument("--action", default="", help="the orchestrator action to check")
+    guard.add_argument(
+        "--phase",
+        default="",
+        help="brain phase (default: whatever the state file records)",
+    )
+    guard.add_argument("--wake-signal", default="", help="signal when checking a wake action")
+    guard.add_argument("--list", action="store_true", help="list what is permitted in the phase")
+    guard.add_argument("--json", action="store_true")
+    guard.set_defaults(func=cmd_guard)
+
     return parser
 
 
@@ -491,6 +537,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         isolation.LaneCollisionError,
         gate.CloseoutGateError,
         promptproto.PromptProtocolError,
+        guard_mod.IllegalOrchestratorActionError,
     ) as exc:
         # A plugin command must fail visibly but never wedge the server. Gate
         # refusals land here too, and deliberately share exit 2: an orchestrator

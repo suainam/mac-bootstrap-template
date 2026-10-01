@@ -266,6 +266,59 @@ and an intact report structure.
 > documents. `notify` is deliberately *not* registered as an action for the
 > same reason.
 
+## Orchestrator permission gate
+
+The orchestrator is the one participant that can ruin a lane without touching a
+lane's files. Probing `git status`, re-reading child code, polling worker panes —
+that is work the *worker* was dispatched to do, and doing it as the orchestrator
+produces the false-busywork loop from lesson 1 and child-work takeover from the
+governance doc.
+
+So orchestrator behaviour is a whitelist keyed on the brain phase, enforced by
+`lib/orchestrator_guard.py` rather than by asking the model to resist a prompt:
+
+```bash
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py guard \
+  --action dispatch_lane --phase yield_and_guard
+orchestrator guard: REFUSE dispatch_lane in yield_and_guard
+  'dispatch_lane' is not permitted while the orchestrator brain is in 'yield_and_guard'.
+  permitted here: harvest, notify_human, read_state, render_board, stall_alarm, status, wait_lanes, wake
+# exit 2
+```
+
+Two rules cut across the whole table:
+
+- **Probes are refused everywhere.** The whole `probe_*` family, in all seven
+  phases, plus a named list. Refusing the *class* rather than judging each case
+  removes the decision: a probe whose result arrives is indistinguishable from
+  one that justifies acting.
+- **The park is a hard stop.** In `yield_and_guard` only wake signals and reads
+  pass, and a wake signal must be one of `notify` / `stall_alarm` / `human`. A
+  todo reminder is not one.
+
+`--phase` defaults to whatever `ORCHESTRATOR_STATE.json` records, so the gate
+polices the brain as it actually is rather than as the caller believes it is.
+
+Like every other gate here, it decides and refuses. It runs no action, never
+transitions the brain, and keeps no audit trail of its own — a gate that writes
+to the state file to justify itself cannot be trusted to report on it.
+
+## Issue #125 — task contract toolchain clauses
+
+`dispatch.py lint` now also requires a contract to state **how** the work is done
+efficiently and **which** standard skill pipeline executes it:
+
+```bash
+$PY agent-skills/local/global/dispatch/scripts/dispatch.py lint TASK.md
+# Error: Task file 'TASK.md' violates the Issue #125 toolchain contract.
+# Missing: 效能准则 (any of: rtk, caveman ultra, codebase-memory-mcp), ...
+```
+
+Each clause is an **any-of**, not all-of: demanding every tool turns a contract
+check into box-ticking. Contracts predating the issue are grandfathered with
+`--allow-legacy`, which warns loudly on stderr rather than passing silently — a
+skipped check must never look like a passing one.
+
 ## Ownership boundaries
 
 Writes are partitioned so the short-lived Herdr plugin process and the

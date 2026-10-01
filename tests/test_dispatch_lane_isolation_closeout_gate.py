@@ -13,6 +13,7 @@ passes is worse than no gate, because it looks like enforcement.
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -543,12 +544,67 @@ def manifest() -> dict:
         return tomllib.load(handle)
 
 
-def test_manifest_exposes_both_gates(manifest: dict) -> None:
+# The gates are CLI pipeline tools, not menu entries. See the NOTE in
+# herdr-plugin.toml for the full reasoning; this pins the decision so the
+# actions cannot quietly creep back into the palette.
+FORBIDDEN_MANIFEST_ACTIONS = frozenset({"claim", "closeout", "prompt-check", "notify"})
+
+
+def test_manifest_does_not_expose_the_pipeline_gates(manifest: dict) -> None:
+    """A manifest command gets no runtime arguments, so these cannot work.
+
+    `claim` needs `--lane`, `closeout` needs an evidence bundle, `prompt-check`
+    needs stdin. Herdr reports exit 0 for a launch regardless, so a gate that
+    always refuses would look healthy in the menu while being unusable.
+    """
     ids = {entry["id"] for entry in manifest.get("actions", [])}
-    assert {"claim", "closeout"} <= ids
+    assert not (ids & FORBIDDEN_MANIFEST_ACTIONS), sorted(ids & FORBIDDEN_MANIFEST_ACTIONS)
 
 
-def test_manifest_gate_actions_are_shell_free(manifest: dict) -> None:
+def _required_flags(subcommand: str) -> list[str]:
+    """Flags the plugin CLI cannot run without, for one subcommand."""
+    parser = plugin.build_parser()
+    for action in parser._subparsers._group_actions:  # noqa: SLF001
+        if not hasattr(action, "choices") or subcommand not in action.choices:
+            continue
+        sub = action.choices[subcommand]
+        return [
+            opt
+            for act in sub._actions  # noqa: SLF001
+            for opt in act.option_strings
+            if getattr(act, "required", False)
+        ]
+    return []
+
+
+def test_every_declared_action_is_runnable_without_arguments(manifest: dict) -> None:
+    """The structural form of the rule, checked against the real argparse tree.
+
+    Reading the parser rather than pattern-matching the source means this keeps
+    working when the CLI changes shape, and it catches the failure whatever it
+    is called: an action whose subcommand has a required flag is dead on
+    arrival, because a manifest command is a fixed argv array.
+    """
     for entry in manifest.get("actions", []):
-        if entry["id"] in {"claim", "closeout"}:
-            assert not any("|" in part for part in entry["command"])
+        command = entry["command"]
+        script_at = next(
+            i for i, part in enumerate(command) if part.endswith("dispatch_plugin.py")
+        )
+        subcommand = command[script_at + 1]
+        required = _required_flags(subcommand)
+        assert not required, (
+            f"action {entry['id']!r} runs `{subcommand}`, which requires "
+            f"{required}; a manifest action cannot supply arguments"
+        )
+
+
+def test_pipeline_gates_remain_available_on_the_cli() -> None:
+    """Removing them from the palette must not remove them from the CLI."""
+    out = subprocess.run(
+        [sys.executable, str(BIN / "dispatch_plugin.py"), "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert out.returncode == 0
+    for sub in ("claim", "closeout", "prompt", "notify", "guard"):
+        assert sub in out.stdout, sub
