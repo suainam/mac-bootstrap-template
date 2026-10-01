@@ -195,11 +195,25 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 1. **Unblock Todo**: `todo(op="unblock", task="<task>")` when `[NOTIFY]` arrives or when harvesting.
 2. **Anti-Worktakeover**: Read child handoff (`~/Documents/handoffs/...`) or pane buffer (`herdr pane read <pane> --source recent-unwrapped --lines 120`). Never re-run investigations or re-read code already explored by the child worker.
 3. **Review Convergence Ceiling**: Max ONE round of review + ONE round of rework verification. Do NOT spawn infinite reviewer loops.
-4. **Closeout Lifecycle Gate (Issue #121)**: NEVER run `herdr pane close` or remove the worktree before the gate opens. A worker being alive, working, or merely slow is NOT evidence that closeout is done — closing early drops the child push, the parent pointer update and the PR merge on the floor.
+4. **Handoff Truthfulness Gate (Issue #132)**: run `verify-handoff` on the child's handoff BEFORE closeout. It decides physical facts in code (test exit code, git diff, claimed-vs-real scope) and sends only the semantic questions to Jev. Exits 2 when the Done claim is not corroborated, and prints a message naming the remedy — hand that message back to the worker.
    ```bash
-   # docs aligned -> child pushed -> parent pointer -> PR merged -> worktree removed
+   # Default is deterministic (heuristics). Add --online to also consult Jev.
+   python3 "$GATE" verify-handoff --lane <lane-id> \
+     --handoff ~/Documents/handoffs/<lane>-handoff-<ts>.md \
+     --test-log /tmp/test.log --diff /tmp/change.diff \
+     --exit-code <code-from-the-test-command> \
+     --json > /tmp/truth.json || exit 2
+   ```
+   Notes: `--exit-code` is mandatory and is the fact that blocks first — do not omit it. `--diff` accepts a bare `git diff` patch, `--stat`, `--numstat` or `--name-only`. `--expect-file` (repeatable) additionally refuses a handoff whose claimed scope the diff does not touch. Prefer the default: the live model over-blocks honest handoffs (measured p=0.47–0.58 against a 0.35 block line on `jev-1.13.0`), so `--online` is opt-in and its threshold consequences are the caller's to own.
+
+5. **Closeout Lifecycle Gate (Issue #121)**: NEVER run `herdr pane close` or remove the worktree before the gate opens. A worker being alive, working, or merely slow is NOT evidence that closeout is done — closing early drops the child push, the parent pointer update and the PR merge on the floor.
+   ```bash
+   # handoff_truthful -> docs aligned -> child pushed -> parent pointer -> PR merged -> worktree removed
    python3 "$GATE" closeout --lane <lane-id> \
-     --evidence '{"docs_aligned":{"docs_reconciled":true}, ...}' || exit 2
+     --evidence '{"docs_aligned":{"docs_reconciled":true}, ...}' \
+     --handoff-report /tmp/truth.json || exit 2
    ```
    Exit 2 means the worker pane **must stay open**; fix the reported step first. An unproven step is not a passed step.
-5. **Human Gate**: Strictly no `git push` or PR merge without explicit human authorization.
+
+   `--handoff-report` is the Gate C verdict from step 4. It is evaluated FIRST, before any lifecycle step, so an unverified lane cannot be pushed, merged or cleaned up. Omitting it is legal — callers that predate Gate C are unaffected — but the report then prints `[SKIP] handoff_truthful: not evaluated`, which is the gate telling you it never checked the handoff's truthfulness. Treat that line as a missing gate, not a pass.
+6. **Human Gate**: Strictly no `git push` or PR merge without explicit human authorization.
