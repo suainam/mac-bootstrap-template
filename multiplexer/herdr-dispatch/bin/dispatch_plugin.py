@@ -395,9 +395,11 @@ def cmd_verify_handoff(args: argparse.Namespace) -> int:
         test_output=test_output,
         diff_summary=diff_summary,
         expected_files=tuple(args.expect_file or ()),
-        # An explicit empty key forces the offline heuristic, so --offline
-        # exercises the fallback path deterministically.
-        key="" if args.offline else None,
+        # Deterministic heuristics are the default; --online opts into Jev.
+        # See the calibration note in handoff_judge: the live layer over-blocks
+        # honest work, so an unreviewed default that calls the model would make
+        # this gate refuse correct lanes.
+        use_jev=args.online,
     )
 
     if args.json:
@@ -906,9 +908,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="file the handoff claims to change; repeatable",
     )
     verify.add_argument(
-        "--offline",
+        "--online",
         action="store_true",
-        help="skip the Jev call and use the built-in heuristics",
+        help=(
+            "consult TypeSafe Jev for the semantic verdict. OFF by default: "
+            "the model over-blocks honest handoffs (measured p=0.47-0.58 "
+            "against a 0.35 block line on jev-1.13.0), so the default path is "
+            "the deterministic heuristic"
+        ),
     )
     verify.add_argument("--json", action="store_true")
     verify.set_defaults(func=cmd_verify_handoff)

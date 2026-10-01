@@ -109,6 +109,24 @@ _TOTALS_RE = re.compile(
 )
 _NOISE_TOKENS = frozenset({"...", "---", "+++"})
 
+# A bare `git diff` patch. The three summary shapes above (``--stat``,
+# ``--numstat``, ``--name-only``) are all *summaries*; a caller who runs plain
+# ``git diff`` — the obvious thing to do, and what most CI logs already contain —
+# gets a unified patch, which none of them match. Every line then falls through
+# to the bare-path branch and is discarded, so the diff reads as empty and a
+# deleted assertion is never seen.
+_DIFF_HEADER_RE = re.compile(r"^diff --git\s+a/(?P<src>.+?)\s+b/(?P<dst>.+?)\s*$")
+# `--- a/path` / `+++ b/path` carry the real path when a header is absent (a
+# patch pasted without its `diff --git` preamble, which is what a chat paste or
+# a truncated log tends to be).
+_OLD_FILE_RE = re.compile(r"^--- (?:a/)?(?P<path>\S.*?)\s*$")
+_NEW_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>\S.*?)\s*$")
+# `@@ -1,4 +1,3 @@` — a hunk header proves the patch has content even when every
+# changed line happens to be blank.
+_HUNK_RE = re.compile(r"^@@+ .*? @@")
+# `/dev/null` means the file was added or deleted outright, so it names nothing.
+_DEV_NULL = "/dev/null"
+
 # --- degradation heuristics -------------------------------------------------
 # Every pattern anchors on a diff marker at column 0. That is what separates a
 # changed line from a `--stat` header (` lib/parser.py | 14 ++++---`) or a
@@ -318,13 +336,28 @@ def truncate_diff(text: str, limit: int = MAX_DIFF_SUMMARY_CHARS) -> str:
 
 
 def parse_diff_summary(diff_summary: str) -> DiffFacts:
-    """Read change counts and paths out of a diff summary.
+    """Read change counts and paths out of a diff summary or a bare patch.
 
-    Accepts the three shapes a caller is likely to have on hand:
-    ``git diff --stat`` (a ``path | n +++--`` block plus a totals line),
-    ``git diff --numstat`` (tab-separated counts) and ``git diff --name-only``
-    (bare paths). Parsing is forgiving on purpose: a summary this function
-    cannot fully understand is still evidence that files were touched.
+    Accepts every shape a caller is likely to have on hand:
+
+    - ``git diff --stat`` — a ``path | n +++--`` block plus a totals line;
+    - ``git diff --numstat`` — tab-separated counts;
+    - ``git diff --name-only`` — bare paths;
+    - a bare ``git diff`` unified patch — ``diff --git`` headers, ``@@`` hunks
+      and ``+``/``-`` changed lines.
+
+    The patch case is not a nicety. Plain ``git diff`` is the command a person
+    types when asked for evidence of a change, and it is what CI logs and review
+    comments already contain. A parser that only understood the ``--stat``
+    family read that patch as *no change at all*, so :attr:`DiffFacts.has_changes`
+    was False and the review refused the lane for "no diff" — while a worker who
+    had deleted the very assertion the gate exists to protect sailed past the
+    degradation check entirely. A blind spot in the evidence reader is a
+    disabled gate, so the patch is parsed on the same footing as the summaries.
+
+    Parsing stays forgiving on purpose: input this function cannot fully
+    understand is still evidence that files were touched, never evidence that
+    nothing was.
     """
     if not diff_summary:
         return DiffFacts()
@@ -332,6 +365,9 @@ def parse_diff_summary(diff_summary: str) -> DiffFacts:
     files: list[str] = []
     files_changed = insertions = deletions = 0
     totals_seen = False
+    # The path of the file the current unified-diff section belongs to, so a
+    # headerless paste can still attribute its +/- lines to a file.
+    patch_path = ""
 
     for raw_line in diff_summary.splitlines():
         line = raw_line.rstrip()
@@ -356,6 +392,52 @@ def parse_diff_summary(diff_summary: str) -> DiffFacts:
             path = path.strip()
             if path and path not in files:
                 files.append(path)
+            continue
+
+        # --- unified patch ---
+        # Handled before the stat branch: a `--- a/x` line contains a pipe-free
+        # path that the bare-path branch would otherwise mistake for a
+        # --name-only entry.
+        header = _DIFF_HEADER_RE.match(line)
+        if header:
+            # A rename or copy lists two paths; the destination is the file in
+            # its new location, which is the one now being edited.
+            patch_path = header.group("dst").strip()
+            if patch_path and patch_path != _DEV_NULL and patch_path not in files:
+                files.append(patch_path)
+            continue
+
+        hunk = _HUNK_RE.match(line)
+        if hunk:
+            continue
+
+        old_file = _OLD_FILE_RE.match(line)
+        if old_file:
+            candidate = old_file.group("path").strip()
+            patch_path = "" if candidate == _DEV_NULL else candidate
+            continue
+
+        new_file = _NEW_FILE_RE.match(line)
+        if new_file:
+            candidate = new_file.group("path").strip()
+            if candidate and candidate != _DEV_NULL:
+                patch_path = candidate
+                if candidate not in files:
+                    files.append(candidate)
+            continue
+
+        if line[0] in "+-":
+            # A changed line. Counted so `has_changes` is true even for a patch
+            # whose only change is a blank line, and so a scope expectation can
+            # be checked against a patch that carried no totals line.
+            if line[0] == "+":
+                insertions += 1
+            else:
+                deletions += 1
+            # A headerless patch still attributes to whatever file the last
+            # `--- a/x` / `+++ b/x` pair named.
+            if patch_path and patch_path not in files:
+                files.append(patch_path)
             continue
 
         stat = _STAT_LINE_RE.match(line)
@@ -711,12 +793,23 @@ def verify_handoff(
     timeout: float = 8.0,
     api_url: Optional[str] = None,
     model: Optional[str] = None,
+    use_jev: bool = False,
 ) -> HandoffReport:
     """Review a worker's Done declaration against its physical evidence.
 
     Level 1 settles everything a machine can measure and returns immediately on
     a failure. Level 2 asks Jev the two questions that genuinely need judgment,
     and falls back to heuristics when Jev cannot answer.
+
+    ``use_jev`` defaults to **False**, so the deterministic heuristic is the
+    baseline rather than the exception. This is the opposite of the obvious
+    wiring and it is deliberate: see the "Jev calibration" note in the module
+    docstring. Measured against ``jev-1.13.0``, an honest fully-corroborated
+    handoff scored p=0.47-0.58 on a 0.35 block line, so a live model over-blocks
+    correct work and a gate that refuses honest lanes is worse than no gate. A
+    caller that wants the semantic layer opts in with ``use_jev=True`` and owns
+    the threshold consequences. ``key`` still forces a specific path (an
+    explicit empty string means "no key, heuristics only").
     """
     diff = parse_diff_summary(diff_summary)
     bounded_handoff = truncate_handoff(handoff_text or "")
@@ -727,7 +820,7 @@ def verify_handoff(
     if physical is not None:
         return physical
 
-    resolved_key = resolve_api_key(key)
+    resolved_key = resolve_api_key(key) if use_jev else ""
     if not resolved_key:
         return _offline_report(
             bounded_handoff, bounded_output, bounded_diff, test_exit_code, diff

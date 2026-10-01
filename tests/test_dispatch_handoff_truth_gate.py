@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -93,7 +95,7 @@ def test_nonzero_test_exit_code_blocks_before_jev_is_consulted() -> None:
             test_exit_code=1,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -152,7 +154,7 @@ def test_diff_touching_none_of_the_expected_files_blocks() -> None:
             test_output=GENUINE_TEST_LOG,
             diff_summary=" docs/README.md | 3 +++\n 1 file changed, 3 insertions(+)\n",
             expected_files=["lib/parser.py"],
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -171,7 +173,7 @@ def test_diff_touching_one_expected_file_passes_the_physical_layer() -> None:
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
             expected_files=["lib/parser.py", "tests/test_parser.py"],
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -192,7 +194,7 @@ def test_genuine_delivery_is_accepted() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -215,7 +217,7 @@ def test_unverified_claim_is_rejected_as_fake_completion() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -233,7 +235,7 @@ def test_silent_degradation_is_rejected() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=" tests/test_parser.py | 2 --\n 1 file changed, 0 insertions(+), 2 deletions(-)\n",
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -252,7 +254,7 @@ def test_probabilities_below_thresholds_are_accepted() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -268,7 +270,7 @@ def test_jev_is_asked_exactly_once_with_both_questions_batched() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -298,7 +300,7 @@ def test_inputs_are_truncated_before_reaching_jev() -> None:
             test_exit_code=0,
             test_output="y" * 50_000,
             diff_summary="z" * 50_000,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -347,6 +349,221 @@ def test_parse_diff_summary_handles_an_empty_summary() -> None:
     assert facts.insertions == 0
     assert facts.deletions == 0
     assert facts.files == ()
+
+
+# --------------------------------------------------------------------------
+# A bare `git diff` patch — the shape a person actually pastes as evidence
+# --------------------------------------------------------------------------
+
+
+BARE_PATCH = """diff --git a/tests/test_parser.py b/tests/test_parser.py
+index c37507a..23fbeaa 100644
+--- a/tests/test_parser.py
++++ b/tests/test_parser.py
+@@ -1,4 +1,3 @@
+ def test_truncated_frame():
+     parser = Parser()
+     assert parser.length == 4
+-    assert parser.checksum == 0xDEADBEEF
+"""
+
+HONEST_PATCH = """diff --git a/lib_new.py b/lib_new.py
+index b859599..290f5d8 100644
+--- a/lib_new.py
++++ b/lib_new.py
+@@ -1,2 +1,5 @@
+ def f():
+     return 1
++
++def g():
++    return 2
+diff --git a/tests/test_parser.py b/tests/test_parser.py
+index e63b2e8..e539505 100644
+--- a/tests/test_parser.py
++++ b/tests/test_parser.py
+@@ -4,4 +4,4 @@ def test_truncated_frame():
+
+
+ def test_new_case():
+-    assert True
++    assert compute() == 42
+"""
+
+
+def test_a_bare_patch_is_not_mistaken_for_an_empty_diff() -> None:
+    """Regression: plain `git diff` used to parse as *no change at all*.
+
+    Every summary shape the parser knew was a `--stat` variant. A unified patch
+    matched none of them, so each line fell through to the bare-path branch and
+    was dropped. `has_changes` came back False, the review refused the lane for
+    "no diff", and the degradation check never ran — a blind spot in the
+    evidence reader is a disabled gate.
+    """
+    facts = judge.parse_diff_summary(BARE_PATCH)
+    assert facts.has_changes
+    assert facts.files_changed == 1
+    assert facts.insertions == 0
+    assert facts.deletions == 1
+    assert "tests/test_parser.py" in facts.files
+
+
+def test_a_bare_patch_exposes_the_deleted_assertion() -> None:
+    """The whole point: a real patch must reach the degradation detector."""
+    report = judge.verify_handoff(
+        handoff_text="Removed the redundant checksum assertion. All tests pass.",
+        test_exit_code=0,
+        test_output="1 passed in 0.01s\n",
+        diff_summary=BARE_PATCH,
+        key="",
+    )
+    assert not report.accepted
+    assert report.verdict is judge.HandoffVerdict.SILENT_DEGRADATION
+    assert "checksum" in " ".join(report.reasons)
+
+
+def test_a_bare_patch_supports_the_scope_check() -> None:
+    """`_touches` must work on a patch, or --expect-file is silently inert."""
+    facts = judge.parse_diff_summary(BARE_PATCH)
+    assert judge._touches(facts, "tests/test_parser.py")
+    assert not judge._touches(facts, "lib/unrelated.py")
+
+
+def test_a_bare_patch_with_several_files_counts_them_all() -> None:
+    facts = judge.parse_diff_summary(HONEST_PATCH)
+    assert facts.files_changed == 2
+    assert facts.has_changes
+    assert "lib_new.py" in facts.files
+    assert "tests/test_parser.py" in facts.files
+
+
+def test_a_patch_header_attributes_changes_without_a_totals_line() -> None:
+    """A rename carries no +/- lines, yet it is still a real change."""
+    patch = """diff --git a/lib_new.py b/lib_renamed.py
+similarity index 100%
+rename from lib_new.py
+rename to lib_renamed.py
+"""
+    facts = judge.parse_diff_summary(patch)
+    assert facts.has_changes
+    assert "lib_renamed.py" in facts.files
+
+
+def test_a_new_file_patch_is_attributed_to_its_real_path() -> None:
+    """`--- /dev/null` names nothing, so the +++ side must supply the path."""
+    patch = """diff --git a/brand_new.py b/brand_new.py
+new file mode 100644
+index 0000000..bafc5d9
+--- /dev/null
++++ b/brand_new.py
+@@ -0,0 +1 @@
++x=1
+"""
+    facts = judge.parse_diff_summary(patch)
+    assert facts.has_changes
+    assert "brand_new.py" in facts.files
+    assert "/dev/null" not in facts.files
+    assert facts.insertions == 1
+
+
+def test_a_headerless_patch_still_attributes_lines() -> None:
+    """A pasted patch often loses its `diff --git` preamble."""
+    patch = """--- a/tests/test_parser.py
++++ b/tests/test_parser.py
+@@ -1,2 +1,2 @@
+-    assert x == 1
++    assert x == 2
+"""
+    facts = judge.parse_diff_summary(patch)
+    assert facts.has_changes
+    assert "tests/test_parser.py" in facts.files
+    assert (facts.insertions, facts.deletions) == (1, 1)
+
+
+def test_hunk_headers_are_not_mistaken_for_changed_lines() -> None:
+    """`@@ -1,4 +1,3 @@` contains no `+`/`-` at column 0 and must not count."""
+    facts = judge.parse_diff_summary(BARE_PATCH)
+    # Three context lines plus one deletion; the hunk header is not a line.
+    assert facts.deletions == 1
+    assert facts.insertions == 0
+
+
+def test_a_real_git_diff_is_caught_end_to_end(tmp_path: Path) -> None:
+    """Drive the parser with output from a real `git diff`, not a fixture.
+
+    A hand-written fixture can only prove the parser matches the author. This
+    proves it against what git actually emits.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = {
+        "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
+        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
+        "PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path),
+    }
+    run = lambda *a: subprocess.run(  # noqa: E731
+        ["git", "-C", str(repo), *a], capture_output=True, text=True, env=env, check=True
+    )
+    run("init", "-q", "-b", "main")
+    test_file = repo / "test_parser.py"
+    test_file.write_text(
+        "def test_frame():\n    assert length == 4\n    assert checksum == 7\n",
+        encoding="utf-8",
+    )
+    run("add", "-A")
+    run("commit", "-qm", "init")
+
+    # The cheat: delete an assertion to go green.
+    test_file.write_text("def test_frame():\n    assert length == 4\n", encoding="utf-8")
+    patch = run("diff").stdout
+    assert "-    assert checksum == 7" in patch, "fixture did not produce a deletion"
+
+    report = judge.verify_handoff(
+        handoff_text="Dropped the redundant checksum assertion. All tests pass.",
+        test_exit_code=0,
+        test_output="1 passed in 0.01s\n",
+        diff_summary=patch,
+        key="",
+    )
+    assert not report.accepted
+    assert report.verdict is judge.HandoffVerdict.SILENT_DEGRADATION
+    assert "checksum" in " ".join(report.reasons)
+
+
+def test_a_real_honest_git_diff_is_accepted_end_to_end(tmp_path: Path) -> None:
+    """The same path, with real work instead of a cheat, must not be refused."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = {
+        "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
+        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
+        "PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path),
+    }
+    run = lambda *a: subprocess.run(  # noqa: E731
+        ["git", "-C", str(repo), *a], capture_output=True, text=True, env=env, check=True
+    )
+    run("init", "-q", "-b", "main")
+    (repo / "lib.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    (repo / "test_lib.py").write_text(
+        "def test_f():\n    assert f() == 1\n", encoding="utf-8"
+    )
+    run("add", "-A")
+    run("commit", "-qm", "init")
+
+    # Honest work: a new function plus a stronger assertion.
+    (repo / "lib.py").write_text("def f():\n    return 1\n\ndef g():\n    return 2\n", encoding="utf-8")
+    (repo / "test_lib.py").write_text("def test_f():\n    assert f() == 1\n    assert g() == 2\n", encoding="utf-8")
+    patch = run("diff").stdout
+    assert patch.startswith("diff --git"), "fixture did not produce a patch"
+
+    report = judge.verify_handoff(
+        handoff_text="Added g() and extended the test to cover it.",
+        test_exit_code=0,
+        test_output="2 passed in 0.02s\n",
+        diff_summary=patch,
+        key="",
+    )
+    assert report.accepted
+    assert report.verdict is judge.HandoffVerdict.ACCEPTED
 
 
 def test_parse_diff_summary_accepts_file_list_input() -> None:
@@ -487,7 +704,7 @@ def test_network_failure_falls_back_to_the_heuristic() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     assert report.accepted
     assert report.model == "heuristic-fallback"
@@ -503,7 +720,7 @@ def test_malformed_jev_response_falls_back_rather_than_crashing() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     assert report.accepted
     assert report.model == "heuristic-fallback"
@@ -522,7 +739,7 @@ def test_rejection_message_names_the_missing_evidence() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()
@@ -579,7 +796,7 @@ def test_verify_handoff_command_accepts_a_genuine_delivery(capsys, tmp_path) -> 
     code = plugin.main([
         "verify-handoff", "--lane", "1-4",
         "--handoff", str(handoff), "--test-log", str(log),
-        "--diff", str(diff), "--exit-code", "0", "--offline", "--json",
+        "--diff", str(diff), "--exit-code", "0", "--json",
     ])
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -649,15 +866,16 @@ def test_verify_handoff_command_reports_a_missing_handoff_file(tmp_path, capsys)
 
 
 def test_verify_handoff_command_accepts_inline_text(capsys) -> None:
-    # --offline keeps this hermetic: the verdict must not depend on whether the
-    # host happens to hold a TYPESAFE_API_KEY. See the Jev-calibration note in
-    # handoff_judge for why the live layer is not a safe test oracle.
+    # No --online: the default path is the deterministic heuristic, so this
+    # passes whether or not the host holds a TYPESAFE_API_KEY. See the
+    # Jev-calibration note in handoff_judge for why the live layer is not a safe
+    # test oracle.
     code = plugin.main([
         "verify-handoff", "--lane", "1-4",
         "--handoff-text", GENUINE_HANDOFF,
         "--test-log-text", GENUINE_TEST_LOG,
         "--diff-text", GENUINE_DIFF,
-        "--exit-code", "0", "--offline", "--json",
+        "--exit-code", "0", "--json",
     ])
     assert code == 0
     assert json.loads(capsys.readouterr().out)["verdict"] == "ACCEPTED"
@@ -669,7 +887,7 @@ def test_verify_handoff_command_renders_a_human_report(capsys) -> None:
         "--handoff-text", GENUINE_HANDOFF,
         "--test-log-text", GENUINE_TEST_LOG,
         "--diff-text", GENUINE_DIFF,
-        "--exit-code", "0", "--offline",
+        "--exit-code", "0",
     ])
     assert code == 0
     out = capsys.readouterr().out
@@ -677,18 +895,73 @@ def test_verify_handoff_command_renders_a_human_report(capsys) -> None:
     assert "1-4" in out
 
 
-def test_verify_handoff_offline_forces_the_heuristic(capsys) -> None:
+def test_verify_handoff_defaults_to_the_deterministic_heuristic(
+    capsys, monkeypatch
+) -> None:
+    """The default must not depend on whether the host holds a key.
+
+    Regression for the calibration finding: with a live key the model scored an
+    honest handoff p=0.47-0.58 against a 0.35 block line, so a default that
+    called Jev would refuse correct lanes. A key in the environment must not
+    change the default verdict.
+    """
+    monkeypatch.setenv("TYPESAFE_API_KEY", "should-not-be-consulted")
     code = plugin.main([
         "verify-handoff", "--lane", "1-4",
         "--handoff-text", "Verified with valgrind, zero leaks.",
         "--test-log-text", GENUINE_TEST_LOG,
         "--diff-text", GENUINE_DIFF,
-        "--exit-code", "0", "--offline", "--json",
+        "--exit-code", "0", "--json",
     ])
     assert code == plugin.EXIT_GATE_REFUSED
     payload = json.loads(capsys.readouterr().out)
     assert payload["verdict"] == "UNVERIFIED_CLAIMS"
     assert payload["model"] == "heuristic-fallback"
+
+
+def test_verify_handoff_accepts_an_uncorroborated_claim_by_default(capsys) -> None:
+    """A corroborated handoff passes with no flag and no key configured."""
+    code = plugin.main([
+        "verify-handoff", "--lane", "1-4",
+        "--handoff-text", GENUINE_HANDOFF,
+        "--test-log-text", GENUINE_TEST_LOG,
+        "--diff-text", GENUINE_DIFF,
+        "--exit-code", "0", "--json",
+    ])
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["verdict"] == "ACCEPTED"
+
+
+def test_online_opts_into_the_jev_layer() -> None:
+    """`--online` is what turns the semantic layer on; it is not the default."""
+    patcher, mock_urlopen = _mock_jev(0.02, 0.01)
+    try:
+        report = judge.verify_handoff(
+            handoff_text=GENUINE_HANDOFF,
+            test_exit_code=0,
+            test_output=GENUINE_TEST_LOG,
+            diff_summary=GENUINE_DIFF,
+            use_jev=True,
+            key="test-key",
+        )
+    finally:
+        patcher.stop()
+    mock_urlopen.assert_called_once()
+    assert report.model == "jev-latest"
+
+
+def test_a_key_alone_does_not_enable_the_jev_layer(monkeypatch) -> None:
+    """`use_jev` is the switch; a present key is not consent to be called."""
+    monkeypatch.setenv("TYPESAFE_API_KEY", "ambient-key")
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        report = judge.verify_handoff(
+            handoff_text=GENUINE_HANDOFF,
+            test_exit_code=0,
+            test_output=GENUINE_TEST_LOG,
+            diff_summary=GENUINE_DIFF,
+        )
+    mock_urlopen.assert_not_called()
+    assert report.model == "heuristic-fallback"
 
 
 def test_verify_handoff_non_integer_exit_code_is_reported(capsys) -> None:
@@ -780,6 +1053,78 @@ def test_truthfulness_step_is_absent_when_no_report_is_supplied() -> None:
     assert gate.HANDOFF_TRUTHFUL_STEP not in [s.step for s in closeout.steps]
 
 
+def test_an_unevaluated_truthfulness_step_is_reported_as_such() -> None:
+    """Silence is the bug: "never looked" must not read as "verified".
+
+    A caller who never ran ``verify-handoff`` and a caller whose review passed
+    produce an identical step list. Without an explicit line, an orchestrator
+    standing in front of a worktree deletion cannot tell which one it is.
+    """
+    closeout = gate.evaluate_closeout("1-4", gate.SATISFIED_EVIDENCE)
+    assert closeout.truthfulness_not_run
+    assert not closeout.truthfulness_evaluated
+    rendered = closeout.render()
+    assert "[SKIP] handoff_truthful" in rendered
+    assert "not evaluated" in rendered
+    assert "verify-handoff" in rendered
+
+
+def test_the_skip_line_appears_even_when_the_gate_is_closed() -> None:
+    """Otherwise the missing-review note vanishes exactly when it matters."""
+    closeout = gate.evaluate_closeout("1-4", {})
+    assert not closeout.allowed
+    assert "[SKIP] handoff_truthful" in closeout.render()
+
+
+def test_a_passing_truthfulness_review_clears_the_skip_line() -> None:
+    report = judge.verify_handoff(
+        handoff_text=GENUINE_HANDOFF,
+        test_exit_code=0,
+        test_output=GENUINE_TEST_LOG,
+        diff_summary=GENUINE_DIFF,
+    )
+    closeout = gate.evaluate_closeout(
+        "1-4", gate.SATISFIED_EVIDENCE,
+        truthfulness=report.as_truthfulness_facts(),
+    )
+    assert not closeout.truthfulness_not_run
+    assert closeout.truthfulness_evaluated
+    assert "SKIP" not in closeout.render()
+    assert "[PASS] handoff_truthful" in closeout.render()
+
+
+def test_the_report_payload_carries_the_evaluation_flag() -> None:
+    """A board rendering as_dict() must be able to show the same distinction."""
+    skipped = gate.evaluate_closeout("1-4", gate.SATISFIED_EVIDENCE).as_dict()
+    assert skipped["truthfulness_evaluated"] is False
+    assert skipped["truthfulness_not_run"] is True
+
+    report = judge.verify_handoff(
+        handoff_text=GENUINE_HANDOFF,
+        test_exit_code=0,
+        test_output=GENUINE_TEST_LOG,
+        diff_summary=GENUINE_DIFF,
+    )
+    checked = gate.evaluate_closeout(
+        "1-4", gate.SATISFIED_EVIDENCE,
+        truthfulness=report.as_truthfulness_facts(),
+    ).as_dict()
+    assert checked["truthfulness_evaluated"] is True
+    assert checked["truthfulness_not_run"] is False
+
+
+def test_assert_closeout_allowed_reports_the_skip_line_when_raising() -> None:
+    report = judge.verify_handoff(
+        handoff_text=GENUINE_HANDOFF, test_exit_code=1, test_output="",
+        diff_summary=GENUINE_DIFF,
+    )
+    with pytest.raises(gate.CloseoutGateError) as excinfo:
+        gate.assert_closeout_allowed(
+            "1-4", {}, truthfulness=report.as_truthfulness_facts()
+        )
+    assert "SKIP" not in str(excinfo.value)
+
+
 def test_truthfulness_facts_reject_a_verdict_that_is_not_accepted() -> None:
     facts = {
         "handoff_verdict": "UNVERIFIED_CLAIMS",
@@ -869,7 +1214,7 @@ def test_the_jev_state_carries_the_physical_exit_code() -> None:
             test_exit_code=0,
             test_output=GENUINE_TEST_LOG,
             diff_summary=GENUINE_DIFF,
-            key="test-key",
+            key="test-key", use_jev=True,
         )
     finally:
         patcher.stop()

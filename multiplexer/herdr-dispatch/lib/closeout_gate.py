@@ -142,6 +142,22 @@ class CloseoutReport:
 
     lane_id: str = ""
     steps: List[StepResult] = field(default_factory=list)
+    # Whether the Gate C precondition was evaluated. False means the caller
+    # supplied no report, which is *not* the same as a report that passed — see
+    # :attr:`truthfulness_not_run`.
+    truthfulness_evaluated: bool = False
+
+    @property
+    def truthfulness_not_run(self) -> bool:
+        """True when no Gate C report was supplied.
+
+        Kept as its own name because the distinction is the whole point of the
+        flag. A caller that never ran ``verify-handoff`` and a caller whose
+        review passed produce an identical step list, so a reader of the report
+        alone cannot tell "verified" from "never looked". Silence here is the
+        failure mode this property exists to make visible.
+        """
+        return not self.truthfulness_evaluated
 
     @property
     def blocked_at(self) -> str:
@@ -178,6 +194,8 @@ class CloseoutReport:
             "allowed": self.allowed,
             "pane_close_allowed": self.pane_close_allowed,
             "blocked_at": self.blocked_at,
+            "truthfulness_evaluated": self.truthfulness_evaluated,
+            "truthfulness_not_run": self.truthfulness_not_run,
             "steps": [s.as_dict() for s in self.steps],
         }
 
@@ -189,6 +207,17 @@ class CloseoutReport:
             lines.append(f"  [{mark}] {result.step}: {result.label}")
             if result.detail:
                 lines.append(f"         {result.detail}")
+        if self.truthfulness_not_run:
+            # Stated in both outcomes, not only on failure. A gate that is
+            # OPEN without this line reads exactly like one that is open
+            # because the work was verified, and those are very different
+            # things to be standing on before deleting a worktree.
+            lines.append(
+                "  [SKIP] " + HANDOFF_TRUTHFUL_STEP + ": not evaluated — no Gate C "
+                "report was supplied (run `dispatch_plugin.py verify-handoff` and "
+                "pass --handoff-report). The lifecycle steps below are unverified "
+                "against the handoff's truthfulness."
+            )
         if self.allowed:
             lines.append("  gate OPEN: worktree cleanup and pane close are permitted")
         else:
@@ -277,7 +306,9 @@ def evaluate_closeout(
     steps are reported as not reached rather than as independently broken, so
     nobody is told to delete a worktree whose child commit was never pushed.
     """
-    report = CloseoutReport(lane_id=lane_id)
+    report = CloseoutReport(
+        lane_id=lane_id, truthfulness_evaluated=truthfulness is not None
+    )
     supplied = dict(evidence or {})
     failure_seen = False
 
