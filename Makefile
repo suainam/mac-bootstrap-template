@@ -163,13 +163,14 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 repo-check:
-	+$(MAKE) syntax-check skill-check privacy-audit dispatch-single-writer-gate pytest-parallel
+	+$(MAKE) syntax-check skill-check privacy-audit dispatch-single-writer-gate dispatch-test pytest-parallel
 
 repo-check-serial:
 	$(MAKE) syntax-check
 	$(MAKE) skill-check
 	./scripts/privacy-audit.sh
 	$(MAKE) dispatch-single-writer-gate
+	$(MAKE) dispatch-test
 	$(MAKE) pytest
 
 repo-check-parallel: repo-check
@@ -415,6 +416,16 @@ skill-check:
 # reporting, which Herdr's own `herdr:omp` integration already owns.
 dispatch-single-writer-gate:
 	$(PYTHON) scripts/dispatch-single-writer-gate.py
+
+# omp-side extension tests. bun runs the TypeScript suite directly; when
+# bun is absent we report and skip rather than installing a toolchain,
+# matching the installer's missing-dependency contract.
+dispatch-test:
+	@if command -v bun >/dev/null 2>&1; then \
+		bun test tests/dispatch-brain.test.ts; \
+	else \
+		echo 'dispatch-test: SKIPPED (bun not installed; TypeScript suite not run)'; \
+	fi
 
 prompt-sync:
 	./scripts/sync-agent-prompts.sh

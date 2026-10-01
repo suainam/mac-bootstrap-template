@@ -49,6 +49,25 @@ def test_detects_hand_rolled_state_payload() -> None:
     assert violations and violations[0].rule == "semantic-state-report"
 
 
+def test_detects_cli_report_agent_spelling() -> None:
+    """The CLI wrapper must not be an escape hatch.
+
+    `herdr pane report-agent` is the documented command for the same write as
+    `pane.report_agent`. A gate matching only the socket spelling would pass on
+    code that uses the CLI.
+    """
+    violations = gate.scan_text(
+        'run_herdr(["pane", "report-agent", pane, "--state", "working"])\n', "tool.py"
+    )
+    assert violations and violations[0].rule == "semantic-state-report"
+
+
+def test_report_agent_session_cli_spelling_is_allowed() -> None:
+    assert gate.scan_text(
+        'run_herdr(["pane", "report-agent-session", pane])\n', "tool.py"
+    ) == []
+
+
 def test_report_metadata_is_allowed() -> None:
     """Presentation metadata is the *sanctioned* write, not the forbidden one."""
     assert gate.scan_text('req("pane.report_metadata", {"tokens": {}})\n', "ext.ts") == []
@@ -108,6 +127,32 @@ def test_comments_are_ignored() -> None:
         "\n"
     )
     assert gate.scan_text(text, "t.py") == []
+
+
+def test_docstrings_may_explain_the_rule() -> None:
+    """Prose about the forbidden call is not the forbidden call."""
+    text = (
+        'def report_lane_metadata(pane_id):\n'
+        '    """Publish a lane\'s tokens.\n'
+        '    Never pane.report_agent: herdr:omp owns lifecycle state.\n'
+        '    """\n'
+        '    return run_herdr(["pane", "report-metadata", pane_id])\n'
+    )
+    assert gate.scan_text(text, "tool.py") == []
+
+
+def test_code_after_a_docstring_is_still_checked() -> None:
+    """Docstring skipping must not blind the gate to real code."""
+    text = (
+        'def bad(pane_id):\n'
+        '    """Docstring mentioning pane.report_agent.\n'
+        '    More prose here.\n'
+        '    """\n'
+        '    return run_herdr(["pane", "report-agent", pane_id])\n'
+    )
+    violations = gate.scan_text(text, "tool.py")
+    assert len(violations) == 1
+    assert violations[0].line_no == 5
 
 
 def test_shipped_state_module_is_clean() -> None:

@@ -53,11 +53,14 @@ MANAGED_INTEGRATION_RE = re.compile(
 # Semantic agent states. Reporting one of these is the write we forbid.
 SEMANTIC_STATES = ("working", "blocked", "idle", "done", "unknown")
 
-# `pane.report_agent` is the semantic-state report. A `pane.report_agent_session`
-# call is matched by the same substring, so it is excluded explicitly: reporting
-# a session reference is not a lifecycle report.
-REPORT_SEMANTIC_RE = re.compile(r"report_agent(?!_session)")
-REPORT_METADATA_RE = re.compile(r"report_metadata")
+# `pane.report_agent` is the semantic-state report; its CLI wrapper is
+# `herdr pane report-agent`. Both spellings must be caught, or the rule is
+# trivially bypassed by using the documented command instead of the socket.
+# `pane.report_agent_session` / `report-agent-session` is excluded: a session
+# reference is not a lifecycle report, and reporting metadata is the sanctioned
+# write.
+REPORT_SEMANTIC_RE = re.compile(r"report[-_]agent(?![-_]session)")
+REPORT_METADATA_RE = re.compile(r"report[-_]metadata")
 
 # Constructing a report payload by hand is the same write by another route.
 REPORT_PAYLOAD_RE = re.compile(
@@ -125,10 +128,47 @@ def _is_comment(line: str) -> bool:
     return line.startswith(COMMENT_PREFIXES)
 
 
+def _docstring_lines(text: str) -> frozenset[int]:
+    """Line numbers occupied by Python docstrings.
+
+    Documentation that explains *why* a call is forbidden must not be mistaken
+    for the call. Judging code rather than prose about code keeps the gate's
+    findings actionable; without this, every "we deliberately do not call
+    report_agent here" comment would need to be worded around the gate.
+    """
+    try:
+        import ast
+
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return frozenset()
+
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        body = getattr(node, "body", None)
+        if not body:
+            continue
+        first = body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            start = first.lineno
+            end = getattr(first, "end_lineno", None) or start
+            lines.update(range(start, end + 1))
+    return frozenset(lines)
+
+
 def scan_text(text: str, display_path: str) -> List[Violation]:
     """Check one file's contents for the three forbidden writes."""
     violations: List[Violation] = []
+    skip_lines = _docstring_lines(text) if display_path.endswith(".py") else frozenset()
     for line_no, raw in enumerate(text.splitlines(), start=1):
+        if line_no in skip_lines:
+            continue
         line = raw.strip()
         if not line or _is_comment(line):
             continue
