@@ -10,6 +10,9 @@ Status: TB-01 and TB-02 implemented. TB-03 onward is not here yet.
 | Piece | Path | Shape |
 |---|---|---|
 | Orchestrator brain state store | `lib/orchestrator_state.py` | library + CLI, no daemon |
+| Lane isolation gate | `lib/lane_isolation.py` | pure policy; claims a worktree+branch or raises |
+| Closeout lifecycle gate | `lib/closeout_gate.py` | pure policy; decides, never destroys |
+| Prompt protocol gate | `lib/prompt_protocol.py` | pure policy; judges, never rewrites |
 | Single-writer audit gate | `../../scripts/dispatch-single-writer-gate.py` | repo gate, wired into `make repo-check` |
 | omp-side extension | `agent/omp/extensions/dispatch-omp/` | in-process; brain loop, routing, gate, heartbeats |
 | Context & memory governance | [`docs/memory-governance.md`](docs/memory-governance.md) | pure policy; pruning, rollover, downgrading, host pressure |
@@ -78,6 +81,121 @@ $PY multiplexer/herdr-dispatch/lib/orchestrator_state.py wake --lane 1-1
 $PY multiplexer/herdr-dispatch/lib/orchestrator_state.py migrate --dry-run
 ```
 
+## Lane isolation: 1 Lane = 1 Worktree = 1 Branch
+
+Two interactive agents in one worktree produce three failures that none of them
+name as a cause: the lane that finishes first mechanically merges the other's
+untested WIP; the lane that finishes first then physically deletes the directory
+its peer is still testing in; and both hold the submodule dirty, so each one's
+`worktree-init` gate refuses the other's and the pair deadlocks.
+
+So the rule is a check, not prose. A lane claims a `(worktree, branch)` pair
+before dispatch, and `lib/lane_isolation.py` refuses — loudly, `exit 2` — when
+either half is already held by a **live** lane:
+
+```bash
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py claim \
+  --lane 1-2 --worktree /tmp/nat-hk96 --branch feat/1-2
+# dispatch: lane 1-2: worktree /private/tmp/nat-hk96 is already claimed by live
+# lane '1-1'; 1 Lane = 1 Worktree = 1 Branch forbids sharing a worktree between
+# interactive agents
+# exit 2
+```
+
+Paths are compared after resolution, so `./wt`, a trailing slash and an absolute
+path all collide with each other. A lane renewing its *own* claim is a no-op,
+and a `closed` / `released` / `orphaned` lane frees its claim for the next run.
+
+## Closeout Lifecycle Gate (Issue #121)
+
+"Premature pane destruction" is the same shape of bug: the feature works, the
+orchestrator wants the memory back, it closes the pane, and the push, the parent
+pointer update and the PR merge never happen. Destroying the pane is
+irreversible and it is the *last* step, so it is the step that must be gated
+hardest — a worker may be alive, working, or merely slow, and none of those are
+evidence that closeout is done.
+
+Five steps, in order, each gated on facts the caller supplies:
+
+```text
+docs_aligned -> child_pushed -> parent_pointer_updated -> pr_merged -> worktree_removed
+```
+
+```bash
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py closeout --lane 1-1
+#   [BLOCK] docs_aligned: authoritative docs aligned with the change
+#          unproven: docs_reconciled not reported (an unproven step blocks closeout)
+#   [BLOCK] child_pushed: ...
+#          not reached: an earlier closeout step is unmet
+#   gate CLOSED at docs_aligned: the worker pane must stay open until this step passes
+# exit 2
+```
+
+Two properties make this more than a checklist:
+
+- **An unproven step is not a passed step.** A missing fact blocks; nothing is
+  inferred from its absence. This is the fail-loud rule from the orchestrator
+  lessons doc, applied to closeout.
+- **The order is enforced.** An unpushed child *also* means the worktree still
+  exists, but the reason to fix it is the push. Later steps report "not reached"
+  rather than as independently broken, so nobody is told to delete a worktree
+  whose commit was never pushed.
+
+The gate **decides and never acts**: it runs no `git push`, `gh pr merge`,
+`git worktree remove` or `herdr pane close`. A gate that performs the
+irreversible action cannot also be the thing that audits it.
+
+## Prompt protocol gate — and why it is not an interceptor
+
+An orchestrator sent bare prose straight through `herdr agent prompt` — no
+evaluated coordinate, no `[NOTIFY]` contract — and the plugin system waved it
+through. The worker got unstructured text where it expected a contract.
+
+**The plugin could not have caught it, and that is the finding.** Herdr's plugin
+surface is a fixed enumeration of *state-change* notifications (`pane.created`,
+`pane.agent_status_changed`, `worktree.*`), declared as `[[events]] on = ...`.
+`herdr agent prompt` is a direct CLI/RPC call: no pre-execution hook, no command
+middleware, no veto anywhere in the plugin API. `agent.prompt` is an RPC
+*command*, not an event, so a plugin cannot subscribe to it. Verified against the
+full Herdr documentation, which contains zero interception points.
+
+So the real defect was not a faulty validator — **there was no validator**. The
+rule existed as prose in one section of `SKILL.md` and as nothing else.
+
+What ships instead is the sanctioned path plus a check in front of delivery:
+
+```bash
+# validate then deliver; refuses with exit 2 BEFORE delivery
+printf '%s' "$PROMPT" | python3 bin/dispatch_plugin.py prompt --stdin --send --target "$PANE"
+
+# check only
+printf '%s' "$PROMPT" | python3 bin/dispatch_plugin.py prompt --stdin
+```
+
+A dispatched prompt needs a **resolved** coordinate (`w<N>:p<N>` — never
+`${ORCH_PANE}` or `<orch-pane>`) and a structured `[NOTIFY]` carrying `DONE:`
+and `Handoff:` lines.
+
+**Know what this does not give you.** A determined caller can still type
+`herdr agent prompt` directly and bypass the gate entirely; nothing in Herdr can
+stop that. What the gate does provide is a loud refusal at the point of use, a
+delivery path that cannot leak a malformed prompt, and `SKILL.md` pointing at it
+instead of at the raw CLI. Real enforcement needs an upstream Herdr hook.
+
+Two deliberate properties:
+
+- **It never repairs.** Substituting `${ORCH_PANE}` would fabricate a coordinate
+  nobody verified, so the text handed to Herdr is byte-identical to the input.
+- **It accepts the project's own template.** The canonical `SKILL.md` command
+  writes `'\n[NOTIFY]...'`, and bash single quotes keep that a literal
+  backslash-n. Structural checks run on an escape-normalised view; delivery
+  always sends the original bytes.
+
+`scripts/prompt-gate-probe.py` is the feedback loop that found all of this. It
+distinguishes *"the gate refused this"* from *"the gate does not exist"* —
+without that distinction argparse exits 2 for every input and the probe reports
+green while nothing is being enforced.
+
 ## Ownership boundaries
 
 Writes are partitioned so the short-lived Herdr plugin process and the
@@ -112,5 +230,13 @@ registry update cannot replace them.
 ```bash
 .venv/bin/python -m pytest tests/test_dispatch_orchestrator_state.py \
                              tests/test_dispatch_single_writer_gate.py \
+                             tests/test_dispatch_lane_isolation_closeout_gate.py \
+                             tests/test_dispatch_prompt_protocol_gate.py \
                              tests/test_install_omp_extensions_local.py -q
+```
+
+The prompt gate has a standalone feedback loop:
+
+```bash
+python3 scripts/prompt-gate-probe.py   # red-capable: exits 1 until the gate enforces
 ```

@@ -32,6 +32,18 @@ Follow the 5-phase lifecycle in sequence:
 [Phase 1: Goal Contract] ──► [Phase 2: Topology & Handshake] ──► [Phase 3: Prompt & Block] ──► [Phase 4: Yield & Supervision] ──► [Phase 5: Harvest & Gate]
 ```
 
+> **Resolving the gate plugin.** Phases 2 and 5 call
+> `<TEMPLATE_ROOT>/multiplexer/herdr-dispatch/bin/dispatch_plugin.py`. This skill
+> is installed independently of the template repo, so resolve the root once and
+> fail loudly rather than skipping the gate:
+> ```bash
+> TEMPLATE_ROOT="${TEMPLATE_ROOT:-$(git -C "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" rev-parse --show-toplevel 2>/dev/null)/template}"
+> GATE="${TEMPLATE_ROOT}/multiplexer/herdr-dispatch/bin/dispatch_plugin.py"
+> [ -f "$GATE" ] || { echo "dispatch: cannot locate $GATE — set TEMPLATE_ROOT to the mac-bootstrap checkout" >&2; exit 2; }
+> ```
+> The gate is a refusal, not a formality: exiting 2 means the rule refused this
+> dispatch, and proceeding anyway is the exact failure the gate was added to stop.
+
 ### Phase 1: Goal Contract & State Gate
 Formulate a structured specification following `/skill:qiaomu-goal-meta-skill` (Outcome, Verification, Constraints, Boundaries, Iteration Policy, Stop when, Pause if).
 ```bash
@@ -44,6 +56,12 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 ### Phase 2: Panel Topology & Two-Step Trust Handshake
 1. **Provision Panel**:
    - Writer/Skeptic: Worktree isolation is mandatory. Run `herdr worktree create --cwd <repo> --branch <branch> --label <name> --no-focus`.
+   - **Assert the isolation claim first** (1 Lane = 1 Worktree = 1 Branch). This exits 2 on a shared worktree or branch, and MUST abort the dispatch:
+     ```bash
+     python3 "$GATE" claim --lane <lane-id> --worktree <worktree-path> --branch <branch> || exit 2
+     ```
+     Sharing a worktree lets one lane merge the other's untested WIP and lets a
+     finishing lane physically delete the directory its peer is still using.
    - Researcher: Non-interactive stdout query (`opencode run --auto "<query>"` / `agy -p "<query>"`). Never create worktrees for read-only probes.
 2. **Start Interactive Agent**:
    Follow exact bare-binary CLI arguments in [references/routing.md](references/routing.md) and [references/protocol.md](references/protocol.md).
@@ -64,6 +82,21 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<handoff-filename>'"
    ```
    *(NEVER inject raw `<orch_pane_id>` or unevaluated placeholders; bind actual pane coordinate to avoid misrouting).*
+
+2. **Prompt Protocol Gate (mechanical, not advisory)**:
+   **Do not call `herdr agent prompt` directly.** Herdr exposes no pre-prompt hook —
+   `agent prompt` is a direct CLI/RPC call and the plugin event surface is a fixed
+   set of state-change notifications — so nothing can intercept a prompt sent
+   behind the plugin's back. The gate is therefore the **sanctioned send path**:
+   ```bash
+   # validate then deliver; refuses with exit 2 BEFORE delivery
+   printf '%s' "$PROMPT" | python3 "$GATE" prompt --stdin --send --target "$WORKER_PANE" || exit 2
+   # check only, no delivery
+   printf '%s' "$PROMPT" | python3 "$GATE" prompt --stdin || exit 2
+   ```
+   Every dispatched prompt needs a **resolved** coordinate (`w<N>:p<N>`, never
+   `${ORCH_PANE}` or `<orch-pane>`) and a structured `[NOTIFY]` carrying `DONE:`
+   and `Handoff:` lines. The gate judges only — it never rewrites your prompt.
 2. **Todo Blocker Invariant**:
    If tracking progress via `todo`, you MUST block the waiting task to prevent harness reminder loops:
    ```bash
@@ -78,4 +111,11 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 1. **Unblock Todo**: `todo(op="unblock", task="<task>")` when `[NOTIFY]` arrives or when harvesting.
 2. **Anti-Worktakeover**: Read child handoff (`~/Documents/handoffs/...`) or pane buffer (`herdr pane read <pane> --source recent-unwrapped --lines 120`). Never re-run investigations or re-read code already explored by the child worker.
 3. **Review Convergence Ceiling**: Max ONE round of review + ONE round of rework verification. Do NOT spawn infinite reviewer loops.
-4. **Human Gate**: Strictly no `git push` or PR merge without explicit human authorization.
+4. **Closeout Lifecycle Gate (Issue #121)**: NEVER run `herdr pane close` or remove the worktree before the gate opens. A worker being alive, working, or merely slow is NOT evidence that closeout is done — closing early drops the child push, the parent pointer update and the PR merge on the floor.
+   ```bash
+   # docs aligned -> child pushed -> parent pointer -> PR merged -> worktree removed
+   python3 "$GATE" closeout --lane <lane-id> \
+     --evidence '{"docs_aligned":{"docs_reconciled":true}, ...}' || exit 2
+   ```
+   Exit 2 means the worker pane **must stay open**; fix the reported step first. An unproven step is not a passed step.
+5. **Human Gate**: Strictly no `git push` or PR merge without explicit human authorization.
