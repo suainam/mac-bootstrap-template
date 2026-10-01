@@ -44,6 +44,13 @@ PLUGIN_SOURCE = "plugin:herdr-dispatch"
 # lifecycle rules refused this", which an orchestrator must not retry past.
 EXIT_GATE_REFUSED = 2
 
+# Delivery failed *after* the plan committed. Its own code because the remedy is
+# the opposite of every other failure: the lane is recorded and holding a claim,
+# so retrying collides with itself. Reporting this as 2 tells the caller
+# "nothing was renamed, written or delivered", which is false here — the state
+# file has a lane marked working that no worker will ever pick up.
+EXIT_DELIVERY_FAILED = 3
+
 
 def state_path(args: argparse.Namespace) -> Path:
     return brain.state_path(Path(args.repo) if args.repo else None)
@@ -428,8 +435,10 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
     brain state flush. Planning happens before any mutation, so a refusal from
     any gate leaves the pane name, the state file and the worker untouched.
 
-    Exits 1 for a malformed contract and 2 for a rule refusal, so an
-    orchestrator can tell "fix your task file" from "this lane is unsafe".
+    Exits 1 for a malformed contract, 2 for a rule refusal and 3 for a delivery
+    failure *after* commit, so an orchestrator can tell "fix your task file"
+    from "this lane is unsafe" from "the lane is half-dispatched and needs
+    unwinding".
     """
     # The bus owns the pane rename so planning stays pure; it resolves the Herdr
     # client itself, so nothing here needs rebinding.
@@ -437,10 +446,14 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
         plan = bus.DispatchPlan.plan(
             repo=Path(args.repo) if args.repo else Path.cwd(),
             task=Path(os.path.expanduser(args.task)),
-            lane=args.lane,
             lane_name=args.lane_name,
             target=args.target,
-            signature=args.signature,
+            # Empty here on purpose: the plan derives the signature from the lane
+            # id it resolved, so the reported lane and the awaited lane are the
+            # same string by construction. Deriving it here instead would mean
+            # deriving it from a value that has not been resolved yet.
+            signature=args.signature or "",
+            lane=args.lane or "",
             worktree=args.worktree or "",
             branch=args.branch or "",
             highlights=args.highlight or [],
@@ -460,13 +473,28 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
         # because a silent skip here is exactly the omission this command exists
         # to prevent.
         print(f"dispatch: refusing to deliver: {report.render()}", file=sys.stderr)
-        return EXIT_GATE_REFUSED
+        return EXIT_DELIVERY_FAILED
 
     try:
         herdr.run_herdr(["agent", "prompt", plan.target, plan.envelope])
     except herdr.HerdrError as exc:
-        print(f"dispatch: delivery failed ({exc})", file=sys.stderr)
-        return EXIT_GATE_REFUSED
+        # Distinct from a gate refusal, and the distinction is the whole point:
+        # the plan has already committed, so lane `plan.lane` is recorded as
+        # working and holds the claim on plan.worktree. Re-running dispatch
+        # would collide with the lane this run created. Say so, and name the
+        # lane to unwind.
+        print(
+            f"dispatch: delivery failed after commit ({exc})\n"
+            f"  lane {plan.lane} ({plan.lane_name}) IS recorded as working and "
+            f"claims {plan.worktree or '(no worktree)'} @ "
+            f"{plan.branch or '(no branch)'}, but nothing was sent to "
+            f"{plan.target}.\n"
+            "  Re-running dispatch will refuse: the claim is already held. "
+            f"Either re-deliver by hand, or close the lane out with "
+            f"`dispatch_plugin.py closeout --lane {plan.lane}` before retrying.",
+            file=sys.stderr,
+        )
+        return EXIT_DELIVERY_FAILED
 
     print(bus.receipt(plan))
     return 0
@@ -708,22 +736,48 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch = sub.add_parser(
         "dispatch",
         help="dispatch a lane atomically: lint, claim, rename, timestamp, state flush, deliver",
+        description=(
+            "Minimal call:\n"
+            "  dispatch --task TASK.md --lane-name 1-3-dispatch --target w3:p9\n\n"
+            "Everything else is derived: the lane id from the lane name, the "
+            "worktree and branch from the target pane, and the report bullets "
+            "from the task contract. A derivation that fails exits 2 rather "
+            "than dispatching a lane that claims nothing."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     dispatch.add_argument("--task", required=True, help="task contract file (7-section + #125)")
-    dispatch.add_argument("--lane", required=True, help="lane id, e.g. 1-3")
     dispatch.add_argument(
         "--lane-name",
         required=True,
-        help=f"pane label, must match {bus.LANE_NAME_PATTERN} (e.g. 1-3-dispatch)",
+        help=f"pane label and single source of the lane id, must match "
+        f"{bus.LANE_NAME_PATTERN} (e.g. 1-3-dispatch)",
     )
     dispatch.add_argument("--target", required=True, help="target pane, e.g. w3:p9")
     dispatch.add_argument(
         "--signature", default="", help="[NOTIFY] signature, defaults to <lane-name>_<target>"
     )
-    dispatch.add_argument("--worktree", default="", help="worktree to claim (optional)")
-    dispatch.add_argument("--branch", default="", help="branch to claim (optional)")
-    dispatch.add_argument("--highlight", action="append", default=[])
-    dispatch.add_argument("--risk", action="append", default=[])
+    dispatch.add_argument(
+        "--lane",
+        default="",
+        help="lane id; deprecated. Derived from --lane-name, and a value that "
+        "disagrees is reported and discarded",
+    )
+    dispatch.add_argument(
+        "--worktree", default="", help="worktree to claim; derived from the pane's cwd when omitted"
+    )
+    dispatch.add_argument(
+        "--branch", default="", help="branch to claim; derived from the pane's git HEAD when omitted"
+    )
+    dispatch.add_argument(
+        "--highlight",
+        action="append",
+        default=[],
+        help="override a report bullet; repeatable. Omitted means parse the task contract",
+    )
+    dispatch.add_argument(
+        "--risk", action="append", default=[], help="override a risk bullet; repeatable"
+    )
     dispatch.set_defaults(func=cmd_dispatch)
 
     watchdog_p = sub.add_parser(

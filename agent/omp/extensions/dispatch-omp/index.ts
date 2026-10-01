@@ -94,6 +94,20 @@ import {
   parseHeartbeat,
 } from "./heartbeat.ts";
 import { laneFromSignature, parseNotify } from "./notify.ts";
+import { registerDispatchCommand } from "./slash.ts";
+
+export {
+  DISPATCH_DESCRIPTION,
+  EXIT_CONTRACT,
+  EXIT_DELIVERY_FAILED,
+  EXIT_REFUSED,
+  describeRefusal,
+  findPlugin,
+  parseDispatchArgs,
+  registerDispatchCommand,
+  runDispatch,
+  tokenizeArgs,
+} from "./slash.ts";
 
 export const LABEL = "Dispatch Brain Loop";
 
@@ -382,6 +396,12 @@ export default function dispatchBrain(pi) {
   };
 
   pi.setLabel?.(LABEL);
+
+  // Registered before any event fires, so `/dispatch` is available from the
+  // first prompt rather than appearing once a session has warmed up. The
+  // command holds no gates of its own — it is a way to reach the bus, and the
+  // bus is where lint, claim and atomicity live.
+  registerDispatchCommand(pi);
 
   pi.on("session_start", async (_event, eventCtx) => {
     if (!isRoot(eventCtx)) return;

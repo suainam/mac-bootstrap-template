@@ -59,17 +59,40 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    timestamp mint, the `[NOTIFY]` envelope assembly, the brain state flush and the
    verified delivery. Any gate refuses, and **nothing** is renamed, written or sent.
    ```bash
+   # Minimal form. Inside an omp session: /dispatch --task "$TASK_FILE" \
+   #   --lane-name 1-3-dispatch --target "$WORKER_PANE"
    python3 "$GATE" --repo "$PWD" dispatch \
-     --task "$TASK_FILE" --lane 1-3 --lane-name 1-3-dispatch \
-     --target "$WORKER_PANE" --signature "1-3-dispatch_<agent_kind>" \
-     [--worktree <path> --branch <branch>] \
-     --highlight "<core result>" --risk "<leftover>"
+     --task "$TASK_FILE" --lane-name 1-3-dispatch \
+     --target "$WORKER_PANE"
    ```
    - `--lane-name` MUST match `^[0-9]+-[0-9]+-[a-z0-9_-]+$` (`1-2-sysctl`,
      `1-3-dispatch`). A bare slug like `research-agy` is refused, exit 2.
    - The handoff path is **generated**, never typed: `~/Documents/handoffs/<lane-name>-handoff-<YYYYMMDD_HHMMSS>.md`.
    - Exit `1` means the contract is malformed; exit `2` means a rule refused.
      Exit `1` is "fix your task file"; exit `2` is "this lane is unsafe".
+     Exit `3` means delivery failed **after** the dispatch was committed: the
+     lane is recorded as working and holds its claim, but nothing was sent. Do
+     NOT re-run — the claim gate will refuse it. Re-deliver by hand or run
+     `closeout --lane <lane>` first.
+   - **Do not hand-assemble the redundant arguments.** The lane id, worktree,
+     branch and report bullets are all derived: the lane id from the lane name,
+     the worktree and branch from the target pane's cwd and its git HEAD, the
+     bullets from the task contract's own sections. Passing them is possible but
+     buys nothing, and two copies of one value can disagree.
+   - **A failed derivation is exit 2, and nothing happened.** The pane must exist
+     and have a cwd before its lane can claim one; a lane with no worktree would
+     skip the claim gate entirely, which is how two lanes come to share a
+     worktree. A detached HEAD is refused for the same reason. Fix the pane, do
+     not retry the flag.
+   - `--worktree` / `--branch` remain as overrides for when you know better than
+     a probe, but supply **both** or neither. Supply one and the other is
+     derived from it, so the pair always describes a single tree; half a pair on
+     its own reaches the claim gate as a lane that claims a directory but no
+     branch.
+   - `/dispatch` is registered globally by the omp extension and calls this same
+     bus. It is a plain argv hand-off with no shell, so prefer it inside omp:
+     it removes the hand-quoting that once rendered a report as one line. It adds
+     no gates of its own; exit codes pass through unchanged.
 
 2. **Provision Panel**:
    - Writer/Skeptic: Worktree isolation is mandatory. Run `herdr worktree create --cwd <repo> --branch <branch> --label <name> --no-focus`.

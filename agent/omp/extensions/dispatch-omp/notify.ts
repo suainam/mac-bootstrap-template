@@ -75,13 +75,29 @@ export function parseNotify(text) {
 /**
  * Extract the lane id from a signature.
  *
- * Signatures look like `<pane>_<agentKind>_<repoSlug>`, e.g.
- * `w3:p6_opencode_mac-bootstrap`. The pane is the part before the first
- * underscore, which is what lets a wake be attributed to exactly one lane.
+ * Two forms are recognised, and both are needed:
+ *
+ * - `<pane>_<agentKind>_<repoSlug>`, e.g. `w3:p6_opencode_mac-bootstrap` — the
+ *   form a worker types when it reports back by hand.
+ * - `<laneId>_<pane>`, e.g. `1-3_w3:p9` — what the dispatch bus derives when the
+ *   caller supplies no signature.
+ *
+ * The second form is not a nicety. The brain parks on **lane ids**
+ * (`awaiting_lanes` holds `1-3`), so a report attributed only by pane coordinate
+ * resolves to a lane the brain is not waiting on: the wake guard either skips
+ * the check entirely or rejects the report as belonging to another lane, and in
+ * both cases `awaiting_lanes` never empties. The lane id has to be recoverable
+ * from the signature, which is why the bus emits it.
+ *
+ * The two prefixes cannot collide: a pane coordinate always contains a colon and
+ * a lane id never does, so the order of these alternatives does not matter.
  */
 export function laneFromSignature(signature) {
-  const match = String(signature ?? "").match(/^([A-Za-z0-9]+:[A-Za-z0-9]+)_/);
-  return match ? match[1] : "";
+  const text = String(signature ?? "");
+  const pane = text.match(/^([A-Za-z0-9]+:[A-Za-z0-9]+)_/);
+  if (pane) return pane[1];
+  const lane = text.match(/^([0-9]+-[0-9]+)_/);
+  return lane ? lane[1] : "";
 }
 
 /** Does this report belong to the given lane? An empty lane matches nothing. */

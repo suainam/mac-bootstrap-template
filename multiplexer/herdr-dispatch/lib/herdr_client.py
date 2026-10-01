@@ -220,6 +220,22 @@ def agent_list() -> List[Dict[str, Any]]:
     return []
 
 
+def pane_info(target: str) -> Dict[str, Any]:
+    """Read one pane's public record.
+
+    Distinct from :func:`agent_info` on purpose: a lane's pane is claimed
+    *before* the worker starts, so at claim time there may be no agent record
+    yet — only a pane with a cwd. Asking ``pane get`` is what makes the
+    worktree derivable at dispatch time rather than after the worker boots.
+    """
+    result = run_herdr(["pane", "get", target])
+    if isinstance(result, Mapping):
+        pane = result.get("result", {}).get("pane", {})
+        if isinstance(pane, Mapping):
+            return dict(pane)
+    return {}
+
+
 def attention_panes() -> List[Dict[str, Any]]:
     """Agents needing a human, soonest transition first.
 

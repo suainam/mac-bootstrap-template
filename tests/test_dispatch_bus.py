@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -59,11 +60,19 @@ pytest tests/
 
 
 @pytest.fixture()
-def repo(tmp_path: Path) -> Path:
-    """A real git repo, so state resolves via git-common-dir like production."""
+def repo(tmp_path: Path):
+    """A real git repo, so state resolves via git-common-dir like production.
+
+    Also registers the default target pane. Since Issue #136 the worktree comes
+    from the pane rather than argv, so a dispatch against a pane that does not
+    exist is now a refusal — which is the correct behaviour and would otherwise
+    make every test here start by failing that gate.
+    """
     target = tmp_path / "repo"
     (target / ".git").mkdir(parents=True)
-    return target
+    _PANES["w3:p9"] = {"cwd": os.fspath(target)}
+    yield target
+    _PANES.clear()
 
 
 @pytest.fixture()
@@ -107,15 +116,30 @@ def _bus_code_lines() -> list[str]:
     ]
 
 
+# Pane cwds the fake Herdr answers with, keyed by pane id. Module-level because
+# the `repo` fixture owns the directory while `calls` owns the recorder, and a
+# dispatch's placement now comes from a pane rather than from argv.
+_PANES: dict = {}
+
+
 @pytest.fixture()
 def calls(monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Record every observable effect the bus has.
+
+    The placement probe is answered here rather than reaching for Herdr: it is
+    a read, not one of the effects under test, and a probe that hit a real
+    server would make every test here depend on one running.
+    """
     recorded: dict = {"rename": [], "prompt": [], "state": []}
 
     def fake_rename(pane_id: str, label: str) -> None:
         recorded["rename"].append((pane_id, label))
 
-    def fake_prompt(args, **kwargs):
-        recorded["prompt"].append(list(args))
+    def fake_run_herdr(args, **kwargs):
+        argv = list(args)
+        if argv[:2] == ["pane", "get"]:
+            return {"result": {"pane": _PANES.get(argv[2], {})}}
+        recorded["prompt"].append(argv)
         return {}
 
     real_save = brain.save
@@ -125,9 +149,12 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> dict:
         return real_save(path, state, **kwargs)
 
     monkeypatch.setattr(bus, "rename_pane", fake_rename, raising=False)
-    monkeypatch.setattr(plugin.herdr, "run_herdr", fake_prompt)
+    monkeypatch.setattr(plugin.herdr, "run_herdr", fake_run_herdr)
     monkeypatch.setattr(bus.brain, "save", tracking_save)
     monkeypatch.setattr(plugin.brain, "save", tracking_save)
+    # Git is reached through the derivation module, so stub the reader rather
+    # than the process spawn it wraps.
+    monkeypatch.setattr(bus.derive, "_git_branch", lambda cwd: "feat/1-3")
     return recorded
 
 
@@ -243,19 +270,31 @@ def test_envelope_carries_the_resolved_target() -> None:
 def _argv(repo: Path, task: Path, **over):
     # `--repo` is a top-level option, so it must precede the subcommand — the
     # same shape as every other plugin subcommand.
+    #
+    # Issue #136 collapsed this to four arguments. `--lane`, `--worktree`,
+    # `--branch`, `--highlight` and `--risk` are all derived, so the default
+    # call carries none of them; the overrides are still accepted and still
+    # tested, because an override that is silently ignored is worse than one
+    # that is refused.
     argv = [
         "--repo", str(repo),
         "dispatch",
         "--task", str(task),
-        "--lane", "1-3",
         "--lane-name", over.get("lane_name", "1-3-dispatch"),
         "--target", over.get("target", "w3:p9"),
-        "--signature", "1-3-dispatch_test",
     ]
+    if over.get("signature"):
+        argv += ["--signature", over["signature"]]
+    if over.get("lane"):
+        argv += ["--lane", over["lane"]]
     if over.get("worktree"):
         argv += ["--worktree", over["worktree"]]
     if over.get("branch"):
         argv += ["--branch", over["branch"]]
+    for bullet in over.get("highlight", []):
+        argv += ["--highlight", bullet]
+    for bullet in over.get("risk", []):
+        argv += ["--risk", bullet]
     return argv
 
 
@@ -300,10 +339,14 @@ def test_state_records_active_panes(repo: Path, task_file: Path, calls: dict) ->
     assert "1-3" in state["active_panes"]["lanes"]
 
 
-def test_state_pins_the_lane_worktree_and_branch(repo, task_file, calls) -> None:
-    plugin.main(_argv(repo, task_file, worktree="/tmp/wt-1-3", branch="feat/x"))
+def test_state_pins_the_lane_worktree_and_branch(repo, task_file, calls, tmp_path) -> None:
+    # A real directory: an override is validated like a derived value, so a
+    # path that does not exist is refused rather than claimed.
+    worktree = tmp_path / "wt-1-3"
+    worktree.mkdir()
+    plugin.main(_argv(repo, task_file, worktree=str(worktree), branch="feat/x"))
     state = brain.load(brain.state_path(repo))
-    assert state["lanes"]["1-3"]["worktree"] == "/tmp/wt-1-3"
+    assert state["lanes"]["1-3"]["worktree"] == str(worktree.resolve())
     assert state["lanes"]["1-3"]["branch"] == "feat/x"
 
 
@@ -462,7 +505,7 @@ def test_plan_and_commit_are_separate() -> None:
 
 def test_planning_raises_before_it_touches_anything(repo, task_file, calls) -> None:
     plan = bus.DispatchPlan.plan(
-        repo=repo, task=task_file, lane="1-3", lane_name="1-3-dispatch",
+        repo=repo, task=task_file, lane_name="1-3-dispatch",
         target="w3:p9", signature="sig",
     )
     assert calls["rename"] == []
@@ -471,15 +514,31 @@ def test_planning_raises_before_it_touches_anything(repo, task_file, calls) -> N
     assert plan.lane_name == "1-3-dispatch"
 
 
-def test_a_plan_carries_every_value_it_needs(repo, task_file) -> None:
+def test_a_plan_carries_every_value_it_needs(repo, task_file, calls) -> None:
     plan = bus.DispatchPlan.plan(
-        repo=repo, task=task_file, lane="1-3", lane_name="1-3-dispatch",
+        repo=repo, task=task_file, lane_name="1-3-dispatch",
         target="w3:p9", signature="sig",
     )
     assert plan.timestamp
     assert plan.handoff.endswith(".md")
     assert plan.timestamp in plan.handoff
     assert plan.envelope.count("\n") >= 6
+
+
+def test_a_plan_needs_no_lane_argument_at_all(repo, task_file, calls) -> None:
+    """Four arguments is the point of Issue #136: the rest is derivable.
+
+    Asserting the *absence* of a requirement, not just that the call happens to
+    work, because the original defect was an argument that had to be supplied
+    and could contradict its own source.
+    """
+    plan = bus.DispatchPlan.plan(
+        repo=repo, task=task_file, lane_name="1-3-dispatch",
+        target="w3:p9", signature="sig",
+    )
+    assert plan.lane == "1-3"
+    assert plan.worktree == str(repo.resolve())
+    assert plan.branch == "feat/1-3"
 
 
 def test_the_bus_runs_no_shell_of_its_own() -> None:
