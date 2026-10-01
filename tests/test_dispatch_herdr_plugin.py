@@ -16,6 +16,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -279,6 +280,12 @@ def test_dstate_never_carries_lifecycle_status() -> None:
 
 def test_python_and_extension_compaction_agree() -> None:
     """Both surfaces must label a stage identically or the sidebar lies."""
+    # Guard on presence, not on the child's exit status. subprocess.run raises
+    # FileNotFoundError when the binary is absent, so it never reaches the
+    # `returncode != 0` skip below -- the intent was always to skip when bun is
+    # unavailable, and a CI runner without bun made it fail instead.
+    if shutil.which("bun") is None:
+        pytest.skip("bun unavailable")
     for stage in [
         "Stage 4 Deploying on hk216",
         "Stage 2 of the build",
