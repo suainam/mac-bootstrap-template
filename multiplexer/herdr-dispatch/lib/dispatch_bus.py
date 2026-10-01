@@ -42,10 +42,14 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 import orchestrator_state as brain
 import prompt_protocol as promptproto
+
+# Parameter derivation lives in its own module because it needs to shell out
+# (git, Herdr) and this one holds a hard no-shell invariant.
+import dispatch_derive as derive
 
 # Lane naming convention, enforced by the issue: <wave>-<lane>-<slug>.
 # `1-2-sysctl`, `1-3-dispatch`, `1-4-research`. `research-agy` is the canonical
@@ -127,6 +131,11 @@ def make_timestamp(now: Optional[float] = None) -> str:
     return time.strftime(TIMESTAMP_FORMAT, time.localtime(now))
 
 
+# Re-exported so the plugin and the tests have one import for the naming rules:
+# the pattern, the coordinates it implies, and the handoff path it forms.
+lane_from_name = derive.lane_from_name
+
+
 def validate_lane_name(name: str) -> str:
     """Return ``name`` if it conforms, else raise.
 
@@ -186,6 +195,11 @@ class DispatchPlan:
     branch: str = ""
     highlights: List[str] = field(default_factory=list)
     risks: List[str] = field(default_factory=list)
+    # What the bus derived, and any caller input it discarded. Returned rather
+    # than printed: planning has no side effects, so the *caller* decides where
+    # a note goes. An orchestrator that cannot see what was derived on its
+    # behalf cannot tell a derived value from a typo.
+    notes: List[str] = field(default_factory=list)
 
     # -- planning --------------------------------------------------------
 
@@ -195,36 +209,87 @@ class DispatchPlan:
         *,
         repo: Path,
         task: Path,
-        lane: str,
         lane_name: str,
         target: str,
         signature: str,
+        lane: str = "",
         worktree: str = "",
         branch: str = "",
         highlights: Sequence[str] = (),
         risks: Sequence[str] = (),
         timestamp: Optional[str] = None,
+        pane_lookup: Optional[Callable[[str], str]] = None,
+        branch_reader: Optional[Callable[[str], str]] = None,
     ) -> "DispatchPlan":
         """Run every gate and compute every value. Raises on any refusal.
 
-        Pure: reads files and the state document, mutates neither, renames
-        nothing and sends nothing. That is what makes :meth:`commit` safe to
-        run only on a value that exists.
+        Pure: reads files, the state document and the target pane, mutates
+        none, renames nothing and sends nothing. That is what makes
+        :meth:`commit` safe to run only on a value that exists.
+
+        Six parameters became four (Issue #136). ``lane``, ``worktree``,
+        ``branch``, ``highlights`` and ``risks`` are derived from the lane
+        name, the target pane and the task contract — and each is refused
+        outright when it cannot be derived, because an empty value here is not
+        "nothing to record", it is a gate that silently did not run.
         """
+        notes: List[str] = []
+
         # Gate 1 — the lane name. Cheapest, and a bad name would otherwise
         # become a handoff filename.
         validate_lane_name(lane_name)
+
+        # Derivation 1 — the lane coordinates. `--lane-name` is the single
+        # source; a stale `--lane` is reported and overridden rather than
+        # honoured, so the two can never disagree about which lane is running.
+        lane = _derive_lane(lane_name, lane, notes)
+
+        # Derivation 1b — the report signature, reconciled against the lane.
+        #
+        # The signature is how a worker's report gets attributed back to a lane:
+        # `notify.laneFromSignature` reads its prefix, and `consumeNotify` drops
+        # the park's entry for whichever lane that resolves to. So a signature
+        # naming a *different* lane than the one just dispatched is not a
+        # cosmetic mismatch — it silently breaks the wake path, and
+        # `awaiting_lanes` never empties. The orchestrator then sits parked on a
+        # lane that demonstrably reported, re-nudging forever.
+        #
+        # Reconciled rather than honoured. Honouring a caller-supplied signature
+        # would keep the exact divergence this derivation exists to remove, and
+        # there is no safe reading of "trust the caller's signature here": the
+        # orchestrator cannot know the shape a worker will report back with, and
+        # a wrong one costs a permanent deadlock rather than a wrong label.
+        signature = _reconcile_signature(lane, target, signature, notes)
 
         # Gate 2 — the contract. ContractError carries exit_code 1 so the
         # caller can distinguish "your file is wrong" from "the lane is unsafe".
         _lint_contract(task)
 
-        state_path = brain.state_path(repo)
+        # Derivation 2 — the report halves, from the contract's own sections.
+        # Blank overrides are dropped before this point: an empty string is
+        # truthy as a list element, so `[""]` would look supplied, suppress the
+        # derivation, and put an empty `- ` bullet in the worker's report.
+        highlights = [h for h in highlights if (h or "").strip()]
+        risks = [r for r in risks if (r or "").strip()]
+        if not highlights or not risks:
+            parsed_highlights, parsed_risks = _derive_report_items(task)
+            highlights = highlights or parsed_highlights
+            risks = risks or parsed_risks
 
-        # Gate 3 — the claim. Only when a worktree/branch was named; a
-        # researcher may legitimately hold neither.
-        if worktree or branch:
-            _claim(repo, lane, worktree=worktree, branch=branch)
+        # Derivation 3 — the placement, from the pane that will do the work.
+        worktree, branch = _derive_placement(
+            target,
+            worktree=worktree,
+            branch=branch,
+            notes=notes,
+            pane_lookup=pane_lookup,
+            branch_reader=branch_reader,
+        )
+
+        # Gate 3 — the claim. A placement is always present by now — either
+        # derived or supplied — so this gate always runs, and an empty pair is
+        # refused rather than read as "this lane claims nothing".
+        _claim(repo, lane, worktree=worktree, branch=branch)
 
         stamp = timestamp or make_timestamp()
         handoff = handoff_path(lane_name, stamp)
@@ -256,6 +321,7 @@ class DispatchPlan:
             branch=branch,
             highlights=list(highlights),
             risks=list(risks),
+            notes=notes,
         )
 
     # -- state -----------------------------------------------------------
@@ -353,6 +419,157 @@ def _advance_to_parked(state: Dict[str, Any], awaiting: Sequence[str]) -> Dict[s
     )
 
 
+def _derive_lane(lane_name: str, override: str, notes: List[str]) -> str:
+    """Resolve the lane id, with ``--lane-name`` as the single source of truth.
+
+    A supplied ``--lane`` that disagrees is reported and discarded. Silently
+    honouring it would keep the exact inconsistency the merge removes; silently
+    ignoring it would leave the caller believing the wrong lane ran.
+    """
+    derived = _deriving(lane_from_name, lane_name)
+    supplied = (override or "").strip()
+    if supplied and supplied != derived:
+        notes.append(
+            f"--lane {supplied!r} disagrees with --lane-name {lane_name!r}; "
+            f"using the lane name's coordinates {derived!r}"
+        )
+    return derived
+
+
+def _derive_report_items(task: Path) -> tuple[List[str], List[str]]:
+    """Parse the contract's own report sections."""
+    return _deriving(derive.report_items_from_task, task)
+
+
+def _reconcile_signature(lane: str, target: str, supplied: str, notes: List[str]) -> str:
+    """Force the signature to name the lane that was actually dispatched.
+
+    The invariant is narrow and absolute: **the leading token of the signature
+    is the lane id.** Everything after it is free-form, so a caller who cares
+    about a richer signature keeps it — only the attribution prefix is owned by
+    the bus.
+
+    Three cases:
+
+    - empty -> adopt ``<lane>_<pane>``, the canonical form;
+    - already names this lane -> keep the caller's form verbatim, suffix and all;
+    - names a different lane -> rewrite to the canonical form and say so in the
+      receipt, because a silently-rewritten input leaves the caller believing a
+      report will be attributed to something it will not be.
+    """
+    canonical = f"{lane}_{target}"
+    supplied = (supplied or "").strip()
+    if not supplied:
+        return canonical
+
+    named = signature_lane(supplied)
+    if named == lane:
+        return supplied
+
+    notes.append(
+        f"signature {supplied!r} names lane {named or '(unparseable)'}, not "
+        f"{lane!r}; rewritten to {canonical!r} so the worker's report is "
+        "attributed to the lane that was dispatched"
+    )
+    return canonical
+
+
+def signature_lane(signature: str) -> str:
+    """The lane a signature names, or "" when it names none.
+
+    Mirrors ``notify.laneFromSignature`` exactly: a pane coordinate first
+    (``w3:p9_...``), then a lane id (``1-3_...``). The two prefixes cannot
+    collide — a pane coordinate always contains a colon and a lane id never does
+    — so the order is not load-bearing.
+
+    Duplicated across the language boundary on purpose: the omp side is
+    TypeScript and cannot be imported here. A test asserts both parsers agree on
+    one table, which is what keeps the copy honest.
+    """
+    pane = re.match(r"^([A-Za-z0-9]+:[A-Za-z0-9]+)_", signature or "")
+    if pane:
+        return pane.group(1)
+    lane = re.match(r"^([0-9]+-[0-9]+)_", signature or "")
+    return lane.group(1) if lane else ""
+
+
+def _derive_placement(
+    target: str,
+    *,
+    worktree: str,
+    branch: str,
+    notes: List[str],
+    pane_lookup: Optional[Callable[[str], str]] = None,
+    branch_reader: Optional[Callable[[str], str]] = None,
+) -> tuple[str, str]:
+    """Resolve the worktree/branch pair, deriving whatever was not supplied.
+
+    An explicit override wins, because someone who knows the worktree better
+    than a probe does is entitled to say so. It may not supply only half of the
+    pair: ``(worktree, "")`` would reach the claim gate as a lane that claims a
+    directory but no branch, which is the interleaved-commits failure with one
+    leg removed.
+
+    An override is still *validated*. Skipping validation on the supplied path
+    would leave a documented remedy for a refused derivation — "pass the values
+    explicitly" — that reproduces the refusal instead of fixing it: a pane on a
+    detached HEAD yields the literal branch ``HEAD``, which passes straight
+    through and isolates nothing.
+    """
+    supplied_worktree = (worktree or "").strip()
+    supplied_branch = (branch or "").strip()
+
+    if supplied_worktree and supplied_branch:
+        # Both were named, so there is nothing to probe — but the pair is
+        # still held to the same rules as a derived one.
+        return (
+            _deriving(derive.normalise_worktree, supplied_worktree),
+            _deriving(derive.checked_branch, supplied_branch, supplied_worktree),
+        )
+
+    if supplied_worktree:
+        # The worktree was named, so the branch is read from *that* directory.
+        # Reading it from the pane instead would describe a different tree than
+        # the one being claimed: a pair that looks valid and isolates nothing.
+        resolved_worktree = _deriving(derive.normalise_worktree, supplied_worktree)
+        resolved_branch = _deriving(derive.branch_at, resolved_worktree, reader=branch_reader)
+        notes.append(f"branch derived from {resolved_worktree}: {resolved_branch}")
+        return resolved_worktree, resolved_branch
+
+    # Nothing was supplied: both halves come from the target pane, so they are
+    # guaranteed to describe the same tree.
+    placement = _deriving(
+        derive.derive_placement,
+        target,
+        pane_lookup=pane_lookup,
+        branch_reader=branch_reader,
+    )
+    notes.append(
+        f"worktree derived from pane {target}: {placement.worktree}; "
+        f"branch: {placement.branch}"
+    )
+    if supplied_branch and supplied_branch != placement.branch:
+        notes.append(
+            f"--branch {supplied_branch!r} disagrees with the branch checked out "
+            f"in {placement.worktree} ({placement.branch!r}); using the branch "
+            "the lane's own worktree is on"
+        )
+    return placement.worktree, placement.branch
+
+
+def _deriving(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Run a derivation, re-raising its refusal as a rule refusal (exit 2).
+
+    The distinction matters to an orchestrator: exit 1 means "fix your task
+    file", exit 2 means "this lane is unsafe as the world stands". A derivation
+    that failed is the second kind, and must not be reported as the first.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except derive.DerivationRefused as exc:
+        raise DispatchRefused(f"parameter derivation refused the dispatch:\n{exc}") from exc
+
+
 def _lint_contract(task: Path) -> None:
     """Run ``dispatch.py lint``'s rules over the task file.
 
@@ -388,8 +605,22 @@ def _lint_contract(task: Path) -> None:
 
 
 def _claim(repo: Path, lane: str, *, worktree: str, branch: str) -> None:
-    """Refuse if a live lane already holds this worktree or branch."""
+    """Refuse if a live lane already holds this worktree or branch.
+
+    An empty pair is refused here rather than treated as "nothing to claim".
+    The claim gate skips a lane with no worktree and no branch, so an empty pair
+    is a gate that did not run — and the only way one reaches this point is a
+    derivation that failed silently. Making it a refusal means that failure has
+    to be loud.
+    """
     import lane_isolation as isolation
+
+    if not (worktree.strip() or branch.strip()):
+        raise DispatchRefused(
+            f"lane {lane!r} has no worktree and no branch to claim. "
+            "1 Lane = 1 Worktree = 1 Branch has no exception for a lane that "
+            "could not be placed; fix the pane or pass both explicitly."
+        )
 
     state = brain.load(brain.state_path(repo))
     try:
@@ -419,5 +650,10 @@ def receipt(plan: DispatchPlan) -> str:
         lines.append(f"  worktree : {plan.worktree}")
     if plan.branch:
         lines.append(f"  branch   : {plan.branch}")
+    # Derived values and overridden overrides are both worth showing: one is
+    # how the orchestrator learns what the bus decided on its behalf, the other
+    # is how it learns its own input was discarded.
+    for note in plan.notes:
+        lines.append(f"  derived  : {note}")
     lines.append("  brain    : yield_and_guard")
     return "\n".join(lines)

@@ -20,7 +20,9 @@ import path from "node:path";
 
 import { describe, expect, test } from "bun:test";
 
-import dispatchBrain from "../agent/omp/extensions/dispatch-omp/index.ts";
+import dispatchBrain, {
+  laneFromSignature,
+} from "../agent/omp/extensions/dispatch-omp/index.ts";
 
 const PLUGIN_ROOT = path.resolve(import.meta.dir, "../multiplexer/herdr-dispatch");
 /**
@@ -405,6 +407,117 @@ describe("end-to-end: the two surfaces", () => {
     expect(view.rows[0].role).toBe("writer");
   });
 
+  test("the signature the bus derives is one the extension can attribute", async () => {
+    // The full round trip: the bus parks the brain on a lane id and hands the
+    // worker a report signature; the extension has to resolve that signature
+    // back to the same lane id for the park to open.
+    //
+    // This is the defect a unit test on either side would miss. Both halves can
+    // be individually correct — the brain keys on `1-3`, the report reads as a
+    // lane key — and still never meet, because the bus parks on a lane id while
+    // the worker reports with whatever it was told to put in the signature.
+    const dir = mkdtempSync(path.join(tmpdir(), "dispatch-roundtrip-"));
+    const repo = path.join(dir, "repo");
+    mkdirSync(repo, { recursive: true });
+    execFileSync("git", ["init", "-q", repo]);
+    execFileSync("git", ["-C", repo, "checkout", "-q", "-b", "feat/1-3"]);
+    writeFileSync(path.join(repo, "seed"), "seed");
+    execFileSync("git", ["-C", repo, "add", "seed"]);
+    execFileSync("git", ["-C", repo, "-c", "user.email=t@e", "-c", "user.name=t", "commit", "-q", "-m", "seed"]);
+
+    writeFileSync(
+      path.join(repo, "TASK.md"),
+      [
+        "# 目标 (Outcome)",
+        "实施总线参数精简并通过全量测试。",
+        "",
+        "# 验证 (Verification)",
+        "pytest tests/",
+        "",
+        "# 约束 (Constraints)",
+        "不得写入任何凭证。",
+        "",
+        "# 边界 (Boundaries)",
+        "仅修改插件目录。",
+        "",
+        "# 迭代策略 (Iteration Policy)",
+        "使用 rtk 控制输出, 走 to-spec 与 implement-spec",
+        "",
+        "# 完成条件 (Stop when)",
+        "全部测试通过。",
+        "",
+        "# 暂停条件 (Pause if)",
+        "遇到跨平台路径歧义立即暂停。",
+        "",
+      ].join("\n"),
+    );
+
+    // A stub Herdr so the bus can read the pane's cwd and record the delivery.
+    const delivered = path.join(dir, "delivered.txt");
+    const stub = path.join(dir, "herdr");
+    writeFileSync(
+      stub,
+      [
+        "#!/usr/bin/env python3",
+        "import json, sys",
+        "argv = sys.argv[1:]",
+        "if argv[:2] == ['pane', 'get']:",
+        `    print(json.dumps({'result': {'pane': {'pane_id': argv[2], 'cwd': ${JSON.stringify(repo)}}}}))`,
+        "elif argv[:2] == ['agent', 'prompt']:",
+        `    open(${JSON.stringify(delivered)}, 'a').write(argv[3] + '\\n')`,
+        "else:",
+        "    print('{}')",
+        "",
+      ].join("\n"),
+    );
+    execFileSync("chmod", ["+x", stub]);
+
+    const previousBin = process.env.HERDR_BIN_PATH;
+    const previousSocket = process.env.HERDR_SOCKET_PATH;
+    process.env.HERDR_BIN_PATH = stub;
+    delete process.env.HERDR_SOCKET_PATH;
+    try {
+      runPlugin([
+        "--repo", repo,
+        "dispatch",
+        "--task", path.join(repo, "TASK.md"),
+        "--lane-name", "1-3-dispatch",
+        "--target", "w3:p9",
+      ]);
+    } finally {
+      if (previousBin === undefined) delete process.env.HERDR_BIN_PATH;
+      else process.env.HERDR_BIN_PATH = previousBin;
+      if (previousSocket === undefined) delete process.env.HERDR_SOCKET_PATH;
+      else process.env.HERDR_SOCKET_PATH = previousSocket;
+    }
+
+    // The bus parked on a lane id...
+    const state = JSON.parse(
+      readFileSync(path.join(repo, ".git", "dispatch", "ORCHESTRATOR_STATE.json"), "utf8"),
+    );
+    expect(state.orchestrator_phase).toBe("yield_and_guard");
+    expect(state.brain.awaiting_lanes).toEqual(["1-3"]);
+
+    // ...and handed the worker a signature the extension resolves to it.
+    const report = readFileSync(delivered, "utf8");
+    const signature = report.match(/\[NOTIFY\] \[([^\]]+)\]/)?.[1] ?? "";
+    expect(signature).not.toBe("");
+    expect(laneFromSignature(signature)).toBe("1-3");
+
+    // Now drive the extension with exactly that report.
+    const run = makeHost(repo);
+    const brain = dispatchBrain(run.host);
+    await run.emit("session_start");
+    brain.setState(state);
+
+    const result = brain.consumeNotify(report);
+    expect(result.ok).toBe(true);
+    expect(result.transitioned).toBe(true);
+    // The point of the round trip: the park actually opens.
+    expect(brain.getState().brain.awaiting_lanes).toEqual([]);
+    expect(brain.getState().orchestrator_phase).toBe("synthesis");
+  });
+
   test("the plugin never imports the extension and vice versa", () => {
     // Checked as imports and invocations, not raw substrings: a legacy state
     // glob like ~/.omp/dispatch-omp/ is migration bookkeeping, not a
@@ -424,7 +537,7 @@ describe("end-to-end: the two surfaces", () => {
     expect(/^\s*(import|from)\s+.*dispatch[-_]omp/m.test(pluginCode)).toBe(false);
     expect(pluginCode.includes("subprocess") && pluginCode.includes("dispatch-omp")).toBe(false);
 
-    const extCode = ["index.ts", "notify.ts", "heartbeat.ts", "ledger.ts"]
+    const extCode = ["index.ts", "notify.ts", "heartbeat.ts", "ledger.ts", "slash.ts"]
       .map((rel) =>
         readFileSync(
           path.resolve(import.meta.dir, "../agent/omp/extensions/dispatch-omp", rel),

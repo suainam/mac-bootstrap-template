@@ -424,7 +424,7 @@ dispatch-test:
 	@if command -v bun >/dev/null 2>&1; then \
 		bun test tests/dispatch-brain.test.ts tests/dispatch-notify.test.ts \
 			  tests/dispatch-ledger.test.ts tests/dispatch-governance.test.ts \
-			  tests/dispatch-e2e.test.ts; \
+			  tests/dispatch-slash.test.ts tests/dispatch-e2e.test.ts; \
 	else \
 		echo 'dispatch-test: SKIPPED (bun not installed; TypeScript suite not run)'; \
 	fi

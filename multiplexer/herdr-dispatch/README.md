@@ -338,10 +338,7 @@ One command now does all of it, in order, atomically:
 
 ```bash
 python3 bin/dispatch_plugin.py --repo "$PWD" dispatch \
-  --task .dispatch/TASK.md --lane 1-3 --lane-name 1-3-dispatch \
-  --target w3:p9 --signature "1-3-dispatch_opencode" \
-  [--worktree <path> --branch <branch>] \
-  --highlight "<core result>" --risk "<leftover>"
+  --task .dispatch/TASK.md --lane-name 1-3-dispatch --target w3:p9
 ```
 
 | Step | What it does |
@@ -353,6 +350,78 @@ python3 bin/dispatch_plugin.py --repo "$PWD" dispatch \
 | 5 | assembles the `[NOTIFY]` envelope with real `0x0A` newlines |
 | 6 | writes the lane to `ORCHESTRATOR_STATE.json`, walks the brain into `yield_and_guard` |
 | 7 | delivers through the prompt gate, prints a receipt |
+
+### Parameters are derived, not typed (Issue #136)
+
+The first cut of the bus took six arguments. Five of them were already implied
+by the others, and a redundant argument is not a convenience — it is a second
+copy that can disagree with the first. `--lane 1-3` beside `--lane-name
+1-3-dispatch` is a value that can contradict itself; a `--worktree` pasted from
+an earlier run is a value that is stale before it is audited.
+
+| Was | Now | Derived from |
+|---|---|---|
+| `--lane` | — | the first two segments of `--lane-name` |
+| `--highlight` | — | `## 核心成果与证据` in the task, else the first sentence of `## 目标` |
+| `--risk` | — | `## 风险与遗留` in the task, else the first line of `## 约束` |
+| `--worktree` | — | the target pane's cwd, read from Herdr |
+| `--branch` | — | `git -C <cwd> rev-parse --abbrev-ref HEAD` |
+
+The overrides still exist for the case where someone knows better than a probe.
+What changed is that they are no longer *required*, and each has a rule:
+
+- **`--lane` is deprecated and never wins.** A value that disagrees with the
+  lane name is reported in the receipt and discarded. Honouring it would keep
+  the exact inconsistency the merge removes; ignoring it silently would leave
+  the caller believing the wrong lane ran.
+- **Neither half of the placement may be supplied alone.** `(worktree, "")`
+  would reach the claim gate as a lane that claims a directory but no branch —
+  the interleaved-commits failure with one leg removed. Supply one and the
+  missing half is derived **from the supplied one**, not from the pane: the two
+  halves have to describe the same tree, and a branch read from a different
+  directory is a claim that looks valid and isolates nothing.
+- **A `--branch` that disagrees with the pane's own checkout does not win.** The
+  branch in the worktree the lane is actually going to work in is the one worth
+  claiming; the disagreement is reported in the receipt rather than applied.
+- **Report bullets are overridden, not merged.** A `--highlight` replaces what
+  the contract said, so the envelope never carries two sources of the same fact.
+
+### A failed derivation is a refusal, never an empty value
+
+This is the part that matters. Every derived field feeds a gate, and **a gate
+fed `""` is a gate that did not run**:
+
+- no worktree and no branch → the claim gate is skipped → two interactive
+  agents can share one worktree, which is the failure 1 Lane = 1 Worktree =
+  1 Branch exists to prevent;
+- no lane id → the state document is keyed under nothing;
+- no report bullets → the envelope claims the lane has nothing to say.
+
+So each derivation raises instead of returning a partial value, and a
+derivation refusal is **exit 2**, not exit 1. The distinction is actionable: `1`
+means "fix your task file", `2` means "fix the world". Reporting a missing pane
+as a malformed contract would send an orchestrator to edit a file that is
+already correct.
+
+The refusal messages name the cause rather than the symptom:
+
+```text
+dispatch: parameter derivation refused the dispatch:
+cannot derive the worktree for lane pane w3:p9: Herdr reported no cwd for it.
+The pane must exist and have a working directory before its lane can claim one —
+dispatching anyway would leave the lane unclaimed and two lanes free to share
+a worktree.
+```
+
+A **detached HEAD** is refused for the same reason. `rev-parse --abbrev-ref HEAD`
+answers the literal string `HEAD` when detached, and claiming a branch named
+`HEAD` would look successful while isolating nothing.
+
+Derivation lives in `lib/dispatch_derive.py`, not in `dispatch_bus.py`. That is
+not tidiness: the bus holds a hard no-shell invariant (a test asserts `subprocess`
+is absent from its source), and both git and Herdr need a subprocess. Splitting
+them keeps that invariant testable rather than aspirational — the bus still
+never builds a command line, it only asks what the answer is.
 
 ### Why atomicity needed a structural change
 
@@ -373,7 +442,9 @@ Gates are ordered by cost so one error surfaces per round trip. A malformed lane
 name is reported even when the contract is also broken.
 
 Exit codes are deliberately distinct: `1` means "your task file is wrong", `2`
-means "this lane is unsafe".
+means "this lane is unsafe", `3` means "the lane is half-dispatched". The third
+exists because the first two are only true *before* `commit()`; see the exit
+table under `/dispatch`.
 
 ### Two properties worth knowing
 
@@ -431,6 +502,105 @@ Agent **lifecycle** reporting is not in this table on purpose: Herdr's own
 over. For the same reason dispatch records an expected resume command but never
 attaches one itself.
 
+## `/dispatch` — the global slash command (Issue #137)
+
+Inside an omp session, the bus is one command away:
+
+```
+/dispatch --task .dispatch/TASK.md --lane-name 1-3-dispatch --target w3:p9
+```
+
+It is registered by the same extension that runs the brain loop, which is
+already linked into `$PI_CODING_AGENT_DIR/extensions/` — so it is global and
+needs no per-project installation.
+
+**Why a slash command rather than a skill.** The host parses the arguments, so
+they reach the bus as an argv array handed to `spawnSync` with `shell: false`.
+There is no string for a quote to escape into: a path with a space in it works,
+and the literal `'\n'` that produced the one-line-report defect cannot survive.
+That defect and this command are the same problem seen from two sides — one
+fixed the *text*, this removes the *hand-quoting*.
+
+**The command holds no gates.** It translates arguments into argv and nothing
+else; lint, claim, lane naming, atomicity and the exit codes all stay in
+`dispatch_plugin.py`. This is load-bearing rather than tidy: the exit codes are
+a contract an orchestrator programs against, and a second implementation would
+eventually disagree with the first about which code a given refusal produces.
+
+So the codes pass through unchanged, with the bus's own stderr intact — the bus
+names the *colliding lane*, and paraphrasing that would send the orchestrator
+looking somewhere other than where the collision is:
+
+| Exit | Meaning | What to do |
+|---|---|---|
+| `0` | dispatched; the receipt shows what was derived | — |
+| `1` | the task contract is malformed | fix the contract file |
+| `2` | a rule refused: bad lane name, worktree collision, failed derivation | fix the lane or the pane — **nothing was renamed, written or delivered** |
+| `3` | delivery failed *after* the plan committed | see below |
+
+Exit `3` exists because "a rule refused, nothing happened" stops being true once
+`commit()` has run. If the worker pane dies between the rename and the delivery,
+the state file holds lane `1-3` with a live claim on its worktree, while nothing
+was ever sent.
+
+**Re-running is not refused.** A lane re-claiming its *own* worktree is exempt
+from the collision gate by design — that exemption is what lets a worker renew
+its claim without a closeout. So the cost of a careless retry is not an error;
+it is a **second timestamp**, which mints a new handoff path and orphans the one
+the worker was told to report to. The command says so rather than promising a
+refusal that will not come.
+
+The lane's record is corrected to `status: undelivered` with `delivered: false`
+and a `delivery_error` naming the orphaned handoff. `working` is a claim about a
+process that does not exist, and leaving it in place has the stall watchdog
+eventually alarming on a lane with no worker to investigate.
+
+A killed bus (signal, no exit status) is also not reported as a refusal: nothing
+is knowable about a process that died mid-flight, so the honest answer is "check
+the state before retrying".
+
+The bus is located by walking up from the working directory, so the command
+works from any nested workspace in the checkout. `HERDR_DISPATCH_PLUGIN`
+overrides the search for a fork or an unusual worktree layout, and
+`HERDR_DISPATCH_PYTHON` selects the interpreter.
+
+### The derived signature has to be attributable
+
+The bus parks the brain on **lane ids** (`awaiting_lanes` holds `1-3`), so a
+report has to name one. `notify.laneFromSignature` reads the signature's leading
+token and `consumeNotify` drops the park entry for whichever lane that resolves
+to — so a signature naming a *different* lane leaves `awaiting_lanes` untouched
+and the orchestrator re-nudges forever against a lane that demonstrably
+reported.
+
+`--signature` is therefore **reconciled against the lane, not honoured**. The
+invariant is narrow: the leading token is the lane id, and everything after it
+is free-form. Three cases:
+
+| supplied | result |
+|---|---|
+| empty | adopted as `<lane>_<pane>` |
+| already names this lane | kept verbatim, suffix and all |
+| names a different lane | rewritten to `<lane>_<pane>`, with a receipt note |
+
+That last row is the one that used to deadlock. `w3:p9_opencode_mac-bootstrap`
+— the form the dispatch SKILL.md used to recommend — names a *pane*, not a lane,
+so a worker reporting with it resolved to a lane the brain was not waiting on.
+
+Reconciliation owns the prefix only, because there is no safe alternative:
+honouring the caller's signature keeps the divergence, and guessing wrong costs
+a permanent deadlock rather than a wrong label.
+
+`signature_lane` (Python) and `laneFromSignature` (TypeScript) are two
+implementations of one rule split across the language boundary. Both are
+asserted against **one shared table** in
+`tests/test_dispatch_param_derivation.py` and `tests/dispatch-slash.test.ts`,
+which is what keeps the copy honest.
+
+`tests/dispatch-e2e.test.ts` runs the whole round trip — dispatch, read the
+delivered text, feed it back to the extension — because each half is separately
+correct and they can still fail to meet.
+
 ## Install
 
 ```bash
@@ -449,7 +619,10 @@ registry update cannot replace them.
                              tests/test_dispatch_lane_isolation_closeout_gate.py \
                              tests/test_dispatch_prompt_protocol_gate.py \
                              tests/test_dispatch_semantic_watchdog.py \
+                             tests/test_dispatch_bus.py \
+                             tests/test_dispatch_param_derivation.py \
                              tests/test_install_omp_extensions_local.py -q
+make dispatch-test     # bun: brain, notify, ledger, governance, slash, e2e
 ```
 
 The prompt gate has a standalone feedback loop:

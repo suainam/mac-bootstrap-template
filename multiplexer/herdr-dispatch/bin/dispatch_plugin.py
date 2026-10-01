@@ -44,6 +44,20 @@ PLUGIN_SOURCE = "plugin:herdr-dispatch"
 # lifecycle rules refused this", which an orchestrator must not retry past.
 EXIT_GATE_REFUSED = 2
 
+# Delivery failed *after* the plan committed. Its own code because the remedy is
+# the opposite of every other failure: the lane is recorded and holding a claim,
+# so retrying collides with itself. Reporting this as 2 tells the caller
+# "nothing was renamed, written or delivered", which is false here — the state
+# file has a lane marked working that no worker will ever pick up.
+EXIT_DELIVERY_FAILED = 3
+
+# The status a lane carries when the dispatch committed but the worker was never
+# told to start. Distinct from "working" because the two mean opposite things to
+# a watchdog: "working" implies a running process, and a stall alarm on a lane
+# that was never dispatched sends the orchestrator to investigate a worker that
+# does not exist.
+UNDELIVERED_STATUS = "undelivered"
+
 
 def state_path(args: argparse.Namespace) -> Path:
     return brain.state_path(Path(args.repo) if args.repo else None)
@@ -420,6 +434,41 @@ def cmd_guard(args: argparse.Namespace) -> int:
     return 0 if verdict.allowed else EXIT_GATE_REFUSED
 
 
+def _mark_undelivered(plan: bus.DispatchPlan) -> None:
+    """Correct the state record after a delivery failure.
+
+    ``commit`` wrote the lane as ``working``, which is a claim about a process
+    that does not exist — the worker was never told to start. Left alone it
+    poisons two consumers: the stall watchdog would eventually alarm on a lane
+    with no worker to investigate, and a human reading the board would look for
+    a running agent that was never spawned. The lane still *holds* its claim —
+    that part is real — so the status is corrected rather than the entry removed.
+
+    Best effort by design. This runs after the dispatch has already failed for
+    a reason the caller must hear about; failing to write the correction must
+    not replace that message with a different one.
+    """
+    try:
+        path = brain.state_path(plan.repo)
+        state = brain.load(path)
+        lane = state.get("lanes", {}).get(plan.lane)
+        if not isinstance(lane, dict):
+            return
+        lane["status"] = UNDELIVERED_STATUS
+        lane["delivered"] = False
+        lane["delivery_error"] = (
+            "the dispatch committed but the prompt was never delivered; "
+            f"the worker never received {plan.handoff}"
+        )
+        brain.save(path, state)
+    except (brain.StateError, OSError) as exc:  # pragma: no cover - best effort
+        print(
+            f"dispatch: could not correct the lane record to "
+            f"{UNDELIVERED_STATUS!r} ({exc})",
+            file=sys.stderr,
+        )
+
+
 def cmd_dispatch(args: argparse.Namespace) -> int:
     """Dispatch a lane in one atomic command.
 
@@ -428,8 +477,10 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
     brain state flush. Planning happens before any mutation, so a refusal from
     any gate leaves the pane name, the state file and the worker untouched.
 
-    Exits 1 for a malformed contract and 2 for a rule refusal, so an
-    orchestrator can tell "fix your task file" from "this lane is unsafe".
+    Exits 1 for a malformed contract, 2 for a rule refusal and 3 for a delivery
+    failure *after* commit, so an orchestrator can tell "fix your task file"
+    from "this lane is unsafe" from "the lane is half-dispatched and needs
+    unwinding".
     """
     # The bus owns the pane rename so planning stays pure; it resolves the Herdr
     # client itself, so nothing here needs rebinding.
@@ -437,10 +488,14 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
         plan = bus.DispatchPlan.plan(
             repo=Path(args.repo) if args.repo else Path.cwd(),
             task=Path(os.path.expanduser(args.task)),
-            lane=args.lane,
             lane_name=args.lane_name,
             target=args.target,
-            signature=args.signature,
+            # Empty here on purpose: the plan derives the signature from the lane
+            # id it resolved, so the reported lane and the awaited lane are the
+            # same string by construction. Deriving it here instead would mean
+            # deriving it from a value that has not been resolved yet.
+            signature=args.signature or "",
+            lane=args.lane or "",
             worktree=args.worktree or "",
             branch=args.branch or "",
             highlights=args.highlight or [],
@@ -460,13 +515,37 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
         # because a silent skip here is exactly the omission this command exists
         # to prevent.
         print(f"dispatch: refusing to deliver: {report.render()}", file=sys.stderr)
-        return EXIT_GATE_REFUSED
+        return EXIT_DELIVERY_FAILED
 
     try:
         herdr.run_herdr(["agent", "prompt", plan.target, plan.envelope])
     except herdr.HerdrError as exc:
-        print(f"dispatch: delivery failed ({exc})", file=sys.stderr)
-        return EXIT_GATE_REFUSED
+        # Distinct from a gate refusal, and the distinction is the whole point:
+        # the plan has already committed, so the lane is recorded and holds a
+        # claim on its worktree.
+        #
+        # Re-running is *not* refused — a lane re-claiming its own worktree is
+        # exempt from the collision gate by design. So the cost of a careless
+        # retry is not an error, it is a second timestamp: the first handoff path
+        # is minted and then orphaned, and the worker is told to report to a file
+        # the orchestrator will no longer be watching. The record is therefore
+        # corrected to say the lane was never told to start.
+        _mark_undelivered(plan)
+        print(
+            f"dispatch: delivery failed after commit ({exc})\n"
+            f"  lane {plan.lane} ({plan.lane_name}) is recorded with status "
+            f"'{UNDELIVERED_STATUS}' — it holds "
+            f"{plan.worktree or '(no worktree)'} @ {plan.branch or '(no branch)'}, "
+            f"but nothing was ever sent to {plan.target}.\n"
+            f"  The handoff path {plan.handoff} was minted and never delivered.\n"
+            "  Re-running dispatch is NOT refused (a lane is exempt from its own\n"
+            "  claim), but it mints a NEW timestamp and orphans that handoff.\n"
+            "  Prefer re-delivering by hand, or run\n"
+            f"    dispatch_plugin.py closeout --lane {plan.lane}\n"
+            "  to release the lane before retrying.",
+            file=sys.stderr,
+        )
+        return EXIT_DELIVERY_FAILED
 
     print(bus.receipt(plan))
     return 0
@@ -708,22 +787,48 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch = sub.add_parser(
         "dispatch",
         help="dispatch a lane atomically: lint, claim, rename, timestamp, state flush, deliver",
+        description=(
+            "Minimal call:\n"
+            "  dispatch --task TASK.md --lane-name 1-3-dispatch --target w3:p9\n\n"
+            "Everything else is derived: the lane id from the lane name, the "
+            "worktree and branch from the target pane, and the report bullets "
+            "from the task contract. A derivation that fails exits 2 rather "
+            "than dispatching a lane that claims nothing."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     dispatch.add_argument("--task", required=True, help="task contract file (7-section + #125)")
-    dispatch.add_argument("--lane", required=True, help="lane id, e.g. 1-3")
     dispatch.add_argument(
         "--lane-name",
         required=True,
-        help=f"pane label, must match {bus.LANE_NAME_PATTERN} (e.g. 1-3-dispatch)",
+        help=f"pane label and single source of the lane id, must match "
+        f"{bus.LANE_NAME_PATTERN} (e.g. 1-3-dispatch)",
     )
     dispatch.add_argument("--target", required=True, help="target pane, e.g. w3:p9")
     dispatch.add_argument(
         "--signature", default="", help="[NOTIFY] signature, defaults to <lane-name>_<target>"
     )
-    dispatch.add_argument("--worktree", default="", help="worktree to claim (optional)")
-    dispatch.add_argument("--branch", default="", help="branch to claim (optional)")
-    dispatch.add_argument("--highlight", action="append", default=[])
-    dispatch.add_argument("--risk", action="append", default=[])
+    dispatch.add_argument(
+        "--lane",
+        default="",
+        help="lane id; deprecated. Derived from --lane-name, and a value that "
+        "disagrees is reported and discarded",
+    )
+    dispatch.add_argument(
+        "--worktree", default="", help="worktree to claim; derived from the pane's cwd when omitted"
+    )
+    dispatch.add_argument(
+        "--branch", default="", help="branch to claim; derived from the pane's git HEAD when omitted"
+    )
+    dispatch.add_argument(
+        "--highlight",
+        action="append",
+        default=[],
+        help="override a report bullet; repeatable. Omitted means parse the task contract",
+    )
+    dispatch.add_argument(
+        "--risk", action="append", default=[], help="override a risk bullet; repeatable"
+    )
     dispatch.set_defaults(func=cmd_dispatch)
 
     watchdog_p = sub.add_parser(
