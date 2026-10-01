@@ -38,7 +38,7 @@ PLUGIN = REPO_ROOT / "multiplexer" / "herdr-dispatch" / "bin" / "dispatch_plugin
 LITERAL_ESCAPED = (
     "\\n[NOTIFY] [w5:p1_opencode_mac-bootstrap]"
     "\\nDONE: 换行修复完成，实机验证通过"
-    "\\nHandoff: /Users/suai/Documents/handoffs/x.md"
+    "\\nHandoff: ~/Documents/handoffs/probe.md"
     "\\n回调目标坐标: w3:p1"
     "\\n\\n[核心成果]"
     "\\n- 要点 1: 真实换行"
