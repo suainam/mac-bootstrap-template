@@ -62,6 +62,24 @@ title = "Dispatch: restore the default Agents panel"
 contexts = ["global", "workspace"]
 command = ["python3", "bin/dispatch_plugin.py", "view", "--off"]
 
+# Dispatch-time anti-stomping gate: refuses to let a second lane claim a
+# worktree or branch a live lane already holds (1 Lane = 1 Worktree = 1 Branch).
+# Exits 2 on a collision.
+[[actions]]
+id = "claim"
+title = "Dispatch: check lane worktree/branch isolation"
+contexts = ["global", "workspace", "pane"]
+command = ["python3", "bin/dispatch_plugin.py", "claim"]
+
+# Closeout Lifecycle Gate (Issue #121): reports whether the worktree may be
+# destroyed and the worker pane closed. Reports only; it never cleans up, and
+# it refuses (exit 2) while any step is unproven.
+[[actions]]
+id = "closeout"
+title = "Dispatch: evaluate the Closeout Lifecycle Gate"
+contexts = ["global", "workspace", "pane"]
+command = ["python3", "bin/dispatch_plugin.py", "closeout"]
+
 # An Agents status change is the cheapest signal that a lane moved. The command
 # re-projects tokens for the lanes we know about; it never writes lifecycle
 # state, which Herdr's own herdr:omp integration owns.

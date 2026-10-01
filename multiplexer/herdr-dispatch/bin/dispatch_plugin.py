@@ -29,10 +29,16 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
+import closeout_gate as gate  # noqa: E402
 import herdr_client as herdr  # noqa: E402
+import lane_isolation as isolation  # noqa: E402
 import orchestrator_state as brain  # noqa: E402
 
 PLUGIN_SOURCE = "plugin:herdr-dispatch"
+
+# Gate refusals are a distinct exit code from a generic failure: 2 means "the
+# lifecycle rules refused this", which an orchestrator must not retry past.
+EXIT_GATE_REFUSED = 2
 
 
 def state_path(args: argparse.Namespace) -> Path:
@@ -215,6 +221,67 @@ def cmd_view(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# isolation / closeout gates
+# --------------------------------------------------------------------------
+
+
+def cmd_claim(args: argparse.Namespace) -> int:
+    """Claim a worktree and branch for a lane, or refuse.
+
+    The dispatch-time anti-stomping check. ``--worktree``/``--branch`` describe
+    the lane about to be dispatched; the refusal is the product, so a collision
+    exits 2 rather than degrading to a warning.
+    """
+    state = _state(args.repo)
+    lanes = state.get("lanes") or {}
+
+    audit = isolation.audit_claim(
+        lanes,
+        args.lane,
+        worktree=args.worktree or "",
+        branch=args.branch or "",
+    )
+    if args.json:
+        print(json.dumps(audit.as_dict(), indent=2, ensure_ascii=False))
+        return 0 if audit.ok else EXIT_GATE_REFUSED
+
+    if not audit.ok:
+        for violation in audit.violations:
+            print(f"dispatch: lane {args.lane}: {violation}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    print(f"dispatch: lane {args.lane} may claim {audit.worktree} @ {audit.branch}")
+    return 0
+
+
+def cmd_closeout(args: argparse.Namespace) -> int:
+    """Evaluate the Closeout Lifecycle Gate for one lane.
+
+    Reports whether the worktree may be destroyed and whether the worker pane
+    may be closed. It never closes anything itself: the gate that authorises an
+    irreversible action cannot also be the thing that performs it.
+    """
+    evidence: Dict[str, Dict[str, Any]] = {}
+    if args.evidence:
+        try:
+            loaded = json.loads(args.evidence)
+        except json.JSONDecodeError as exc:
+            print(f"dispatch: --evidence is not valid JSON ({exc})", file=sys.stderr)
+            return 2
+        if not isinstance(loaded, dict):
+            print("dispatch: --evidence must be a JSON object", file=sys.stderr)
+            return 2
+        evidence = {k: v for k, v in loaded.items() if isinstance(v, dict)}
+
+    report = gate.evaluate_closeout(args.lane, evidence)
+    if args.json:
+        print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(report.render())
+    return 0 if report.allowed else EXIT_GATE_REFUSED
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dispatch-plugin", description="herdr-dispatch plugin commands (TB-03)"
@@ -241,6 +308,25 @@ def build_parser() -> argparse.ArgumentParser:
     view.add_argument("--off", action="store_true")
     view.set_defaults(func=cmd_view)
 
+    claim = sub.add_parser(
+        "claim", help="claim a worktree and branch for a lane (1 Lane = 1 Worktree = 1 Branch)"
+    )
+    claim.add_argument("--lane", required=True)
+    claim.add_argument("--worktree", default="")
+    claim.add_argument("--branch", default="")
+    claim.add_argument("--json", action="store_true")
+    claim.set_defaults(func=cmd_claim)
+
+    closeout = sub.add_parser(
+        "closeout", help="evaluate the Closeout Lifecycle Gate before cleanup/pane close"
+    )
+    closeout.add_argument("--lane", default="")
+    closeout.add_argument(
+        "--evidence", default="", help="JSON object of closeout step facts"
+    )
+    closeout.add_argument("--json", action="store_true")
+    closeout.set_defaults(func=cmd_closeout)
+
     return parser
 
 
@@ -248,8 +334,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return int(args.func(args) or 0)
-    except (brain.StateError, herdr.HerdrError) as exc:
-        # A plugin command must fail visibly but never wedge the server.
+    except (
+        brain.StateError,
+        herdr.HerdrError,
+        isolation.LaneCollisionError,
+        gate.CloseoutGateError,
+    ) as exc:
+        # A plugin command must fail visibly but never wedge the server. Gate
+        # refusals land here too, and deliberately share exit 2: an orchestrator
+        # must not be able to tell "the lifecycle rules refused this" apart from
+        # "something broke" and sail past it.
         print(f"dispatch: {exc}", file=sys.stderr)
         return 2
 
