@@ -20,7 +20,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "install-omp-extensions.sh"
 
 pytestmark = pytest.mark.skipif(
-    subprocess.run(["command", "-v", "jq"], capture_output=True).returncode != 0,
+    # `shutil.which`, not `subprocess.run(["command", "-v", "jq"])`. `command` is
+    # a shell builtin; it happens to exist as a real executable at /usr/bin/command
+    # on macOS, so the exec form passed locally while raising FileNotFoundError at
+    # collection time on Linux CI, taking the whole run down before any test ran.
+    shutil.which("jq") is None,
     reason="jq is required by the installer under test",
 )
 
