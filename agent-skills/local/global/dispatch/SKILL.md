@@ -32,6 +32,18 @@ Follow the 5-phase lifecycle in sequence:
 [Phase 1: Goal Contract] ──► [Phase 2: Topology & Handshake] ──► [Phase 3: Prompt & Block] ──► [Phase 4: Yield & Supervision] ──► [Phase 5: Harvest & Gate]
 ```
 
+> **Resolving the gate plugin.** Phases 2 and 5 call
+> `<TEMPLATE_ROOT>/multiplexer/herdr-dispatch/bin/dispatch_plugin.py`. This skill
+> is installed independently of the template repo, so resolve the root once and
+> fail loudly rather than skipping the gate:
+> ```bash
+> TEMPLATE_ROOT="${TEMPLATE_ROOT:-$(git -C "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" rev-parse --show-toplevel 2>/dev/null)/template}"
+> GATE="${TEMPLATE_ROOT}/multiplexer/herdr-dispatch/bin/dispatch_plugin.py"
+> [ -f "$GATE" ] || { echo "dispatch: cannot locate $GATE — set TEMPLATE_ROOT to the mac-bootstrap checkout" >&2; exit 2; }
+> ```
+> The gate is a refusal, not a formality: exiting 2 means the rule refused this
+> dispatch, and proceeding anyway is the exact failure the gate was added to stop.
+
 ### Phase 1: Goal Contract & State Gate
 Formulate a structured specification following `/skill:qiaomu-goal-meta-skill` (Outcome, Verification, Constraints, Boundaries, Iteration Policy, Stop when, Pause if).
 ```bash
@@ -46,8 +58,7 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    - Writer/Skeptic: Worktree isolation is mandatory. Run `herdr worktree create --cwd <repo> --branch <branch> --label <name> --no-focus`.
    - **Assert the isolation claim first** (1 Lane = 1 Worktree = 1 Branch). This exits 2 on a shared worktree or branch, and MUST abort the dispatch:
      ```bash
-     python3 "$DISPATCH_ROOT/multiplexer/herdr-dispatch/bin/dispatch_plugin.py" \
-       claim --lane <lane-id> --worktree <worktree-path> --branch <branch> || exit 2
+     python3 "$GATE" claim --lane <lane-id> --worktree <worktree-path> --branch <branch> || exit 2
      ```
      Sharing a worktree lets one lane merge the other's untested WIP and lets a
      finishing lane physically delete the directory its peer is still using.
@@ -88,8 +99,8 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 4. **Closeout Lifecycle Gate (Issue #121)**: NEVER run `herdr pane close` or remove the worktree before the gate opens. A worker being alive, working, or merely slow is NOT evidence that closeout is done — closing early drops the child push, the parent pointer update and the PR merge on the floor.
    ```bash
    # docs aligned -> child pushed -> parent pointer -> PR merged -> worktree removed
-   python3 "$DISPATCH_ROOT/multiplexer/herdr-dispatch/bin/dispatch_plugin.py" \
-     closeout --lane <lane-id> --evidence '{"docs_aligned":{"docs_reconciled":true}, ...}' || exit 2
+   python3 "$GATE" closeout --lane <lane-id> \
+     --evidence '{"docs_aligned":{"docs_reconciled":true}, ...}' || exit 2
    ```
    Exit 2 means the worker pane **must stay open**; fix the reported step first. An unproven step is not a passed step.
 5. **Human Gate**: Strictly no `git push` or PR merge without explicit human authorization.
