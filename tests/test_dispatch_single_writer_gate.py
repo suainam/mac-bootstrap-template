@@ -112,6 +112,23 @@ def test_dispatch_extension_file_is_allowed() -> None:
 def test_detects_self_resume_argv() -> None:
     violations = gate.scan_text('report["resume_argv"] = argv\n', "t.py")
     assert violations and violations[0].rule == "self-resume-argv"
+    assert gate.scan_text('req("pane.report_agent_session", {"resume_argv": a})\n', "t.py")
+
+
+def test_expected_resume_argv_is_allowed() -> None:
+    """Recording and validating a command is not claiming ownership of it.
+
+    Herdr only lets an agent that already holds the pane via lifecycle reporting
+    attach a resume command, which this codebase must not do. So dispatch stores
+    `expected_resume_argv` and checks it; `herdr:omp` attaches it.
+    """
+    ok = [
+        'const argv = lane.expected_resume_argv;\n',
+        'validateResumeArgv(lane.expected_resume_argv);\n',
+        'if (!lane.expected_resume_argv) continue;\n',
+    ]
+    for line in ok:
+        assert gate.scan_text(line, "t.ts") == [], line
 
 
 # --------------------------------------------------------------------------

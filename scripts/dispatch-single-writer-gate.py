@@ -69,7 +69,11 @@ REPORT_PAYLOAD_RE = re.compile(
 
 # Attaching a resume command needs the pane to be held through semantic
 # reporting, which rule 1 forbids — so dispatch must not attach one.
-RESUME_ARGV_RE = re.compile(r"resume_argv")
+#
+# `expected_resume_argv` is explicitly allowed: that is the field dispatch
+# *records and validates* while `herdr:omp` remains the thing that attaches it.
+# Reading and checking a command is the opposite of claiming ownership of it.
+RESUME_ARGV_RE = re.compile(r"(?<!expected_)resume_argv")
 
 
 @dataclass(frozen=True)

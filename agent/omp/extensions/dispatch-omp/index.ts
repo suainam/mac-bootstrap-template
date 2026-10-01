@@ -50,9 +50,33 @@
  * isolation as handler dispatch and are cleared on shutdown.
  */
 
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+
+import {
+  checkPartition,
+  isStalled,
+  readState,
+  reconcileLanes,
+  resolveStatePath,
+  validateResumeArgv,
+} from "./ledger.ts";
+
+export { resolveStatePath } from "./ledger.ts";
+export { parseNotify, laneFromSignature } from "./notify.ts";
+export {
+  parseHeartbeat,
+  displayStage,
+  heartbeatDue,
+  heartbeatFields,
+} from "./heartbeat.ts";
+import {
+  displayStage,
+  heartbeatDue,
+  heartbeatFields,
+  parseHeartbeat,
+} from "./heartbeat.ts";
+import { laneFromSignature, parseNotify } from "./notify.ts";
 
 export const LABEL = "Dispatch Brain Loop";
 
@@ -103,9 +127,18 @@ export const PHASE0_TODOS = Object.freeze([
   { phase: "human_gate", content: "Brain 6/6 human_gate: obtain explicit human authorisation" },
 ]);
 
-/** How long a lane may show no state change before we call it stalled. */
-export const DEFAULT_STALL_POLLS = 6;
+/**
+ * Stall watchdog tuning: 10 minutes.
+ *
+ * Measured in polls against Herdr's monotonic `state_change_seq`, so the
+ * threshold tracks actual reported progress rather than wall clock or how busy
+ * a terminal looks. A lane whose sequence has not moved has genuinely reported
+ * nothing new.
+ */
 export const DEFAULT_STALL_INTERVAL_MS = 60_000;
+export const DEFAULT_STALL_POLLS = 10;
+export const STALL_THRESHOLD_MS =
+  DEFAULT_STALL_POLLS * DEFAULT_STALL_INTERVAL_MS;
 
 /** Default routing matrix; override from the plugin config directory. */
 export const DEFAULT_ROUTING = Object.freeze({
@@ -245,28 +278,6 @@ export class RouterCursor {
   }
 }
 
-/**
- * Resolve the shared state path.
- *
- * Anchored on the git *common* dir so a linked worktree and its main checkout
- * resolve to one file rather than growing two brains.
- */
-export function resolveStatePath(cwd, exec = spawnSync) {
-  try {
-    const result = exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
-      cwd,
-      encoding: "utf8",
-    });
-    const common = String(result?.stdout ?? "").trim();
-    if (result?.status === 0 && common) {
-      return path.join(common, "dispatch", "ORCHESTRATOR_STATE.json");
-    }
-  } catch {
-    // Fall through to the non-git default.
-  }
-  return path.join(cwd ?? ".", ".dispatch", "ORCHESTRATOR_STATE.json");
-}
-
 /** Load the routing matrix, preferring operator config over defaults. */
 export function loadRouting(configDir) {
   if (!configDir) return DEFAULT_ROUTING;
@@ -291,6 +302,23 @@ export default function dispatchBrain(pi) {
   let brain = null;
   let rootSession = false;
   let stallPolls = 0;
+  // Last observed Herdr state_change_seq per lane. Progress is measured by this
+  // monotonic counter, never by the wall clock.
+  const lastSeq = new Map();
+  // Lanes whose [NOTIFY] arrived while parked, in arrival order.
+  const inbox = [];
+  // Heartbeats are evidence, not results: kept for the board, never acted on
+  // as a completion.
+  const heartbeats = [];
+  const lastBeat = new Map();
+  const stallByLane = new Map();
+  // One-shot alarm latch: a stuck lane is reported once, not on every poll,
+  // until it shows progress again.
+  const alarmedLanes = new Set();
+  // Compacted stage per lane, republished as the sidebar `dstate` token.
+  const sidebarStage = new Map();
+  let statePath = null;
+  let coldStart = { live: [], orphaned: [], resume: [] };
   // Managed timers and the UI live on the handler context, not on the API
   // object: `pi` carries actions, `ctx` carries per-session facilities.
   let sessionCtx = null;
@@ -322,6 +350,26 @@ export default function dispatchBrain(pi) {
     rootSession = true;
     sessionCtx = eventCtx;
     brain = { orchestrator_phase: "contract", brain: { awaiting_lanes: [] } };
+    statePath = resolveStatePath(eventCtx.cwd);
+
+    // Cold start: adopt whatever survived, and flag what did not.
+    try {
+      const reconciled = reconcileColdStart();
+      coldStart = reconciled;
+      if (reconciled.orphaned.length > 0) {
+        note(
+          `dispatch: ${reconciled.orphaned.length} lane(s) did not survive the ` +
+            `restart (${reconciled.orphaned.map((o) => o.laneId).join(", ")})`,
+        );
+      }
+      for (const entry of reconciled.resume) {
+        if (!entry.ok) {
+          note(`dispatch: lane ${entry.laneId} resume command rejected — ${entry.reason}`);
+        }
+      }
+    } catch (error) {
+      note(`dispatch: cold-start reconciliation skipped (${error})`);
+    }
 
     // Announce the loop once. `aside` puts it at the next step boundary
     // without interrupting reasoning that is already under way.
@@ -340,7 +388,7 @@ export default function dispatchBrain(pi) {
     // throws would be fatal to the entire session.
     const handle = eventCtx.setInterval(() => {
       try {
-        onStallPoll(eventCtx);
+        onStallPoll();
       } catch (error) {
         // Managed timers already isolate this; catching again keeps the loop
         // alive across repeated failures.
@@ -424,35 +472,255 @@ export default function dispatchBrain(pi) {
     };
   });
 
-  function onStallPoll(eventCtx) {
-    if (!isParked(brain)) {
+  /**
+   * Poll each parked lane and alarm on the ones that stopped progressing.
+   *
+   * Reads lifecycle state only. It never writes one.
+   */
+  function onStallPoll() {
+    const waiting = brain?.brain?.awaiting_lanes ?? [];
+    if (!isParked(brain) || waiting.length === 0) {
       stallPolls = 0;
       return;
     }
-    stallPolls += 1;
-    if (stallPolls < DEFAULT_STALL_POLLS) return;
+
+    const lanes = readState(statePath)?.lanes ?? {};
+    let moved = false;
+
+    for (const laneId of waiting) {
+      const paneId = lanes?.[laneId]?.pane_id ?? lanes?.[laneId]?.pane;
+      const info = paneId ? lookupPane(paneId) : null;
+
+      // A heartbeat inside the window is liveness evidence: reset this lane and
+      // leave every other lane's counter alone. Note the polarity — a *recent*
+      // beat clears the counter; `heartbeatDue` reports the opposite (that a
+      // beat is missing or stale), so the branches are inverted deliberately.
+      const beatAt = lastBeat.get(laneId);
+      const hasFreshBeat =
+        Number.isFinite(beatAt) && !heartbeatDue(beatAt, Date.now(), STALL_THRESHOLD_MS);
+      if (hasFreshBeat) {
+        lastSeq.delete(laneId);
+        stallByLane.delete(laneId);
+        alarmedLanes.delete(laneId);
+        continue;
+      }
+
+      if (!info) continue;
+
+      const current = Number.isFinite(info.state_change_seq) ? info.state_change_seq : null;
+      const previous = lastSeq.get(laneId) ?? null;
+      lastSeq.set(laneId, current);
+
+      // Progress clears both the counter and the one-shot alarm latch, so a
+      // recovered lane can alarm again if it stalls a second time.
+      if (previous !== null && current !== null && current > previous) {
+        stallByLane.set(laneId, 0);
+        alarmedLanes.delete(laneId);
+      }
+
+      const polls = (stallByLane.get(laneId) ?? 0) + 1;
+      stallByLane.set(laneId, polls);
+      if (!isStalled(previous, current, polls, DEFAULT_STALL_POLLS)) continue;
+      if (alarmedLanes.has(laneId)) continue;
+      alarmedLanes.add(laneId);
+      moved = true;
+      try {
+        pi.sendUserMessage?.(
+          `Dispatch watchdog: lane ${laneId} (pane ${paneId}) has reported no state ` +
+            `change for ${Math.round(STALL_THRESHOLD_MS / 60000)} minutes. Inspect with ` +
+            "`herdr agent get` and decide whether to nudge, abort or re-dispatch — " +
+            "do not take over its work.",
+          { deliverAs: "aside", attribution: "agent" },
+        );
+      } catch {
+        // A refused steer must not kill the watchdog.
+      }
+    }
+
+    stallPolls = moved ? 0 : stallPolls + 1;
+  }
+
+  /**
+   * Drive the park open on a real worker report.
+   *
+   * This is the only routine path out of `yield_and_guard`. A todo reminder
+   * deliberately does not appear here: it is not evidence a worker finished,
+   * and treating it as such is the false-busywork loop the park exists to
+   * prevent.
+   */
+  function consumeNotify(text) {
+    const parsed = parseNotify(text);
+    if (!parsed.ok) return parsed;
+
+    const lane = laneFromSignature(parsed.notify.signature);
+    parsed.notify.lane = lane;
+
+    // A report from an unknown lane must not wake this run's brain.
+    const known = new Set(brain?.brain?.awaiting_lanes ?? []);
+    if (lane && known.size > 0 && !known.has(lane)) {
+      return { ok: false, reason: `report is for lane ${lane}, not one of ours` };
+    }
+
+    if (!isParked(brain)) {
+      // Not parked: record it, but do not fabricate a transition.
+      inbox.push(parsed.notify);
+      return { ok: true, notify: parsed.notify, transitioned: false };
+    }
+
+    const problem = checkTransition("yield_and_guard", "synthesis", "notify");
+    if (problem) return { ok: false, reason: problem };
+
+    brain.orchestrator_phase = "synthesis";
+    brain.blocked_reason = "";
+    brain.brain = {
+      ...(brain.brain ?? {}),
+      awaiting_lanes: (brain.brain?.awaiting_lanes ?? []).filter((id) => id !== lane),
+      notifications_seen: (brain.brain?.notifications_seen ?? 0) + 1,
+    };
+    inbox.push(parsed.notify);
+    lastSeq.delete(lane);
     stallPolls = 0;
-    const waiting = brain?.brain?.awaiting_lanes ?? [];
-    note(
-      `dispatch: ${waiting.length} lane(s) parked without a state change for ` +
-        `${Math.round((DEFAULT_STALL_POLLS * DEFAULT_STALL_INTERVAL_MS) / 60000)}min`,
-    );
+
     try {
       pi.sendUserMessage?.(
-        `Dispatch watchdog: no state change while parked on ${waiting.join(", ") || "workers"}. ` +
-          "Inspect with herdr agent get; do not self-assign their work.",
+        `Dispatch: ${lane || "worker"} reported completion. Phase 0 advanced to ` +
+          "synthesis — reconcile facts across lanes and state the blockers you " +
+          "actually observed. Do not restate the report.",
         { deliverAs: "aside", attribution: "agent" },
       );
     } catch {
       // Best effort.
     }
-    void eventCtx;
+    return { ok: true, notify: parsed.notify, transitioned: true };
   }
+
+  /**
+   * Absorb a stage heartbeat.
+   *
+   * Deliberately does *not* end the park. A heartbeat says "still working, and
+   * here is where"; it is not a result. Ending the park on one would hand the
+   * orchestrator back its own work mid-flight, which is precisely the
+   * false-busywork loop the park exists to prevent.
+   *
+   * What it does do: refresh the lane's evidence, reset that lane's stall
+   * counter, and publish the stage to the sidebar so a human can see the work is
+   * live without asking.
+   */
+  function consumeHeartbeat(text, nowMs = Date.now()) {
+    const parsed = parseHeartbeat(text);
+    if (!parsed.ok) return parsed;
+
+    const beat = parsed.beat;
+    const verdict = checkPartition(
+      heartbeatFields(beat, nowMs),
+      "extension",
+    );
+    if (!verdict.ok) return { ok: false, reason: verdict.reason };
+
+    const waiting = new Set(brain?.brain?.awaiting_lanes ?? []);
+    if (beat.lane && waiting.size > 0 && !waiting.has(beat.lane)) {
+      return { ok: false, reason: `heartbeat is for lane ${beat.lane}, not one of ours` };
+    }
+
+    heartbeats.push(beat);
+    lastBeat.set(beat.lane, nowMs);
+
+    // Liveness evidence resets the stall counter for this lane only. A second
+    // lane going quiet must not be masked by the first lane reporting in.
+    if (beat.lane) {
+      lastSeq.delete(beat.lane);
+      stallByLane.delete(beat.lane);
+    }
+
+    const stage = displayStage(beat.stage);
+    if (stage) sidebarStage.set(beat.lane, stage);
+
+    return {
+      ok: true,
+      beat,
+      fields: heartbeatFields(beat, nowMs),
+      // The park is untouched; say so explicitly so a test can prove it.
+      stillParked: isParked(brain),
+      sidebarToken: stage ? { dstate: stage } : null,
+    };
+  }
+
+  /** Look up a pane's agent record without ever writing lifecycle state. */
+  function lookupPane(paneId) {
+    try {
+      return typeof pi.herdrAgentInfo === "function" ? pi.herdrAgentInfo(paneId) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Cold-start reconciliation.
+   *
+   * Validates each lane's expected resume command and marks panes that did not
+   * survive the restart as orphaned, keeping their evidence. Dispatch records
+   * and validates the command; Herdr's `herdr:omp` integration is what attaches
+   * it, because Herdr only accepts a resume command from an agent that already
+   * holds the pane via lifecycle reporting — which this codebase must not do.
+   */
+  function reconcileColdStart() {
+    const state = readState(statePath);
+    if (!state) return { live: [], orphaned: [], resume: [] };
+
+    const { live, orphaned } = reconcileLanes(state.lanes ?? {}, lookupPane);
+
+    const resume = [];
+    for (const laneId of Object.keys(state.lanes ?? {})) {
+      const lane = state.lanes[laneId] ?? {};
+      if (!lane.expected_resume_argv) continue;
+      const verdict = validateResumeArgv(lane.expected_resume_argv);
+      resume.push({ laneId, ...verdict });
+    }
+
+    if (live.length > 0) {
+      for (const entry of live) {
+        if (Number.isFinite(entry.stateChangeSeq)) {
+          lastSeq.set(entry.laneId, entry.stateChangeSeq);
+        }
+      }
+    }
+    return { live, orphaned, resume };
+  }
+
+  /**
+   * Consume a worker report from a steer or user turn.
+   *
+   * Exposed on the handle so the same entry point serves both the automatic
+   * path and a host that wants to feed a report in directly.
+   */
+  pi.on("input", async (event, eventCtx) => {
+    if (!rootSession || !isRoot(eventCtx)) return undefined;
+    const text = String(event?.text ?? "");
+
+    // Heartbeat first: a text may carry both markers, and the heartbeat is the
+    // weaker signal, so classifying it as a result would end the park.
+    const beat = consumeHeartbeat(text);
+    if (beat.ok) return undefined;
+
+    const result = consumeNotify(text);
+    if (!result.ok && result.reason?.includes("report is for lane")) {
+      note(`dispatch: ${result.reason}`);
+    }
+    return undefined;
+  });
 
   // A small handle so tests can observe session state without reaching into
   // module internals. Harmless at runtime and keeps the hooks unit-testable.
   return {
     getState: () => brain,
+    getColdStart: () => coldStart,
+    getInbox: () => inbox,
+    getHeartbeats: () => heartbeats,
+    getSidebarStages: () => Object.fromEntries(sidebarStage),
+    consumeNotify,
+    consumeHeartbeat,
+    reconcileColdStart,
+    tick: () => onStallPoll(),
     // Lets a test (or a future host bridge) drive the state the hooks read,
     // rather than only inspecting it.
     setState: (next) => {

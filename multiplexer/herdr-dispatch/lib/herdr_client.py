@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +37,9 @@ TOKEN_LANE = "lane"
 TOKEN_ROLE = "role"
 TOKEN_KIND = "kind"
 TOKEN_BRAIN = "brain"
+# Live stage from the worker's most recent [HEARTBEAT], compacted for the
+# sidebar so a human can see the work is moving without asking.
+TOKEN_DSTATE = "dstate"
 TOKEN_MAX_LEN = 32
 TOKEN_VALUE_MAX = 80
 
@@ -101,6 +105,33 @@ def truncate_token_value(value: Any) -> str:
     return text[:TOKEN_VALUE_MAX]
 
 
+def compact_stage(stage: str) -> str:
+    """Compact a worker stage into a sidebar-sized label.
+
+    Mirrors the extension's ``displayStage`` so both sides agree on what a human
+    reads: ``Stage 4 Deploying on hk216`` becomes ``s4@hk216``.
+    """
+    text = (stage or "").strip()
+    if not text:
+        return ""
+    match = re.match(r"stage\s*(\d+)", text, re.IGNORECASE)
+    prefix = f"s{match.group(1)}" if match else "s"
+    target = re.search(
+        r"([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*@[A-Za-z0-9._-]+)"
+        r"|\bof\s+([A-Za-z0-9._-]{2,})"
+        r"|\bon\s+([A-Za-z0-9._-]{2,})"
+        r"|\bto\s+([A-Za-z0-9._-]{2,})"
+        r"|\bin\s+([A-Za-z0-9._-]{2,})",
+        text,
+        re.IGNORECASE,
+    )
+    if target:
+        chosen = next((g for g in target.groups() if g), None)
+        return truncate_token_value(f"{prefix}@{chosen}")
+    words = re.sub(r"^stage\s*\d+\s*", "", text, flags=re.IGNORECASE).split()
+    return truncate_token_value(f"{prefix}{words[0]}" if words else prefix)
+
+
 def build_lane_tokens(lane: Mapping[str, Any], brain_phase: str = "") -> Dict[str, str]:
     """Build the presentation token map for one lane.
 
@@ -113,6 +144,8 @@ def build_lane_tokens(lane: Mapping[str, Any], brain_phase: str = "") -> Dict[st
         TOKEN_ROLE: lane.get("role", ""),
         TOKEN_KIND: lane.get("kind", ""),
         TOKEN_BRAIN: brain_phase,
+        # Heartbeat stage, when the lane has sent one.
+        TOKEN_DSTATE: compact_stage(lane.get("current_stage") or ""),
     }
     out: Dict[str, str] = {}
     for key, value in tokens.items():

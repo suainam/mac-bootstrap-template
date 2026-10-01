@@ -15,6 +15,11 @@
  *   key off session identity rather than a module-level flag or nesting depth.
  */
 
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { describe, expect, test } from "bun:test";
 
 import dispatchBrain, {
@@ -34,6 +39,25 @@ import dispatchBrain, {
   resolveStatePath,
 } from "../agent/omp/extensions/dispatch-omp/index.ts";
 
+/**
+ * Build a real repository with a dispatch state file.
+ *
+ * The watchdog reads lanes from the shared state file rather than from
+ * in-memory session state, so exercising it honestly means a real git repo and
+ * a real document. Anchoring on the git common dir is what makes that work
+ * across worktrees.
+ */
+function makeRepoWithState(state: Record<string, unknown>) {
+  const dir = mkdtempSync(path.join(tmpdir(), "dispatch-tick-"));
+  const repo = path.join(dir, "repo");
+  mkdirSync(repo, { recursive: true });
+  execFileSync("git", ["init", "-q", repo]);
+  const statePath = path.join(repo, ".git", "dispatch", "ORCHESTRATOR_STATE.json");
+  mkdirSync(path.dirname(statePath), { recursive: true });
+  writeFileSync(statePath, JSON.stringify(state));
+  return { repo, statePath };
+}
+
 /** Records what the extension asked the host to do. */
 function makeHost({ agent = { kind: "main" }, hasUI = true, cwd = "/repo" } = {}) {
   const calls = {
@@ -45,10 +69,16 @@ function makeHost({ agent = { kind: "main" }, hasUI = true, cwd = "/repo" } = {}
   };
   let handlerSeq = 0;
   const handlers = new Map();
+  const paneInfo = new Map();
 
   const host = {
     calls,
     handlers,
+    paneInfo,
+    setPane(paneId, info) {
+      paneInfo.set(paneId, info);
+      return this;
+    },
     on(name, fn) {
       handlers.set(name, fn);
       return this;
@@ -97,6 +127,12 @@ function makeHost({ agent = { kind: "main" }, hasUI = true, cwd = "/repo" } = {}
     },
     sendUserMessage(text, options) {
       calls.messages.push({ text, options });
+    },
+    // Read-only pane lookup, used by the stall watchdog. Lifecycle state is
+    // read from here and never written back.
+    herdrAgentInfo(paneId) {
+      if (!paneInfo.has(paneId)) return null;
+      return paneInfo.get(paneId);
     },
   };
   return host;
@@ -375,18 +411,50 @@ describe("crash safety", () => {
   });
 
   test("a stall threshold produces a warning and a steer", async () => {
-    const { pi, brain } = boot();
+    // A real lane on disk, parked, whose pane never reports a state change.
+    const { repo } = makeRepoWithState({
+      lanes: { "1-1": { lane: "1-1", pane_id: "w3:p5" } },
+    });
+    const { pi, brain } = boot({ cwd: repo });
+    pi.setPane("w3:p5", { pane_id: "w3:p5", agent_status: "working", state_change_seq: 7 });
     await pi.emit("session_start");
     brain.setState({
       orchestrator_phase: "yield_and_guard",
       brain: { awaiting_lanes: ["1-1"] },
     });
-    // Drive the watchdog past its threshold.
-    for (let i = 0; i < 6; i += 1) {
-      pi.calls.intervals[0].fn();
+
+    for (let i = 0; i < 11; i += 1) brain.tick();
+
+    expect(pi.calls.messages.some((m) => m.text.includes("has reported no state change"))).toBe(
+      true,
+    );
+    expect(pi.calls.messages.some((m) => m.text.includes("1-1"))).toBe(true);
+  });
+
+  test("a moving lane is not reported as stalled", async () => {
+    const { repo } = makeRepoWithState({
+      lanes: { "1-1": { lane: "1-1", pane_id: "w3:p5" } },
+    });
+    const { pi, brain } = boot({ cwd: repo });
+    pi.setPane("w3:p5", { pane_id: "w3:p5", agent_status: "working", state_change_seq: 1 });
+    await pi.emit("session_start");
+    brain.setState({
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1"] },
+    });
+
+    for (let i = 0; i < 15; i += 1) {
+      // The lane reports a new sequence every poll.
+      pi.setPane("w3:p5", {
+        pane_id: "w3:p5",
+        agent_status: "working",
+        state_change_seq: i + 2,
+      });
+      brain.tick();
     }
-    expect(pi.calls.notifications.some((n) => n.message.includes("parked without"))).toBe(true);
-    expect(pi.calls.messages.some((m) => m.text.includes("watchdog"))).toBe(true);
+    expect(pi.calls.messages.some((m) => m.text.includes("has reported no state change"))).toBe(
+      false,
+    );
   });
 
   test("no stall warning while the orchestrator is not parked", async () => {

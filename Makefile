@@ -422,7 +422,7 @@ dispatch-single-writer-gate:
 # matching the installer's missing-dependency contract.
 dispatch-test:
 	@if command -v bun >/dev/null 2>&1; then \
-		bun test tests/dispatch-brain.test.ts; \
+		bun test tests/dispatch-brain.test.ts tests/dispatch-notify.test.ts tests/dispatch-ledger.test.ts; \
 	else \
 		echo 'dispatch-test: SKIPPED (bun not installed; TypeScript suite not run)'; \
 	fi

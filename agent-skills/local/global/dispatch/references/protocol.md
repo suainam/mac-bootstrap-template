@@ -80,6 +80,76 @@ Handoff: ~/Documents/handoffs/example-repo-releaser-handoff-20260930_164500.md
 
 ---
 
+## 2b. Stage Heartbeat (`[HEARTBEAT]`) — liveness, not results
+
+A long lane that says nothing is indistinguishable from a crashed one, and an
+impatient orchestrator will either take the work over or re-run it. A heartbeat
+is the cheap fix: periodic, structured evidence that the worker is alive **and
+where it is**.
+
+### The distinction that makes this safe
+
+| Marker | Means | Ends the orchestrator's park? |
+| --- | --- | --- |
+| `[HEARTBEAT]` | "still working, here is where" | **No** — absorbed silently |
+| `[NOTIFY]` | "finished, here is the result" | **Yes** — the only routine wake |
+
+A heartbeat must **never** be treated as a result. Ending the park on one hands
+the orchestrator its own work mid-flight, which is exactly the false-busywork
+loop the park exists to prevent.
+
+### When to send
+
+Send a heartbeat when **either** condition holds:
+
+- the task has been running longer than **3 minutes**; or
+- the worker has **crossed a milestone stage**.
+
+At most one per 3 minutes per lane — the orchestrator's stall watchdog uses a
+10-minute window, so a 3-minute cadence clears it three times over.
+
+### Signature
+```text
+\n[HEARTBEAT] [<pane_id>_<agent_kind>_<repo_slug>]
+STAGE: <current milestone, e.g. "Stage 4 Deploying on target">
+STATUS: <key diagnostic or progress summary>
+PROGRESS: <percentage or N/M>
+```
+
+```bash
+herdr agent prompt <orch-pane> "\n[HEARTBEAT] [<pane_id>_<agent_kind>_<repo_slug>]\nSTAGE: <stage>\nSTATUS: <status>\nPROGRESS: <N/M>"
+```
+
+### Example
+```text
+[HEARTBEAT] [w3:p6_opencode_mac-bootstrap]
+STAGE: Stage 4 Deploying on target
+STATUS: past the submodule gate, running the playbook directly
+PROGRESS: 4/7
+```
+
+### What the orchestrator does with it
+
+1. **Absorbs silently** — no steer back to the worker, no wake.
+2. **Refreshes the ledger** — writes `last_heartbeat`, `current_stage`,
+   `last_status` and `progress_pct` onto that lane.
+3. **Resets that lane's stall watchdog** — and only that lane's, so one chatty
+   lane cannot mask a genuinely dead one.
+4. **Republishes the sidebar token** — the stage is compacted for display
+   (`Stage 4 Deploying on hk216` → `dstate: s4@hk216`), so a human can see the
+   work is live without asking.
+
+### Progress values
+
+`PROGRESS` is optional and is never coerced. Anything unparseable (`?`,
+`unknown`, `about half`) is recorded as *unknown* rather than `0` — reporting a
+false 0% is worse than reporting nothing.
+
+---
+
+
+---
+
 ## 3. Convergence & Skeptic Re-work Loop (Diamond Pattern)
 
 When a **Skeptic** reviewer finishes its independent adversarial review:

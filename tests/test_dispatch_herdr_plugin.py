@@ -234,6 +234,75 @@ def test_metadata_report_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # --------------------------------------------------------------------------
+# Heartbeat stage token (TB-05)
+# --------------------------------------------------------------------------
+
+
+def test_stage_is_compacted_for_the_sidebar() -> None:
+    assert herdr.compact_stage("Stage 4 Deploying on hk216") == "s4@hk216"
+    assert herdr.compact_stage("Stage 4 Deploying on target") == "s4@target"
+
+
+def test_stage_compaction_handles_missing_numbers() -> None:
+    assert herdr.compact_stage("compiling") == "scompiling"
+    assert herdr.compact_stage("正在跑 playbook") == "s正在跑"
+
+
+def test_empty_stage_yields_no_token() -> None:
+    assert herdr.compact_stage("") == ""
+    assert herdr.compact_stage(None) == ""
+
+
+def test_dstate_token_appears_only_after_a_heartbeat() -> None:
+    lane = {"lane": "1-1", "current_stage": "Stage 4 Deploying on hk216"}
+    tokens = herdr.build_lane_tokens(lane, "yield_and_guard")
+    assert tokens["dstate"] == "s4@hk216"
+    assert tokens["brain"] == "yield_and_guard"
+
+    # No heartbeat yet: no dstate token, rather than a stale or empty one.
+    assert "dstate" not in herdr.build_lane_tokens({"lane": "1-1"}, "yield_and_guard")
+
+
+def test_dstate_respects_the_token_value_budget() -> None:
+    tokens = herdr.build_lane_tokens({"lane": "1-1", "current_stage": "z" * 500}, "")
+    assert len(tokens["dstate"]) <= herdr.TOKEN_VALUE_MAX
+
+
+def test_dstate_never_carries_lifecycle_status() -> None:
+    tokens = herdr.build_lane_tokens(
+        {"lane": "1-1", "status": "working", "current_stage": "Stage 2 reviewing"}, ""
+    )
+    assert "status" not in tokens
+    # No preposition to key off, so it falls back to the leading verb.
+    assert tokens["dstate"] == "s2reviewing"
+
+
+def test_python_and_extension_compaction_agree() -> None:
+    """Both surfaces must label a stage identically or the sidebar lies."""
+    for stage in [
+        "Stage 4 Deploying on hk216",
+        "Stage 2 of the build",
+        "compiling",
+        "正在跑 playbook",
+    ]:
+        py_value = herdr.compact_stage(stage)
+        ts_out = subprocess.run(
+            [
+                "bun",
+                "-e",
+                'import {displayStage} from "./agent/omp/extensions/dispatch-omp/heartbeat.ts";'
+                f'console.log(JSON.stringify(displayStage({json.dumps(stage)})));',
+            ],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+        )
+        if ts_out.returncode != 0:
+            pytest.skip("bun unavailable")
+        assert py_value == json.loads(ts_out.stdout), stage
+
+
+# --------------------------------------------------------------------------
 # Agents view projection
 # --------------------------------------------------------------------------
 
