@@ -308,7 +308,7 @@ class DispatchPlan:
         # path rather than jumping: forcing the jump would either raise
         # BrainPhaseError or leave a brain state claiming a phase it never
         # legitimately reached.
-        _advance_to_parked(state)
+        _advance_to_parked(state, [self.lane])
         brain.save(state_path, state)
 
         rename_pane(self.target, self.lane_name)
@@ -329,19 +329,23 @@ _PARK_PATHS: tuple[tuple[str, ...], ...] = (
 )
 
 
-def _advance_to_parked(state: Dict[str, Any]) -> Dict[str, Any]:
+def _advance_to_parked(state: Dict[str, Any], awaiting: Sequence[str]) -> Dict[str, Any]:
     """Walk the brain into ``yield_and_guard`` along a legal transition path.
 
     ``advance`` refuses illegal jumps by design, and it is right to: a brain
     that claims a phase it never traversed is worse than one that reports where
     it really is. So the bus follows the state machine instead of overriding it.
+
+    ``awaiting`` is the lane just dispatched. It has to be recorded, not
+    re-derived: parking with the *previous* wait list produces a brain that
+    believes it is waiting on nothing while a worker is running.
     """
     current = brain._safe_str(state.get("orchestrator_phase")) or brain.DEFAULT_BRAIN_PHASE
     for path in _PARK_PATHS:
         if path[0] == current:
             for phase in path[1:]:
                 brain.advance(state, phase, reason=f"awaiting lane dispatch")
-            brain.park(state, list(state.get("brain", {}).get("awaiting_lanes") or []))
+            brain.park(state, list(awaiting))
             return state
     raise DispatchRefused(
         f"cannot park the brain from phase {current!r}; no legal transition path "
