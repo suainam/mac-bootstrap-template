@@ -54,7 +54,24 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 ```
 
 ### Phase 2: Panel Topology & Two-Step Trust Handshake
-1. **Provision Panel**:
+1. **Dispatch through the bus — do not hand-assemble a lane**:
+   One command performs the contract lint, the claim gate, the pane rename, the
+   timestamp mint, the `[NOTIFY]` envelope assembly, the brain state flush and the
+   verified delivery. Any gate refuses, and **nothing** is renamed, written or sent.
+   ```bash
+   python3 "$GATE" --repo "$PWD" dispatch \
+     --task "$TASK_FILE" --lane 1-3 --lane-name 1-3-dispatch \
+     --target "$WORKER_PANE" --signature "1-3-dispatch_<agent_kind>" \
+     [--worktree <path> --branch <branch>] \
+     --highlight "<core result>" --risk "<leftover>"
+   ```
+   - `--lane-name` MUST match `^[0-9]+-[0-9]+-[a-z0-9_-]+$` (`1-2-sysctl`,
+     `1-3-dispatch`). A bare slug like `research-agy` is refused, exit 2.
+   - The handoff path is **generated**, never typed: `~/Documents/handoffs/<lane-name>-handoff-<YYYYMMDD_HHMMSS>.md`.
+   - Exit `1` means the contract is malformed; exit `2` means a rule refused.
+     Exit `1` is "fix your task file"; exit `2` is "this lane is unsafe".
+
+2. **Provision Panel**:
    - Writer/Skeptic: Worktree isolation is mandatory. Run `herdr worktree create --cwd <repo> --branch <branch> --label <name> --no-focus`.
    - **Assert the isolation claim first** (1 Lane = 1 Worktree = 1 Branch). This exits 2 on a shared worktree or branch, and MUST abort the dispatch:
      ```bash
@@ -62,15 +79,17 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
      ```
      Sharing a worktree lets one lane merge the other's untested WIP and lets a
      finishing lane physically delete the directory its peer is still using.
+     *(The `dispatch` bus above already runs this gate — invoke it directly only
+     when claiming a worktree outside a dispatch.)*
    - Researcher: Non-interactive stdout query (`opencode run --auto "<query>"` / `agy -p "<query>"`). Never create worktrees for read-only probes.
-2. **Start Interactive Agent**:
+3. **Start Interactive Agent**:
    Follow exact bare-binary CLI arguments in [references/routing.md](references/routing.md) and [references/protocol.md](references/protocol.md).
    - `opencode`: `--auto` (NO `-m` or `--model`)
    - `claude` / `agy`: `--model <model> [--dangerously-skip-permissions]`
    - `codex`: `-m <model>`
-3. **Inspect-on-Failure Gate**:
+4. **Inspect-on-Failure Gate**:
    If startup fails or times out, read visible screen (`herdr pane read "$PANE" --source visible`) before touching anything.
-4. **Resolve Trust Modal**:
+5. **Resolve Trust Modal**:
    Send enter if `Accessing workspace...` prompt appears until interactive composer prompt (`❯`, `›`, `>`, `Ask anything...`) is confirmed.
 
 ### Phase 3: External File Prompt & Todo Blocker Guard

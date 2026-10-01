@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 import closeout_gate as gate  # noqa: E402
+import dispatch_bus as bus  # noqa: E402
 import herdr_client as herdr  # noqa: E402
 import lane_isolation as isolation  # noqa: E402
 import orchestrator_guard as guard_mod  # noqa: E402
@@ -418,6 +419,58 @@ def cmd_guard(args: argparse.Namespace) -> int:
     return 0 if verdict.allowed else EXIT_GATE_REFUSED
 
 
+def cmd_dispatch(args: argparse.Namespace) -> int:
+    """Dispatch a lane in one atomic command.
+
+    Replaces six manual steps, each of which could be skipped: contract lint,
+    the claim gate, pane rename, timestamp minting, envelope assembly and the
+    brain state flush. Planning happens before any mutation, so a refusal from
+    any gate leaves the pane name, the state file and the worker untouched.
+
+    Exits 1 for a malformed contract and 2 for a rule refusal, so an
+    orchestrator can tell "fix your task file" from "this lane is unsafe".
+    """
+    # The bus owns the pane rename so planning stays pure; it resolves the Herdr
+    # client itself, so nothing here needs rebinding.
+    try:
+        plan = bus.DispatchPlan.plan(
+            repo=Path(args.repo) if args.repo else Path.cwd(),
+            task=Path(os.path.expanduser(args.task)),
+            lane=args.lane,
+            lane_name=args.lane_name,
+            target=args.target,
+            signature=args.signature,
+            worktree=args.worktree or "",
+            branch=args.branch or "",
+            highlights=args.highlight or [],
+            risks=args.risk or [],
+        )
+    except bus.DispatchRefused as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return exc.exit_code
+
+    plan.commit()
+
+    # Delivery last: it is the only mutation the worker can observe, and it must
+    # go through the same prompt gate the bus validated the envelope against.
+    report = promptproto.validate_prompt(plan.envelope)
+    if not report.ok:
+        # Unreachable in practice: planning asserts compliance. Left in place
+        # because a silent skip here is exactly the omission this command exists
+        # to prevent.
+        print(f"dispatch: refusing to deliver: {report.render()}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    try:
+        herdr.run_herdr(["agent", "prompt", plan.target, plan.envelope])
+    except herdr.HerdrError as exc:
+        print(f"dispatch: delivery failed ({exc})", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    print(bus.receipt(plan))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dispatch-plugin", description="herdr-dispatch plugin commands (TB-03)"
@@ -524,6 +577,27 @@ def build_parser() -> argparse.ArgumentParser:
     guard.add_argument("--json", action="store_true")
     guard.set_defaults(func=cmd_guard)
 
+    dispatch = sub.add_parser(
+        "dispatch",
+        help="dispatch a lane atomically: lint, claim, rename, timestamp, state flush, deliver",
+    )
+    dispatch.add_argument("--task", required=True, help="task contract file (7-section + #125)")
+    dispatch.add_argument("--lane", required=True, help="lane id, e.g. 1-3")
+    dispatch.add_argument(
+        "--lane-name",
+        required=True,
+        help=f"pane label, must match {bus.LANE_NAME_PATTERN} (e.g. 1-3-dispatch)",
+    )
+    dispatch.add_argument("--target", required=True, help="target pane, e.g. w3:p9")
+    dispatch.add_argument(
+        "--signature", default="", help="[NOTIFY] signature, defaults to <lane-name>_<target>"
+    )
+    dispatch.add_argument("--worktree", default="", help="worktree to claim (optional)")
+    dispatch.add_argument("--branch", default="", help="branch to claim (optional)")
+    dispatch.add_argument("--highlight", action="append", default=[])
+    dispatch.add_argument("--risk", action="append", default=[])
+    dispatch.set_defaults(func=cmd_dispatch)
+
     return parser
 
 
@@ -538,6 +612,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         gate.CloseoutGateError,
         promptproto.PromptProtocolError,
         guard_mod.IllegalOrchestratorActionError,
+        bus.DispatchRefused,
     ) as exc:
         # A plugin command must fail visibly but never wedge the server. Gate
         # refusals land here too, and deliberately share exit 2: an orchestrator
