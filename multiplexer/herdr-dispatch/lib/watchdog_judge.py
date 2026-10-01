@@ -190,6 +190,17 @@ def evaluate_watchdog_state(
     clean_tail = extract_tail_buffer(buffer_tail, max_lines=15)
     resolved_key = key or os.environ.get("TYPESAFE_API_KEY", "").strip()
 
+    if not resolved_key and key is None:
+        omp_env = Path.home() / ".omp" / "agent" / ".env"
+        if omp_env.is_file():
+            try:
+                for line in omp_env.read_text(encoding="utf-8").splitlines():
+                    if line.startswith("TYPESAFE_API_KEY="):
+                        resolved_key = line.split("=", 1)[1].strip()
+                        break
+            except OSError:
+                pass
+
     if not resolved_key:
         return _heuristic_judgment(clean_tail, process_name)
 

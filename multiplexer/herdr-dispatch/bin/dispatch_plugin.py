@@ -513,7 +513,10 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
 
         buffer_text = ""
         process_name = ""
-        if pane_id and herdr.in_herdr():
+        if getattr(args, "buffer", ""):
+            buffer_text = getattr(args, "buffer", "")
+            process_name = getattr(args, "process", "")
+        elif pane_id and herdr.in_herdr():
             try:
                 read_res = herdr.run_herdr(["pane", "read", pane_id, "--source", "visible"])
                 if isinstance(read_res, Mapping):
@@ -527,9 +530,6 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
                 process_name = info.get("process_name") or info.get("command") or ""
             except herdr.HerdrError:
                 pass
-        elif getattr(args, "buffer", ""):
-            buffer_text = getattr(args, "buffer", "")
-            process_name = getattr(args, "process", "")
 
         judgment = watchdog.evaluate_watchdog_state(
             buffer_tail=buffer_text,
