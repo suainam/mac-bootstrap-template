@@ -82,6 +82,21 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<handoff-filename>'"
    ```
    *(NEVER inject raw `<orch_pane_id>` or unevaluated placeholders; bind actual pane coordinate to avoid misrouting).*
+
+2. **Prompt Protocol Gate (mechanical, not advisory)**:
+   **Do not call `herdr agent prompt` directly.** Herdr exposes no pre-prompt hook —
+   `agent prompt` is a direct CLI/RPC call and the plugin event surface is a fixed
+   set of state-change notifications — so nothing can intercept a prompt sent
+   behind the plugin's back. The gate is therefore the **sanctioned send path**:
+   ```bash
+   # validate then deliver; refuses with exit 2 BEFORE delivery
+   printf '%s' "$PROMPT" | python3 "$GATE" prompt --stdin --send --target "$WORKER_PANE" || exit 2
+   # check only, no delivery
+   printf '%s' "$PROMPT" | python3 "$GATE" prompt --stdin || exit 2
+   ```
+   Every dispatched prompt needs a **resolved** coordinate (`w<N>:p<N>`, never
+   `${ORCH_PANE}` or `<orch-pane>`) and a structured `[NOTIFY]` carrying `DONE:`
+   and `Handoff:` lines. The gate judges only — it never rewrites your prompt.
 2. **Todo Blocker Invariant**:
    If tracking progress via `todo`, you MUST block the waiting task to prevent harness reminder loops:
    ```bash

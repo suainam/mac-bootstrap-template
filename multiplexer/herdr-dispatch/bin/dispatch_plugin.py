@@ -33,6 +33,7 @@ import closeout_gate as gate  # noqa: E402
 import herdr_client as herdr  # noqa: E402
 import lane_isolation as isolation  # noqa: E402
 import orchestrator_state as brain  # noqa: E402
+import prompt_protocol as promptproto  # noqa: E402
 
 PLUGIN_SOURCE = "plugin:herdr-dispatch"
 
@@ -282,6 +283,61 @@ def cmd_closeout(args: argparse.Namespace) -> int:
     return 0 if report.allowed else EXIT_GATE_REFUSED
 
 
+def cmd_prompt(args: argparse.Namespace) -> int:
+    """Validate a worker prompt, and optionally deliver it.
+
+    The gate stands in front of ``herdr agent prompt`` because nothing upstream
+    can: Herdr's plugin surface is a fixed set of state-change events with no
+    pre-execution hook, so a direct CLI prompt is unobservable to a plugin. This
+    is the sanctioned path, and ``--send`` refuses *before* delivery so a
+    malformed prompt never reaches a worker.
+    """
+    if args.stdin:
+        text = sys.stdin.read()
+        origin = "<stdin>"
+    elif args.file:
+        path = Path(os.path.expanduser(args.file))
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"dispatch: cannot read {path} ({exc})", file=sys.stderr)
+            return 2
+        origin = str(path)
+    elif args.text:
+        text = args.text
+        origin = "<arg>"
+    else:
+        print("dispatch: pass --stdin, --file or --text", file=sys.stderr)
+        return 2
+
+    report = promptproto.validate_prompt(text, require_callback=not args.allow_no_callback)
+
+    if not report.ok:
+        if args.json:
+            print(json.dumps({"source": origin, **report.as_dict()}, indent=2, ensure_ascii=False))
+        else:
+            print(f"dispatch: {report.render()}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    if args.send:
+        if not args.target:
+            print("dispatch: --send requires --target <pane>", file=sys.stderr)
+            return 2
+        try:
+            herdr.run_herdr(["agent", "prompt", args.target, text])
+        except herdr.HerdrError as exc:
+            print(f"dispatch: prompt not delivered ({exc})", file=sys.stderr)
+            return 2
+        print(f"dispatch: prompt delivered to {args.target}")
+        return 0
+
+    if args.json:
+        print(json.dumps({"source": origin, **report.as_dict()}, indent=2, ensure_ascii=False))
+    else:
+        print(f"dispatch: prompt OK (coordinate={report.coordinate or '-'}) from {origin}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dispatch-plugin", description="herdr-dispatch plugin commands (TB-03)"
@@ -327,6 +383,24 @@ def build_parser() -> argparse.ArgumentParser:
     closeout.add_argument("--json", action="store_true")
     closeout.set_defaults(func=cmd_closeout)
 
+    prompt = sub.add_parser(
+        "prompt",
+        help="validate a worker prompt against the dispatch contract (and optionally send it)",
+    )
+    source = prompt.add_mutually_exclusive_group(required=True)
+    source.add_argument("--stdin", action="store_true", help="read the prompt from stdin")
+    source.add_argument("--file", default="", help="read the prompt from a file")
+    source.add_argument("--text", default="", help="the prompt itself")
+    prompt.add_argument("--send", action="store_true", help="deliver after validating")
+    prompt.add_argument("--target", default="", help="target pane for --send")
+    prompt.add_argument("--json", action="store_true")
+    prompt.add_argument(
+        "--allow-no-callback",
+        action="store_true",
+        help="permit a prompt with no [NOTIFY] return leg (questions, one-way nudges)",
+    )
+    prompt.set_defaults(func=cmd_prompt)
+
     return parser
 
 
@@ -339,6 +413,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         herdr.HerdrError,
         isolation.LaneCollisionError,
         gate.CloseoutGateError,
+        promptproto.PromptProtocolError,
     ) as exc:
         # A plugin command must fail visibly but never wedge the server. Gate
         # refusals land here too, and deliberately share exit 2: an orchestrator

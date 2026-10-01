@@ -80,6 +80,17 @@ title = "Dispatch: evaluate the Closeout Lifecycle Gate"
 contexts = ["global", "workspace", "pane"]
 command = ["python3", "bin/dispatch_plugin.py", "closeout"]
 
+# Prompt protocol gate. Herdr exposes no pre-prompt hook — `agent prompt` is a
+# direct CLI/RPC call and the plugin event surface is a fixed set of
+# state-change notifications — so a plugin cannot intercept a prompt sent
+# behind its back. This action is the sanctioned send path: it validates the
+# dispatch contract and refuses before delivery.
+[[actions]]
+id = "prompt-check"
+title = "Dispatch: validate a worker prompt against the protocol"
+contexts = ["global", "workspace", "pane"]
+command = ["python3", "bin/dispatch_plugin.py", "prompt", "--stdin"]
+
 # An Agents status change is the cheapest signal that a lane moved. The command
 # re-projects tokens for the lanes we know about; it never writes lifecycle
 # state, which Herdr's own herdr:omp integration owns.
