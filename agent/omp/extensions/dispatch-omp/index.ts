@@ -63,6 +63,15 @@ import {
 } from "./ledger.ts";
 
 export { resolveStatePath } from "./ledger.ts";
+export {
+  planPrune,
+  planRollover,
+  planDowngrade,
+  classifyPressure,
+  admitAgent,
+  memoryFreeFraction,
+  readHostMemory,
+} from "./governance.ts";
 export { parseNotify, laneFromSignature } from "./notify.ts";
 export {
   parseHeartbeat,
@@ -70,6 +79,14 @@ export {
   heartbeatDue,
   heartbeatFields,
 } from "./heartbeat.ts";
+import {
+  admitAgent,
+  classifyPressure,
+  memoryFreeFraction,
+  planPrune,
+  planRollover,
+  readHostMemory,
+} from "./governance.ts";
 import {
   displayStage,
   heartbeatDue,
@@ -319,6 +336,27 @@ export default function dispatchBrain(pi) {
   const sidebarStage = new Map();
   let statePath = null;
   let coldStart = { live: [], orphaned: [], resume: [] };
+  let pressure = "ok";
+
+  /** Recompute host pressure; a probe failure yields no opinion, not a freeze. */
+  function hostPressureState() {
+    pressure = classifyPressure(memoryFreeFraction(readHostMemory() ?? {}));
+    return pressure;
+  }
+
+  /**
+   * Context pressure for one lane.
+   *
+   * Kept separate from the stall watchdog: a stalled lane is quiet, while a
+   * bloated lane is loud and expensive. Both are memory symptoms but only one
+   * is a hang.
+   */
+  function contextPressure(tokens, options) {
+    return {
+      prune: planPrune(tokens, options),
+      rollover: planRollover(tokens, options),
+    };
+  }
   // Managed timers and the UI live on the handler context, not on the API
   // object: `pi` carries actions, `ctx` carries per-session facilities.
   let sessionCtx = null;
@@ -714,8 +752,13 @@ export default function dispatchBrain(pi) {
   return {
     getState: () => brain,
     getColdStart: () => coldStart,
+    contextPressure,
+    getPressure: () => hostPressureState(),
     getInbox: () => inbox,
     getHeartbeats: () => heartbeats,
+    /** Host memory pressure, recomputed on demand rather than cached. */
+    hostPressure: () => classifyPressure(memoryFreeFraction(readHostMemory() ?? {})),
+    admit: (weight = "heavy") => admitAgent(hostPressureState(), weight),
     getSidebarStages: () => Object.fromEntries(sidebarStage),
     consumeNotify,
     consumeHeartbeat,

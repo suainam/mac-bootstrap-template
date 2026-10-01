@@ -11,6 +11,20 @@ Status: TB-01 and TB-02 implemented. TB-03 onward is not here yet.
 |---|---|---|
 | Orchestrator brain state store | `lib/orchestrator_state.py` | library + CLI, no daemon |
 | Single-writer audit gate | `../../scripts/dispatch-single-writer-gate.py` | repo gate, wired into `make repo-check` |
+| omp-side extension | `agent/omp/extensions/dispatch-omp/` | in-process; brain loop, routing, gate, heartbeats |
+| Context & memory governance | [`docs/memory-governance.md`](docs/memory-governance.md) | pure policy; pruning, rollover, downgrading, host pressure |
+| Research register | [`docs/research-register.md`](docs/research-register.md) | what fed this design, and what is deferred to an issue |
+
+## Memory governance
+
+Dispatch fails from host memory exhaustion before it fails from bad prompts: a
+long agent at 300–500k context tokens sits at 1.5–3 GB RSS, and four in
+parallel is 6–12 GB. The kernel's response is a `SIGKILL` that looks like an
+agent failure.
+
+Four defences ship as policy in `governance.ts` — stage-boundary pruning,
+session rollover, phase-aware model downgrading, and host-pressure admission
+gating. See [docs/memory-governance.md](docs/memory-governance.md).
 
 ## The orchestrator brain loop
 
