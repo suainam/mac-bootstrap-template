@@ -351,13 +351,51 @@ def test_send_does_not_deliver_a_refused_prompt(
 def test_send_delivers_a_compliant_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Delivery expands standard escapes.
+
+    This used to assert byte-identical delivery, which is precisely the
+    behaviour that caused the one-line `[NOTIFY]` defect: bash single quotes
+    deliver a literal backslash-n, and forwarding it verbatim meant the report
+    rendered as a single long line. The contract changed deliberately.
+
+    What still holds -- and is asserted below -- is that the gate never invents
+    *semantic* content. It expands escapes and substitutes nothing.
+    """
     calls: list[list[str]] = []
     monkeypatch.setattr(plugin.herdr, "run_herdr", lambda args, **kw: calls.append(list(args)) or {})
 
     assert plugin.main(
         ["prompt", "--text", COMPLIANT, "--send", "--target", "w3:p9"]
     ) == 0
-    assert calls == [["agent", "prompt", "w3:p9", COMPLIANT]]
+
+    [argv] = calls
+    assert argv[:3] == ["agent", "prompt", "w3:p9"]
+    delivered = argv[3]
+    # Escapes expanded into real control characters: every literal `\n` became a
+    # real one, and the newlines that were already real are still there.
+    assert "\\n" not in delivered
+    assert delivered.count("\n") == COMPLIANT.count("\\n") + COMPLIANT.count("\n")
+    # ...and nothing else was invented: every non-escape character is intact.
+    assert "DONE: 1-Lane-1-Worktree isolation landed" in delivered
+    assert "Handoff: ~/Documents/handoffs/x-20261001_000000.md" in delivered
+
+
+def test_send_never_invents_a_coordinate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Escape expansion is not a licence to fabricate.
+
+    The gate must never resolve a coordinate on the caller's behalf -- that was
+    the original "never repairs" rule, and widening the delivery transform must
+    not quietly erode it.
+    """
+    calls: list[list[str]] = []
+    monkeypatch.setattr(plugin.herdr, "run_herdr", lambda args, **kw: calls.append(list(args)) or {})
+
+    with pytest.raises(proto.PromptProtocolError):
+        proto.send_prompt("w3:p1", "bare", notifier=lambda *a: calls.append(a))
+
+    assert calls == []
 
 
 def test_send_reports_a_herdr_failure(

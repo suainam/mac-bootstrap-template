@@ -78,10 +78,9 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    The orchestrator MUST dynamically inspect its own pane ID via `ORCH_PANE="$(herdr pane current | jq -r '.result.pane.pane_id')"`.
    Write long prompts/tasks to `.dispatch/TASK.md` or `/tmp/<task>.md`. Inject task reference with evaluated parent coordinate:
    ```bash
-   herdr agent prompt <name> "Read .dispatch/TASK.md. When complete, write ~/Documents/handoffs/<name>-handoff-$(date +%Y%m%d_%H%M%S).md and run:
-   herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<handoff-filename>'"
+   herdr agent prompt <name> "Read .dispatch/TASK.md and implement the fix. When complete, write ~/Documents/handoffs/<name>-handoff-$(date +%Y%m%d_%H%M%S).md and report back with the notify command below."
    ```
-   *(NEVER inject raw `<orch_pane_id>` or unevaluated placeholders; bind actual pane coordinate to avoid misrouting).*
+   *(NEVER inject raw `<orch-pane_id>` or unevaluated placeholders; bind actual pane coordinate to avoid misrouting).*
 
 2. **Prompt Protocol Gate (mechanical, not advisory)**:
    **Do not call `herdr agent prompt` directly.** Herdr exposes no pre-prompt hook —
@@ -96,8 +95,44 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    ```
    Every dispatched prompt needs a **resolved** coordinate (`w<N>:p<N>`, never
    `${ORCH_PANE}` or `<orch-pane>`) and a structured `[NOTIFY]` carrying `DONE:`
-   and `Handoff:` lines. The gate judges only — it never rewrites your prompt.
-2. **Todo Blocker Invariant**:
+   and `Handoff:` lines. Validation judges only; on delivery the gate expands
+   literal `\n` / `\r` / `\t` into real control characters so the report renders
+   as multiple lines. Use `--keep-escapes` to send bytes verbatim.
+
+3. **Reporting back — use the `notify` command, never a hand-quoted `[NOTIFY]`**:
+   ```bash
+   python3 "$GATE" notify \
+     --signature "<pane_id>_<agent_kind>_<repo_slug>" \
+     --done "<one-line conclusion>" \
+     --handoff "~/Documents/handoffs/<handoff-file>.md" \
+     --target "$ORCH_PANE" \
+     --highlight "<core result 1>" --highlight "<core result 2>" \
+     --risk "<leftover 1>" \
+     --send
+   ```
+   Emit the structure verbatim; do not retype it:
+   ```text
+   [NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]
+   DONE: <一句话明确结论>
+   Handoff: <handoff 绝对路径>
+   回调目标坐标: <w<N>:p<N>>
+
+   [核心成果与证据]
+   - 重点 1: ...
+   - 重点 2: ...
+
+   [风险与遗留]
+   - 遗留 1: ...
+   ```
+
+   > **Never write `herdr agent prompt w3:p1 '\n[NOTIFY] ...'`.** Bash single
+   > quotes do not expand escapes, so `\n` reaches the worker as two literal
+   > characters and the whole report renders as one long single line. That exact
+   > mis-quoting shipped in this file for a long time. If you must use the raw
+   > CLI, use `$'\n[NOTIFY] ...'` with **double**-inner/single-outer quoting —
+   > but the `notify` command above is preferred, because it cannot be
+   > mis-quoted and it renders the standard layout for you.
+4. **Todo Blocker Invariant**:
    If tracking progress via `todo`, you MUST block the waiting task to prevent harness reminder loops:
    ```bash
    todo(op="block", task="<task>", reason="Awaiting background child agent <name> IPC [NOTIFY]")

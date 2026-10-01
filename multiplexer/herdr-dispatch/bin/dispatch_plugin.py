@@ -323,11 +323,23 @@ def cmd_prompt(args: argparse.Namespace) -> int:
         if not args.target:
             print("dispatch: --send requires --target <pane>", file=sys.stderr)
             return 2
+        # Deliver the expanded text. The single-quoted '\n[NOTIFY] ...' form is
+        # what produced the one-line report: bash keeps the backslash-n as two
+        # characters, so the worker got escape sequences instead of line breaks.
+        # Validation still judged the caller's text; only the bytes on the wire
+        # are normalised. --keep-escapes opts out for anyone who means them.
+        payload = text if getattr(args, "keep_escapes", False) else promptproto.normalise_escapes(text)
         try:
-            herdr.run_herdr(["agent", "prompt", args.target, text])
+            herdr.run_herdr(["agent", "prompt", args.target, payload])
         except herdr.HerdrError as exc:
             print(f"dispatch: prompt not delivered ({exc})", file=sys.stderr)
             return 2
+        if promptproto.has_literal_escape(payload) and not args.json:
+            print(
+                "dispatch: warning - literal escapes remain inside a fenced code block "
+                "(left intact by design)",
+                file=sys.stderr,
+            )
         print(f"dispatch: prompt delivered to {args.target}")
         return 0
 
@@ -335,6 +347,42 @@ def cmd_prompt(args: argparse.Namespace) -> int:
         print(json.dumps({"source": origin, **report.as_dict()}, indent=2, ensure_ascii=False))
     else:
         print(f"dispatch: prompt OK (coordinate={report.coordinate or '-'}) from {origin}")
+    return 0
+
+
+def cmd_notify(args: argparse.Namespace) -> int:
+    """Build and send the standard structured report, with real newlines.
+
+    The reason this exists: `herdr agent prompt p '\\n[NOTIFY] ...'` keeps the
+    backslash-n as two literal characters, because bash single quotes do not
+    expand escapes. The report then renders as one long line. Generating the
+    text here means callers never hand-quote it at all.
+    """
+    sections: Dict[str, List[str]] = {}
+    for raw in args.section or []:
+        title, _, items = raw.partition("=")
+        sections[title.strip()] = [i.strip() for i in items.split("|") if i.strip()]
+
+    text = promptproto.build_notify(
+        args.signature,
+        args.done,
+        args.handoff,
+        args.target,
+        highlights=args.highlight or [],
+        risks=args.risk or [],
+        sections=sections,
+    )
+
+    if not args.send:
+        print(text)
+        return 0
+
+    try:
+        herdr.run_herdr(["agent", "prompt", args.target, text])
+    except herdr.HerdrError as exc:
+        print(f"dispatch: report not delivered ({exc})", file=sys.stderr)
+        return 2
+    print(f"dispatch: report delivered to {args.target}", file=sys.stderr)
     return 0
 
 
@@ -399,7 +447,35 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="permit a prompt with no [NOTIFY] return leg (questions, one-way nudges)",
     )
+    prompt.add_argument(
+        "--keep-escapes",
+        action="store_true",
+        help="deliver the text byte-for-byte instead of expanding standard escapes",
+    )
     prompt.set_defaults(func=cmd_prompt)
+
+    notify = sub.add_parser(
+        "notify",
+        help="build and send the standard multi-line [NOTIFY] report",
+    )
+    notify.add_argument("--signature", required=True, help="pane_id_agent_kind_repo_slug")
+    notify.add_argument("--done", required=True, help="one-line conclusion")
+    notify.add_argument("--handoff", required=True, help="handoff artifact path")
+    notify.add_argument("--target", required=True, help="destination pane, e.g. w3:p1")
+    notify.add_argument(
+        "--highlight", action="append", default=[], help="core result bullet (repeatable)"
+    )
+    notify.add_argument(
+        "--risk", action="append", default=[], help="risk / leftover bullet (repeatable)"
+    )
+    notify.add_argument(
+        "--section",
+        action="append",
+        default=[],
+        help="extra titled section as 'Title=item|item' (repeatable)",
+    )
+    notify.add_argument("--send", action="store_true", help="deliver instead of printing")
+    notify.set_defaults(func=cmd_notify)
 
     return parser
 

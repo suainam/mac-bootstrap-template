@@ -196,6 +196,63 @@ distinguishes *"the gate refused this"* from *"the gate does not exist"* —
 without that distinction argparse exits 2 for every input and the probe reports
 green while nothing is being enforced.
 
+## [NOTIFY] newline handling — the single-quote trap
+
+```bash
+herdr agent prompt w3:p1 '\n[NOTIFY] [w5:p1]\nDONE: landed\nHandoff: /tmp/x.md'
+```
+
+Bash single quotes do not expand escapes. That `\n` reaches the worker as **two
+literal characters**, so the report renders as one long single-line string. This
+form shipped in `SKILL.md` and `references/protocol.md` for a long time before
+anyone noticed, because the message still *arrives* — it just arrives mangled.
+
+Two ways out, in order of preference:
+
+```bash
+# 1. let the plugin render the report — cannot be mis-quoted
+python3 bin/dispatch_plugin.py notify \
+  --signature "<pane_id>_<agent_kind>_<repo_slug>" \
+  --done "<one-line conclusion>" \
+  --handoff "~/Documents/handoffs/<file>.md" \
+  --target w3:p1 \
+  --highlight "<core result>" --risk "<leftover>" --send
+
+# 2. raw CLI with correct quoting ($'...' expands, '...' does not)
+herdr agent prompt w3:p1 $'\n[NOTIFY] [w5:p1]\nDONE: landed\nHandoff: /tmp/x.md'
+```
+
+`prompt --send` also expands standard escapes on delivery, so a
+single-quoted payload is repaired even if it reaches the gate. Use
+`--keep-escapes` to opt out.
+
+### What expansion does, and deliberately does not do
+
+`normalise_escapes` expands **only** `\n`, `\r` and `\t`, and only outside fenced
+code blocks. Each exclusion cost something to learn:
+
+- **Not `encode().decode('unicode_escape')`.** That round-trips through latin-1
+  and turns UTF-8 into mojibake: `修复完成` comes out as `ä¿®å¤å®`. Every report
+  this gate carries is Chinese, so the obvious one-liner destroys the payload.
+- **Not `\\`.** Shell `$'...'` already collapses it. Expanding it here makes
+  `\\n` ambiguous between "escaped backslash + n" and "backslash-n escape", and
+  silently breaks idempotence — `path\\name` would come back as
+  `path<newline>ame`.
+- **Fenced code is untouched.** A shell sample containing `'\n[NOTIFY]'` must
+  survive verbatim, or the reader copies a deformed command.
+- **Unknown escapes are preserved**, never interpreted.
+
+`scripts/notify-format-probe.py` is the red-capable loop. It points
+`HERDR_BIN_PATH` at a recorder so it captures the exact bytes that would reach
+Herdr, and asserts real `0x0A` newlines, zero literal `\n`, byte-exact Chinese,
+and an intact report structure.
+
+> The `claim`, `closeout` and `prompt-check` manifest actions cannot take
+> arguments (a manifest `command` is a fixed argv array), so they exit 2 when
+> invoked from the action palette. Invoke them from the CLI as `SKILL.md`
+> documents. `notify` is deliberately *not* registered as an action for the
+> same reason.
+
 ## Ownership boundaries
 
 Writes are partitioned so the short-lived Herdr plugin process and the

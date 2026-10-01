@@ -44,10 +44,18 @@ Sending `herdr agent prompt` immediately after `agent start` causes the prompt b
    ```
    Only after passing the readiness gate, inject the task. The prompt MUST bind this explicit `ORCH_PANE` coordinate so the child agent notifies the exact parent, never guessing or misrouting:
    ```bash
-   herdr agent prompt <name> "Read <task-file> (or .dispatch/TASK.md) and execute. When complete, write ~/Documents/handoffs/<name>-handoff.md and run:
-   herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/<name>-handoff.md'"
+   herdr agent prompt <name> "Read <task-file> (or .dispatch/TASK.md) and execute. When complete, write ~/Documents/handoffs/<name>-handoff.md and report back with the notify command documented in SKILL.md Phase 3."
    ```
    *(CRITICAL: If the orchestrator uses a placeholder `<orch-pane>` without substituting its actual `herdr pane current` ID, the child agent either sends to a broken placeholder or misroutes to the human user / sibling panes).*
+
+   > **Never hand-quote the callback.** The historical form
+   > `herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] ...'` is a trap: bash single
+   > quotes do not expand escapes, so `\n` reaches the worker as two literal
+   > characters and the entire report renders as one long single line. This file
+   > shipped that form for a long time. Report back with the `notify` command
+   > (`dispatch_plugin.py notify --signature ... --done ... --handoff ...
+   > --target "$ORCH_PANE" --send`), which renders the standard layout and
+   > cannot be mis-quoted.
 ---
 
 ## 2. Standardized Notify-Back & Precision Coordinate Signature
