@@ -457,6 +457,32 @@ describe("crash safety", () => {
     );
   });
 
+  test("a lane with an active Gate D semantic watchdog lease is not reported as stalled", async () => {
+    const { repo } = makeRepoWithState({
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          watchdog_lease_until_unix_ms: Date.now() + 600_000,
+        },
+      },
+    });
+    const { pi, brain } = boot({ cwd: repo });
+    pi.setPane("w3:p5", { pane_id: "w3:p5", agent_status: "working", state_change_seq: 1 });
+    await pi.emit("session_start");
+    brain.setState({
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1"] },
+    });
+
+    for (let i = 0; i < 15; i += 1) {
+      brain.tick();
+    }
+    expect(pi.calls.messages.some((m) => m.text.includes("has reported no state change"))).toBe(
+      false,
+    );
+  });
+
   test("no stall warning while the orchestrator is not parked", async () => {
     const { pi, brain } = boot();
     await pi.emit("session_start");

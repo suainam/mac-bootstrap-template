@@ -13,6 +13,7 @@ Status: TB-01 and TB-02 implemented. TB-03 onward is not here yet.
 | Lane isolation gate | `lib/lane_isolation.py` | pure policy; claims a worktree+branch or raises |
 | Closeout lifecycle gate | `lib/closeout_gate.py` | pure policy; decides, never destroys |
 | Prompt protocol gate | `lib/prompt_protocol.py` | pure policy; judges, never rewrites |
+| Gate D semantic watchdog | `lib/watchdog_judge.py` | System One (TypeSafe Jev); autonomous lease extension |
 | Single-writer audit gate | `../../scripts/dispatch-single-writer-gate.py` | repo gate, wired into `make repo-check` |
 | omp-side extension | `agent/omp/extensions/dispatch-omp/` | in-process; brain loop, routing, gate, heartbeats |
 | Context & memory governance | [`docs/memory-governance.md`](docs/memory-governance.md) | pure policy; pruning, rollover, downgrading, host pressure |
@@ -400,11 +401,28 @@ long-lived omp extension cannot clobber each other:
 
 | Writer | May write |
 |---|---|
-| Herdr plugin (`update_lane(writer="plugin")`) | lane `tokens`, `status`, `pane_id`, `agent_name` |
+| Herdr plugin (`update_lane(writer="plugin")`) | lane `tokens`, `status`, `pane_id`, `agent_name`, `watchdog_verdict`, `watchdog_evaluated_at_unix_ms`, `watchdog_lease_until_unix_ms` |
 | omp extension (`update_lane(writer="extension")`) | lane `phase`, `handoff`, `notified_at` |
 | omp extension only | Phase 0 (`orchestrator_phase`, `blocked_reason`, `brain`, `active_panes`) |
 
 Crossing a partition raises rather than silently dropping the write.
+
+## Gate D: Zero-Token Semantic Watchdog (Issue #134)
+
+When a child lane is quiet for $\ge$ 10 minutes (measured by monotonic `state_change_seq`),
+the semantic watchdog (`lib/watchdog_judge.py`) evaluates whether the lane is engaged in
+legitimate heavy computation (e.g. `cargo build`, `pytest`, `npm install`) or is hung:
+
+- **Non-autoregressive classification**: Invokes TypeSafe Jev System One endpoint for typed Noul probabilities, consuming zero conversational tokens.
+- **Strict buffer truncation**: Extracts at most the tail 15 lines of sanitized terminal output with ANSI sequences stripped.
+- **Autonomous lease extension**: When $P(\text{legitimate}) > 0.70$, automatically extends the watchdog lease by 10 minutes (`watchdog_lease_until_unix_ms`), preventing false alarms to human operators.
+- **Prompt nudge / abort**: When $P(\text{stalled}) > 0.65$, triggers an automated soft nudge (`\n`) for interactive input prompts or aborts fatal deadlocks.
+
+```bash
+# Evaluate a single lane or sweep all awaiting lanes
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py watchdog --lane 1-4
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py watchdog --sweep
+```
 
 Agent **lifecycle** reporting is not in this table on purpose: Herdr's own
 `herdr:omp` integration owns it, and
@@ -429,6 +447,7 @@ registry update cannot replace them.
                              tests/test_dispatch_single_writer_gate.py \
                              tests/test_dispatch_lane_isolation_closeout_gate.py \
                              tests/test_dispatch_prompt_protocol_gate.py \
+                             tests/test_dispatch_semantic_watchdog.py \
                              tests/test_install_omp_extensions_local.py -q
 ```
 

@@ -545,6 +545,15 @@ export default function dispatchBrain(pi) {
 
       if (!info) continue;
 
+      // Gate D: Semantic Watchdog lease extension (Issue #134). If an active lease
+      // was granted (verified heavy compilation / test), do not alarm the human.
+      const leaseUntil = lanes?.[laneId]?.watchdog_lease_until_unix_ms;
+      if (Number.isFinite(leaseUntil) && leaseUntil > Date.now()) {
+        stallByLane.set(laneId, 0);
+        alarmedLanes.delete(laneId);
+        continue;
+      }
+
       const current = Number.isFinite(info.state_change_seq) ? info.state_change_seq : null;
       const previous = lastSeq.get(laneId) ?? null;
       lastSeq.set(laneId, current);

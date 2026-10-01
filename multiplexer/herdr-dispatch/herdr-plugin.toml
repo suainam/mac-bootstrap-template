@@ -47,6 +47,14 @@ title = "Dispatch: harvest lane handoffs"
 contexts = ["global", "workspace", "pane"]
 command = ["python3", "bin/dispatch_plugin.py", "harvest", "--notify"]
 
+# Gate D: Zero-Token Semantic Watchdog sweep (Issue #134).
+# Evaluates quiet lanes and automatically extends lease for legitimate heavy computations.
+[[actions]]
+id = "watchdog"
+title = "Dispatch: Gate D semantic watchdog sweep"
+contexts = ["global", "workspace"]
+command = ["python3", "bin/dispatch_plugin.py", "watchdog", "--sweep"]
+
 # The Agents view projection replaces the session's agent_panel_sort policy
 # while it is active, so it stays an explicit action rather than a startup
 # side effect.

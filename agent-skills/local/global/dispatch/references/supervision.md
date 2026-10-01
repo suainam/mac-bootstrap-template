@@ -52,7 +52,7 @@ When inspecting `herdr agent get <name>`:
 | :--- | :--- | :--- |
 | `agent_status == blocked` | Trapped in trust modal or dangerous tool confirmation | Read visible screen via `herdr pane read <pane> --source visible`. If safe, send `enter` or `y`; if dangerous, surface to user. |
 | `agent_status == idle` and no notify-back received | Agent finished turn but omitted notify-back or crashed | Inspect git status & `.dispatch/progress.md`. If criteria met, mark verified; otherwise send continuation nudge. |
-| `state_change_seq` unchanged $\ge$ 10 min | Process deadlocked, network socket hung, or infinite loop | Send double-escape `herdr agent send-keys <name> esc esc` to interrupt; if unresponsive, terminate and restart. |
+| `state_change_seq` unchanged $\ge$ 10 min | Long compilation/test OR process hung | Run **Gate D: Semantic Watchdog** (`dispatch_plugin.py watchdog --lane <id>`). Evaluates tail 15-line buffer via TypeSafe Jev: if $P(\text{legit}) > 0.70$, extends lease by 10 min (0 false alarms); if $P(\text{stalled}) > 0.65$, sends `\n` soft nudge or aborts. |
 | Visible screen contains rate limit pattern | Quota exhausted mid-turn | Capture signature, stop agent, relaunch task on failover agent kind. |
 
 ---
