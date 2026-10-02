@@ -566,6 +566,38 @@ def cmd_guard(args: argparse.Namespace) -> int:
     return 0 if verdict.allowed else EXIT_GATE_REFUSED
 
 
+def cmd_gate_a(args: argparse.Namespace) -> int:
+    """Gate A: judge one orchestrator tool call at the PreToolUse boundary.
+
+    Exits 2 on a refusal, the same code every other lifecycle gate uses, so a
+    caller can treat "the gate said no" uniformly. The phase again defaults to
+    the state file, for the same reason `cmd_guard` does: the gate polices the
+    brain as it is, not as the caller believes it to be.
+    """
+    phase = args.phase
+    if not phase:
+        state = _state(args.repo)
+        phase = str(state.get("orchestrator_phase") or brain.DEFAULT_BRAIN_PHASE)
+
+    report = guard_mod.check_tool_call(
+        args.tool,
+        target=args.target,
+        command=args.command,
+        cwd=args.cwd,
+        phase=phase,
+        awaiting=args.lane or (),
+        use_jev=not args.offline,
+    )
+
+    if args.json:
+        print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(report.render(), file=sys.stdout if report.allowed else sys.stderr)
+        if not report.allowed and report.corrective_steer:
+            print(f"  {report.corrective_steer}", file=sys.stderr)
+    return 0 if report.allowed else EXIT_GATE_REFUSED
+
+
 def _mark_undelivered(plan: bus.DispatchPlan) -> None:
     """Correct the state record after a delivery failure.
 
@@ -920,6 +952,36 @@ def build_parser() -> argparse.ArgumentParser:
     guard.add_argument("--list", action="store_true", help="list what is permitted in the phase")
     guard.add_argument("--json", action="store_true")
     guard.set_defaults(func=cmd_guard)
+
+    # Gate A: PreToolUse reflex gate (Issue #133). Takes a tool name plus its
+    # target, which is why it is not a manifest action — a manifest command has
+    # no way to supply the arguments being judged.
+    gate_a = sub.add_parser(
+        "gate",
+        help="Gate A: intercept one orchestrator tool call before it runs",
+    )
+    gate_a.add_argument("--tool", required=True, help="the tool name being called")
+    gate_a.add_argument("--target", default="", help="the file path the tool names")
+    gate_a.add_argument("--command", default="", help="the shell command the tool runs")
+    gate_a.add_argument("--cwd", default="", help="the working directory the call runs in")
+    gate_a.add_argument(
+        "--phase",
+        default="",
+        help="brain phase (default: whatever the state file records)",
+    )
+    gate_a.add_argument(
+        "--lane",
+        action="append",
+        default=[],
+        help="a lane the orchestrator is awaiting (repeatable)",
+    )
+    gate_a.add_argument(
+        "--offline",
+        action="store_true",
+        help="skip the semantic layer and decide from the mechanical rules only",
+    )
+    gate_a.add_argument("--json", action="store_true")
+    gate_a.set_defaults(func=cmd_gate_a)
 
     dispatch = sub.add_parser(
         "dispatch",

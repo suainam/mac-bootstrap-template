@@ -66,3 +66,55 @@ $$T_{\text{interval}} = \min(60s,\ 5s \times 2^{\text{sweep\_attempt}}) + \text{
 
 Intervals scale: $5s \rightarrow 10s \rightarrow 20s \rightarrow 40s \rightarrow 60s$ (capped).
 Reduces redundant token consumption by over 70%.
+
+---
+
+## 4. Gate A: PreToolUse Reflex Gate (Anti-Takeover)
+
+The tables above tell the orchestrator what to do. **Gate A enforces it mechanically**, at the tool-call boundary, so an anti-pattern is refused rather than merely discouraged.
+
+### The failure it prevents
+
+Two behaviours, one cause — the orchestrator acting as if it were the worker:
+
+| Anti-pattern | What it looks like | Why it is not the orchestrator's job |
+| :--- | :--- | :--- |
+| **代查强迫症 (child-work takeover)** | `read_file` on a lane's source while parked in `yield_and_guard`; `cat .worktrees/<lane>/src/app.py` | That code was dispatched to a lane. Re-doing it burns the tokens the lane is already spending. |
+| **违规探针 (illegal probe)** | `git status`, `pytest`, `herdr agent get` on a running lane while parked | A probe whose result arrives is indistinguishable from one that justifies acting. |
+| **Root-checkout destruction** | `git reset --hard` / `git clean -fd` in a canonical root | The root working tree is the **only** copy of what is uncommitted there. No lane can restore it. |
+
+### Three layers, ordered by cost
+
+| Order | Layer | Decides | Cost |
+| :--- | :--- | :--- | :--- |
+| **0** | **Destructive root check** | `git reset --hard` / `git clean -fd` / `rm -rf` outside a lane worktree | local, deterministic |
+| 1 | Whitelist bypass | `todo`, `ORCHESTRATOR_STATE.json`, `~/Documents/handoffs/`, own task contract | local, no socket |
+| 2 | Mechanical | business-code read while parked; a probe | local, deterministic |
+| 3 | Jev semantics | `is_role_boundary_violation`, `is_illegal_probe_while_parked` (Noul) | one batched call, or offline heuristics |
+
+Layers 2–3 exist for what the mechanical layer cannot settle. **Layer 0 runs before the bypass, and that ordering is deliberate**: the whitelist is a bypass, and a bypass placed ahead of it would let `cat handoffs/x.md && git reset --hard` through on the strength of the leading path. Spending a Jev round trip to learn that `git reset --hard` is destructive would be spending tokens on arithmetic.
+
+### Where destructive commands are legal
+
+**Only inside an isolated lane worktree**: `.worktrees/`, `.herdr/worktrees/`, or `worktrees/`.
+
+```bash
+herdr worktree create .worktrees/<lane-slug>   # then destructive work happens here
+```
+
+Refused in **every** brain phase, not just `yield_and_guard` — the park is not the only thing that should stand between a reset and a lost day. Read-only `git` (`status`, `diff`, `log`) is unaffected by this rule, and so are `--soft` / `--mixed` resets.
+
+Two shapes defeat a naive check, and both are covered:
+
+- **A worktree cwd is not enough.** `git -C <root> clean -fd` run from inside a lane worktree is still a root checkout. Isolation is judged from every directory the command names, not only from where it runs.
+- **A management read is not a pass.** `cat handoffs/x.md && git reset --hard` is refused. The mechanical check runs *before* the whitelist, and the whitelist's path is normalised first, so `.dispatch/../src/app.py` cannot borrow a marker.### What a refusal looks like
+
+A refusal returns `block: true` **and** injects a corrective steer naming the legal next action. The steer is the point: a block that only says "no" leaves the model to pick a replacement, and the cheapest replacement is the behaviour just refused. Expect it as an `aside` message, and obey it rather than retrying with a different tool.
+
+### Manual check
+
+```bash
+# Exits 2 on refusal; --phase defaults to whatever the state file records
+python3 multiplexer/herdr-dispatch/bin/dispatch_plugin.py gate \
+    --phase yield_and_guard --tool read_file --target .worktrees/1-4/src/app.py
+```

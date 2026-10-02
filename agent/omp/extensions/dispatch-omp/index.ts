@@ -74,6 +74,26 @@ export {
 } from "./governance.ts";
 export { parseNotify, laneFromSignature } from "./notify.ts";
 export {
+  BUSINESS_CODE_TOOLS,
+  GateAVerdict,
+  ISOLATED_ROOTS,
+  PROBE_TOOLS,
+  ROOT_DESTRUCTIVE_PATTERNS,
+  THRESHOLD_ILLEGAL_PROBE,
+  THRESHOLD_ROLE_BOUNDARY,
+  TOOL_WHITELIST,
+  WHITELIST_PATH_MARKERS,
+  isBusinessCodePath,
+  isIsolatedWorktree,
+  isManagementCall,
+  isProbeCommand,
+  isRootDestructive,
+  isRootDestructiveCall,
+  isWhitelistedPath,
+  reflexGate,
+  reflexSteer,
+} from "./reflex.ts";
+export {
   parseHeartbeat,
   displayStage,
   heartbeatDue,
@@ -94,6 +114,7 @@ import {
   parseHeartbeat,
 } from "./heartbeat.ts";
 import { laneFromSignature, parseNotify } from "./notify.ts";
+import { reflexGate } from "./reflex.ts";
 import { registerDispatchCommand } from "./slash.ts";
 
 export {
@@ -512,22 +533,54 @@ export default function dispatchBrain(pi) {
   });
 
   /**
-   * Human gate.
+   * Gate A + the human gate, at the tool boundary.
    *
-   * Destructive operations stop at the tool boundary and become a decision for
-   * the orchestrator plus the human, rather than something an unattended lane
-   * can do to itself.
+   * Two independent gates on one hook, both evaluated, both reported. Gate A
+   * asks whether the orchestrator is the right actor; the human gate asks
+   * whether the operation is reversible. A command can fail either alone —
+   * `rm -rf /` in a root checkout is both — so a refusal names every gate that
+   * fired rather than the first to notice. Publication still leads with the
+   * human-gate reason when both agree, because that is the binding constraint:
+   * no amount of correct location makes it reversible.
+   *
+   * Subagent sessions are exempt from both. A dispatched lane *is* the worker,
+   * and gating its tool calls would be the takeover in reverse. The check asks
+   * the session who it is rather than counting nesting depth, because restricted
+   * children rebind the parent's factories.
    */
-  pi.on("tool_call", async (event) => {
-    if (!rootSession) return undefined;
-    const verdict = classifyToolCall(event?.toolName, event?.input);
-    if (!verdict.gated) return undefined;
-    return {
-      block: true,
-      reason:
-        `${verdict.reason}. Publishing and destructive changes require explicit ` +
-        "human authorisation (human_gate); ask rather than proceeding.",
-    };
+  pi.on("tool_call", async (event, eventCtx) => {
+    if (!rootSession || !isRoot(eventCtx)) return undefined;
+
+    const reflex = reflexGate(brain, event, {
+      home: eventCtx?.home ?? process.env.HOME ?? "",
+      cwd: eventCtx?.cwd ?? "",
+    });
+    const humanGate = classifyToolCall(event?.toolName, event?.input);
+    if (reflex.allowed && !humanGate.gated) return undefined;
+
+    const reasons = [];
+    if (humanGate.gated) {
+      reasons.push(
+        `${humanGate.reason}. Publishing and destructive changes require explicit ` +
+          "human authorisation (human_gate); ask rather than proceeding.",
+      );
+    }
+    if (!reflex.allowed) {
+      reasons.push(`Gate A refused ${event?.toolName}: ${reflex.reason}`);
+
+      // The steer is what turns a refusal into a correction. Without it the
+      // model simply picks a different tool and the reflex reappears.
+      try {
+        pi.sendUserMessage?.(reflex.steer, {
+          deliverAs: "aside",
+          attribution: "agent",
+        });
+      } catch {
+        // A refused steer must not break the block it was explaining.
+      }
+    }
+
+    return { block: true, reason: reasons.join(" ") };
   });
 
   /**
