@@ -53,8 +53,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-# A resolved Herdr pane coordinate: workspace `w<N>`, pane `p<N>`.
-COORDINATE_RE = re.compile(r"\bw\d+:p\d+\b")
+# A resolved Herdr pane coordinate. Herdr IDs are opaque/alphanumeric
+# (e.g. `w3:pB`, `wD:p1`), so validation must not assume decimal-only IDs.
+COORDINATE_RE = re.compile(r"\bw[0-9A-Za-z]+:p[0-9A-Za-z]+\b")
 
 # Unresolved references. `${ORCH_PANE}` is the documented failure mode; the
 # bare `$ORCH_PANE` and `${...}`/`$...` forms are included because they are the
@@ -79,6 +80,14 @@ HANDOFF_RE = re.compile(r"^[ \t]*Handoff:[ \t]*\S", re.MULTILINE)
 # prompts that actually talk back, rather than demanding a pane id from a prompt
 # that never sends one.
 CALLBACK_RE = re.compile(r"\bherdr\s+agent\s+prompt\b")
+TASK_MARKER = "[DISPATCH]"
+TASK_RE = re.compile(r"^[ \t]*Task:[ \t]*(\S.*)$", re.MULTILINE)
+LANE_RE = re.compile(r"^[ \t]*Lane:[ \t]*([0-9]+-[0-9]+)[ \t]*$", re.MULTILINE)
+RUN_ID_RE = re.compile(r"^[ \t]*Run ID:[ \t]*(run-[0-9a-f]+)[ \t]*$", re.MULTILINE)
+DISPATCH_ID_RE = re.compile(r"^[ \t]*Dispatch ID:[ \t]*(dispatch-[0-9a-f]+)[ \t]*$", re.MULTILINE)
+CALLBACK_TARGET_RE = re.compile(r"^[ \t]*Callback target:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
+SIGNATURE_RE = re.compile(r"^[ \t]*Signature:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
+CALLBACK_COMMAND_RE = re.compile(r"^[ \t]*Callback command:[ \t]*(\S.*)$", re.MULTILINE)
 
 
 # Escapes this module will expand. Deliberately tiny: only the three control
@@ -313,7 +322,7 @@ def validate_prompt(text: str, *, require_callback: bool = True) -> PromptReport
             )
         if not report.coordinate:
             report.violations.append(
-                "no resolved pane coordinate (expected w<N>:p<N>): the callback "
+                "no resolved pane coordinate (expected opaque Herdr id like w3:pB): the callback "
                 "cannot be addressed without one"
             )
         if report.has_notify:
@@ -326,6 +335,52 @@ def validate_prompt(text: str, *, require_callback: bool = True) -> PromptReport
                     "[NOTIFY] is missing a 'Handoff:' line: state the artifact path"
                 )
 
+    return report
+
+
+def validate_task_request(text: str) -> PromptReport:
+    """Validate the request leg independently from a completion report.
+
+    A dispatch request starts with ``[DISPATCH]`` and carries a concrete task
+    reference plus a separately resolved callback target. It may describe how
+    to emit a ``[NOTIFY]`` later, but it is never itself a completion report.
+    """
+    body = normalise_escapes(text or "")
+    report = PromptReport()
+    if not body.startswith(TASK_MARKER + "\n"):
+        report.violations.append("task request must start with [DISPATCH]")
+    task = TASK_RE.search(body)
+    lane = LANE_RE.search(body)
+    run_id = RUN_ID_RE.search(body)
+    dispatch_id = DISPATCH_ID_RE.search(body)
+    callback = CALLBACK_TARGET_RE.search(body)
+    signature = SIGNATURE_RE.search(body)
+    command = CALLBACK_COMMAND_RE.search(body)
+    report.coordinate = callback.group(1) if callback else ""
+    report.has_handoff = bool(HANDOFF_RE.search(body))
+    if not task:
+        report.violations.append("task request is missing a 'Task:' reference")
+    if not lane:
+        report.violations.append("task request is missing a resolved 'Lane:' identity")
+    if not run_id:
+        report.violations.append("task request is missing a stable 'Run ID:' identity")
+    if not dispatch_id:
+        report.violations.append("task request is missing a stable 'Dispatch ID:' identity")
+    if not callback or not COORDINATE_RE.fullmatch(callback.group(1)):
+        report.violations.append("task request has no resolved callback target")
+    if not signature:
+        report.violations.append("task request is missing a 'Signature:' identity")
+    if not report.has_handoff:
+        report.violations.append("task request is missing a 'Handoff:' artifact path")
+    if not command or "dispatch_plugin.py notify" not in command.group(1):
+        report.violations.append("task request is missing the executable notify callback command")
+    return report
+
+
+def assert_task_request_compliant(text: str) -> PromptReport:
+    report = validate_task_request(text)
+    if not report.ok:
+        raise PromptProtocolError(report.render())
     return report
 
 
@@ -364,10 +419,47 @@ def send_prompt(
     return report
 
 
+def build_task_request(
+    task: str,
+    lane: str,
+    run_id: str,
+    dispatch_id: str,
+    signature: str,
+    handoff: str,
+    callback_target: str,
+    *,
+    plugin_path: str,
+) -> str:
+    """Build the request leg; completion semantics stay in ``build_notify``."""
+    import shlex
+
+    command = (
+        "test -n \"${DONE_SUMMARY:-}\" && "
+        f"python3 {shlex.quote(plugin_path)} notify "
+        f"--signature {shlex.quote(signature)} --done \"$DONE_SUMMARY\" "
+        f"--handoff {shlex.quote(handoff)} --target {shlex.quote(callback_target)} --send"
+    )
+    body = (
+        f"{TASK_MARKER}\n"
+        f"Task: {task}\n"
+        f"Lane: {lane}\n"
+        f"Run ID: {run_id}\n"
+        f"Dispatch ID: {dispatch_id}\n"
+        "Read the task contract above and execute it within its stated boundaries.\n"
+        f"Callback target: {callback_target}\n"
+        f"Signature: {signature}\n"
+        f"Handoff: {handoff}\n"
+        "When complete, write the handoff, set DONE_SUMMARY to a one-line conclusion, then run:\n"
+        f"Callback command: {command}"
+    )
+    assert_task_request_compliant(body)
+    return body
+
+
 def contract_summary() -> Sequence[str]:
     """The rules, for documentation and error messages that need them."""
     return (
-        "resolved callback coordinate (w<N>:p<N>), never a placeholder",
+        "resolved opaque callback coordinate (e.g. w3:pB), never a placeholder",
         "structured [NOTIFY] callback with DONE: and Handoff: lines",
     )
 

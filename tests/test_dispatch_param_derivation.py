@@ -353,7 +353,9 @@ def _plan(repo: Path, task: Path, **over):
         lane_name="1-3-dispatch",
         target="w3:p9",
         signature="sig",
+        callback_target="w3:p1",
         pane_lookup=over.pop("pane_lookup", lambda target: str(repo)),
+        callback_lookup=over.pop("callback_lookup", lambda target: str(repo)),
         branch_reader=over.pop("branch_reader", lambda cwd: "feat/1-3"),
     )
     kwargs.update(over)

@@ -126,17 +126,23 @@ fi
 
 # ── Diamond: Writer / Skeptic (Isolated Worktree Execution) ────────────────────
 if [[ -z "${NAME}" ]]; then
-  NAME="${ROLE}-$(uuidgen | tr '[:upper:]' '[:lower:]' | head -c 6)"
+  NAME="1-$(date +%s)${BASHPID:-$$}-${ROLE}"
 fi
 
-if ! [[ "${NAME}" =~ ^[a-z][a-z0-9_-]{0,31}$ ]]; then
-  echo "Error: Lane name '${NAME}' is invalid. Must match regex ^[a-z][a-z0-9_-]{0,31}$ (lowercase, no dots, length <= 32)." >&2
+if ! [[ "${NAME}" =~ ^[0-9]+-[0-9]+-[a-z0-9_-]+$ ]]; then
+  echo "Error: Lane name '${NAME}' is invalid. Must match <wave>-<lane>-<slug>, e.g. 1-3-dispatch." >&2
   exit 1
 fi
 
 if [[ -z "${BRANCH}" ]]; then
   BRANCH="feat/${NAME}"
 fi
+
+# Lane identity and Herdr agent identity have different grammars. The lane must
+# start with numeric wave/lane coordinates; Herdr agent names must start with a
+# lowercase letter. Keep them separate and address formal transport by pane id.
+AGENT_NAME="lane-${NAME}"
+AGENT_NAME="${AGENT_NAME:0:32}"
 
 REPO_ROOT="$(git -C "${REPO}" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "${REPO_ROOT}" ]]; then
@@ -189,31 +195,10 @@ cat <<EOF > "${CHECKOUT}/.dispatch/META.json"
 }
 EOF
 
-NOTIFY_SIGNATURE="[${PANE_ID}_${KIND}_${REPO_SLUG}]"
-HANDOFF_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-HANDOFF_FILENAME="${REPO_SLUG}-${NAME}-handoff-${HANDOFF_TIMESTAMP}.md"
-mkdir -p "${HOME}/Documents/handoffs"
-
-HANDOFF_BLOCK="# Handoff protocol (mandatory)
-Before sending the notify-back command, you MUST write a structured Handoff document:
-  ${HOME}/Documents/handoffs/${HANDOFF_FILENAME}
-Include:
-1. Executive summary of what was accomplished.
-2. Core conclusions and decisions made.
-3. Verification proof (exact test commands, assertions passed, line numbers).
-4. Residual risks and next steps.
-Never include secrets, tokens, passwords or credentials - redact and desensitize!
-
-# Notify-back (exact format)
-Assert the Handoff file exists and is non-empty before notifying:
-  test -s \"${HOME}/Documents/handoffs/${HANDOFF_FILENAME}\" && \\
-  herdr agent prompt ${HERDR_PANE_ID} \"\n[NOTIFY] ${NOTIFY_SIGNATURE}\nDONE: <one-liner conclusion>\nHandoff: ~/Documents/handoffs/${HANDOFF_FILENAME}\""
-
+# Keep the worker-facing task byte-for-byte identical to the validated contract.
+# The unified bus adds the callback instruction; this wrapper no longer builds
+# its own handoff/report protocol.
 cp "${TASK}" "${CHECKOUT}/.dispatch/TASK.md"
-{
-  echo ""
-  echo "${HANDOFF_BLOCK}"
-} >> "${CHECKOUT}/.dispatch/TASK.md"
 
 cat <<EOF > "${CHECKOUT}/.dispatch/progress.md"
 # Progress (${ROLE})
@@ -226,6 +211,11 @@ case "${KIND}" in
   codex)
     if [[ -n "${MODEL}" ]]; then
       AGENT_ARGS+=("-m" "${MODEL}")
+    fi
+    if [[ "${YOLO}" == "true" ]]; then
+      AGENT_ARGS+=("--dangerously-bypass-approvals-and-sandbox")
+    elif [[ "${AUTO}" == "true" ]]; then
+      AGENT_ARGS+=("--approve-for-me")
     fi
     ;;
   claude)
@@ -260,28 +250,61 @@ if [[ ${#AGENT_ARGS[@]} -gt 0 ]]; then
   EXTRA_FLAG+=(-- "${AGENT_ARGS[@]}")
 fi
 
-herdr agent start "${NAME}" --kind "${KIND}" --pane "${PANE_ID}" --timeout 60000 "${EXTRA_FLAG[@]}"
+START_RC=0
+START_OUTPUT="$(herdr agent start "${AGENT_NAME}" --kind "${KIND}" --pane "${PANE_ID}" --timeout 60000 "${EXTRA_FLAG[@]}" 2>&1)" || START_RC=$?
+if [[ ${START_RC} -ne 0 ]]; then
+  VISIBLE="$(herdr pane read "${PANE_ID}" --source visible 2>/dev/null || true)"
+  if ! echo "${VISIBLE}" | grep -qE "trust|Trust|Accessing workspace|trust this folder"; then
+    printf '%s\n' "${START_OUTPUT}" >&2
+    exit "${START_RC}"
+  fi
+  echo "==> Agent start is waiting on a trust modal; continuing with the trust handshake..."
+fi
 
-# Two-Step Protocol: loop probe readiness up to 15s to defeat cold-start modal races
+# Two-Step Protocol: resolve trust, then re-check the interactive composer.
 echo "==> Step 1.5: Probing interactive readiness & resolving trust modals..."
+READY=false
 for ((i=1; i<=15; i++)); do
   sleep 1
   VISIBLE="$(herdr pane read "${PANE_ID}" --source visible 2>/dev/null || true)"
   if echo "${VISIBLE}" | grep -qE "trust|Trust|Accessing workspace|trust this folder"; then
     echo "==> Resolving workspace trust modal..."
     herdr pane send-keys "${PANE_ID}" enter
-    sleep 1
-    break
-  elif echo "${VISIBLE}" | grep -qE "Ask anything|Ask Codex|❯|> "; then
+    continue
+  fi
+  if echo "${VISIBLE}" | grep -qE "Ask anything|Ask Codex|❯|> "; then
+    READY=true
     break
   fi
 done
 
-echo "==> Step 2: Injecting prompt into ready composer..."
-herdr agent prompt "${NAME}" "Read .dispatch/TASK.md in this directory and work through it step by step. Keep .dispatch/progress.md updated. Write .dispatch/DONE when finished and run the notify-back command."
+if [[ "${READY}" != "true" ]]; then
+  echo "Error: worker never reached a verified interactive composer; task was not sent." >&2
+  exit 2
+fi
+
+# The legacy wrapper now owns provisioning only. Formal delivery goes through
+# the same bus as OMP /dispatch, so lint, claim, identity, callback and transport
+# semantics cannot diverge.
+GATE="${HERDR_DISPATCH_PLUGIN:-}"
+if [[ -z "${GATE}" ]]; then
+  TEMPLATE_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "${TEMPLATE_ROOT}" && -f "${TEMPLATE_ROOT}/multiplexer/herdr-dispatch/bin/dispatch_plugin.py" ]]; then
+    GATE="${TEMPLATE_ROOT}/multiplexer/herdr-dispatch/bin/dispatch_plugin.py"
+  fi
+fi
+if [[ -z "${GATE}" || ! -f "${GATE}" ]]; then
+  echo "Error: unified dispatch bus not found; set HERDR_DISPATCH_PLUGIN." >&2
+  exit 2
+fi
+
+echo "==> Step 2: Dispatching through the unified bus..."
+python3 "${GATE}" --repo "${REPO_ROOT}" dispatch \
+  --task "${CHECKOUT}/.dispatch/TASK.md" \
+  --lane-name "${NAME}" \
+  --target "${PANE_ID}" \
+  --callback-target "${HERDR_PANE_ID}"
 
 echo "==> [Diamond:${ROLE}] Dispatch complete! Lane '${NAME}' is running in workspace ${WORKSPACE_ID}."
-echo "    Signature: ${NOTIFY_SIGNATURE}"
-echo "    Handoff:   ~/Documents/handoffs/${HANDOFF_FILENAME}"
-echo "    Monitor:   herdr agent read ${NAME} --source visible"
+echo "    Monitor:   herdr agent read ${PANE_ID} --source visible"
 echo "    Yielding:  Main orchestrator session remains interactive."

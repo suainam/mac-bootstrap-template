@@ -11,7 +11,7 @@
  *
  *     [NOTIFY] [w3:p6_opencode_mac-bootstrap]
  *     DONE: dispatch plugin TB-03/TB-04 landed
- *     Handoff: ~/Documents/handoffs/...-20261001_120500.md
+ *     Handoff: /tmp/handoff/...-20261001_120500.md
  *
  * Parsing is deliberately strict and total: every input yields either a parsed
  * notification or a reason string, never an exception. A malformed report must

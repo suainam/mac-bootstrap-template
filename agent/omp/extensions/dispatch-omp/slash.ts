@@ -43,9 +43,9 @@ import path from "node:path";
  * `1` — the task contract is malformed. Fix the file.
  * `2` — a rule refused: a bad lane name, a worktree collision, a failed
  *       derivation. Nothing was renamed, written or delivered.
- * `3` — delivery failed *after* the plan committed. The lane is recorded and
- *       holding its claim, so this is the one case where re-running is wrong:
- *       it would collide with the lane this run created. Unwind first.
+ * `3` — delivery outcome was not confirmed *after* the plan committed.
+ *       The lane keeps its claim and transport identity; retry the same command
+ *       so the bus reuses the same dispatch id, timestamp and handoff.
  *
  * Anything else is the bus breaking, which is not the caller's fault and must
  * not be flattened into any of the above.
@@ -78,6 +78,8 @@ export function findPlugin(repoRoot) {
   for (;;) {
     const candidate = path.join(dir, PLUGIN_RELATIVE);
     if (existsSync(candidate)) return candidate;
+    const submodule = path.join(dir, "template", PLUGIN_RELATIVE);
+    if (existsSync(submodule)) return submodule;
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -169,6 +171,7 @@ export function parseDispatchArgs(raw) {
     "--task",
     "--lane-name",
     "--target",
+    "--callback-target",
     "--signature",
     "--lane",
     "--worktree",
@@ -194,7 +197,7 @@ export function parseDispatchArgs(raw) {
         ok: false,
         reason:
           `unknown option ${flag}. /dispatch accepts ` +
-          `--task, --lane-name, --target, and optionally --signature, --lane, ` +
+          `--task, --lane-name, --target, and optionally --callback-target, --signature, --lane, ` +
           `--worktree, --branch, --highlight, --risk, --repo. ` +
           `Anything else belongs to the task contract, not the bus.`,
       };
@@ -256,7 +259,7 @@ export function parseDispatchArgs(raw) {
   const argv = [];
   if (values.has("--repo")) argv.push("--repo", values.get("--repo"));
   argv.push("dispatch");
-  for (const flag of ["--task", "--lane-name", "--target", "--signature", "--lane", "--worktree", "--branch"]) {
+  for (const flag of ["--task", "--lane-name", "--target", "--callback-target", "--signature", "--lane", "--worktree", "--branch"]) {
     if (values.has(flag)) argv.push(flag, values.get(flag));
   }
   for (const flag of ["--highlight", "--risk"]) {
@@ -355,15 +358,10 @@ export function describeRefusal(code, stderr) {
     case EXIT_REFUSED:
       return `a dispatch rule refused (exit 2) — nothing was renamed, written or delivered.\n${detail}`;
     case EXIT_DELIVERY_FAILED:
-      // Re-running is NOT refused — a lane is exempt from its own claim — so
-      // promising a refusal would be false. The real cost is a second
-      // timestamp, which orphans the handoff the worker was told to report to.
       return (
-        `delivery failed after the dispatch was committed (exit 3) — the lane is ` +
-        `recorded as 'undelivered' and holds its worktree, but nothing was sent.\n${detail}\n` +
-        "Re-running /dispatch is allowed, but it mints a NEW timestamp and " +
-        "orphans the previous handoff. Re-deliver by hand, or close the lane " +
-        "out before retrying."
+        `delivery was not confirmed after the dispatch committed (exit 3).\n${detail}\n` +
+        "The lane keeps its dispatch identity, claim and handoff. Re-run the same " +
+        "/dispatch command to retry that exact delivery; do not mint a new lane or timestamp."
       );
     default:
       return `the dispatch bus failed unexpectedly (exit ${code}).\n${detail}`;
@@ -377,14 +375,14 @@ export const DISPATCH_DESCRIPTION = [
   "Usage: /dispatch --task TASK.md --lane-name 1-3-dispatch --target w3:p9",
   "",
   "Required: --task, --lane-name, --target.",
-  "Optional: --signature, --lane, --worktree, --branch, --highlight, --risk, --repo.",
+  "Optional: --callback-target, --signature, --lane, --worktree, --branch, --highlight, --risk, --repo.",
   "",
   "The lane id, worktree, branch and report bullets are derived, not typed.",
   "An option never takes the next option as its value; use --flag=value.",
   "Exit 1 = the contract is malformed; fix the file.",
   "Exit 2 = a rule refused; nothing was changed.",
-  "Exit 3 = delivery failed after commit; re-running is allowed but mints a new",
-  "timestamp and orphans the previous handoff, so unwind first.",
+  "Exit 3 = delivery was not confirmed after commit; retry the same command to",
+  "reuse the existing dispatch identity and handoff.",
 ].join("\n");
 
 /**
@@ -415,30 +413,11 @@ export function registerDispatchCommand(pi, options = {}) {
         return;
       }
 
-      // A refusal reason is worth an aside, not just a toast: the bus names the
-      // colliding lane or the failed derivation, and losing that to a truncated
-      // notification would send the orchestrator looking in the wrong place.
+      // Command failures are transport/UI facts, not a new model turn. Injecting
+      // them with sendUserMessage wakes the orchestrator and can trigger
+      // autonomous analysis while a worker is merely starting up.
       const reason = result.reason ?? "dispatch refused";
-      ctx?.ui?.notify?.(reason.split("\n")[0], "error");
-      // What to do next differs per exit code, so it is not a fixed string.
-      // A blanket "fix the cause and re-run" is wrong after a post-commit
-      // delivery failure: the retry succeeds and silently orphans the handoff
-      // path the worker was already told to report to.
-      const next =
-        result.code === EXIT_DELIVERY_FAILED
-          ? "Re-running is allowed but mints a NEW timestamp, orphaning the " +
-            "previous handoff. Re-deliver by hand, or close the lane out first."
-          : "Nothing was renamed, no state was written and no prompt was delivered. " +
-            "Fix the cause above and re-run /dispatch.";
-      try {
-        pi.sendUserMessage?.(
-          `Dispatch refused (${result.phase}${result.code ? `, exit ${result.code}` : ""}).\n\n${reason}\n\n` +
-            next,
-          { deliverAs: "aside", attribution: "agent" },
-        );
-      } catch {
-        // A refused steer must never break the command.
-      }
+      ctx?.ui?.notify?.(reason, "error");
     },
   });
 

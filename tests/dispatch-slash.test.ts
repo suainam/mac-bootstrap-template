@@ -71,6 +71,29 @@ test("registration is a no-op on a host without registerCommand", () => {
   expect(registerDispatchCommand({} as never)).toBe(false);
 });
 
+test("a dispatch failure stays in UI and never creates a model turn", async () => {
+  let registered: any = null;
+  const modelTurns: string[] = [];
+  const notices: Array<[string, string]> = [];
+  const pi = {
+    registerCommand: (_name: string, options: any) => {
+      registered = options;
+    },
+    sendUserMessage: (text: string) => modelTurns.push(text),
+  };
+  const { runner } = makeRunner({
+    status: EXIT_DELIVERY_FAILED,
+    stderr: "delivery not confirmed; retry same dispatch identity",
+  });
+  expect(registerDispatchCommand(pi as never, { resolvePlugin: RESOLVE, runner })).toBe(true);
+  await registered.handler(
+    "--task T.md --lane-name 1-3-dispatch --target w3:p9 --callback-target w3:p1",
+    { cwd: REPO_ROOT, ui: { notify: (text: string, level: string) => notices.push([text, level]) } },
+  );
+  expect(modelTurns).toEqual([]);
+  expect(notices.some(([text]) => text.includes("retry same dispatch identity"))).toBe(true);
+});
+
 test("the description states the minimal call and both exit codes", () => {
   // Discoverability is the point: an orchestrator must be able to use this
   // without reading the README, and the two exit codes mean different actions.
@@ -419,15 +442,11 @@ test("exit 3 is not reported as 'nothing was changed'", () => {
   expect(reason).toContain("worker pane is gone");
 });
 
-test("exit 3 does not promise a refusal that will not come", () => {
-  // A lane re-claiming its own worktree is exempt from the collision gate by
-  // design, so re-running after exit 3 succeeds. The honest warning is the
-  // second timestamp, which orphans the handoff — not a gate error.
+test("exit 3 preserves the existing dispatch identity", () => {
   const reason = describeRefusal(EXIT_DELIVERY_FAILED, "x");
-  expect(reason).toContain("Re-running /dispatch is allowed");
-  expect(reason).toContain("NEW timestamp");
-  expect(reason).toContain("orphan");
-  expect(reason).not.toContain("Do NOT re-run");
+  expect(reason).toContain("retry that exact delivery");
+  expect(reason).toContain("do not mint a new lane or timestamp");
+  expect(reason).not.toContain("NEW timestamp");
 });
 
 test("exit 3 passes through runDispatch unchanged", () => {
@@ -437,7 +456,7 @@ test("exit 3 passes through runDispatch unchanged", () => {
     runner,
   });
   expect(result.code).toBe(EXIT_DELIVERY_FAILED);
-  expect(result.reason).toContain("NEW timestamp");
+  expect(result.reason).toContain("dispatch identity");
 });
 
 test("a killed bus is reported as broken, not as a refusal", () => {
@@ -480,6 +499,15 @@ test("the bus is found by walking up from a nested workspace", () => {
   writeFileSync(script, "# stub\n");
 
   expect(findPlugin(nested)).toBe(script);
+});
+
+test("the bus is found when template is a submodule under parent checkout", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "dispatch-parent-"));
+  const script = path.join(dir, "template", "multiplexer", "herdr-dispatch", "bin", "dispatch_plugin.py");
+  mkdirSync(path.dirname(script), { recursive: true });
+  writeFileSync(script, "# stub\n");
+
+  expect(findPlugin(dir)).toBe(script);
 });
 
 test("HERDR_DISPATCH_PLUGIN overrides the search", () => {
@@ -707,6 +735,7 @@ function withStubHerdr<T>(env: { dir: string; stub: string }, body: () => T): T 
   // The socket must go: a stale path would let the client prefer the running
   // server over the stub binary the override just pointed at.
   set("HERDR_SOCKET_PATH", undefined);
+  set("HERDR_PANE_ID", "w3:pB");
   // These tests dispatch from a temp repo, which has no checkout above it, so
   // the bus has to be named explicitly. This is the same escape hatch an
   // operator gets for a fork or a worktree layout.
@@ -735,10 +764,11 @@ describe("against the real bus", () => {
       const delivered = readFileSync(env.deliveredFile, "utf8");
       // The defect this whole design chain exists to prevent.
       expect(delivered).not.toContain("\\n");
-      expect(delivered).toContain("[NOTIFY]");
+      expect(delivered).toContain("[DISPATCH]");
       // And the derived values actually landed, rather than being left blank.
       expect(result.stdout).toContain("feat/1-3");
-      expect(delivered).toContain("实施总线参数精简并通过全量测试。");
+      expect(delivered).toContain("Task: ");
+      expect(delivered).toContain("/repo/TASK.md");
     });
   });
 
@@ -800,10 +830,11 @@ describe("against the real bus", () => {
       );
       expect(result.ok).toBe(false);
       expect(result.code).not.toBe(EXIT_REFUSED);
-      // The bus's own message is carried through verbatim, so its correction
-      // of the re-run claim reaches the caller.
-      expect(result.reason).toContain("NOT refused");
-      expect(result.reason).toContain("undelivered");
+      // Lost confirmation is not proof that nothing was sent. The same
+      // dispatch identity must be retried rather than minting a second task.
+      expect(result.reason).toContain("not confirmed");
+      expect(result.reason).toContain("exact delivery");
+      expect(result.reason).not.toContain("NEW timestamp");
     });
   });
 
