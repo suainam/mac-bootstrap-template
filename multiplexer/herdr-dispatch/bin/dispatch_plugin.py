@@ -519,6 +519,8 @@ def cmd_notify(args: argparse.Namespace) -> int:
         args.done,
         args.handoff,
         args.target,
+        run_id=args.run_id or "",
+        dispatch_id=args.dispatch_id or "",
         highlights=args.highlight or [],
         risks=args.risk or [],
         sections=sections,
@@ -954,6 +956,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="build and send the standard multi-line [NOTIFY] report",
     )
     notify.add_argument("--signature", required=True, help="pane_id_agent_kind_repo_slug")
+    notify.add_argument("--run-id", default="", help="stable run identity for this report")
+    notify.add_argument("--dispatch-id", default="", help="stable dispatch identity for this report")
     notify.add_argument("--done", required=True, help="one-line conclusion")
     notify.add_argument("--handoff", required=True, help="handoff artifact path")
     notify.add_argument("--target", required=True, help="destination pane, e.g. w3:p1")

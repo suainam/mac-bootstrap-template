@@ -54,9 +54,9 @@ Sending `herdr agent prompt` immediately after `agent start` causes the prompt b
    > `herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] ...'` is a trap: bash single
    > quotes do not expand escapes, so `\n` reaches the worker as two literal
    > characters and the entire report renders as one long single line. This file
-   > shipped that form for a long time. Report back with the `notify` command
-   > (`dispatch_plugin.py notify --signature ... --done ... --handoff ...
-   > --target "$ORCH_PANE" --send`), which renders the standard layout and
+   > shipped that form for a long time. Report back with the exact callback
+   > command carried by `[DISPATCH]`; it uses `dispatch_plugin.py notify`
+   > with the stable run/dispatch identity, renders the standard layout, and
    > cannot be mis-quoted.
 ---
 
@@ -76,16 +76,23 @@ HANDOFF_TS="$(date +%Y%m%d_%H%M%S)"
 HANDOFF_FILENAME="${REPO_SLUG}-${NAME}-handoff-${HANDOFF_TS}.md"
 mkdir -p "/tmp/handoff"
 
-# Assert handoff exists, then notify:
+# Assert handoff exists, then use the exact callback command from [DISPATCH]:
 test -s "/tmp/handoff/${HANDOFF_FILENAME}" && \
-herdr agent prompt <orch-pane> "\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner core conclusion>\nHandoff: /tmp/handoff/${HANDOFF_FILENAME}"
+python3 dispatch_plugin.py notify \
+  --signature "<lane_id>_<worker_pane>" \
+  --run-id "<run-id>" --dispatch-id "<dispatch-id>" \
+  --done "<one-liner core conclusion>" \
+  --handoff "/tmp/handoff/${HANDOFF_FILENAME}" \
+  --target "<orch-pane>" --send
 ```
 
 ### Example Rendered Notification:
 ```text
-[NOTIFY] [w3:pAY_opencode_example-repo]
-DONE: PR #120 created, squashed and merged, unit tests 100% pass
-Handoff: /tmp/handoff/example-repo-releaser-handoff-20260930_164500.md
+[NOTIFY] [1-2_w3:pAY]
+Run ID: run-0123abcd
+Dispatch ID: dispatch-89abcdef
+DONE: lane completed its assigned verification
+Handoff: /tmp/handoff/1-2-review-handoff-20260930_164500.md
 ```
 
 ---
@@ -115,8 +122,10 @@ Send a heartbeat when **either** condition holds:
 - the task has been running longer than **3 minutes**; or
 - the worker has **crossed a milestone stage**.
 
-At most one per 3 minutes per lane — the orchestrator's stall watchdog uses a
-10-minute window, so a 3-minute cadence clears it three times over.
+At most one per 3 minutes per lane. The current orchestrator stall threshold is
+**3 minutes** (`STALL_THRESHOLD_MS = 3 × 60s`). A heartbeat inside that window
+refreshes only its own lane; after restart the persisted `last_heartbeat`
+continues to count as liveness evidence.
 
 ### Signature
 ```text
@@ -148,6 +157,11 @@ PROGRESS: 4/7
 4. **Republishes the sidebar token** — the stage is compacted for display
    (`Stage 4 Deploying on hk216` → `dstate: s4@hk216`), so a human can see the
    work is live without asking.
+
+Lifecycle observation is read through `herdr agent get`. An explicit
+`agent_not_found` is distinguishable from a query/socket/JSON failure. The
+latter is **unknown / recovery-required**: it remains visible and keeps the
+claim held; it is never silently converted into orphan/released state.
 
 ### Progress values
 

@@ -386,6 +386,7 @@ WHITELIST_PATH_MARKERS: tuple[str, ...] = (
     "ORCHESTRATOR_STATE.json",
     "CHECKPOINT.json",
     "/Documents/handoffs/",
+    "/tmp/handoff/",
     ".dispatch_task_",
     "/.dispatch/",
 )

@@ -88,7 +88,7 @@ Two behaviours, one cause — the orchestrator acting as if it were the worker:
 | Order | Layer | Decides | Cost |
 | :--- | :--- | :--- | :--- |
 | **0** | **Destructive root check** | `git reset --hard` / `git clean -fd` / `rm -rf` outside a lane worktree | local, deterministic |
-| 1 | Whitelist bypass | `todo`, `ORCHESTRATOR_STATE.json`, `~/Documents/handoffs/`, own task contract | local, no socket |
+| 1 | Whitelist bypass | `todo`, `ORCHESTRATOR_STATE.json`, `/tmp/handoff/` (legacy `~/Documents/handoffs/`), own task contract | local, no socket |
 | 2 | Mechanical | business-code read while parked; a probe | local, deterministic |
 | 3 | Jev semantics | `is_role_boundary_violation`, `is_illegal_probe_while_parked` (Noul) | one batched call, or offline heuristics |
 

@@ -35,6 +35,7 @@ import dispatchBrain, {
   chooseModel,
   isParked,
   loadRouting,
+  lookupHerdrAgent,
   parkGuardMessage,
   resolveStatePath,
 } from "../agent/omp/extensions/dispatch-omp/index.ts";
@@ -63,6 +64,7 @@ function makeHost({ agent = { kind: "main" }, hasUI = true, cwd = "/repo" } = {}
   const calls = {
     messages: [],
     notifications: [],
+    statuses: [],
     intervals: [],
     clearedTimers: 0,
     labels: [],
@@ -121,6 +123,9 @@ function makeHost({ agent = { kind: "main" }, hasUI = true, cwd = "/repo" } = {}
       notify(message, level) {
         calls.notifications.push({ message, level });
       },
+      setStatus(key, value) {
+        calls.statuses.push({ key, value });
+      },
     },
     setLabel(label) {
       calls.labels.push(label);
@@ -128,19 +133,20 @@ function makeHost({ agent = { kind: "main" }, hasUI = true, cwd = "/repo" } = {}
     sendUserMessage(text, options) {
       calls.messages.push({ text, options });
     },
-    // Read-only pane lookup, used by the stall watchdog. Lifecycle state is
-    // read from here and never written back.
-    herdrAgentInfo(paneId) {
-      if (!paneInfo.has(paneId)) return null;
-      return paneInfo.get(paneId);
-    },
   };
   return host;
 }
 
-function boot(options = {}) {
-  const pi = makeHost(options);
-  const brain = dispatchBrain(pi);
+function boot(options: any = {}) {
+  const { lookupPane: lookupOverride, ...hostOptions } = options;
+  const pi = makeHost(hostOptions);
+  const lookupPane =
+    lookupOverride ??
+    ((paneId: string) =>
+      pi.paneInfo.has(paneId)
+        ? { status: "known", info: pi.paneInfo.get(paneId) }
+        : { status: "absent", reason: "agent_not_found" });
+  const brain = dispatchBrain(pi, { lookupPane });
   return { pi, brain };
 }
 
@@ -457,6 +463,32 @@ describe("crash safety", () => {
     );
   });
 
+  test("a persisted heartbeat survives restart and suppresses a false stall", async () => {
+    const { repo } = makeRepoWithState({
+      schema: 2,
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          status: "working",
+          current_stage: "Stage 4 Verifying on live-host",
+          last_heartbeat: Date.now(),
+        },
+      },
+    });
+    const { pi, brain } = boot({ cwd: repo });
+    pi.setPane("w3:p5", { pane_id: "w3:p5", agent_status: "working", state_change_seq: 1 });
+    await pi.emit("session_start");
+    expect(pi.calls.statuses.at(-1)).toEqual({ key: "dstate", value: "s4@live-host" });
+
+    for (let i = 0; i < 15; i += 1) brain.tick();
+    expect(pi.calls.messages.some((m) => m.text.includes("has reported no state change"))).toBe(
+      false,
+    );
+  });
+
   test("a lane with an active Gate D semantic watchdog lease is not reported as stalled", async () => {
     const { repo } = makeRepoWithState({
       lanes: {
@@ -493,15 +525,21 @@ describe("crash safety", () => {
     expect(pi.calls.notifications.some((n) => n.message.includes("parked without"))).toBe(false);
   });
 
-  test("a throwing steer cannot break the park guard", async () => {
-    const { pi } = boot();
+  test("a parked todo reminder is UI-only when native blocked mutation is unavailable", async () => {
+    const { repo } = makeRepoWithState({
+      schema: 2,
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: { "1-1": { lane: "1-1", pane_id: "w3:p5", status: "working" } },
+    });
+    const { pi } = boot({ cwd: repo });
     await pi.emit("session_start");
-    pi.sendUserMessage = () => {
-      throw new Error("steer refused");
-    };
-    await expect(
-      pi.emit("todo_reminder", {}, { orchestrator_phase: "yield_and_guard" }),
-    ).resolves.toBeUndefined();
+    const before = pi.calls.messages.length;
+    await pi.emit("todo_reminder");
+    expect(pi.calls.messages).toHaveLength(before);
+    expect(
+      pi.calls.notifications.some((n) => n.message.includes("blocked status is NOT VERIFIED")),
+    ).toBe(true);
   });
 
   test("timers are cleared on shutdown", async () => {
@@ -544,7 +582,8 @@ describe("subagent isolation", () => {
 
     const root = boot();
     await root.pi.emit("session_start", {}, { agent: { kind: "main", name: "main", depth: 0 } });
-    expect(root.pi.calls.messages).toHaveLength(1);
+    expect(root.pi.calls.messages).toHaveLength(0);
+    expect(root.pi.calls.intervals.length).toBeGreaterThan(0);
   });
 
   test("a headless session does not attach", async () => {
@@ -557,8 +596,9 @@ describe("subagent isolation", () => {
     const { pi } = boot();
     await pi.emit("session_start");
     await pi.emit("todo_reminder");
-    // Not parked, so the guard must not inject anything.
-    expect(pi.calls.messages.filter((m) => m.text.includes("deliberate suspension"))).toHaveLength(0);
+    // Not parked, so the extension must not intercept the host reminder.
+    expect(pi.calls.messages).toHaveLength(0);
+    expect(pi.calls.notifications).toHaveLength(0);
   });
 });
 
@@ -567,16 +607,15 @@ describe("subagent isolation", () => {
 // --------------------------------------------------------------------------
 
 describe("decoupling", () => {
-  test("the extension never invokes the Herdr CLI", async () => {
-    const source = require("node:fs").readFileSync(new URL("../agent/omp/extensions/dispatch-omp/index.ts", import.meta.url), "utf8");
-    // The only child process it spawns is git rev-parse for the shared path.
-    const spawns = source.match(/spawnSync\(([^)]*)\)/g) ?? [];
-    for (const spawn of spawns) {
-      expect(spawn).toContain("git");
-    }
-    expect(source).not.toContain("HERDR_BIN_PATH");
+  test("the Herdr lifecycle adapter is read-only", async () => {
+    const source = require("node:fs").readFileSync(
+      new URL("../agent/omp/extensions/dispatch-omp/ledger.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('["agent", "get", String(paneId)]');
     expect(source).not.toContain("report_metadata");
     expect(source).not.toContain("report-agent");
+    expect(source).not.toContain('"agent", "prompt"');
   });
 
   test("the label is set once and identifies the extension", async () => {
@@ -589,6 +628,66 @@ describe("decoupling", () => {
     const source = require("node:fs").readFileSync(new URL("../agent/omp/extensions/dispatch-omp/index.ts", import.meta.url), "utf8");
     expect(source).not.toMatch(/Users\//);
     expect(source).not.toMatch(/work\/config\/mac-bootstrap/);
+  });
+});
+
+describe("real Herdr lifecycle adapter", () => {
+  test("known, absent, and query failure are distinct", () => {
+    const known = lookupHerdrAgent("w3:pB", () => ({
+      status: 0,
+      stdout: JSON.stringify({
+        result: { agent: { pane_id: "w3:pB", agent_status: "working", state_change_seq: 7 } },
+      }),
+      stderr: "",
+    }));
+    expect(known).toEqual({
+      status: "known",
+      info: { pane_id: "w3:pB", agent_status: "working", state_change_seq: 7 },
+    });
+
+    const absent = lookupHerdrAgent("w3:pZ", () => ({
+      status: 1,
+      stdout: JSON.stringify({
+        error: { code: "agent_not_found", message: "agent target w3:pZ not found" },
+      }),
+      stderr: "",
+    }));
+    expect(absent.status).toBe("absent");
+
+    const unknown = lookupHerdrAgent("w3:pB", () => ({
+      status: 1,
+      stdout: "{not-json",
+      stderr: "socket unavailable",
+    }));
+    expect(unknown.status).toBe("unknown");
+  });
+
+  test("cold start keeps a claim when lifecycle lookup is unknown", async () => {
+    const { repo } = makeRepoWithState({
+      schema: 2,
+      run_id: "run-x",
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          status: "working",
+          worktree: "/tmp/wt",
+          branch: "feat/x",
+        },
+      },
+    });
+    const { pi, brain } = boot({
+      cwd: repo,
+      lookupPane: () => ({ status: "unknown", reason: "Herdr socket unavailable" }),
+    });
+    await pi.emit("session_start");
+
+    expect(brain.getColdStart().live).toHaveLength(0);
+    expect(brain.getColdStart().orphaned).toHaveLength(0);
+    expect(brain.getColdStart().unknown).toHaveLength(1);
+    expect(pi.calls.notifications.some((n) => n.message.includes("claims remain held"))).toBe(true);
   });
 });
 

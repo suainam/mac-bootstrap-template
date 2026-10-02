@@ -429,6 +429,29 @@ def test_dispatch_records_the_lane_as_awaited(repo: Path, task_file: Path, calls
     assert "1-3" in state["brain"]["awaiting_lanes"]
 
 
+def test_second_dispatch_preserves_the_first_waiting_lane(
+    repo: Path,
+    task_file: Path,
+    calls: dict,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    second_worktree = tmp_path / "repo-2"
+    second_worktree.mkdir()
+    _PANES["w3:p8"] = {"cwd": os.fspath(second_worktree)}
+
+    def branch_for(cwd: str) -> str:
+        return "feat/1-4" if Path(cwd) == second_worktree else "feat/1-3"
+
+    monkeypatch.setattr(bus.derive, "_git_branch", branch_for)
+
+    assert plugin.main(_argv(repo, task_file, lane_name="1-3-dispatch", target="w3:p9")) == 0
+    assert plugin.main(_argv(repo, task_file, lane_name="1-4-review", target="w3:p8")) == 0
+
+    state = brain.load(brain.state_path(repo))
+    assert state["brain"]["awaiting_lanes"] == ["1-3", "1-4"]
+
+
 def test_dispatch_walks_a_legal_transition_path(repo: Path, task_file: Path, calls: dict) -> None:
     """contract -> topology -> yield_and_guard, never an illegal jump."""
     assert plugin.main(_argv(repo, task_file)) == 0

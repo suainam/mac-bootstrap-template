@@ -93,6 +93,7 @@ export const WHITELIST_PATH_MARKERS = Object.freeze([
   "ORCHESTRATOR_STATE.json",
   "CHECKPOINT.json",
   "/Documents/handoffs/",
+  "/tmp/handoff/",
   ".dispatch_task_",
   "/.dispatch/",
 ]);

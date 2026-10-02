@@ -72,6 +72,7 @@ describe("Gate A whitelist bypass", () => {
 
   test("a tilde path is expanded before it is compared", () => {
     expect(isWhitelistedPath("~/Documents/handoffs/x.md", HOME)).toBe(true);
+    expect(isWhitelistedPath("/tmp/handoff/x.md", HOME)).toBe(true);
   });
 
   test("the bypass costs no model call", () => {

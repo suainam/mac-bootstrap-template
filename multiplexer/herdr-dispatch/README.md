@@ -60,9 +60,10 @@ checkout from growing two brains.
 Two guards matter more than the field itself:
 
 - **Leaving `yield_and_guard` needs a real wake signal** — a worker `[NOTIFY]`
-  or a stall alarm. A todo reminder is explicitly not one. This is the false
-  busywork loop, closed at the state machine rather than by asking the model to
-  resist a prompt.
+  or a stall alarm. A todo reminder is explicitly not one. OMP 18.4.10 exposes
+  no todo-mutation API to extensions, so parked reminders are UI-only and
+  marked `NOT VERIFIED`; the extension never uses an aside to simulate blocked
+  state because that would schedule a model continuation.
 - **`human_gate` is only crossed by explicit human authorisation**, so no
   automatic path can publish.
 
@@ -474,10 +475,12 @@ long-lived omp extension cannot clobber each other:
 | Writer | May write |
 |---|---|
 | Herdr plugin (`update_lane(writer="plugin")`) | lane `tokens`, `status`, `pane_id`, `agent_name`, `watchdog_verdict`, `watchdog_evaluated_at_unix_ms`, `watchdog_lease_until_unix_ms`, `consecutive_extensions`, `last_seen_seq` |
-| omp extension (`update_lane(writer="extension")`) | lane `phase`, `handoff`, `notified_at` |
+| omp extension (`update_lane(writer="extension")`) | lane `phase`, `handoff`, `notified_at`, `last_heartbeat`, `current_stage`, `last_status`, `progress_pct` |
 | omp extension only | Phase 0 (`orchestrator_phase`, `blocked_reason`, `brain`, `active_panes`) |
 
-Crossing a partition raises rather than silently dropping the write.
+Crossing a partition raises rather than silently dropping the write. Heartbeat
+fields are persisted in the shared document, so a cold-started OMP can reuse
+`last_heartbeat` as liveness evidence instead of inventing a fresh clock.
 
 ## Gate D: Zero-Token Semantic Watchdog (Issue #134)
 
