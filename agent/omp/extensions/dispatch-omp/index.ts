@@ -906,7 +906,11 @@ export default function dispatchBrain(pi, options = {}) {
     const gateC = lane?.gate_c;
     const binding = gateC?.binding;
     if (!lane || !gateC?.accepted || !binding) return null;
-    const worktree = lane?.worktree ? canonicalPath(lane.worktree) : "";
+    const persistedCleanupWorktree = String(
+      lane?.cleanup_authorization?.worktree ?? "",
+    );
+    const worktree = persistedCleanupWorktree ||
+      (lane?.worktree ? canonicalPath(lane.worktree) : "");
     const records = state?.extra_data?.authorizations;
     if (!worktree || !Array.isArray(records)) return null;
     for (const record of records) {
@@ -1582,6 +1586,18 @@ export default function dispatchBrain(pi, options = {}) {
           reason:
             "Python execution is root-only during an active dispatch because it can " +
             "bypass publication/destructive-action authorization.",
+        };
+      }
+      const workerCommand = toolCallTargets(event?.input).command;
+      if (
+        ["bash", "shell", "exec", "command"].includes(String(event?.toolName ?? "")) &&
+        /(?:ORCHESTRATOR_STATE\.json|(?:^|[\s"'=])(?:\.\.\/)*\.git\/dispatch(?:\/|\b)|(?:^|[\s"'=])\.dispatch\/)/.test(workerCommand)
+      ) {
+        return {
+          block: true,
+          reason:
+            "The shared dispatch state is root-only during an active dispatch; " +
+            "workers must not read, rewrite, move, or delete its persistence path.",
         };
       }
       if (!humanGate.gated) return undefined;
