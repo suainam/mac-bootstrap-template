@@ -174,9 +174,9 @@ printf '%s' "$PROMPT" | python3 bin/dispatch_plugin.py prompt --stdin --send --t
 printf '%s' "$PROMPT" | python3 bin/dispatch_plugin.py prompt --stdin
 ```
 
-A dispatched prompt needs a **resolved** coordinate (`w<N>:p<N>` — never
-`${ORCH_PANE}` or `<orch-pane>`) and a structured `[NOTIFY]` carrying `DONE:`
-and `Handoff:` lines.
+A dispatched prompt needs a **resolved opaque Herdr coordinate** (for example
+`w3:pB` or `wD:p1` — never `${ORCH_PANE}` or `<orch-pane>`) and a structured
+`[NOTIFY]` carrying `DONE:` and `Handoff:` lines.
 
 **Know what this does not give you.** A determined caller can still type
 `herdr agent prompt` directly and bypass the gate entirely; nothing in Herdr can
@@ -216,7 +216,7 @@ Two ways out, in order of preference:
 python3 bin/dispatch_plugin.py notify \
   --signature "<pane_id>_<agent_kind>_<repo_slug>" \
   --done "<one-line conclusion>" \
-  --handoff "~/Documents/handoffs/<file>.md" \
+  --handoff "/tmp/handoff/<file>.md" \
   --target w3:p1 \
   --highlight "<core result>" --risk "<leftover>" --send
 
@@ -348,7 +348,7 @@ python3 bin/dispatch_plugin.py --repo "$PWD" dispatch \
 | 2 | contract lint (7 sections + Issue #125), exit 1 |
 | 3 | claim gate on worktree/branch, exit 2 |
 | 4 | mints `YYYYMMDD_HHMMSS` and the handoff path — never typed by hand |
-| 5 | assembles the `[NOTIFY]` envelope with real `0x0A` newlines |
+| 5 | assembles the `[DISPATCH]` request with stable identity, callback and handoff |
 | 6 | writes the lane to `ORCHESTRATOR_STATE.json`, walks the brain into `yield_and_guard` |
 | 7 | delivers through the prompt gate, prints a receipt |
 
@@ -675,33 +675,30 @@ looking somewhere other than where the collision is:
 | `0` | dispatched; the receipt shows what was derived | — |
 | `1` | the task contract is malformed | fix the contract file |
 | `2` | a rule refused: bad lane name, worktree collision, failed derivation | fix the lane or the pane — **nothing was renamed, written or delivered** |
-| `3` | delivery failed *after* the plan committed | see below |
+| `3` | delivery outcome was not confirmed *after* the plan committed | see below |
 
 Exit `3` exists because "a rule refused, nothing happened" stops being true once
-`commit()` has run. If the worker pane dies between the rename and the delivery,
-the state file holds lane `1-3` with a live claim on its worktree, while nothing
-was ever sent.
+`commit()` has run. A prompt submission may fail after bytes were accepted or
+while confirmation is in flight, so a transport error is **not proof that
+nothing was sent**.
 
-**Re-running is not refused.** A lane re-claiming its *own* worktree is exempt
-from the collision gate by design — that exemption is what lets a worker renew
-its claim without a closeout. So the cost of a careless retry is not an error;
-it is a **second timestamp**, which mints a new handoff path and orphans the one
-the worker was told to report to. The command says so rather than promising a
-refusal that will not come.
-
-The lane's record is corrected to `status: undelivered` with `delivered: false`
-and a `delivery_error` naming the orphaned handoff. `working` is a claim about a
-process that does not exist, and leaving it in place has the stall watchdog
-eventually alarming on a lane with no worker to investigate.
+The lane records `delivery_status: unknown`, keeps the same `run_id`,
+`dispatch_id`, physical claim and handoff, and does not mint a replacement task.
+Re-running the same dispatch command is an idempotent delivery retry: the bus
+reuses the existing timestamp, signature and handoff after verifying that the
+task, worker pane and parent callback identity did not change. A host response
+that explicitly rejects input before acceptance is recorded separately as a
+known rejection.
 
 A killed bus (signal, no exit status) is also not reported as a refusal: nothing
 is knowable about a process that died mid-flight, so the honest answer is "check
 the state before retrying".
 
-The bus is located by walking up from the working directory, so the command
-works from any nested workspace in the checkout. `HERDR_DISPATCH_PLUGIN`
-overrides the search for a fork or an unusual worktree layout, and
-`HERDR_DISPATCH_PYTHON` selects the interpreter.
+The bus is located by walking up from the working directory and also recognizes
+a parent checkout whose public template lives under `template/`, so `/dispatch`
+works from both template worktrees and the parent repository. `HERDR_DISPATCH_PLUGIN`
+overrides the search for a fork or unusual layout, and `HERDR_DISPATCH_PYTHON`
+selects the interpreter.
 
 ### The derived signature has to be attributable
 

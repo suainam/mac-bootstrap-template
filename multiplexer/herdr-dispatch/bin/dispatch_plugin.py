@@ -57,7 +57,8 @@ EXIT_DELIVERY_FAILED = 3
 # a watchdog: "working" implies a running process, and a stall alarm on a lane
 # that was never dispatched sends the orchestrator to investigate a worker that
 # does not exist.
-UNDELIVERED_STATUS = "undelivered"
+DELIVERY_UNKNOWN_STATUS = "delivery_unknown"
+DELIVERY_REJECTED_STATUS = "delivery_rejected"
 
 
 def state_path(args: argparse.Namespace) -> Path:
@@ -598,39 +599,26 @@ def cmd_gate_a(args: argparse.Namespace) -> int:
     return 0 if report.allowed else EXIT_GATE_REFUSED
 
 
-def _mark_undelivered(plan: bus.DispatchPlan) -> None:
-    """Correct the state record after a delivery failure.
-
-    ``commit`` wrote the lane as ``working``, which is a claim about a process
-    that does not exist — the worker was never told to start. Left alone it
-    poisons two consumers: the stall watchdog would eventually alarm on a lane
-    with no worker to investigate, and a human reading the board would look for
-    a running agent that was never spawned. The lane still *holds* its claim —
-    that part is real — so the status is corrected rather than the entry removed.
-
-    Best effort by design. This runs after the dispatch has already failed for
-    a reason the caller must hear about; failing to write the correction must
-    not replace that message with a different one.
-    """
+def _mark_delivery(plan: bus.DispatchPlan, *, status: str, delivered: Optional[bool], error: str = "") -> None:
+    """Persist the transport outcome without changing dispatch identity."""
     try:
         path = brain.state_path(plan.repo)
         state = brain.load(path)
         lane = state.get("lanes", {}).get(plan.lane)
         if not isinstance(lane, dict):
             return
-        lane["status"] = UNDELIVERED_STATUS
-        lane["delivered"] = False
-        lane["delivery_error"] = (
-            "the dispatch committed but the prompt was never delivered; "
-            f"the worker never received {plan.handoff}"
+        lane["status"] = status
+        lane["delivery_status"] = (
+            "delivered" if delivered is True else "rejected" if delivered is False else "unknown"
         )
+        lane["delivered"] = delivered
+        if error:
+            lane["delivery_error"] = error
+        else:
+            lane.pop("delivery_error", None)
         brain.save(path, state)
     except (brain.StateError, OSError) as exc:  # pragma: no cover - best effort
-        print(
-            f"dispatch: could not correct the lane record to "
-            f"{UNDELIVERED_STATUS!r} ({exc})",
-            file=sys.stderr,
-        )
+        print(f"dispatch: could not persist delivery outcome ({exc})", file=sys.stderr)
 
 
 def cmd_dispatch(args: argparse.Namespace) -> int:
@@ -646,34 +634,70 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
     from "this lane is unsafe" from "the lane is half-dispatched and needs
     unwinding".
     """
+    repo = Path(args.repo) if args.repo else Path.cwd()
+    task = Path(os.path.expanduser(args.task)).expanduser().resolve()
+    callback_target = (args.callback_target or os.environ.get("HERDR_PANE_ID") or "").strip()
+
+    # A retry after lost confirmation is idempotent: reuse the exact transport
+    # identity and handoff rather than minting a second task with a new timestamp.
+    retry = None
+    try:
+        bus.validate_lane_name(args.lane_name)
+        lane_id = bus.lane_from_name(args.lane_name)
+        current = brain.load(brain.state_path(repo)).get("lanes", {}).get(lane_id)
+        if isinstance(current, dict) and current.get("delivery_status") in {"unknown", "rejected"}:
+            retry = current
+            expected = {
+                "name": args.lane_name,
+                "pane_id": args.target,
+                "callback_target": callback_target,
+                "task": str(task),
+            }
+            mismatch = [k for k, v in expected.items() if str(current.get(k) or "") != str(v)]
+            if mismatch:
+                print(
+                    "dispatch: refusing retry with changed identity fields: " + ", ".join(mismatch),
+                    file=sys.stderr,
+                )
+                return EXIT_GATE_REFUSED
+    except (brain.StateError, bus.DispatchRefused):
+        retry = None
+
     # The bus owns the pane rename so planning stays pure; it resolves the Herdr
     # client itself, so nothing here needs rebinding.
     try:
         plan = bus.DispatchPlan.plan(
-            repo=Path(args.repo) if args.repo else Path.cwd(),
-            task=Path(os.path.expanduser(args.task)),
+            repo=repo,
+            task=task,
             lane_name=args.lane_name,
             target=args.target,
-            # Empty here on purpose: the plan derives the signature from the lane
-            # id it resolved, so the reported lane and the awaited lane are the
-            # same string by construction. Deriving it here instead would mean
-            # deriving it from a value that has not been resolved yet.
-            signature=args.signature or "",
+            callback_target=callback_target,
             lane=args.lane or "",
             worktree=args.worktree or "",
             branch=args.branch or "",
             highlights=args.highlight or [],
             risks=args.risk or [],
+            timestamp=str(retry.get("dispatch_timestamp") or "") if retry else None,
+            run_id=str(retry.get("run_id") or "") if retry else "",
+            dispatch_id=str(retry.get("dispatch_id") or "") if retry else "",
+            signature=str(retry.get("signature") or args.signature or "") if retry else (args.signature or ""),
         )
+    except bus.DispatchRefused as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return exc.exit_code
+
+    try:
+        bus.ensure_handoff_dir()
     except bus.DispatchRefused as exc:
         print(f"dispatch: {exc}", file=sys.stderr)
         return exc.exit_code
 
     plan.commit()
 
-    # Delivery last: it is the only mutation the worker can observe, and it must
-    # go through the same prompt gate the bus validated the envelope against.
-    report = promptproto.validate_prompt(plan.envelope)
+    # Delivery last: request and completion are different protocols. The worker
+    # receives a [DISPATCH] request that contains an executable notify callback;
+    # [NOTIFY] is reserved for the return leg.
+    report = promptproto.validate_task_request(plan.request)
     if not report.ok:
         # Unreachable in practice: planning asserts compliance. Left in place
         # because a silent skip here is exactly the omission this command exists
@@ -682,35 +706,45 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
         return EXIT_DELIVERY_FAILED
 
     try:
-        herdr.run_herdr(["agent", "prompt", plan.target, plan.envelope])
+        herdr.run_herdr(["agent", "prompt", plan.target, plan.request])
     except herdr.HerdrError as exc:
         # Distinct from a gate refusal, and the distinction is the whole point:
         # the plan has already committed, so the lane is recorded and holds a
         # claim on its worktree.
         #
-        # Re-running is *not* refused — a lane re-claiming its own worktree is
-        # exempt from the collision gate by design. So the cost of a careless
-        # retry is not an error, it is a second timestamp: the first handoff path
-        # is minted and then orphaned, and the worker is told to report to a file
-        # the orchestrator will no longer be watching. The record is therefore
-        # corrected to say the lane was never told to start.
-        _mark_undelivered(plan)
+        # Re-running the same command after an unknown outcome is idempotent:
+        # the lane reuses its stored run/dispatch identity, timestamp and
+        # handoff. The record is therefore marked unknown rather than inventing
+        # certainty about whether the worker received the request.
+        detail = str(exc)
+        pre_send_codes = ("agent_blocked", "agent_not_ready", "agent_not_found", "pane_not_found")
+        if any(code in detail for code in pre_send_codes):
+            _mark_delivery(
+                plan,
+                status=DELIVERY_REJECTED_STATUS,
+                delivered=False,
+                error="Herdr rejected the prompt before accepting input: " + detail,
+            )
+            qualifier = "rejected before input was accepted"
+        else:
+            _mark_delivery(
+                plan,
+                status=DELIVERY_UNKNOWN_STATUS,
+                delivered=None,
+                error="prompt submission lost confirmation: " + detail,
+            )
+            qualifier = "confirmation was lost after submission may have occurred"
         print(
-            f"dispatch: delivery failed after commit ({exc})\n"
-            f"  lane {plan.lane} ({plan.lane_name}) is recorded with status "
-            f"'{UNDELIVERED_STATUS}' — it holds "
-            f"{plan.worktree or '(no worktree)'} @ {plan.branch or '(no branch)'}, "
-            f"but nothing was ever sent to {plan.target}.\n"
-            f"  The handoff path {plan.handoff} was minted and never delivered.\n"
-            "  Re-running dispatch is NOT refused (a lane is exempt from its own\n"
-            "  claim), but it mints a NEW timestamp and orphans that handoff.\n"
-            "  Prefer re-delivering by hand, or run\n"
-            f"    dispatch_plugin.py closeout --lane {plan.lane}\n"
-            "  to release the lane before retrying.",
+            f"dispatch: delivery not confirmed after commit ({exc})\n"
+            f"  lane {plan.lane} ({plan.lane_name}) status: {qualifier}.\n"
+            f"  dispatch_id={plan.dispatch_id}; handoff={plan.handoff}.\n"
+            "  Re-run the same dispatch command to reuse this exact identity; "
+            "do not create a new lane or timestamp.",
             file=sys.stderr,
         )
         return EXIT_DELIVERY_FAILED
 
+    _mark_delivery(plan, status="working", delivered=True)
     print(bus.receipt(plan))
     return 0
 
@@ -1003,7 +1037,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"pane label and single source of the lane id, must match "
         f"{bus.LANE_NAME_PATTERN} (e.g. 1-3-dispatch)",
     )
-    dispatch.add_argument("--target", required=True, help="target pane, e.g. w3:p9")
+    dispatch.add_argument("--target", required=True, help="worker pane, e.g. w3:p9")
+    dispatch.add_argument(
+        "--callback-target",
+        default="",
+        help="parent/orchestrator pane for the worker report; defaults to HERDR_PANE_ID",
+    )
     dispatch.add_argument(
         "--signature", default="", help="[NOTIFY] signature, defaults to <lane-name>_<target>"
     )

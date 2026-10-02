@@ -55,26 +55,26 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 
 ### Phase 2: Panel Topology & Two-Step Trust Handshake
 1. **Dispatch through the bus — do not hand-assemble a lane**:
-   One command performs the contract lint, the claim gate, the pane rename, the
-   timestamp mint, the `[NOTIFY]` envelope assembly, the brain state flush and the
-   verified delivery. Any gate refuses, and **nothing** is renamed, written or sent.
+   One command performs the contract lint, the claim gate, the pane rename, stable
+   transport identity/handoff allocation, `[DISPATCH]` request assembly, brain state
+   flush and delivery. The worker emits `[NOTIFY]` only on the return leg. Any
+   pre-flight gate refusal leaves the pane, state and worker untouched.
    ```bash
    # Minimal form. Inside an omp session: /dispatch --task "$TASK_FILE" \
    #   --lane-name 1-3-dispatch --target "$WORKER_PANE"
    python3 "$GATE" --repo "$PWD" dispatch \
      --task "$TASK_FILE" --lane-name 1-3-dispatch \
-     --target "$WORKER_PANE"
+     --target "$WORKER_PANE" --callback-target "$ORCH_PANE"
    ```
    - `--lane-name` MUST match `^[0-9]+-[0-9]+-[a-z0-9_-]+$` (`1-2-sysctl`,
      `1-3-dispatch`). A bare slug like `research-agy` is refused, exit 2.
-   - The handoff path is **generated**, never typed: `~/Documents/handoffs/<lane-name>-handoff-<YYYYMMDD_HHMMSS>.md`.
+   - The handoff path is **generated**, never typed: `/tmp/handoff/<lane-name>-handoff-<YYYYMMDD_HHMMSS>.md`.
    - Exit `1` means the contract is malformed; exit `2` means a rule refused.
      Exit `1` is "fix your task file"; exit `2` is "this lane is unsafe".
-     Exit `3` means delivery failed **after** the dispatch was committed: the
-     lane is recorded `undelivered` and holds its claim, but nothing was sent.
-     Re-running is *allowed* (a lane is exempt from its own claim) — but it mints
-     a NEW timestamp and orphans the handoff the worker was told to report to.
-     Re-deliver by hand, or `closeout --lane <lane>` first.
+     Exit `3` means delivery was **not confirmed** after the dispatch committed.
+     It does not prove whether input reached the worker. The lane keeps the same
+     `run_id`, `dispatch_id`, claim and handoff; re-run the same dispatch command
+     to retry that exact delivery. A retry must not mint a new timestamp/task.
 - `--signature` is **reconciled against the lane, not honoured**: the leading
      token is the lane id. A signature naming another lane (or only a pane
      coordinate, e.g. `w3:p9_...`) is rewritten to `<lane>_<pane>` and the
@@ -123,37 +123,28 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    Send enter if `Accessing workspace...` prompt appears until interactive composer prompt (`❯`, `›`, `>`, `Ask anything...`) is confirmed.
 
 ### Phase 3: External File Prompt & Todo Blocker Guard
-1. **External Contract & Explicit Coordinate Injection**:
-   The orchestrator MUST dynamically inspect its own pane ID via `ORCH_PANE="$(herdr pane current | jq -r '.result.pane.pane_id')"`.
-   Write long prompts/tasks to `.dispatch/TASK.md` or `/tmp/<task>.md`. Inject task reference with evaluated parent coordinate:
-   ```bash
-   herdr agent prompt <name> "Read .dispatch/TASK.md and implement the fix. When complete, write ~/Documents/handoffs/<name>-handoff-$(date +%Y%m%d_%H%M%S).md and report back with the notify command below."
-   ```
-   *(NEVER inject raw `<orch-pane_id>` or unevaluated placeholders; bind actual pane coordinate to avoid misrouting).*
+1. **External Contract & Explicit Parent Coordinate**:
+   The orchestrator MUST dynamically inspect its own pane ID via
+   `ORCH_PANE="$(herdr pane current | jq -r '.result.pane.pane_id')"`.
+   Keep the seven-section task in an external file, including paths with spaces.
+   The formal send path is the unified bus shown in Phase 2; it builds a
+   `[DISPATCH]` request with the absolute task reference, worker pane, resolved
+   parent callback pane, stable signature and handoff. Never inject the task via
+   raw `herdr agent prompt`.
 
 2. **Prompt Protocol Gate (mechanical, not advisory)**:
-   **Do not call `herdr agent prompt` directly.** Herdr exposes no pre-prompt hook —
-   `agent prompt` is a direct CLI/RPC call and the plugin event surface is a fixed
-   set of state-change notifications — so nothing can intercept a prompt sent
-   behind the plugin's back. The gate is therefore the **sanctioned send path**:
-   ```bash
-   # validate then deliver; refuses with exit 2 BEFORE delivery
-   printf '%s' "$PROMPT" | python3 "$GATE" prompt --stdin --send --target "$WORKER_PANE" || exit 2
-   # check only, no delivery
-   printf '%s' "$PROMPT" | python3 "$GATE" prompt --stdin || exit 2
-   ```
-   Every dispatched prompt needs a **resolved** coordinate (`w<N>:p<N>`, never
-   `${ORCH_PANE}` or `<orch-pane>`) and a structured `[NOTIFY]` carrying `DONE:`
-   and `Handoff:` lines. Validation judges only; on delivery the gate expands
-   literal `\n` / `\r` / `\t` into real control characters so the report renders
-   as multiple lines. Use `--keep-escapes` to send bytes verbatim.
+   **Do not call `herdr agent prompt` directly for formal dispatch.** Herdr exposes
+   no pre-prompt hook, so the bus is the sanctioned send path. Request and result
+   are separate protocols: `[DISPATCH]` goes to the worker; `[NOTIFY]` comes back
+   to the parent. A parent callback must be a resolved opaque/alphanumeric Herdr
+   coordinate (for example `w3:pB`) and must differ from the worker pane.
 
 3. **Reporting back — use the `notify` command, never a hand-quoted `[NOTIFY]`**:
    ```bash
    python3 "$GATE" notify \
      --signature "<pane_id>_<agent_kind>_<repo_slug>" \
      --done "<one-line conclusion>" \
-     --handoff "~/Documents/handoffs/<handoff-file>.md" \
+     --handoff "/tmp/handoff/<handoff-file>.md" \
      --target "$ORCH_PANE" \
      --highlight "<core result 1>" --highlight "<core result 2>" \
      --risk "<leftover 1>" \
@@ -164,7 +155,7 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    [NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]
    DONE: <一句话明确结论>
    Handoff: <handoff 绝对路径>
-   回调目标坐标: <w<N>:p<N>>
+   回调目标坐标: <opaque Herdr pane id，例如 w3:pB>
 
    [核心成果与证据]
    - 重点 1: ...
@@ -188,19 +179,19 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    ```
 
 ### Phase 4: Fire-and-Yield Supervision
-- **Yield immediately**: The `herdr agent prompt` call and `todo(op="block")` are terminal actions. Stop and yield control to user.
+- **Yield immediately**: A successful unified-bus dispatch and `todo(op="block")` are terminal actions. Stop and yield control to user.
 - **Zero-Token L2 Watchdog & Gate D Semantic Watchdog**: Check `herdr agent get <name>` on suspected stall ($\ge$ 10 min without state change). Gate D (`dispatch_plugin.py watchdog --lane <id>`) parses tail 15-line buffer via TypeSafe Jev System One: extends lease by 10 min if $P(\text{legitimate}) > 0.70$ (zero false alarms); sends soft nudge or aborts if $P(\text{stalled}) > 0.65$. Details in [references/supervision.md](references/supervision.md).
 - **Gate A PreToolUse Reflex Gate (Issue #133)**: While parked, a tool call that reads a lane's code, or probes a running lane, is **blocked mechanically** — not discouraged. Destructive commands (`git reset --hard`, `git clean -fd`, `rm -rf`, `git push --force`) are refused in **every** phase unless the cwd is an isolated lane worktree (`.worktrees/`, `.herdr/worktrees/`); a canonical root checkout holds the only copy of what is uncommitted there. A refusal returns `block: true` and injects a corrective steer — obey the steer instead of retrying with a different tool. See [references/supervision.md](references/supervision.md) §4.
 
 ### Phase 5: Result Harvest & Human Gate
 1. **Unblock Todo**: `todo(op="unblock", task="<task>")` when `[NOTIFY]` arrives or when harvesting.
-2. **Anti-Worktakeover**: Read child handoff (`~/Documents/handoffs/...`) or pane buffer (`herdr pane read <pane> --source recent-unwrapped --lines 120`). Never re-run investigations or re-read code already explored by the child worker.
+2. **Anti-Worktakeover**: Read child handoff (`/tmp/handoff/...`) or pane buffer (`herdr pane read <pane> --source recent-unwrapped --lines 120`). Never re-run investigations or re-read code already explored by the child worker.
 3. **Review Convergence Ceiling**: Max ONE round of review + ONE round of rework verification. Do NOT spawn infinite reviewer loops.
 4. **Handoff Truthfulness Gate (Issue #132)**: run `verify-handoff` on the child's handoff BEFORE closeout. It decides physical facts in code (test exit code, git diff, claimed-vs-real scope) and sends only the semantic questions to Jev. Exits 2 when the Done claim is not corroborated, and prints a message naming the remedy — hand that message back to the worker.
    ```bash
    # Default is deterministic (heuristics). Add --online to also consult Jev.
    python3 "$GATE" verify-handoff --lane <lane-id> \
-     --handoff ~/Documents/handoffs/<lane>-handoff-<ts>.md \
+     --handoff /tmp/handoff/<lane>-handoff-<ts>.md \
      --test-log /tmp/test.log --diff /tmp/change.diff \
      --exit-code <code-from-the-test-command> \
      --json > /tmp/truth.json || exit 2

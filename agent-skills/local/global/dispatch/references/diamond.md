@@ -90,10 +90,10 @@ Together they form a closed-loop engineering system:
 2. **决策证据沉淀**：
    - 审计排查、故障治理、服务退役等重大技术决策，必须将过程分析归档沉淀至 `docs/archive/<topic>.md` 或生成正式 ADR。
 3. **Handoff 专属落盘与 Notify-Back 绑定**：
-   - 每个 Lane 完成验证后，必须在 `~/Documents/handoffs/` 生成标准移交文档：
-     `~/Documents/handoffs/${REPO_SLUG}-${NAME}-handoff-$(date +%Y%m%d).md`
+   - 每个 Lane 完成验证后，必须在 `/tmp/handoff/` 生成标准移交文档：
+     `/tmp/handoff/${REPO_SLUG}-${NAME}-handoff-$(date +%Y%m%d_%H%M%S).md`
    - Notify-Back 必须严格包含核心一句话结论与该 Handoff 文件路径：
-     `\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>] <核心结论总结> | Handoff: ~/Documents/handoffs/<file>.md`
+     `\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>] <核心结论总结> | Handoff: /tmp/handoff/<file>.md`
 
 ---
 

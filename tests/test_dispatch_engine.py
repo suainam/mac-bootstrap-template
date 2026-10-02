@@ -55,6 +55,27 @@ _CONTRACT_BODY = _BASE_BODY.replace(
 )
 
 
+def test_bash_wrapper_uses_the_unified_bus_for_formal_delivery():
+    sh = _script_path.parent / "herdr-dispatch.sh"
+    content = sh.read_text(encoding="utf-8")
+    assert "herdr agent prompt" not in content
+    assert 'dispatch_plugin.py"' in content
+    assert '--callback-target "${HERDR_PANE_ID}"' in content
+    assert '--lane-name "${NAME}"' in content
+
+
+def test_bash_wrapper_rechecks_readiness_and_maps_codex_permissions():
+    sh = _script_path.parent / "herdr-dispatch.sh"
+    content = sh.read_text(encoding="utf-8")
+    assert "START_RC=0" in content
+    assert "Agent start is waiting on a trust modal" in content
+    assert "READY=false" in content
+    assert 'if [[ "${READY}" != "true" ]]' in content
+    assert "--approve-for-me" in content
+    assert "--dangerously-bypass-approvals-and-sandbox" in content
+    assert "Documents/handoffs" not in content
+
+
 def test_bash_wrapper_resolves_engine():
     """Anti-regression: herdr-dispatch.sh must point to real dispatch.py."""
     sh = _script_path.parent / "herdr-dispatch.sh"

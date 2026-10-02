@@ -71,6 +71,8 @@ def repo(tmp_path: Path):
     target = tmp_path / "repo"
     (target / ".git").mkdir(parents=True)
     _PANES["w3:p9"] = {"cwd": os.fspath(target)}
+    _PANES["w3:p1"] = {"cwd": os.fspath(target)}
+    _PANES["w3:pB"] = {"cwd": os.fspath(target)}
     yield target
     _PANES.clear()
 
@@ -214,7 +216,7 @@ def test_timestamp_is_second_level() -> None:
 def test_handoff_path_is_fully_qualified_and_timestamped() -> None:
     path = bus.handoff_path("1-3-dispatch", "20261001_180823")
     assert path.endswith("1-3-dispatch-handoff-20261001_180823.md")
-    assert path.startswith("~")
+    assert path.startswith("/tmp/handoff/")
     # No bare filename is acceptable: an unanchored handoff is unfindable.
     assert "/" in path
 
@@ -222,6 +224,30 @@ def test_handoff_path_is_fully_qualified_and_timestamped() -> None:
 def test_handoff_path_rejects_a_bare_name() -> None:
     with pytest.raises(bus.InvalidLaneNameError):
         bus.handoff_path("research-agy", "20261001_180823")
+
+
+def test_handoff_dir_is_created_owner_only(tmp_path: Path) -> None:
+    root = tmp_path / "handoff"
+    assert bus.ensure_handoff_dir(root) == root
+    assert root.is_dir()
+    assert root.stat().st_mode & 0o777 == 0o700
+
+
+def test_handoff_dir_tightens_existing_permissions(tmp_path: Path) -> None:
+    root = tmp_path / "handoff"
+    root.mkdir(mode=0o755)
+    root.chmod(0o755)
+    bus.ensure_handoff_dir(root)
+    assert root.stat().st_mode & 0o777 == 0o700
+
+
+def test_handoff_dir_refuses_a_symlink(tmp_path: Path) -> None:
+    actual = tmp_path / "actual"
+    actual.mkdir()
+    link = tmp_path / "handoff"
+    link.symlink_to(actual, target_is_directory=True)
+    with pytest.raises(bus.DispatchRefused):
+        bus.ensure_handoff_dir(link)
 
 
 def test_timestamps_differ_across_calls() -> None:
@@ -238,7 +264,7 @@ def test_envelope_contains_real_newlines() -> None:
     envelope = bus.build_envelope(
         signature="1-3-dispatch_opencode_mac-bootstrap",
         done="统一调度总线CLI落地",
-        handoff="~/Documents/handoffs/1-3-dispatch-handoff-20261001_180823.md",
+        handoff="/tmp/handoff/1-3-dispatch-handoff-20261001_180823.md",
         target="w3:p1",
         highlights=["真实换行", "状态原子落盘"],
         risks=["无"],
@@ -282,6 +308,7 @@ def _argv(repo: Path, task: Path, **over):
         "--task", str(task),
         "--lane-name", over.get("lane_name", "1-3-dispatch"),
         "--target", over.get("target", "w3:p9"),
+        "--callback-target", over.get("callback_target", "w3:p1"),
     ]
     if over.get("signature"):
         argv += ["--signature", over["signature"]]
@@ -321,6 +348,40 @@ def test_delivered_text_has_real_newlines_and_the_timestamp(repo, task_file, cal
     assert "\\n" not in delivered
     assert delivered.count("\n") >= 6
     assert "1-3-dispatch-handoff-" in delivered
+
+
+def test_worker_receives_a_task_request_not_a_completion_report(repo, task_file, calls) -> None:
+    plugin.main(_argv(repo, task_file, callback_target="w3:pB"))
+    delivered = calls["prompt"][0][3]
+    assert delivered.startswith("[DISPATCH]\n")
+    assert not delivered.startswith("[NOTIFY]")
+    assert f"Task: {task_file}" in delivered
+    assert "Lane: 1-3" in delivered
+    assert "Run ID: run-" in delivered
+    assert "Dispatch ID: dispatch-" in delivered
+    assert "Callback target: w3:pB" in delivered
+    assert "dispatch_plugin.py notify" in delivered
+
+
+def test_parent_callback_target_is_distinct_from_worker(repo, task_file, calls) -> None:
+    assert plugin.main(_argv(repo, task_file, callback_target="w3:p9")) == 2
+    assert calls["prompt"] == []
+    assert calls["state"] == []
+
+
+def test_unknown_parent_callback_is_refused_before_send(repo, task_file, calls) -> None:
+    assert plugin.main(_argv(repo, task_file, callback_target="wZ:pQ")) == 2
+    assert calls["prompt"] == []
+    assert calls["state"] == []
+
+
+def test_dispatch_records_stable_transport_identity(repo, task_file, calls) -> None:
+    assert plugin.main(_argv(repo, task_file, callback_target="w3:pB")) == 0
+    lane = brain.load(brain.state_path(repo))["lanes"]["1-3"]
+    assert lane["run_id"]
+    assert lane["dispatch_id"]
+    assert lane["callback_target"] == "w3:pB"
+    assert lane["delivery_status"] == "delivered"
 
 
 def test_state_records_the_lane(repo: Path, task_file: Path, calls: dict) -> None:
@@ -394,7 +455,67 @@ def test_dispatch_refuses_when_the_brain_cannot_reach_the_park(repo, task_file, 
 # --------------------------------------------------------------------------
 
 
-def test_a_post_commit_delivery_failure_marks_the_lane_undelivered(
+def test_lost_delivery_confirmation_is_unknown_and_retry_reuses_identity(
+    repo: Path, task_file: Path, calls: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attempts = []
+
+    def flaky(argv, **kwargs):
+        if argv[:2] == ["pane", "get"]:
+            return {"result": {"pane": {"pane_id": argv[2], "cwd": os.fspath(repo)}}}
+        if argv[:2] == ["agent", "prompt"]:
+            attempts.append(list(argv))
+            if len(attempts) == 1:
+                raise plugin.herdr.HerdrError("herdr agent prompt timed out after 20s")
+            return {"result": {"accepted": True}}
+        return {}
+
+    monkeypatch.setattr(plugin.herdr, "run_herdr", flaky)
+    assert plugin.main(_argv(repo, task_file, callback_target="w3:pB")) == plugin.EXIT_DELIVERY_FAILED
+    first = brain.load(brain.state_path(repo))["lanes"]["1-3"].copy()
+    assert first["status"] == "delivery_unknown"
+    assert first["delivery_status"] == "unknown"
+
+    assert plugin.main(_argv(repo, task_file, callback_target="w3:pB")) == 0
+    second = brain.load(brain.state_path(repo))["lanes"]["1-3"]
+    assert second["dispatch_id"] == first["dispatch_id"]
+    assert second["handoff"] == first["handoff"]
+    assert attempts[1][3] == attempts[0][3]
+
+
+def test_pre_send_agent_not_ready_is_rejected_and_retry_reuses_identity(
+    repo: Path, task_file: Path, calls: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attempts = []
+
+    def not_ready_once(argv, **kwargs):
+        if argv[:2] == ["pane", "get"]:
+            return {"result": {"pane": {"pane_id": argv[2], "cwd": os.fspath(repo)}}}
+        if argv[:2] == ["agent", "prompt"]:
+            attempts.append(list(argv))
+            if len(attempts) == 1:
+                raise plugin.herdr.HerdrError(
+                    '{"error":{"code":"agent_not_ready","message":"agent is not ready"}}'
+                )
+            return {"result": {"accepted": True}}
+        return {}
+
+    monkeypatch.setattr(plugin.herdr, "run_herdr", not_ready_once)
+
+    assert plugin.main(_argv(repo, task_file)) == plugin.EXIT_DELIVERY_FAILED
+    first = brain.load(brain.state_path(repo))["lanes"]["1-3"].copy()
+    assert first["status"] == "delivery_rejected"
+    assert first["delivery_status"] == "rejected"
+    assert first["delivered"] is False
+
+    assert plugin.main(_argv(repo, task_file)) == 0
+    second = brain.load(brain.state_path(repo))["lanes"]["1-3"]
+    assert second["dispatch_id"] == first["dispatch_id"]
+    assert second["handoff"] == first["handoff"]
+    assert attempts[1][3] == attempts[0][3]
+
+
+def test_ambiguous_post_commit_failure_is_not_claimed_undelivered(
     repo: Path, task_file: Path, calls: dict, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The worker never started, so the record must not say it is working.
@@ -415,21 +536,15 @@ def test_a_post_commit_delivery_failure_marks_the_lane_undelivered(
     assert plugin.main(_argv(repo, task_file)) == plugin.EXIT_DELIVERY_FAILED
 
     lane = brain.load(brain.state_path(repo))["lanes"]["1-3"]
-    assert lane["status"] == "undelivered"
-    assert lane["delivered"] is False
-    assert "never delivered" in lane["delivery_error"]
+    assert lane["status"] == "delivery_unknown"
+    assert lane["delivery_status"] == "unknown"
+    assert lane["delivered"] is None
 
 
 def test_the_exit_3_message_does_not_claim_a_rerun_would_be_refused(
     repo: Path, task_file: Path, calls: dict, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """A lane re-claiming its own worktree is exempt from the collision gate.
-
-    So the earlier wording — "re-running dispatch will refuse: the claim is
-    already held" — was factually wrong. The real cost of a careless retry is a
-    second timestamp, which orphans the handoff path the worker was told to
-    report to.
-    """
+    """An unknown outcome keeps the same identity for an idempotent retry."""
 
     def dead_pane(argv, **kwargs):
         if argv[:2] == ["pane", "get"]:
@@ -440,9 +555,9 @@ def test_the_exit_3_message_does_not_claim_a_rerun_would_be_refused(
     plugin.main(_argv(repo, task_file))
     err = capsys.readouterr().err
 
-    assert "NOT refused" in err
-    assert "NEW timestamp" in err
-    assert "will refuse" not in err
+    assert "Re-run the same dispatch command" in err
+    assert "dispatch_id=" in err
+    assert "new timestamp" not in err.lower()
 
 
 def test_a_signature_naming_another_lane_is_reconciled_not_honoured(
@@ -457,7 +572,7 @@ def test_a_signature_naming_another_lane_is_reconciled_not_honoured(
     """
     plugin.main(_argv(repo, task_file, signature="9-9-other_w9:p9"))
     delivered = calls["prompt"][0][3]
-    assert "[NOTIFY] [1-3_w3:p9]" in delivered
+    assert "Signature: 1-3_w3:p9" in delivered
     assert "9-9-other" not in delivered
 
 
@@ -573,7 +688,7 @@ def test_plan_and_commit_are_separate() -> None:
 def test_planning_raises_before_it_touches_anything(repo, task_file, calls) -> None:
     plan = bus.DispatchPlan.plan(
         repo=repo, task=task_file, lane_name="1-3-dispatch",
-        target="w3:p9", signature="sig",
+        target="w3:p9", signature="sig", callback_target="w3:p1",
     )
     assert calls["rename"] == []
     assert calls["prompt"] == []
@@ -584,12 +699,12 @@ def test_planning_raises_before_it_touches_anything(repo, task_file, calls) -> N
 def test_a_plan_carries_every_value_it_needs(repo, task_file, calls) -> None:
     plan = bus.DispatchPlan.plan(
         repo=repo, task=task_file, lane_name="1-3-dispatch",
-        target="w3:p9", signature="sig",
+        target="w3:p9", signature="sig", callback_target="w3:p1",
     )
     assert plan.timestamp
     assert plan.handoff.endswith(".md")
     assert plan.timestamp in plan.handoff
-    assert plan.envelope.count("\n") >= 6
+    assert plan.request.startswith("[DISPATCH]\n")
 
 
 def test_a_plan_needs_no_lane_argument_at_all(repo, task_file, calls) -> None:
@@ -601,7 +716,7 @@ def test_a_plan_needs_no_lane_argument_at_all(repo, task_file, calls) -> None:
     """
     plan = bus.DispatchPlan.plan(
         repo=repo, task=task_file, lane_name="1-3-dispatch",
-        target="w3:p9", signature="sig",
+        target="w3:p9", signature="sig", callback_target="w3:p1",
     )
     assert plan.lane == "1-3"
     assert plan.worktree == str(repo.resolve())

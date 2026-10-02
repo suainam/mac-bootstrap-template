@@ -42,11 +42,13 @@ Sending `herdr agent prompt` immediately after `agent start` causes the prompt b
    ```bash
    ORCH_PANE="$(herdr pane current | jq -r '.result.pane.pane_id')"
    ```
-   Only after passing the readiness gate, inject the task. The prompt MUST bind this explicit `ORCH_PANE` coordinate so the child agent notifies the exact parent, never guessing or misrouting:
+   Only after passing the readiness gate, dispatch through the unified bus. The request MUST bind the evaluated `ORCH_PANE` coordinate so the child reports to the exact parent:
    ```bash
-   herdr agent prompt <name> "Read <task-file> (or .dispatch/TASK.md) and execute. When complete, write ~/Documents/handoffs/<name>-handoff.md and report back with the notify command documented in SKILL.md Phase 3."
+   python3 "$GATE" --repo "$REPO_ROOT" dispatch \
+     --task "<task-file>" --lane-name "<wave>-<lane>-<slug>" \
+     --target "$WORKER_PANE" --callback-target "$ORCH_PANE"
    ```
-   *(CRITICAL: If the orchestrator uses a placeholder `<orch-pane>` without substituting its actual `herdr pane current` ID, the child agent either sends to a broken placeholder or misroutes to the human user / sibling panes).*
+   *(CRITICAL: formal dispatch never calls raw `herdr agent prompt`; an unresolved or nonexistent callback pane is refused before delivery.)*
 
    > **Never hand-quote the callback.** The historical form
    > `herdr agent prompt ${ORCH_PANE} '\n[NOTIFY] ...'` is a trap: bash single
@@ -66,24 +68,24 @@ Every child agent writes `.dispatch/DONE` plus a structured Handoff file, then n
 Never use day-only dates (`%Y%m%d`) which cause overwrites and collision across multiple runs on the same day.
 **MANDATORY**: Timestamps MUST use second-level precision: `$(date +%Y%m%d_%H%M%S)`.
 
-$$\text{Handoff Path} = \sim/\text{Documents/handoffs/}\langle\text{repo\_slug}\rangle-\langle\text{name}\rangle\text{-handoff-}\mathbf{YYYYMMDD\_HHMMSS}\text{.md}$$
+$$\text{Handoff Path} = /\text{tmp/handoff/}\langle\text{repo\_slug}\rangle-\langle\text{name}\rangle\text{-handoff-}\mathbf{YYYYMMDD\_HHMMSS}\text{.md}$$
 
 ### Exact Multi-Line Specification:
 ```bash
 HANDOFF_TS="$(date +%Y%m%d_%H%M%S)"
 HANDOFF_FILENAME="${REPO_SLUG}-${NAME}-handoff-${HANDOFF_TS}.md"
-mkdir -p "${HOME}/Documents/handoffs"
+mkdir -p "/tmp/handoff"
 
 # Assert handoff exists, then notify:
-test -s "${HOME}/Documents/handoffs/${HANDOFF_FILENAME}" && \
-herdr agent prompt <orch-pane> "\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner core conclusion>\nHandoff: ~/Documents/handoffs/${HANDOFF_FILENAME}"
+test -s "/tmp/handoff/${HANDOFF_FILENAME}" && \
+herdr agent prompt <orch-pane> "\n[NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]\nDONE: <one-liner core conclusion>\nHandoff: /tmp/handoff/${HANDOFF_FILENAME}"
 ```
 
 ### Example Rendered Notification:
 ```text
 [NOTIFY] [w3:pAY_opencode_example-repo]
 DONE: PR #120 created, squashed and merged, unit tests 100% pass
-Handoff: ~/Documents/handoffs/example-repo-releaser-handoff-20260930_164500.md
+Handoff: /tmp/handoff/example-repo-releaser-handoff-20260930_164500.md
 ```
 
 ---

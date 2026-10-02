@@ -57,7 +57,7 @@ COMPLIANT = (
     "herdr agent prompt w3:p1 "
     "'\\n[NOTIFY] [w5:p1_opencode_mac-bootstrap]\\n"
     "DONE: 1-Lane-1-Worktree isolation landed\\n"
-    "Handoff: ~/Documents/handoffs/x-20261001_000000.md'"
+    "Handoff: /tmp/handoff/x-20261001_000000.md'"
 )
 
 # The literal prompt the orchestrator actually sent, verbatim.
@@ -82,6 +82,14 @@ def test_a_compliant_prompt_passes() -> None:
     assert report.ok, report.violations
     assert report.coordinate == "w3:p1"
     assert report.has_notify and report.has_done and report.has_handoff
+
+
+def test_alphanumeric_pane_coordinate_is_resolved() -> None:
+    """Herdr 0.9.3 emits opaque IDs such as w3:pB and wD:p1."""
+    prompt = COMPLIANT.replace("w3:p1", "w3:pB")
+    report = proto.validate_prompt(prompt)
+    assert report.ok, report.violations
+    assert report.coordinate == "w3:pB"
 
 
 # --------------------------------------------------------------------------
@@ -377,7 +385,7 @@ def test_send_delivers_a_compliant_prompt(
     assert delivered.count("\n") == COMPLIANT.count("\\n") + COMPLIANT.count("\n")
     # ...and nothing else was invented: every non-escape character is intact.
     assert "DONE: 1-Lane-1-Worktree isolation landed" in delivered
-    assert "Handoff: ~/Documents/handoffs/x-20261001_000000.md" in delivered
+    assert "Handoff: /tmp/handoff/x-20261001_000000.md" in delivered
 
 
 def test_send_never_invents_a_coordinate(

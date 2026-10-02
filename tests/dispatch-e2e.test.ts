@@ -483,6 +483,7 @@ describe("end-to-end: the two surfaces", () => {
         "--task", path.join(repo, "TASK.md"),
         "--lane-name", "1-3-dispatch",
         "--target", "w3:p9",
+        "--callback-target", "w3:pB",
       ]);
     } finally {
       if (previousBin === undefined) delete process.env.HERDR_BIN_PATH;
@@ -498,13 +499,18 @@ describe("end-to-end: the two surfaces", () => {
     expect(state.orchestrator_phase).toBe("yield_and_guard");
     expect(state.brain.awaiting_lanes).toEqual(["1-3"]);
 
-    // ...and handed the worker a signature the extension resolves to it.
-    const report = readFileSync(delivered, "utf8");
-    const signature = report.match(/\[NOTIFY\] \[([^\]]+)\]/)?.[1] ?? "";
+    // ...and handed the worker a request carrying a signature the extension
+    // can later attribute when the worker emits its [NOTIFY] return leg.
+    const request = readFileSync(delivered, "utf8");
+    expect(request).toContain("[DISPATCH]");
+    const signature = request.match(/^Signature:\s*(\S+)$/m)?.[1] ?? "";
+    const handoff = request.match(/^Handoff:\s*(\S+)$/m)?.[1] ?? "";
     expect(signature).not.toBe("");
+    expect(handoff).not.toBe("");
     expect(laneFromSignature(signature)).toBe("1-3");
+    const report = `[NOTIFY] [${signature}]\nDONE: completed\nHandoff: ${handoff}`;
 
-    // Now drive the extension with exactly that report.
+    // Now drive the extension with the canonical completion report.
     const run = makeHost(repo);
     const brain = dispatchBrain(run.host);
     await run.emit("session_start");

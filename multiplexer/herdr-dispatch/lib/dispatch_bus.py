@@ -3,8 +3,8 @@
 What it replaces
 ----------------
 Dispatching a lane was six manual steps: ``lint`` the contract, ``claim`` the
-worktree, rename the pane, mint a timestamp, assemble a ``[NOTIFY]`` envelope,
-flush the brain state, then send. Any one could be skipped, and skipping any of
+worktree, rename the pane, mint a timestamp, assemble the old completion-shaped
+prompt, flush the brain state, then send. Any one could be skipped, and skipping any of
 them was invisible until closeout — a lane running with no state entry, a pane
 still called ``worker-3``, a handoff referenced by a filename nobody generated.
 
@@ -20,7 +20,7 @@ that ran before the failure has already happened.
 So the work is split in two:
 
 - :meth:`DispatchPlan.plan` is **pure**. It runs every gate, mints the
-  timestamp, and assembles the envelope. It raises before producing a value, so
+  timestamp/identity, and assembles the ``[DISPATCH]`` request. It raises before producing a value, so
   a refusal provably cannot have mutated anything.
 - :meth:`DispatchPlan.commit` performs the three mutations, in the order that
   degrades most safely: state first, rename second, delivery last. Delivery is
@@ -37,9 +37,12 @@ orchestrator can tell "fix your task file" from "the lane is unsafe".
 
 from __future__ import annotations
 
+import os
 import re
+import stat
 import sys
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
@@ -59,7 +62,7 @@ LANE_NAME_PATTERN = r"^[0-9]+-[0-9]+-[a-z0-9_-]+$"
 LANE_NAME_RE = re.compile(LANE_NAME_PATTERN)
 
 TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
-HANDOFF_DIR = "~/Documents/handoffs"
+HANDOFF_DIR = "/tmp/handoff"
 
 def rename_pane(pane_id: str, label: str) -> None:
     """Rename a Herdr pane.
@@ -148,13 +151,37 @@ def validate_lane_name(name: str) -> str:
 
 
 def handoff_path(lane_name: str, timestamp: str) -> str:
-    """The one true handoff location for this lane and dispatch.
-
-    Always fully qualified and always timestamped. A bare filename is not
-    accepted: a worker reporting ``done.md`` is a handoff nobody can find.
-    """
+    """The one true handoff location for this lane and dispatch."""
     validate_lane_name(lane_name)
     return f"{HANDOFF_DIR}/{lane_name}-handoff-{timestamp}.md"
+
+
+def ensure_handoff_dir(root: Optional[Path] = None) -> Path:
+    """Create the shared temp handoff directory with owner-only permissions.
+
+    ``/tmp`` is shared, so a pre-created symlink or another user's directory
+    must never become the artifact sink. The sticky bit on normal ``/tmp``
+    then prevents other users from replacing the owner-created directory.
+    """
+    target = Path(root) if root is not None else Path(HANDOFF_DIR)
+    try:
+        target.mkdir(mode=0o700, parents=True, exist_ok=True)
+        info = target.lstat()
+    except OSError as exc:
+        raise DispatchRefused(f"cannot prepare handoff directory {target}: {exc}") from exc
+
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise DispatchRefused(f"handoff path {target} must be a real directory, not a link or file")
+    if hasattr(os, "getuid") and info.st_uid != os.getuid():
+        raise DispatchRefused(
+            f"handoff directory {target} is owned by uid {info.st_uid}, not the current user"
+        )
+    if stat.S_IMODE(info.st_mode) != 0o700:
+        try:
+            target.chmod(0o700)
+        except OSError as exc:
+            raise DispatchRefused(f"cannot secure handoff directory {target}: {exc}") from exc
+    return target
 
 
 def build_envelope(
@@ -188,9 +215,12 @@ class DispatchPlan:
     lane_name: str
     target: str
     signature: str
+    callback_target: str
+    run_id: str
+    dispatch_id: str
     timestamp: str
     handoff: str
-    envelope: str
+    request: str
     worktree: str = ""
     branch: str = ""
     highlights: List[str] = field(default_factory=list)
@@ -212,13 +242,17 @@ class DispatchPlan:
         lane_name: str,
         target: str,
         signature: str,
+        callback_target: str = "",
         lane: str = "",
         worktree: str = "",
         branch: str = "",
         highlights: Sequence[str] = (),
         risks: Sequence[str] = (),
         timestamp: Optional[str] = None,
+        run_id: str = "",
+        dispatch_id: str = "",
         pane_lookup: Optional[Callable[[str], str]] = None,
+        callback_lookup: Optional[Callable[[str], str]] = None,
         branch_reader: Optional[Callable[[str], str]] = None,
     ) -> "DispatchPlan":
         """Run every gate and compute every value. Raises on any refusal.
@@ -234,6 +268,29 @@ class DispatchPlan:
         "nothing to record", it is a gate that silently did not run.
         """
         notes: List[str] = []
+        repo = Path(repo).expanduser().resolve()
+        task = Path(task).expanduser().resolve()
+
+        # Gate 0 — callback ownership is separate from the worker destination.
+        callback_target = (callback_target or "").strip()
+        if not promptproto.COORDINATE_RE.fullmatch(callback_target):
+            raise DispatchRefused(
+                f"callback target {callback_target!r} is not a resolved Herdr pane coordinate"
+            )
+        if callback_target == target:
+            raise DispatchRefused(
+                "callback target is the worker pane itself; reports must return to the parent pane"
+            )
+        # Resolve the callback pane independently from the worker placement. A
+        # syntactically valid opaque id is not evidence that the parent exists.
+        callback_cwd = _deriving(
+            callback_lookup or derive.default_pane_lookup,
+            callback_target,
+        )
+        if not str(callback_cwd or "").strip():
+            raise DispatchRefused(
+                f"callback target {callback_target!r} does not resolve to a live Herdr pane"
+            )
 
         # Gate 1 — the lane name. Cheapest, and a bad name would otherwise
         # become a handoff filename.
@@ -291,21 +348,22 @@ class DispatchPlan:
         # refused rather than read as "this lane claims nothing".
         _claim(repo, lane, worktree=worktree, branch=branch)
 
+        state = brain.load(brain.state_path(repo))
+        resolved_run_id = (run_id or str(state.get("run_id") or "")).strip() or f"run-{uuid.uuid4().hex}"
+        resolved_dispatch_id = (dispatch_id or "").strip() or f"dispatch-{uuid.uuid4().hex}"
         stamp = timestamp or make_timestamp()
         handoff = handoff_path(lane_name, stamp)
-
-        envelope = build_envelope(
+        plugin_path = str(Path(__file__).resolve().parent.parent / "bin" / "dispatch_plugin.py")
+        request = promptproto.build_task_request(
+            str(task),
+            lane,
+            resolved_run_id,
+            resolved_dispatch_id,
             signature,
-            f"Lane dispatched: {lane_name}. Read {task.name}, execute, then report via the notify command below.",
             handoff,
-            target,
-            highlights=list(highlights),
-            risks=list(risks),
+            callback_target,
+            plugin_path=plugin_path,
         )
-
-        # Gate 4 — the envelope must itself satisfy the prompt contract, or the
-        # bus would enqueue a message its own gate refuses to send.
-        promptproto.assert_prompt_compliant(envelope)
 
         return cls(
             repo=repo,
@@ -314,9 +372,12 @@ class DispatchPlan:
             lane_name=lane_name,
             target=target,
             signature=signature,
+            callback_target=callback_target,
+            run_id=resolved_run_id,
+            dispatch_id=resolved_dispatch_id,
             timestamp=stamp,
             handoff=handoff,
-            envelope=envelope,
+            request=request,
             worktree=worktree,
             branch=branch,
             highlights=list(highlights),
@@ -334,6 +395,12 @@ class DispatchPlan:
             "pane_id": self.target,
             "task": str(self.task),
             "handoff": self.handoff,
+            "signature": self.signature,
+            "callback_target": self.callback_target,
+            "run_id": self.run_id,
+            "dispatch_id": self.dispatch_id,
+            "dispatch_timestamp": self.timestamp,
+            "delivery_status": "pending",
             "dispatched_unix_ms": brain.now_unix_ms(),
         }
         if self.worktree:
@@ -358,7 +425,9 @@ class DispatchPlan:
         state = brain.load(state_path)
 
         entry = self.state_payload()
-        entry["status"] = "working"
+        entry["status"] = "dispatching"
+        if not state.get("run_id"):
+            state["run_id"] = self.run_id
         state.setdefault("lanes", {})[self.lane] = {
             **state.get("lanes", {}).get(self.lane, {}),
             **entry,
