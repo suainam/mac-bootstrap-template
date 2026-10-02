@@ -410,6 +410,12 @@ export function registerDispatchCommand(pi, options = {}) {
         // it actually committed to, which is the only record of what was
         // derived on the caller's behalf.
         ctx?.ui?.notify?.(result.stdout.trim() || "dispatch: lane dispatched", "info");
+        try {
+          options.onSuccess?.(result, ctx);
+        } catch {
+          // Dispatch already committed. A host-side projection refresh must
+          // never turn a successful delivery into a command failure.
+        }
         return;
       }
 

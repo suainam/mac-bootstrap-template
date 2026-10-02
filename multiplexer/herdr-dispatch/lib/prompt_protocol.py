@@ -436,7 +436,9 @@ def build_task_request(
     command = (
         "test -n \"${DONE_SUMMARY:-}\" && "
         f"python3 {shlex.quote(plugin_path)} notify "
-        f"--signature {shlex.quote(signature)} --done \"$DONE_SUMMARY\" "
+        f"--signature {shlex.quote(signature)} "
+        f"--run-id {shlex.quote(run_id)} --dispatch-id {shlex.quote(dispatch_id)} "
+        f"--done \"$DONE_SUMMARY\" "
         f"--handoff {shlex.quote(handoff)} --target {shlex.quote(callback_target)} --send"
     )
     body = (
@@ -470,6 +472,7 @@ def contract_summary() -> Sequence[str]:
 
 NOTIFY_TEMPLATE = (
     "[NOTIFY] [{signature}]\n"
+    "{identity}"
     "DONE: {done}\n"
     "Handoff: {handoff}\n"
     "回调目标坐标: {target}\n"
@@ -492,6 +495,8 @@ def build_notify(
     handoff: str,
     target: str,
     *,
+    run_id: str = "",
+    dispatch_id: str = "",
     highlights: Sequence[str] = (),
     risks: Sequence[str] = (),
     sections: Mapping[str, Sequence[str]] = (),
@@ -508,8 +513,14 @@ def build_notify(
     literal ``\\n`` gets real newlines rather than a silently single-line
     report.
     """
+    identity = ""
+    if run_id:
+        identity += f"Run ID: {run_id}\n"
+    if dispatch_id:
+        identity += f"Dispatch ID: {dispatch_id}\n"
     body = NOTIFY_TEMPLATE.format(
         signature=signature,
+        identity=identity,
         done=done,
         handoff=handoff,
         target=target,

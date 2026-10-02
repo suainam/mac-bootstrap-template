@@ -414,6 +414,7 @@ def test_gate_a_threshold_is_the_issue_value() -> None:
         ("read_file", ".git/dispatch/ORCHESTRATOR_STATE.json"),
         ("read_file", "~/Documents/handoffs/1-5-gate-a-handoff-20261001_234002.md"),
         ("read_file", "~/Documents/handoffs/"),
+        ("read_file", "/tmp/handoff/1-5-gate-a-handoff.md"),
         ("read_file", ".dispatch_task_gate_a_anti_takeover.md"),
         ("bash", "python3 bin/dispatch_plugin.py status"),
         ("bash", "python3 bin/dispatch_plugin.py render_board"),

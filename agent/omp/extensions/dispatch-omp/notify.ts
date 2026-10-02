@@ -23,7 +23,13 @@
 export const NOTIFY_MARKER = "[NOTIFY]";
 
 /** Signature the parser accepts. */
-export const NOTIFY_FIELDS = Object.freeze(["signature", "done", "handoff"]);
+export const NOTIFY_FIELDS = Object.freeze([
+  "signature",
+  "runId",
+  "dispatchId",
+  "done",
+  "handoff",
+]);
 
 /**
  * Parse a worker report.
@@ -45,7 +51,15 @@ export function parseNotify(text) {
   // so trailing chatter cannot be mistaken for fields.
   const body = text.slice(markerAt).split(/\n\s*\n/, 1)[0];
 
-  const notify = { signature: "", done: "", handoff: "", lane: "", raw: body };
+  const notify = {
+    signature: "",
+    runId: "",
+    dispatchId: "",
+    done: "",
+    handoff: "",
+    lane: "",
+    raw: body,
+  };
 
   const signatureMatch = body.match(/\[NOTIFY\]\s*\[([^\]]+)\]/);
   if (!signatureMatch) {
@@ -55,6 +69,12 @@ export function parseNotify(text) {
   if (notify.signature === "") {
     return { ok: false, reason: "empty signature" };
   }
+
+  const runMatch = body.match(/^Run ID:\s*(.+)$/m);
+  if (runMatch) notify.runId = runMatch[1].trim();
+
+  const dispatchMatch = body.match(/^Dispatch ID:\s*(.+)$/m);
+  if (dispatchMatch) notify.dispatchId = dispatchMatch[1].trim();
 
   const doneMatch = body.match(/^DONE:\s*(.+)$/m);
   if (doneMatch) notify.done = doneMatch[1].trim();
@@ -101,6 +121,14 @@ export function laneFromSignature(signature) {
 }
 
 /** Does this report belong to the given lane? An empty lane matches nothing. */
+export function paneFromSignature(signature) {
+  const text = String(signature ?? "");
+  const bus = text.match(/^[0-9]+-[0-9]+_([A-Za-z0-9]+:[A-Za-z0-9]+)(?:_|$)/);
+  if (bus) return bus[1];
+  const direct = text.match(/^([A-Za-z0-9]+:[A-Za-z0-9]+)_/);
+  return direct ? direct[1] : "";
+}
+
 export function isForLane(notify, lane) {
   if (!notify || !lane) return false;
   return notify.lane === lane || laneFromSignature(notify.signature) === lane;

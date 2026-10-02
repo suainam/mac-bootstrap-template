@@ -71,6 +71,28 @@ test("registration is a no-op on a host without registerCommand", () => {
   expect(registerDispatchCommand({} as never)).toBe(false);
 });
 
+test("a successful dispatch notifies the host projection exactly once", async () => {
+  const calls = { refreshed: 0 };
+  const pi = {
+    registerCommand(_name, def) {
+      this.command = def;
+    },
+  };
+  registerDispatchCommand(pi, {
+    runner: () => ({ status: 0, stdout: "dispatch: ok\n", stderr: "" }),
+    resolvePlugin: () => "/tmp/dispatch_plugin.py",
+    onSuccess: () => {
+      calls.refreshed += 1;
+    },
+  });
+
+  await pi.command.handler(
+    "--task TASK.md --lane-name 1-3-dispatch --target w3:p9",
+    { cwd: "/repo", ui: { notify() {} } },
+  );
+  expect(calls.refreshed).toBe(1);
+});
+
 test("a dispatch failure stays in UI and never creates a model turn", async () => {
   let registered: any = null;
   const modelTurns: string[] = [];

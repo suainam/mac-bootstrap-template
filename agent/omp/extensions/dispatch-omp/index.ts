@@ -32,12 +32,11 @@
  * tool — reaching `todo` that way means shadowing it for the model, which is
  * more invasive than the problem warrants.
  *
- * So the guard is implemented where it is actually available: the brain state
- * lives in the shared state file, and a reminder is answered with a corrective
- * steer telling the orchestrator it is parked and must not self-assign work.
- * That is weaker than flipping a status bit and is called out in the delivery
- * notes rather than papered over. Making it exact needs either a host-side
- * `set_todos` bridge or an extension todo API, both of which are host changes.
+ * So the guard is implemented only where it is actually available: the brain
+ * state lives in the shared state file, and a parked reminder produces a
+ * UI-only NOT VERIFIED diagnostic. It never calls `sendUserMessage`, because
+ * an aside schedules a model continuation and defeats the park. A real blocked
+ * todo still requires a host-side bridge or an extension todo API.
  *
  * Crash safety
  * ------------
@@ -56,13 +55,15 @@ import path from "node:path";
 import {
   checkPartition,
   isStalled,
+  lookupHerdrAgent,
   readState,
   reconcileLanes,
   resolveStatePath,
+  updateState,
   validateResumeArgv,
 } from "./ledger.ts";
 
-export { resolveStatePath } from "./ledger.ts";
+export { lookupHerdrAgent, resolveStatePath } from "./ledger.ts";
 export {
   planPrune,
   planRollover,
@@ -72,7 +73,7 @@ export {
   memoryFreeFraction,
   readHostMemory,
 } from "./governance.ts";
-export { parseNotify, laneFromSignature } from "./notify.ts";
+export { parseNotify, laneFromSignature, paneFromSignature } from "./notify.ts";
 export {
   BUSINESS_CODE_TOOLS,
   GateAVerdict,
@@ -108,12 +109,18 @@ import {
   readHostMemory,
 } from "./governance.ts";
 import {
+  HEARTBEAT_MARKER,
   displayStage,
   heartbeatDue,
   heartbeatFields,
   parseHeartbeat,
 } from "./heartbeat.ts";
-import { laneFromSignature, parseNotify } from "./notify.ts";
+import {
+  NOTIFY_MARKER,
+  laneFromSignature,
+  paneFromSignature,
+  parseNotify,
+} from "./notify.ts";
 import { reflexGate } from "./reflex.ts";
 import { registerDispatchCommand } from "./slash.ts";
 
@@ -347,8 +354,10 @@ export function loadRouting(configDir) {
  * The extension entrypoint.
  *
  * @param {any} pi omp's ExtensionAPI
+ * @param {{lookupPane?: Function}} [options] injectable read-only lifecycle lookup for tests
  */
-export default function dispatchBrain(pi) {
+export default function dispatchBrain(pi, options = {}) {
+  const lifecycleLookup = options.lookupPane ?? lookupHerdrAgent;
   const timers = new Set();
   const router = new RouterCursor();
   let brain = null;
@@ -367,10 +376,12 @@ export default function dispatchBrain(pi) {
   // One-shot alarm latch: a stuck lane is reported once, not on every poll,
   // until it shows progress again.
   const alarmedLanes = new Set();
+  // Query failures are visible once per lane but never converted to orphaned.
+  const lifecycleUnknown = new Set();
   // Compacted stage per lane, republished as the sidebar `dstate` token.
   const sidebarStage = new Map();
   let statePath = null;
-  let coldStart = { live: [], orphaned: [], resume: [] };
+  let coldStart = { live: [], orphaned: [], unknown: [], resume: [] };
   let pressure = "ok";
 
   /** Recompute host pressure; a probe failure yields no opinion, not a freeze. */
@@ -416,20 +427,53 @@ export default function dispatchBrain(pi) {
     }
   };
 
+  const publishDstate = (value) => {
+    if (!value) return;
+    try {
+      sessionCtx?.ui?.setStatus?.("dstate", value);
+    } catch {
+      // Sidebar projection is best effort; the shared ledger is authoritative.
+    }
+  };
+
   pi.setLabel?.(LABEL);
 
   // Registered before any event fires, so `/dispatch` is available from the
   // first prompt rather than appearing once a session has warmed up. The
   // command holds no gates of its own — it is a way to reach the bus, and the
   // bus is where lint, claim and atomicity live.
-  registerDispatchCommand(pi);
+  registerDispatchCommand(pi, {
+    onSuccess: () => {
+      if (!statePath) return;
+      const synced = readState(statePath);
+      if (synced) brain = synced;
+    },
+  });
 
   pi.on("session_start", async (_event, eventCtx) => {
     if (!isRoot(eventCtx)) return;
     rootSession = true;
     sessionCtx = eventCtx;
-    brain = { orchestrator_phase: "contract", brain: { awaiting_lanes: [] } };
     statePath = resolveStatePath(eventCtx.cwd);
+    brain = readState(statePath) ?? {
+      orchestrator_phase: "contract",
+      brain: { awaiting_lanes: [] },
+    };
+
+    const restoredStage = Object.entries(brain?.lanes ?? {})
+      .filter(([, lane]) => lane?.current_stage)
+      .sort(
+        ([, a], [, b]) =>
+          Number(b?.last_heartbeat ?? 0) - Number(a?.last_heartbeat ?? 0),
+      )[0];
+    if (restoredStage) {
+      const [laneId, lane] = restoredStage;
+      const token = displayStage(lane.current_stage);
+      if (token) {
+        sidebarStage.set(laneId, token);
+        publishDstate(token);
+      }
+    }
 
     // Cold start: adopt whatever survived, and flag what did not.
     try {
@@ -441,6 +485,12 @@ export default function dispatchBrain(pi) {
             `restart (${reconciled.orphaned.map((o) => o.laneId).join(", ")})`,
         );
       }
+      if (reconciled.unknown.length > 0) {
+        note(
+          `dispatch: lifecycle status unknown for ${reconciled.unknown.length} lane(s) ` +
+            `(${reconciled.unknown.map((o) => o.laneId).join(", ")}); claims remain held`,
+        );
+      }
       for (const entry of reconciled.resume) {
         if (!entry.ok) {
           note(`dispatch: lane ${entry.laneId} resume command rejected — ${entry.reason}`);
@@ -450,17 +500,28 @@ export default function dispatchBrain(pi) {
       note(`dispatch: cold-start reconciliation skipped (${error})`);
     }
 
-    // Announce the loop once. `aside` puts it at the next step boundary
-    // without interrupting reasoning that is already under way.
+    // Startup diagnostics are UI-only. Injecting an aside here creates a
+    // model turn during cold start, which is not evidence that any lane changed.
     try {
-      pi.sendUserMessage?.(
-        "Dispatch brain loop attached. Phase 0 meta-tasks: " +
-          PHASE0_TODOS.map((t) => t.phase).join(" -> ") +
-          ". Todo reminders while parked are not new work.",
-        { deliverAs: "aside", attribution: "agent" },
-      );
+      if (
+        (coldStart?.live?.length ?? 0) > 0 ||
+        (coldStart?.orphaned?.length ?? 0) > 0 ||
+        (coldStart?.unknown?.length ?? 0) > 0
+      ) {
+        const active = [
+          ...(coldStart?.live ?? []),
+          ...(coldStart?.orphaned ?? []),
+          ...(coldStart?.unknown ?? []),
+        ]
+          .map((entry) => entry.laneId)
+          .join(", ");
+        eventCtx?.ui?.notify?.(
+          `dispatch: recovered persisted run state for lane(s) ${active}`,
+          "info",
+        );
+      }
     } catch {
-      // A refused injection must not abort session setup.
+      // UI diagnostics are best effort and must not abort session setup.
     }
 
     // The stall watchdog is a managed timer. A raw interval whose callback
@@ -492,22 +553,18 @@ export default function dispatchBrain(pi) {
   /**
    * The park guard.
    *
-   * A reminder while parked is noise: the orchestrator's own meta-task is
-   * deliberately suspended pending worker IPC. Answering it with a corrective
-   * steer is the strongest response available to an extension — see the
-   * platform-limitation note at the top of this file.
+   * OMP 18.4.10 exposes no todo mutation API to extensions. A parked reminder
+   * therefore cannot be turned into a native blocked todo from here. The safe
+   * fallback is deliberately UI-only: do not inject an aside, because that
+   * schedules the very continuation the guard is meant to suppress.
    */
   pi.on("todo_reminder", async (_event, eventCtx) => {
     if (!rootSession || !isRoot(eventCtx)) return;
     if (!brain || !isParked(brain)) return;
-    try {
-      pi.sendUserMessage?.(parkGuardMessage(brain), {
-        deliverAs: "aside",
-        attribution: "agent",
-      });
-    } catch {
-      // Best effort; never propagate out of a reminder handler.
-    }
+    note(
+      `${parkGuardMessage(brain)} Native todo blocked mutation is unavailable ` +
+        "to this extension host; blocked status is NOT VERIFIED.",
+    );
   });
 
   /**
@@ -600,13 +657,13 @@ export default function dispatchBrain(pi) {
 
     for (const laneId of waiting) {
       const paneId = lanes?.[laneId]?.pane_id ?? lanes?.[laneId]?.pane;
-      const info = paneId ? lookupPane(paneId) : null;
+      const observed = paneId ? lookupLifecyclePane(paneId) : { status: "absent", reason: "no pane recorded" };
 
       // A heartbeat inside the window is liveness evidence: reset this lane and
       // leave every other lane's counter alone. Note the polarity — a *recent*
       // beat clears the counter; `heartbeatDue` reports the opposite (that a
       // beat is missing or stale), so the branches are inverted deliberately.
-      const beatAt = lastBeat.get(laneId);
+      const beatAt = lastBeat.get(laneId) ?? lanes?.[laneId]?.last_heartbeat;
       const hasFreshBeat =
         Number.isFinite(beatAt) && !heartbeatDue(beatAt, Date.now(), STALL_THRESHOLD_MS);
       if (hasFreshBeat) {
@@ -616,6 +673,27 @@ export default function dispatchBrain(pi) {
         continue;
       }
 
+      if (observed?.status === "unknown") {
+        if (!lifecycleUnknown.has(laneId)) {
+          lifecycleUnknown.add(laneId);
+          note(
+            `dispatch watchdog: lifecycle status unknown for lane ${laneId}; ` +
+              `claim remains held (${observed.reason ?? "lookup unavailable"})`,
+          );
+        }
+        continue;
+      }
+      if (observed?.status === "absent") {
+        if (!lifecycleUnknown.has(laneId)) {
+          lifecycleUnknown.add(laneId);
+          note(
+            `dispatch watchdog: pane ${paneId || "-"} for lane ${laneId} is absent; recovery required`,
+          );
+        }
+        continue;
+      }
+      lifecycleUnknown.delete(laneId);
+      const info = observed?.status === "known" ? observed.info : observed;
       if (!info) continue;
 
       // Gate D: Semantic Watchdog lease extension (Issue #134). If an active lease
@@ -673,45 +751,103 @@ export default function dispatchBrain(pi) {
     if (!parsed.ok) return parsed;
 
     const lane = laneFromSignature(parsed.notify.signature);
+    const workerPane = paneFromSignature(parsed.notify.signature);
     parsed.notify.lane = lane;
-
-    // A report from an unknown lane must not wake this run's brain.
-    const known = new Set(brain?.brain?.awaiting_lanes ?? []);
-    if (lane && known.size > 0 && !known.has(lane)) {
-      return { ok: false, reason: `report is for lane ${lane}, not one of ours` };
+    if (!lane) {
+      return { ok: false, reason: "report has no registered lane identity" };
     }
 
-    if (!isParked(brain)) {
-      // Not parked: record it, but do not fabricate a transition.
-      inbox.push(parsed.notify);
-      return { ok: true, notify: parsed.notify, transitioned: false };
+    const persisted = readState(statePath);
+    if (!persisted) {
+      return { ok: false, reason: "shared dispatch state is unavailable" };
+    }
+    const laneState = persisted?.lanes?.[lane];
+    if (!laneState || typeof laneState !== "object") {
+      return { ok: false, reason: `report is for unregistered lane ${lane}` };
     }
 
-    const problem = checkTransition("yield_and_guard", "synthesis", "notify");
-    if (problem) return { ok: false, reason: problem };
+    const expectedPane = String(laneState.pane_id ?? laneState.pane ?? "");
+    const expectedRun = String(laneState.run_id ?? persisted.run_id ?? "");
+    const expectedDispatch = String(laneState.dispatch_id ?? "");
+    const expectedHandoff = String(laneState.handoff ?? "");
 
-    brain.orchestrator_phase = "synthesis";
-    brain.blocked_reason = "";
-    brain.brain = {
-      ...(brain.brain ?? {}),
-      awaiting_lanes: (brain.brain?.awaiting_lanes ?? []).filter((id) => id !== lane),
-      notifications_seen: (brain.brain?.notifications_seen ?? 0) + 1,
+    if (!workerPane || workerPane !== expectedPane) {
+      return { ok: false, reason: `report worker pane ${workerPane || "-"} does not match ${expectedPane || "-"}` };
+    }
+    if (!parsed.notify.runId || parsed.notify.runId !== expectedRun) {
+      return { ok: false, reason: "report run identity is stale or missing" };
+    }
+    if (!parsed.notify.dispatchId || parsed.notify.dispatchId !== expectedDispatch) {
+      return { ok: false, reason: "report dispatch identity is stale or missing" };
+    }
+    if (!parsed.notify.handoff || parsed.notify.handoff !== expectedHandoff) {
+      return { ok: false, reason: "report handoff does not match the dispatched artifact" };
+    }
+
+    const waiting = new Set(persisted?.brain?.awaiting_lanes ?? []);
+    if (!waiting.has(lane)) {
+      if (laneState.phase === "done" && laneState.notified_at) {
+        return { ok: true, notify: parsed.notify, duplicate: true, transitioned: false };
+      }
+      return { ok: false, reason: `report is for lane ${lane}, not one currently awaited` };
+    }
+
+    const lanePatch = {
+      phase: "done",
+      handoff: expectedHandoff,
+      notified_at: Date.now(),
     };
+    const partition = checkPartition(lanePatch, "extension");
+    if (!partition.ok) return { ok: false, reason: partition.reason };
+
+    const persistedResult = updateState(statePath, (state) => {
+      const currentLane = state?.lanes?.[lane];
+      if (!currentLane || typeof currentLane !== "object") {
+        throw new Error(`lane ${lane} disappeared before notify commit`);
+      }
+      state.lanes[lane] = { ...currentLane, ...lanePatch };
+      const currentWaiting = Array.from(state?.brain?.awaiting_lanes ?? []);
+      state.brain = {
+        ...(state.brain ?? {}),
+        awaiting_lanes: currentWaiting.filter((id) => id !== lane),
+        notifications_seen: Number(state?.brain?.notifications_seen ?? 0) + 1,
+      };
+      if (state.brain.awaiting_lanes.length === 0) {
+        state.orchestrator_phase = "synthesis";
+        state.blocked_reason = "";
+      } else {
+        state.orchestrator_phase = "yield_and_guard";
+        state.blocked_reason = `Awaiting worker IPC [NOTIFY] on ${state.brain.awaiting_lanes.join(", ")}`;
+      }
+      return state;
+    });
+    if (!persistedResult.ok) return persistedResult;
+
+    brain = persistedResult.state;
     inbox.push(parsed.notify);
     lastSeq.delete(lane);
+    stallByLane.delete(lane);
+    alarmedLanes.delete(lane);
     stallPolls = 0;
 
-    try {
-      pi.sendUserMessage?.(
-        `Dispatch: ${lane || "worker"} reported completion. Phase 0 advanced to ` +
-          "synthesis — reconcile facts across lanes and state the blockers you " +
-          "actually observed. Do not restate the report.",
-        { deliverAs: "aside", attribution: "agent" },
+    const transitioned = brain.brain.awaiting_lanes.length === 0;
+    if (transitioned) {
+      try {
+        pi.sendUserMessage?.(
+          `Dispatch: ${lane} reported completion and all awaited lanes are terminal. ` +
+            "Phase 0 advanced to synthesis — reconcile facts across lanes and state " +
+            "the blockers you actually observed.",
+          { deliverAs: "aside", attribution: "agent" },
+        );
+      } catch {
+        // A refused wake steer must not undo the committed result.
+      }
+    } else {
+      note(
+        `dispatch: lane ${lane} completed; still awaiting ${brain.brain.awaiting_lanes.join(", ")}`,
       );
-    } catch {
-      // Best effort.
     }
-    return { ok: true, notify: parsed.notify, transitioned: true };
+    return { ok: true, notify: parsed.notify, transitioned };
   }
 
   /**
@@ -731,16 +867,34 @@ export default function dispatchBrain(pi) {
     if (!parsed.ok) return parsed;
 
     const beat = parsed.beat;
-    const verdict = checkPartition(
-      heartbeatFields(beat, nowMs),
-      "extension",
-    );
+    if (!beat.lane) {
+      return { ok: false, reason: "heartbeat has no registered lane identity" };
+    }
+    const fields = heartbeatFields(beat, nowMs);
+    const verdict = checkPartition(fields, "extension");
     if (!verdict.ok) return { ok: false, reason: verdict.reason };
 
-    const waiting = new Set(brain?.brain?.awaiting_lanes ?? []);
-    if (beat.lane && waiting.size > 0 && !waiting.has(beat.lane)) {
-      return { ok: false, reason: `heartbeat is for lane ${beat.lane}, not one of ours` };
+    const persisted = readState(statePath);
+    if (!persisted) {
+      return { ok: false, reason: "shared dispatch state is unavailable" };
     }
+    if (!persisted?.lanes?.[beat.lane]) {
+      return { ok: false, reason: `heartbeat is for unregistered lane ${beat.lane}` };
+    }
+    const waiting = new Set(persisted?.brain?.awaiting_lanes ?? []);
+    if (!waiting.has(beat.lane)) {
+      return { ok: false, reason: `heartbeat is for lane ${beat.lane}, not one currently awaited` };
+    }
+
+    const persistedResult = updateState(statePath, (state) => {
+      state.lanes[beat.lane] = {
+        ...(state.lanes?.[beat.lane] ?? {}),
+        ...fields,
+      };
+      return state;
+    });
+    if (!persistedResult.ok) return persistedResult;
+    brain = persistedResult.state;
 
     heartbeats.push(beat);
     lastBeat.set(beat.lane, nowMs);
@@ -753,24 +907,27 @@ export default function dispatchBrain(pi) {
     }
 
     const stage = displayStage(beat.stage);
-    if (stage) sidebarStage.set(beat.lane, stage);
+    if (stage) {
+      sidebarStage.set(beat.lane, stage);
+      publishDstate(stage);
+    }
 
     return {
       ok: true,
       beat,
-      fields: heartbeatFields(beat, nowMs),
+      fields,
       // The park is untouched; say so explicitly so a test can prove it.
       stillParked: isParked(brain),
       sidebarToken: stage ? { dstate: stage } : null,
     };
   }
 
-  /** Look up a pane's agent record without ever writing lifecycle state. */
-  function lookupPane(paneId) {
+  /** Look up a pane through the supported Herdr CLI without writing lifecycle state. */
+  function lookupLifecyclePane(paneId) {
     try {
-      return typeof pi.herdrAgentInfo === "function" ? pi.herdrAgentInfo(paneId) : null;
-    } catch {
-      return null;
+      return lifecycleLookup(paneId);
+    } catch (error) {
+      return { status: "unknown", reason: String(error) };
     }
   }
 
@@ -785,9 +942,9 @@ export default function dispatchBrain(pi) {
    */
   function reconcileColdStart() {
     const state = readState(statePath);
-    if (!state) return { live: [], orphaned: [], resume: [] };
+    if (!state) return { live: [], orphaned: [], unknown: [], resume: [] };
 
-    const { live, orphaned } = reconcileLanes(state.lanes ?? {}, lookupPane);
+    const { live, orphaned, unknown } = reconcileLanes(state.lanes ?? {}, lookupLifecyclePane);
 
     const resume = [];
     for (const laneId of Object.keys(state.lanes ?? {})) {
@@ -804,7 +961,7 @@ export default function dispatchBrain(pi) {
         }
       }
     }
-    return { live, orphaned, resume };
+    return { live, orphaned, unknown, resume };
   }
 
   /**
@@ -820,11 +977,17 @@ export default function dispatchBrain(pi) {
     // Heartbeat first: a text may carry both markers, and the heartbeat is the
     // weaker signal, so classifying it as a result would end the park.
     const beat = consumeHeartbeat(text);
-    if (beat.ok) return undefined;
+    if (beat.ok) return { handled: true };
+    if (text.includes(HEARTBEAT_MARKER)) {
+      note(`dispatch: heartbeat refused: ${beat.reason ?? "invalid heartbeat"}`);
+      return { handled: true };
+    }
 
     const result = consumeNotify(text);
-    if (!result.ok && result.reason?.includes("report is for lane")) {
-      note(`dispatch: ${result.reason}`);
+    if (result.ok) return { handled: true };
+    if (text.includes(NOTIFY_MARKER)) {
+      note(`dispatch: notify refused: ${result.reason ?? "invalid report"}`);
+      return { handled: true };
     }
     return undefined;
   });

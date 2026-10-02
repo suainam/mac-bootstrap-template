@@ -142,7 +142,9 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 3. **Reporting back — use the `notify` command, never a hand-quoted `[NOTIFY]`**:
    ```bash
    python3 "$GATE" notify \
-     --signature "<pane_id>_<agent_kind>_<repo_slug>" \
+     --signature "<lane_id>_<worker_pane>" \
+     --run-id "<run-id from [DISPATCH]>" \
+     --dispatch-id "<dispatch-id from [DISPATCH]>" \
      --done "<one-line conclusion>" \
      --handoff "/tmp/handoff/<handoff-file>.md" \
      --target "$ORCH_PANE" \
@@ -152,7 +154,9 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    ```
    Emit the structure verbatim; do not retype it:
    ```text
-   [NOTIFY] [<pane_id>_<agent_kind>_<repo_slug>]
+   [NOTIFY] [<lane_id>_<worker_pane>]
+   Run ID: <run-id>
+   Dispatch ID: <dispatch-id>
    DONE: <一句话明确结论>
    Handoff: <handoff 绝对路径>
    回调目标坐标: <opaque Herdr pane id，例如 w3:pB>
@@ -173,10 +177,15 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    > but the `notify` command above is preferred, because it cannot be
    > mis-quoted and it renders the standard layout for you.
 4. **Todo Blocker Invariant**:
-   If tracking progress via `todo`, you MUST block the waiting task to prevent harness reminder loops:
+   If the active host exposes a todo mutation surface, block the waiting task:
    ```bash
    todo(op="block", task="<task>", reason="Awaiting background child agent <name> IPC [NOTIFY]")
    ```
+   OMP 18.4.10 does **not** expose todo mutation to extensions. In that host the
+   dispatch extension may only show a UI-only `NOT VERIFIED` diagnostic; it
+   MUST NOT use `sendUserMessage`/aside to imitate blocking, because that
+   creates a model continuation. Do not claim native blocked state from the
+   extension until the host exposes a verifiable bridge.
 
 ### Phase 4: Fire-and-Yield Supervision
 - **Yield immediately**: A successful unified-bus dispatch and `todo(op="block")` are terminal actions. Stop and yield control to user.

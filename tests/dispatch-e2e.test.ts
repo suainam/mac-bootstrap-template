@@ -92,7 +92,11 @@ function runPlugin(args: string[], env: Record<string, string> = {}) {
 
 /** The omp-side host, with a read-only pane registry. */
 function makeHost(cwd: string, panes: Record<string, Record<string, unknown>> = {}) {
-  const calls = { messages: [] as Array<{ text: string; options?: unknown }>, notes: [] as string[] };
+  const calls = {
+    messages: [] as Array<{ text: string; options?: unknown }>,
+    notes: [] as string[],
+    statuses: [] as Array<{ key: string; value: string }>,
+  };
   const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>();
   const host = {
     calls,
@@ -105,12 +109,13 @@ function makeHost(cwd: string, panes: Record<string, Record<string, unknown>> = 
       notify(message: string) {
         calls.notes.push(message);
       },
+      setStatus(key: string, value: string) {
+        calls.statuses.push({ key, value });
+      },
     },
     sendUserMessage(text: string, options?: unknown) {
       calls.messages.push({ text, options });
     },
-    // Read-only: the watchdog may look, never write.
-    herdrAgentInfo: (paneId: string) => panes[paneId] ?? null,
   };
   const ctx = {
     hasUI: true,
@@ -124,13 +129,25 @@ function makeHost(cwd: string, panes: Record<string, Record<string, unknown>> = 
   return {
     host,
     ctx,
+    lookupPane: (paneId: string) =>
+      panes[paneId]
+        ? { status: "known", info: panes[paneId] }
+        : { status: "absent", reason: "agent_not_found" },
     emit: (name: string, event: Record<string, unknown> = {}) =>
       handlers.get(name)?.(event, ctx),
   };
 }
 
-const NOTIFY = (lane: string) =>
-  `\n[NOTIFY] [${lane}_opencode_e2e-repo]\nDONE: lane finished\nHandoff: /tmp/h.md`;
+const NOTIFY = (
+  lane: string,
+  {
+    pane = "w3:p5",
+    runId = "run-e2e",
+    dispatchId = `dispatch-${lane.replace("-", "")}`,
+    handoff = `/tmp/handoff/${lane}.md`,
+  }: { pane?: string; runId?: string; dispatchId?: string; handoff?: string } = {},
+) =>
+  `\n[NOTIFY] [${lane}_${pane}]\nRun ID: ${runId}\nDispatch ID: ${dispatchId}\nDONE: lane finished\nHandoff: ${handoff}`;
 const BEAT = (lane: string, stage = "Stage 2 Reviewing on hk96") =>
   `\n[HEARTBEAT] [${lane}_opencode_e2e-repo]\nSTAGE: ${stage}\nPROGRESS: 1/2`;
 
@@ -159,46 +176,68 @@ describe("end-to-end: park, heartbeat, notify, synthesis", () => {
     expect(read().orchestrator_phase).toBe("yield_and_guard");
     expect(read().brain.awaiting_lanes).toEqual(["w3:p5"]);
 
-    const brain = dispatchBrain(run.host);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
     await run.emit("session_start");
-    // Adopt the park the plugin-side store established; the extension must
-    // see exactly what the plugin would render.
-    brain.setState(read());
+    // Production must adopt the persisted brain itself. Tests must not repair
+    // startup by injecting state that the real OMP session never receives.
     expect(brain.getState().orchestrator_phase).toBe("yield_and_guard");
     expect(brain.getState().brain.awaiting_lanes).toEqual(["w3:p5"]);
     void statePath;
   });
 
-  test("a heartbeat is absorbed without ending the park", async () => {
-    const { repo } = makeRun();
-    const run = makeHost(repo);
-    const brain = dispatchBrain(run.host);
-    await run.emit("session_start");
-    brain.setState({
+  test("a heartbeat is persisted without ending the park", async () => {
+    const { repo, read } = makeRun({
       orchestrator_phase: "yield_and_guard",
-      brain: { awaiting_lanes: ["w3:p5"], notifications_seen: 0 },
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          status: "working",
+        },
+      },
     });
+    const run = makeHost(repo);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
 
-    const result = brain.consumeHeartbeat(BEAT("w3:p5"));
+    const result = brain.consumeHeartbeat(BEAT("1-1"));
     expect(result.ok).toBe(true);
     // The whole point: liveness evidence must not hand work back.
     expect(result.stillParked).toBe(true);
     expect(brain.getState().orchestrator_phase).toBe("yield_and_guard");
     expect(result.sidebarToken).toEqual({ dstate: "s2@hk96" });
+    expect(run.host.calls.statuses.at(-1)).toEqual({ key: "dstate", value: "s2@hk96" });
     expect(brain.getHeartbeats()).toHaveLength(1);
+    expect(read().lanes["1-1"].current_stage).toBe("Stage 2 Reviewing on hk96");
+    expect(read().lanes["1-1"].progress_pct).toBe(50);
+    expect(typeof read().lanes["1-1"].last_heartbeat).toBe("number");
   });
 
   test("a report ends the park and advances to synthesis", async () => {
-    const { repo } = makeRun();
-    const run = makeHost(repo);
-    const brain = dispatchBrain(run.host);
-    await run.emit("session_start");
-    brain.setState({
+    const handoff = "/tmp/handoff/1-1.md";
+    const { repo } = makeRun({
+      run_id: "run-e2e",
       orchestrator_phase: "yield_and_guard",
-      brain: { awaiting_lanes: ["w3:p5"], notifications_seen: 0 },
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-11",
+          handoff,
+          status: "working",
+        },
+      },
     });
+    const run = makeHost(repo);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
 
-    const result = brain.consumeNotify(NOTIFY("w3:p5"));
+    const result = brain.consumeNotify(
+      NOTIFY("1-1", { pane: "w3:p5", dispatchId: "dispatch-11", handoff }),
+    );
     expect(result.ok).toBe(true);
     expect(result.transitioned).toBe(true);
     expect(brain.getState().orchestrator_phase).toBe("synthesis");
@@ -211,47 +250,244 @@ describe("end-to-end: park, heartbeat, notify, synthesis", () => {
   });
 
   test("heartbeats before the report do not shorten the park", async () => {
-    const { repo } = makeRun();
-    const run = makeHost(repo);
-    const brain = dispatchBrain(run.host);
-    await run.emit("session_start");
-    brain.setState({
+    const handoff = "/tmp/handoff/1-1.md";
+    const { repo } = makeRun({
+      run_id: "run-e2e",
       orchestrator_phase: "yield_and_guard",
-      brain: { awaiting_lanes: ["w3:p5"], notifications_seen: 0 },
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-11",
+          handoff,
+          status: "working",
+        },
+      },
     });
+    const run = makeHost(repo);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
 
     for (const stage of ["Stage 1 Planning", "Stage 2 Reviewing on hk96", "Stage 3 Verifying"]) {
-      brain.consumeHeartbeat(BEAT("w3:p5", stage));
+      brain.consumeHeartbeat(BEAT("1-1", stage));
       expect(brain.getState().orchestrator_phase).toBe("yield_and_guard");
     }
     expect(brain.getHeartbeats()).toHaveLength(3);
 
-    brain.consumeNotify(NOTIFY("w3:p5"));
+    brain.consumeNotify(
+      NOTIFY("1-1", { pane: "w3:p5", dispatchId: "dispatch-11", handoff }),
+    );
     expect(brain.getState().orchestrator_phase).toBe("synthesis");
     expect(brain.getState().brain.notifications_seen).toBe(1);
   });
 
-  test("a todo reminder never ends the park", async () => {
-    const { repo } = makeRun();
-    const run = makeHost(repo);
-    const brain = dispatchBrain(run.host);
-    await run.emit("session_start");
-    brain.setState({
+  test("heartbeat and notify inputs are consumed before a model turn", async () => {
+    const handoff = "/tmp/handoff/1-1.md";
+    const { repo } = makeRun({
+      run_id: "run-e2e",
       orchestrator_phase: "yield_and_guard",
-      brain: { awaiting_lanes: ["w3:p5"], notifications_seen: 0 },
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-11",
+          handoff,
+          status: "working",
+        },
+      },
     });
+    const run = makeHost(repo);
+    dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
 
+    expect(await run.emit("input", { text: BEAT("1-1") })).toEqual({ handled: true });
+    expect(
+      await run.emit("input", {
+        text: NOTIFY("1-1", { pane: "w3:p5", dispatchId: "dispatch-11", handoff }),
+      }),
+    ).toEqual({ handled: true });
+  });
+
+  test("todo reminders stay UI-only and never create a model continuation", async () => {
+    const { repo } = makeRun({
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: { "1-1": { lane: "1-1", pane_id: "w3:p5", status: "working" } },
+    });
+    const run = makeHost(repo);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
+
+    const before = run.host.calls.messages.length;
     for (let i = 0; i < 20; i += 1) {
       await run.emit("todo_reminder");
     }
-    // Twenty reminders, still parked. This is the loop that used to burn tokens.
+    // Twenty reminders, still parked, with zero model-turn injections.
     expect(brain.getState().orchestrator_phase).toBe("yield_and_guard");
-    const guard = run.host.calls.messages.at(-1);
-    expect(guard?.text).toContain("deliberate suspension");
+    expect(run.host.calls.messages).toHaveLength(before);
+    expect(run.host.calls.notes.some((n) => n.includes("NOT VERIFIED"))).toBe(true);
   });
 });
 
 // --------------------------------------------------------------------------
+
+describe("end-to-end: multi-lane convergence and report identity", () => {
+  test("first completion stays parked on the remaining lane; final completion persists synthesis", async () => {
+    const handoff1 = "/tmp/handoff/1-1.md";
+    const handoff2 = "/tmp/handoff/1-2.md";
+    const { repo, read } = makeRun({
+      run_id: "run-e2e",
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1", "1-2"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-11",
+          handoff: handoff1,
+          status: "working",
+        },
+        "1-2": {
+          lane: "1-2",
+          pane_id: "w3:p4",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-12",
+          handoff: handoff2,
+          status: "working",
+        },
+      },
+    });
+    const run = makeHost(repo, {
+      "w3:p5": { agent_status: "working", state_change_seq: 3 },
+      "w3:p4": { agent_status: "working", state_change_seq: 4 },
+    });
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
+
+    const first = brain.consumeNotify(
+      NOTIFY("1-1", { pane: "w3:p5", dispatchId: "dispatch-11", handoff: handoff1 }),
+    );
+    expect(first.ok).toBe(true);
+    expect(first.transitioned).toBe(false);
+    expect(read().orchestrator_phase).toBe("yield_and_guard");
+    expect(read().brain.awaiting_lanes).toEqual(["1-2"]);
+    expect(read().lanes["1-1"].phase).toBe("done");
+    expect(run.host.calls.messages).toHaveLength(0);
+
+    const second = brain.consumeNotify(
+      NOTIFY("1-2", { pane: "w3:p4", dispatchId: "dispatch-12", handoff: handoff2 }),
+    );
+    expect(second.ok).toBe(true);
+    expect(second.transitioned).toBe(true);
+    expect(read().orchestrator_phase).toBe("synthesis");
+    expect(read().brain.awaiting_lanes).toEqual([]);
+    expect(read().brain.notifications_seen).toBe(2);
+    expect(read().lanes["1-2"].phase).toBe("done");
+    expect(run.host.calls.messages).toHaveLength(1);
+  });
+
+  test("out-of-order completion still converges only after the final lane", async () => {
+    const { repo, read } = makeRun({
+      run_id: "run-e2e",
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1", "1-2"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-11",
+          handoff: "/tmp/handoff/1-1.md",
+          status: "working",
+        },
+        "1-2": {
+          lane: "1-2",
+          pane_id: "w3:p4",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-12",
+          handoff: "/tmp/handoff/1-2.md",
+          status: "working",
+        },
+      },
+    });
+    const run = makeHost(repo, {
+      "w3:p5": { agent_status: "working", state_change_seq: 3 },
+      "w3:p4": { agent_status: "working", state_change_seq: 4 },
+    });
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
+
+    expect(
+      brain.consumeNotify(
+        NOTIFY("1-2", {
+          pane: "w3:p4",
+          dispatchId: "dispatch-12",
+          handoff: "/tmp/handoff/1-2.md",
+        }),
+      ).transitioned,
+    ).toBe(false);
+    expect(read().brain.awaiting_lanes).toEqual(["1-1"]);
+    expect(read().orchestrator_phase).toBe("yield_and_guard");
+
+    expect(
+      brain.consumeNotify(
+        NOTIFY("1-1", {
+          pane: "w3:p5",
+          dispatchId: "dispatch-11",
+          handoff: "/tmp/handoff/1-1.md",
+        }),
+      ).transitioned,
+    ).toBe(true);
+    expect(read().brain.awaiting_lanes).toEqual([]);
+    expect(read().orchestrator_phase).toBe("synthesis");
+  });
+
+  test("wrong worker, stale run/dispatch, wrong handoff, and duplicates cannot advance", async () => {
+    const handoff = "/tmp/handoff/1-1.md";
+    const { repo, read } = makeRun({
+      run_id: "run-e2e",
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1"], notifications_seen: 0 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          pane_id: "w3:p5",
+          run_id: "run-e2e",
+          dispatch_id: "dispatch-11",
+          handoff,
+          status: "working",
+        },
+      },
+    });
+    const run = makeHost(repo, { "w3:p5": { agent_status: "working", state_change_seq: 3 } });
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
+    await run.emit("session_start");
+
+    for (const text of [
+      NOTIFY("1-1", { pane: "w3:p9", dispatchId: "dispatch-11", handoff }),
+      NOTIFY("1-1", { pane: "w3:p5", runId: "run-old", dispatchId: "dispatch-11", handoff }),
+      NOTIFY("1-1", { pane: "w3:p5", dispatchId: "dispatch-old", handoff }),
+      NOTIFY("1-1", { pane: "w3:p5", dispatchId: "dispatch-11", handoff: "/tmp/handoff/wrong.md" }),
+      `[NOTIFY] [1-1_w3:p5]\nDONE: copied example\nHandoff: ${handoff}`,
+    ]) {
+      expect(brain.consumeNotify(text).ok).toBe(false);
+      expect(read().brain.awaiting_lanes).toEqual(["1-1"]);
+      expect(read().brain.notifications_seen).toBe(0);
+    }
+
+    const valid = NOTIFY("1-1", { pane: "w3:p5", dispatchId: "dispatch-11", handoff });
+    expect(brain.consumeNotify(valid).ok).toBe(true);
+    const afterFirst = read();
+    expect(afterFirst.brain.notifications_seen).toBe(1);
+    expect(brain.consumeNotify(valid)).toMatchObject({ ok: true, duplicate: true });
+    expect(read().brain.notifications_seen).toBe(1);
+  });
+});
 
 describe("end-to-end: watchdog and cold start", () => {
   test("a stalled lane alarms once, not every poll", async () => {
@@ -261,7 +497,7 @@ describe("end-to-end: watchdog and cold start", () => {
     const run = makeHost(repo, {
       "w3:p5": { agent_status: "working", state_change_seq: 9 },
     });
-    const brain = dispatchBrain(run.host);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
     await run.emit("session_start");
     brain.setState({
       orchestrator_phase: "yield_and_guard",
@@ -282,25 +518,23 @@ describe("end-to-end: watchdog and cold start", () => {
 
   test("a heartbeat resets one lane without masking another", async () => {
     const { repo } = makeRun({
+      orchestrator_phase: "yield_and_guard",
+      brain: { awaiting_lanes: ["1-1", "1-2"], notifications_seen: 0 },
       lanes: {
-        "w3:p5": { lane: "1-1", pane_id: "w3:p5" },
-        "w3:p4": { lane: "1-2", pane_id: "w3:p4" },
+        "1-1": { lane: "1-1", pane_id: "w3:p5" },
+        "1-2": { lane: "1-2", pane_id: "w3:p4" },
       },
     });
     const run = makeHost(repo, {
       "w3:p5": { agent_status: "working", state_change_seq: 1 },
       "w3:p4": { agent_status: "working", state_change_seq: 1 },
     });
-    const brain = dispatchBrain(run.host);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
     await run.emit("session_start");
-    brain.setState({
-      orchestrator_phase: "yield_and_guard",
-      brain: { awaiting_lanes: ["w3:p5", "w3:p4"], notifications_seen: 0 },
-    });
 
     for (let i = 0; i < 12; i += 1) {
-      // Only lane w3:p5 keeps reporting in.
-      brain.consumeHeartbeat(BEAT("w3:p5", "Stage 1 Planning"));
+      // Only lane 1-1 keeps reporting in.
+      brain.consumeHeartbeat(BEAT("1-1", "Stage 1 Planning"));
       brain.tick();
     }
     const alarms = run.host.calls.messages.filter((m) => m.text.includes("no state change"));
@@ -329,13 +563,13 @@ describe("end-to-end: watchdog and cold start", () => {
     const run = makeHost(repo, {
       "w3:p5": { agent_status: "idle", state_change_seq: 5 },
     });
-    const brain = dispatchBrain(run.host);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
     await run.emit("session_start");
 
     const cold = brain.getColdStart();
     expect(cold.live.map((l: { laneId: string }) => l.laneId)).toEqual(["1-1"]);
     expect(cold.orphaned.map((o: { laneId: string }) => o.laneId)).toEqual(["1-2"]);
-    expect(cold.orphaned[0].reason).toBe("pane absent");
+    expect(cold.orphaned[0].reason).toContain("agent_not_found");
 
     // Valid command passes; the apostrophe one is rejected with a reason.
     expect(cold.resume).toHaveLength(2);
@@ -366,7 +600,7 @@ describe("end-to-end: the two surfaces", () => {
       },
     });
     const run = makeHost(repo, { "w3:p5": { agent_status: "working", state_change_seq: 4 } });
-    const brain = dispatchBrain(run.host);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
     await run.emit("session_start");
     brain.setState({
       orchestrator_phase: "yield_and_guard",
@@ -504,17 +738,22 @@ describe("end-to-end: the two surfaces", () => {
     const request = readFileSync(delivered, "utf8");
     expect(request).toContain("[DISPATCH]");
     const signature = request.match(/^Signature:\s*(\S+)$/m)?.[1] ?? "";
+    const runId = request.match(/^Run ID:\s*(\S+)$/m)?.[1] ?? "";
+    const dispatchId = request.match(/^Dispatch ID:\s*(\S+)$/m)?.[1] ?? "";
     const handoff = request.match(/^Handoff:\s*(\S+)$/m)?.[1] ?? "";
     expect(signature).not.toBe("");
+    expect(runId).not.toBe("");
+    expect(dispatchId).not.toBe("");
     expect(handoff).not.toBe("");
     expect(laneFromSignature(signature)).toBe("1-3");
-    const report = `[NOTIFY] [${signature}]\nDONE: completed\nHandoff: ${handoff}`;
+    const report =
+      `[NOTIFY] [${signature}]\nRun ID: ${runId}\nDispatch ID: ${dispatchId}\n` +
+      `DONE: completed\nHandoff: ${handoff}`;
 
     // Now drive the extension with the canonical completion report.
     const run = makeHost(repo);
-    const brain = dispatchBrain(run.host);
+    const brain = dispatchBrain(run.host, { lookupPane: run.lookupPane });
     await run.emit("session_start");
-    brain.setState(state);
 
     const result = brain.consumeNotify(report);
     expect(result.ok).toBe(true);
@@ -557,10 +796,11 @@ describe("end-to-end: the two surfaces", () => {
           .join("\n"),
       )
       .join("\n");
-    // The extension may read pane state, never drive Herdr.
-    expect(extCode.includes("HERDR_BIN_PATH")).toBe(false);
+    // The extension may query lifecycle with "agent get", but never report
+    // lifecycle state or send prompts through Herdr.
+    expect(extCode).toContain('"agent", "get"');
     expect(extCode.includes("report_metadata")).toBe(false);
     expect(extCode.includes("report-agent")).toBe(false);
-    expect(/spawnSync\(\s*["\']herdr/.test(extCode)).toBe(false);
+    expect(extCode).not.toContain('["agent", "prompt"');
   });
 });
