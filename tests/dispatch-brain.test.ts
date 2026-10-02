@@ -416,6 +416,23 @@ describe("crash safety", () => {
     await expect(pi.emit("session_start")).resolves.toBeUndefined();
   });
 
+  test("a corrupt shared ledger fails closed without crashing the session", async () => {
+    const { repo, statePath } = makeRepoWithState({
+      schema: 2,
+      orchestrator_phase: "contract",
+      brain: { awaiting_lanes: [] },
+      lanes: {},
+    });
+    writeFileSync(statePath, "{broken", "utf8");
+    const { pi, brain } = boot({ cwd: repo });
+
+    await expect(pi.emit("session_start")).resolves.toBeUndefined();
+    expect(brain.getState().orchestrator_phase).toBe("yield_and_guard");
+    expect(brain.getState().blocked_reason).toContain("recovery");
+    expect(pi.calls.notifications.some((n) => /unreadable|recovery/i.test(n.message))).toBe(true);
+    expect(pi.calls.messages).toHaveLength(0);
+  });
+
   test("a stall threshold produces a warning and a steer", async () => {
     // A real lane on disk, parked, whose pane never reports a state change.
     const { repo } = makeRepoWithState({

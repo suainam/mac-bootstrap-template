@@ -50,7 +50,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence
 
 SCHEMA_VERSION = 2
 SUPPORTED_SCHEMAS = (1, 2)
@@ -58,6 +58,7 @@ SUPPORTED_SCHEMAS = (1, 2)
 STATE_DIR_NAME = "dispatch"
 STATE_FILE_NAME = "ORCHESTRATOR_STATE.json"
 LOCK_FILE_NAME = ".ORCHESTRATOR_STATE.lock"
+LOCK_RECOVERY_FILE_NAME = ".ORCHESTRATOR_STATE.lock.recovery"
 DEFAULT_LOCK_STALE_SECONDS = 30
 
 # Phase 0 — the orchestrator brain loop.
@@ -313,6 +314,7 @@ def state_lock(
     wedging the run forever.
     """
     lock_path = path.parent / LOCK_FILE_NAME
+    recovery_path = path.parent / LOCK_RECOVERY_FILE_NAME
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + timeout
     fd: Optional[int] = None
@@ -324,10 +326,9 @@ def state_lock(
         except OSError as exc:
             if exc.errno != errno.EEXIST:
                 raise
-            if _lock_is_stale(lock_path, stale_after):
-                with contextlib.suppress(OSError):
-                    lock_path.unlink()
-                continue
+            if _lock_is_reclaimable(lock_path, stale_after):
+                if _reclaim_stale_lock(lock_path, recovery_path, stale_after):
+                    continue
             if time.monotonic() >= deadline:
                 raise LockTimeout(
                     f"could not acquire {lock_path} within {timeout}s"
@@ -343,12 +344,73 @@ def state_lock(
             lock_path.unlink()
 
 
-def _lock_is_stale(lock_path: Path, stale_after: float) -> bool:
+def _lock_owner_pid(lock_path: Path) -> Optional[int]:
+    try:
+        first = lock_path.read_text(encoding="utf-8").split(maxsplit=1)[0]
+        pid = int(first)
+    except (OSError, ValueError, IndexError):
+        return None
+    return pid if pid > 0 else None
+
+
+def _pid_is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        # Unknown OS errors are not evidence that the owner is dead.
+        return True
+    return True
+
+
+def _lock_is_reclaimable(lock_path: Path, stale_after: float) -> bool:
+    """Only a sufficiently old lock whose owner is provably dead may be reaped."""
     try:
         age = time.time() - lock_path.stat().st_mtime
-    except OSError:
+    except FileNotFoundError:
         return True
-    return age > stale_after
+    except OSError:
+        return False
+    if age <= stale_after:
+        return False
+    owner = _lock_owner_pid(lock_path)
+    return owner is None or not _pid_is_alive(owner)
+
+
+def _reclaim_stale_lock(
+    lock_path: Path,
+    recovery_path: Path,
+    stale_after: float,
+) -> bool:
+    """Serialize stale-lock deletion so competing reapers cannot delete a fresh lock."""
+    recovery_fd: Optional[int] = None
+    try:
+        try:
+            recovery_fd = os.open(
+                str(recovery_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+            )
+            os.write(recovery_fd, f"{os.getpid()} {now_unix_ms()}\n".encode())
+        except OSError as exc:
+            if exc.errno == errno.EEXIST:
+                return False
+            raise
+
+        # Re-check only after owning the recovery mutex. Another process may
+        # have replaced the stale lock while we were waiting for this mutex.
+        if not _lock_is_reclaimable(lock_path, stale_after):
+            return False
+        with contextlib.suppress(FileNotFoundError):
+            lock_path.unlink()
+        return True
+    finally:
+        if recovery_fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(recovery_fd)
+            with contextlib.suppress(OSError):
+                recovery_path.unlink()
 
 
 def load(path: Path) -> Dict[str, Any]:
@@ -402,6 +464,25 @@ def save(path: Path, state: Mapping[str, Any], *, timeout: float = 5.0) -> None:
         _write_atomic(path, state)
 
 
+def mutate(
+    path: Path,
+    mutator: Callable[[Dict[str, Any]], Optional[Dict[str, Any]]],
+    *,
+    timeout: float = 5.0,
+) -> Dict[str, Any]:
+    """Read, validate and write one authoritative state snapshot under one lock.
+
+    Use this when a decision depends on the state being written. The mutator
+    receives the freshly re-read document while the lock is held, so a stale
+    preflight cannot authorize a conflicting write.
+    """
+    with state_lock(path, timeout=timeout):
+        state = load(path)
+        next_state = mutator(state) or state
+        _write_atomic(path, next_state)
+        return next_state
+
+
 def update(
     path: Path,
     mutations: Mapping[str, Any],
@@ -413,11 +494,7 @@ def update(
     Mutations are shallow key assignments at the document root; nested lane
     updates go through :func:`update_lane`.
     """
-    with state_lock(path, timeout=timeout):
-        state = load(path)
-        state.update(mutations)
-        _write_atomic(path, state)
-        return state
+    return mutate(path, lambda state: state | dict(mutations), timeout=timeout)
 
 
 def update_lane(
@@ -709,28 +786,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 0
 
         if args.command == "park":
-            state = load(target)
-            park(state, args.lane, orchestrator_pane=args.pane)
-            save(target, state)
+            state = mutate(
+                target,
+                lambda current: park(
+                    current, args.lane, orchestrator_pane=args.pane
+                ),
+            )
             print(state["orchestrator_phase"])
             return 0
 
         if args.command == "wake":
-            state = load(target)
-            wake(state, signal=args.signal, lane=args.lane)
-            save(target, state)
+            state = mutate(
+                target,
+                lambda current: wake(
+                    current, signal=args.signal, lane=args.lane
+                ),
+            )
             print(state["orchestrator_phase"])
             return 0
 
         if args.command == "advance":
-            state = load(target)
-            advance(
-                state,
-                args.to,
-                reason=args.reason,
-                wake_signal=args.wake_signal,
+            state = mutate(
+                target,
+                lambda current: advance(
+                    current,
+                    args.to,
+                    reason=args.reason,
+                    wake_signal=args.wake_signal,
+                ),
             )
-            save(target, state)
             print(state["orchestrator_phase"])
             return 0
 

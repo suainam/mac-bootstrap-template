@@ -489,13 +489,42 @@ def test_status_command_runs(tmp_path: Path, capsys) -> None:
     assert "brain: contract" in capsys.readouterr().out
 
 
+def test_status_projection_is_scoped_to_the_requested_repository(tmp_path: Path, capsys) -> None:
+    repos = [tmp_path / "repo-a", tmp_path / "repo-b"]
+    for repo in repos:
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+
+    first = brain.default_state()
+    first["run_id"] = "run-a"
+    first["lanes"] = {"1-1": {"lane": "1-1", "status": "working"}}
+    brain.save(brain.state_path(repos[0]), first)
+
+    second = brain.default_state()
+    second["run_id"] = "run-b"
+    second["lanes"] = {"2-1": {"lane": "2-1", "status": "working"}}
+    brain.save(brain.state_path(repos[1]), second)
+
+    assert brain.state_path(repos[0]) != brain.state_path(repos[1])
+
+    assert plugin.main(["--repo", str(repos[0]), "status"]) == 0
+    out_a = capsys.readouterr().out
+    assert "1-1" in out_a
+    assert "2-1" not in out_a
+
+    assert plugin.main(["--repo", str(repos[1]), "status"]) == 0
+    out_b = capsys.readouterr().out
+    assert "2-1" in out_b
+    assert "1-1" not in out_b
+
+
 def test_view_command_refuses_an_implicit_change(capsys) -> None:
     """No argument means no change, because a projection replaces a policy."""
     assert plugin.main(["view"]) == 0
     assert "opt-in" in capsys.readouterr().out
 
 
-def test_startup_marks_missing_panes_as_orphaned(
+def test_startup_marks_unobserved_panes_recovery_required_without_releasing_claim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     repo = tmp_path / "repo"
@@ -514,12 +543,12 @@ def test_startup_marks_missing_panes_as_orphaned(
 
     assert plugin.main(["--repo", str(repo), "startup"]) == 0
     out = capsys.readouterr().out
-    assert "orphaned=1" in out
+    assert "recovery_required=1" in out
 
     reloaded = brain.load(brain.state_path(repo))
-    # Evidence is kept: a crashed worker must not look like a finished one.
-    assert reloaded["lanes"]["1-1"]["status"] == "orphaned"
-    assert reloaded["lanes"]["1-1"]["orphan_pane"] == "w9:p9"
+    # Missing from one observation is not proof of release.
+    assert reloaded["lanes"]["1-1"]["status"] == "recovery_required"
+    assert reloaded["lanes"]["1-1"]["recovery_pane"] == "w9:p9"
 
 
 def test_startup_keeps_live_status_from_herdr(
@@ -542,13 +571,24 @@ def test_startup_keeps_live_status_from_herdr(
     assert brain.load(brain.state_path(repo))["lanes"]["1-1"]["status"] == "working"
 
 
-def test_startup_survives_an_unavailable_agent_list(
+def test_startup_survives_an_unavailable_agent_list_without_releasing_claims(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """A startup hook must not wedge the server."""
+    """A query failure is unknown, not evidence that an owner disappeared."""
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    state = brain.default_state()
+    state["lanes"] = {
+        "1-1": {
+            "lane": "1-1",
+            "pane_id": "w3:p5",
+            "worktree": str(repo),
+            "branch": "feat/live",
+            "status": "working",
+        }
+    }
+    brain.save(brain.state_path(repo), state)
 
     def boom():
         raise plugin.herdr.HerdrError("socket down")
@@ -559,6 +599,34 @@ def test_startup_survives_an_unavailable_agent_list(
 
     assert plugin.main(["--repo", str(repo), "startup"]) == 0
     assert "agent list unavailable" in capsys.readouterr().out
+    assert brain.load(brain.state_path(repo))["lanes"]["1-1"]["status"] == "working"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["startup"],
+        ["claim", "--lane", "1-2", "--worktree", "/tmp/wt", "--branch", "feat/x"],
+        ["watchdog", "--lane", "1-1"],
+    ],
+)
+def test_corrupt_state_refuses_control_plane_decisions(
+    tmp_path: Path, argv: list[str], capsys
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    path = brain.state_path(repo)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{broken", encoding="utf-8")
+
+    command = (
+        [*argv, "--repo", str(repo)]
+        if argv and argv[0] == "watchdog"
+        else ["--repo", str(repo), *argv]
+    )
+    assert plugin.main(command) == 2
+    assert "not valid JSON" in capsys.readouterr().err
 
 
 def test_project_command_never_reports_lifecycle(

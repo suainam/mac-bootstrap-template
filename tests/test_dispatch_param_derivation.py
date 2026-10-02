@@ -15,6 +15,7 @@ That is the route by which two interactive agents end up sharing one worktree.
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -245,6 +246,7 @@ def test_placement_comes_from_the_pane_cwd_and_its_git_head(tmp_path: Path) -> N
     placement = derive.derive_placement(
         "w3:p9",
         pane_lookup=lambda target: str(tmp_path),
+        worktree_reader=lambda cwd: cwd,
         branch_reader=lambda cwd: "feat/1-3",
     )
     assert placement.worktree == str(tmp_path.resolve())
@@ -254,7 +256,12 @@ def test_placement_comes_from_the_pane_cwd_and_its_git_head(tmp_path: Path) -> N
 def test_a_pane_with_no_cwd_refuses(tmp_path: Path) -> None:
     """The empty-value escape hatch: this is the case that must not exist."""
     with pytest.raises(derive.DerivationRefused) as excinfo:
-        derive.derive_placement("w3:p9", pane_lookup=lambda target: "", branch_reader=lambda c: "b")
+        derive.derive_placement(
+            "w3:p9",
+            pane_lookup=lambda target: "",
+            worktree_reader=lambda cwd: cwd,
+            branch_reader=lambda c: "b",
+        )
     assert "no cwd" in str(excinfo.value)
 
 
@@ -263,12 +270,22 @@ def test_a_failing_pane_probe_refuses() -> None:
         raise RuntimeError("socket closed")
 
     with pytest.raises(derive.DerivationRefused):
-        derive.derive_placement("w3:p9", pane_lookup=boom, branch_reader=lambda c: "b")
+        derive.derive_placement(
+            "w3:p9",
+            pane_lookup=boom,
+            worktree_reader=lambda cwd: cwd,
+            branch_reader=lambda c: "b",
+        )
 
 
 def test_a_missing_target_refuses() -> None:
     with pytest.raises(derive.DerivationRefused):
-        derive.derive_placement("", pane_lookup=lambda t: "/tmp", branch_reader=lambda c: "b")
+        derive.derive_placement(
+            "",
+            pane_lookup=lambda t: "/tmp",
+            worktree_reader=lambda cwd: cwd,
+            branch_reader=lambda c: "b",
+        )
 
 
 def test_a_stale_cwd_that_is_not_a_directory_refuses() -> None:
@@ -276,6 +293,7 @@ def test_a_stale_cwd_that_is_not_a_directory_refuses() -> None:
         derive.derive_placement(
             "w3:p9",
             pane_lookup=lambda target: "/nonexistent/wt/1-3",
+            worktree_reader=lambda cwd: cwd,
             branch_reader=lambda c: "b",
         )
     assert "not a directory" in str(excinfo.value)
@@ -290,6 +308,7 @@ def test_a_detached_head_refuses_rather_than_claiming_the_literal_head() -> None
         derive.derive_placement(
             "w3:p9",
             pane_lookup=lambda target: "/tmp",
+            worktree_reader=lambda cwd: cwd,
             branch_reader=lambda cwd: "HEAD",
         )
     assert "detached HEAD" in str(excinfo.value)
@@ -298,7 +317,10 @@ def test_a_detached_head_refuses_rather_than_claiming_the_literal_head() -> None
 def test_an_empty_branch_refuses() -> None:
     with pytest.raises(derive.DerivationRefused):
         derive.derive_placement(
-            "w3:p9", pane_lookup=lambda target: "/tmp", branch_reader=lambda cwd: "  "
+            "w3:p9",
+            pane_lookup=lambda target: "/tmp",
+            worktree_reader=lambda cwd: cwd,
+            branch_reader=lambda cwd: "  ",
         )
 
 
@@ -308,6 +330,29 @@ def test_a_non_git_directory_refuses_rather_than_returning_empty() -> None:
         derive.derive_placement(
             "w3:p9", pane_lookup=lambda target: "/", branch_reader=None
         )
+
+
+def test_real_pane_cwd_inside_a_repo_claims_the_git_worktree_root(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    subdir = repo / "src" / "nested"
+    subdir.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "dispatch-test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Dispatch Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "feat/live"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "--allow-empty", "-qm", "init"], check=True)
+
+    placement = derive.derive_placement("w3:p9", pane_lookup=lambda _target: str(subdir))
+
+    assert placement.worktree == str(repo.resolve())
+    assert placement.branch == "feat/live"
+
+
+def test_pane_in_an_existing_non_git_directory_is_refused(tmp_path: Path) -> None:
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    with pytest.raises(derive.DerivationRefused, match="Git worktree"):
+        derive.derive_placement("w3:p9", pane_lookup=lambda _target: str(plain))
 
 
 # --------------------------------------------------------------------------
@@ -356,6 +401,7 @@ def _plan(repo: Path, task: Path, **over):
         callback_target="w3:p1",
         pane_lookup=over.pop("pane_lookup", lambda target: str(repo)),
         callback_lookup=over.pop("callback_lookup", lambda target: str(repo)),
+        worktree_reader=over.pop("worktree_reader", lambda cwd: cwd),
         branch_reader=over.pop("branch_reader", lambda cwd: "feat/1-3"),
     )
     kwargs.update(over)
@@ -415,24 +461,19 @@ def test_a_half_supplied_placement_is_derived_rather_than_left_incomplete(repo, 
     assert plan.branch == "feat/1-3"
 
 
-def test_the_missing_half_is_derived_from_the_supplied_half_not_the_pane(repo, task_file) -> None:
-    """The two halves must describe one tree.
-
-    Reading the branch from the pane while claiming a different worktree yields
-    a pair that looks valid and isolates nothing — so a supplied worktree is
-    also the source for the branch it did not supply.
-    """
+def test_a_supplied_worktree_must_match_the_target_pane(repo, task_file) -> None:
+    """An override is an assertion about the physical pane, not a replacement for it."""
     other = tmp_path_for(repo) / "elsewhere"
     other.mkdir()
-    plan = _plan(
-        repo,
-        task_file,
-        worktree=str(other),
-        pane_lookup=lambda target: str(repo),
-        branch_reader=lambda cwd: "feat/from-the-named-tree",
-    )
-    assert plan.worktree == str(other.resolve())
-    assert plan.branch == "feat/from-the-named-tree"
+    with pytest.raises(bus.DispatchRefused) as excinfo:
+        _plan(
+            repo,
+            task_file,
+            worktree=str(other),
+            pane_lookup=lambda target: str(repo),
+            branch_reader=lambda cwd: "feat/1-3",
+        )
+    assert "does not match" in str(excinfo.value)
 
 
 def test_a_named_worktree_with_no_branch_refuses(repo, task_file) -> None:
@@ -440,11 +481,11 @@ def test_a_named_worktree_with_no_branch_refuses(repo, task_file) -> None:
         _plan(repo, task_file, worktree=str(tmp_path_for(repo) / "missing"))
 
 
-def test_a_supplied_branch_disagreeing_with_the_pane_is_reported(repo, task_file) -> None:
-    """Neither silently honoured nor silently dropped."""
-    plan = _plan(repo, task_file, branch="feat/somewhere-else")
-    assert plan.branch == "feat/1-3"
-    assert any("disagrees" in note for note in plan.notes)
+def test_a_supplied_branch_disagreeing_with_the_pane_is_refused(repo, task_file) -> None:
+    """A declared branch cannot replace the branch physically checked out in the worker tree."""
+    with pytest.raises(bus.DispatchRefused) as excinfo:
+        _plan(repo, task_file, branch="feat/somewhere-else")
+    assert "does not match" in str(excinfo.value)
 
 
 def tmp_path_for(repo: Path) -> Path:
@@ -452,16 +493,16 @@ def tmp_path_for(repo: Path) -> Path:
     return repo.parent
 
 
-def test_both_halves_supplied_skip_the_probe_entirely(repo, task_file) -> None:
-    def unreachable(target: str) -> str:
-        raise AssertionError("probe must not run when both halves are given")
-
-    worktree = repo.parent / "wt-1-3"
-    worktree.mkdir(exist_ok=True)
+def test_both_halves_supplied_are_still_verified_against_the_pane(repo, task_file) -> None:
     plan = _plan(
-        repo, task_file, worktree=str(worktree), branch="feat/x", pane_lookup=unreachable
+        repo,
+        task_file,
+        worktree=str(repo),
+        branch="feat/1-3",
+        pane_lookup=lambda target: str(repo),
+        branch_reader=lambda cwd: "feat/1-3",
     )
-    assert (plan.worktree, plan.branch) == (str(worktree.resolve()), "feat/x")
+    assert (plan.worktree, plan.branch) == (str(repo.resolve()), "feat/1-3")
 
 
 def test_an_explicit_detached_head_is_refused_like_a_derived_one(repo, task_file) -> None:
@@ -486,23 +527,30 @@ def test_an_explicit_worktree_that_does_not_exist_is_refused(repo, task_file) ->
     assert "not a directory" in str(excinfo.value)
 
 
-def test_an_explicit_tilde_worktree_is_expanded(repo, task_file) -> None:
-    """A supplied `~/wt` must reach the state file in the same resolved shape a
-    derived one does, or the same directory gets two spellings in the record."""
+def test_an_explicit_tilde_worktree_is_expanded_before_matching_the_pane(repo, task_file) -> None:
+    """Equivalent spellings of the physical pane cwd remain valid assertions."""
     home = repo.parent / "home"
-    (home / "wt").mkdir(parents=True)
+    wt = home / "wt"
+    wt.mkdir(parents=True)
     import os as _os
 
     previous = _os.environ.get("HOME")
     _os.environ["HOME"] = str(home)
     try:
-        plan = _plan(repo, task_file, worktree="~/wt", branch="feat/x")
+        plan = _plan(
+            repo,
+            task_file,
+            worktree="~/wt",
+            branch="feat/x",
+            pane_lookup=lambda target: str(wt),
+            branch_reader=lambda cwd: "feat/x",
+        )
     finally:
         if previous is None:
             _os.environ.pop("HOME", None)
         else:
             _os.environ["HOME"] = previous
-    assert plan.worktree == str((home / "wt").resolve())
+    assert plan.worktree == str(wt.resolve())
 
 
 def test_the_receipt_shows_what_was_derived(repo, task_file) -> None:

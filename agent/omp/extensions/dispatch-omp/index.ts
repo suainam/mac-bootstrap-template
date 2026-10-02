@@ -455,10 +455,21 @@ export default function dispatchBrain(pi, options = {}) {
     rootSession = true;
     sessionCtx = eventCtx;
     statePath = resolveStatePath(eventCtx.cwd);
-    brain = readState(statePath) ?? {
-      orchestrator_phase: "contract",
-      brain: { awaiting_lanes: [] },
-    };
+    try {
+      brain = readState(statePath) ?? {
+        orchestrator_phase: "contract",
+        brain: { awaiting_lanes: [] },
+      };
+    } catch (error) {
+      brain = {
+        orchestrator_phase: "yield_and_guard",
+        blocked_reason: `shared dispatch state unreadable; recovery required: ${error}`,
+        brain: { awaiting_lanes: [] },
+        lanes: {},
+      };
+      note(brain.blocked_reason);
+      return;
+    }
 
     const restoredStage = Object.entries(brain?.lanes ?? {})
       .filter(([, lane]) => lane?.current_stage)
@@ -757,7 +768,15 @@ export default function dispatchBrain(pi, options = {}) {
       return { ok: false, reason: "report has no registered lane identity" };
     }
 
-    const persisted = readState(statePath);
+    let persisted;
+    try {
+      persisted = readState(statePath);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `shared dispatch state unreadable; recovery required: ${error}`,
+      };
+    }
     if (!persisted) {
       return { ok: false, reason: "shared dispatch state is unavailable" };
     }
@@ -874,7 +893,15 @@ export default function dispatchBrain(pi, options = {}) {
     const verdict = checkPartition(fields, "extension");
     if (!verdict.ok) return { ok: false, reason: verdict.reason };
 
-    const persisted = readState(statePath);
+    let persisted;
+    try {
+      persisted = readState(statePath);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `shared dispatch state unreadable; recovery required: ${error}`,
+      };
+    }
     if (!persisted) {
       return { ok: false, reason: "shared dispatch state is unavailable" };
     }
