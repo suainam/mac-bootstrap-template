@@ -44,10 +44,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
-# Lane statuses that no longer hold a physical claim. A lane in one of these
-# states has either finished its work or been explicitly released, so its
-# worktree may be reused by a later run.
-RELEASED_STATUSES = frozenset({"closed", "released", "cleaned", "orphaned"})
+# Only verified terminal/cleanup states release a physical claim.
+# Loss of observability (orphaned / unknown / recovery_required) is not proof
+# that the worker stopped using its worktree.
+RELEASED_STATUSES = frozenset({"closed", "released", "cleaned"})
 
 
 class LaneCollisionError(RuntimeError):

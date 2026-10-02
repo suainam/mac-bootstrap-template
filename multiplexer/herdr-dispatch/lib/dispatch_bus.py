@@ -253,6 +253,7 @@ class DispatchPlan:
         dispatch_id: str = "",
         pane_lookup: Optional[Callable[[str], str]] = None,
         callback_lookup: Optional[Callable[[str], str]] = None,
+        worktree_reader: Optional[Callable[[str], str]] = None,
         branch_reader: Optional[Callable[[str], str]] = None,
     ) -> "DispatchPlan":
         """Run every gate and compute every value. Raises on any refusal.
@@ -340,6 +341,7 @@ class DispatchPlan:
             branch=branch,
             notes=notes,
             pane_lookup=pane_lookup,
+            worktree_reader=worktree_reader,
             branch_reader=branch_reader,
         )
 
@@ -422,32 +424,45 @@ class DispatchPlan:
         file rather than a lane that was told to start and has no record.
         """
         state_path = brain.state_path(self.repo)
-        state = brain.load(state_path)
-
         entry = self.state_payload()
         entry["status"] = "dispatching"
-        if not state.get("run_id"):
-            state["run_id"] = self.run_id
-        state.setdefault("lanes", {})[self.lane] = {
-            **state.get("lanes", {}).get(self.lane, {}),
-            **entry,
-        }
-        state["active_panes"] = brain.default_state()["active_panes"] | {
-            "lanes": {
-                **state.get("active_panes", {}).get("lanes", {}),
-                self.lane: {"pane": self.target, "lane_name": self.lane_name},
+
+        def register(state: Dict[str, Any]) -> Dict[str, Any]:
+            _claim_state(
+                state,
+                self.lane,
+                run_id=self.run_id,
+                dispatch_id=self.dispatch_id,
+                worktree=self.worktree,
+                branch=self.branch,
+            )
+            recorded_run = str(state.get("run_id") or "")
+            if recorded_run and recorded_run != self.run_id:
+                raise DispatchRefused(
+                    f"run {self.run_id!r} cannot replace active repo run {recorded_run!r}; "
+                    "close or release the existing run before starting another"
+                )
+            if not recorded_run:
+                state["run_id"] = self.run_id
+
+            state.setdefault("lanes", {})[self.lane] = {
+                **state.get("lanes", {}).get(self.lane, {}),
+                **entry,
             }
-        }
-        # A dispatch is what the orchestrator then waits on. The brain machine
-        # only permits contract -> topology -> yield_and_guard, so walk the legal
-        # path rather than jumping: forcing the jump would either raise
-        # BrainPhaseError or leave a brain state claiming a phase it never
-        # legitimately reached.
-        _advance_to_parked(state, [self.lane])
-        brain.save(state_path, state)
+            state["active_panes"] = brain.default_state()["active_panes"] | {
+                "lanes": {
+                    **state.get("active_panes", {}).get("lanes", {}),
+                    self.lane: {"pane": self.target, "lane_name": self.lane_name},
+                }
+            }
+            # A dispatch is what the orchestrator then waits on. The brain machine
+            # only permits contract -> topology -> yield_and_guard, so walk the legal
+            # path rather than jumping.
+            _advance_to_parked(state, [self.lane])
+            return state
 
+        state = brain.mutate(state_path, register)
         rename_pane(self.target, self.lane_name)
-
         return state
 
 
@@ -569,6 +584,7 @@ def _derive_placement(
     branch: str,
     notes: List[str],
     pane_lookup: Optional[Callable[[str], str]] = None,
+    worktree_reader: Optional[Callable[[str], str]] = None,
     branch_reader: Optional[Callable[[str], str]] = None,
 ) -> tuple[str, str]:
     """Resolve the worktree/branch pair, deriving whatever was not supplied.
@@ -588,41 +604,38 @@ def _derive_placement(
     supplied_worktree = (worktree or "").strip()
     supplied_branch = (branch or "").strip()
 
-    if supplied_worktree and supplied_branch:
-        # Both were named, so there is nothing to probe — but the pair is
-        # still held to the same rules as a derived one.
-        return (
-            _deriving(derive.normalise_worktree, supplied_worktree),
-            _deriving(derive.checked_branch, supplied_branch, supplied_worktree),
-        )
-
-    if supplied_worktree:
-        # The worktree was named, so the branch is read from *that* directory.
-        # Reading it from the pane instead would describe a different tree than
-        # the one being claimed: a pair that looks valid and isolates nothing.
-        resolved_worktree = _deriving(derive.normalise_worktree, supplied_worktree)
-        resolved_branch = _deriving(derive.branch_at, resolved_worktree, reader=branch_reader)
-        notes.append(f"branch derived from {resolved_worktree}: {resolved_branch}")
-        return resolved_worktree, resolved_branch
-
-    # Nothing was supplied: both halves come from the target pane, so they are
-    # guaranteed to describe the same tree.
+    # The pane and Git checkout are always the physical source of truth.
+    # Overrides are assertions about those facts, never a way to skip probing
+    # them or claim a different tree.
     placement = _deriving(
         derive.derive_placement,
         target,
         pane_lookup=pane_lookup,
+        worktree_reader=worktree_reader,
         branch_reader=branch_reader,
     )
+
+    if supplied_worktree:
+        asserted_worktree = _deriving(derive.normalise_worktree, supplied_worktree)
+        if asserted_worktree != placement.worktree:
+            raise DispatchRefused(
+                f"--worktree {asserted_worktree!r} does not match target pane {target} "
+                f"cwd {placement.worktree!r}"
+            )
+    if supplied_branch:
+        asserted_branch = _deriving(
+            derive.checked_branch, supplied_branch, placement.worktree
+        )
+        if asserted_branch != placement.branch:
+            raise DispatchRefused(
+                f"--branch {asserted_branch!r} does not match the branch checked out "
+                f"in target pane {target} ({placement.branch!r})"
+            )
+
     notes.append(
         f"worktree derived from pane {target}: {placement.worktree}; "
         f"branch: {placement.branch}"
     )
-    if supplied_branch and supplied_branch != placement.branch:
-        notes.append(
-            f"--branch {supplied_branch!r} disagrees with the branch checked out "
-            f"in {placement.worktree} ({placement.branch!r}); using the branch "
-            "the lane's own worktree is on"
-        )
     return placement.worktree, placement.branch
 
 
@@ -673,15 +686,16 @@ def _lint_contract(task: Path) -> None:
         sys.modules.pop(module_name, None)
 
 
-def _claim(repo: Path, lane: str, *, worktree: str, branch: str) -> None:
-    """Refuse if a live lane already holds this worktree or branch.
-
-    An empty pair is refused here rather than treated as "nothing to claim".
-    The claim gate skips a lane with no worktree and no branch, so an empty pair
-    is a gate that did not run — and the only way one reaches this point is a
-    derivation that failed silently. Making it a refusal means that failure has
-    to be loud.
-    """
+def _claim_state(
+    state: Mapping[str, Any],
+    lane: str,
+    *,
+    run_id: str,
+    dispatch_id: str,
+    worktree: str,
+    branch: str,
+) -> None:
+    """Validate one claim against the freshly read authoritative state."""
     import lane_isolation as isolation
 
     if not (worktree.strip() or branch.strip()):
@@ -691,7 +705,23 @@ def _claim(repo: Path, lane: str, *, worktree: str, branch: str) -> None:
             "could not be placed; fix the pane or pass both explicitly."
         )
 
-    state = brain.load(brain.state_path(repo))
+    current = (state.get("lanes") or {}).get(lane)
+    if isinstance(current, Mapping):
+        status = str(current.get("status") or "").strip().lower()
+        if status not in isolation.RELEASED_STATUSES:
+            current_run = str(current.get("run_id") or "")
+            current_dispatch = str(current.get("dispatch_id") or "")
+            if not current_run or not current_dispatch:
+                raise DispatchRefused(
+                    f"claim gate refused the dispatch:\nlane {lane!r} has an active "
+                    "legacy claim without run/dispatch identity; recovery is required"
+                )
+            if current_run != run_id or current_dispatch != dispatch_id:
+                raise DispatchRefused(
+                    f"claim gate refused the dispatch:\nlane {lane!r} is already "
+                    f"owned by run {current_run!r} dispatch {current_dispatch!r}"
+                )
+
     try:
         isolation.claim_lane(
             state.get("lanes") or {}, lane, worktree=worktree, branch=branch
@@ -700,6 +730,19 @@ def _claim(repo: Path, lane: str, *, worktree: str, branch: str) -> None:
         raise DispatchRefused(
             f"claim gate refused the dispatch:\n{exc}"
         ) from exc
+
+
+def _claim(repo: Path, lane: str, *, worktree: str, branch: str) -> None:
+    """Preflight claim check; commit repeats it under the authoritative lock."""
+    state = brain.load(brain.state_path(repo))
+    _claim_state(
+        state,
+        lane,
+        run_id=str((state.get("lanes") or {}).get(lane, {}).get("run_id") or ""),
+        dispatch_id=str((state.get("lanes") or {}).get(lane, {}).get("dispatch_id") or ""),
+        worktree=worktree,
+        branch=branch,
+    )
 
 
 # --------------------------------------------------------------------------

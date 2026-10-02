@@ -66,12 +66,9 @@ def state_path(args: argparse.Namespace) -> Path:
 
 
 def _state(repo: Optional[str]) -> Dict[str, Any]:
+    """Load authoritative state; corruption is a refusal, never an empty run."""
     path = brain.state_path(Path(repo) if repo else None)
-    try:
-        return brain.load(path)
-    except brain.StateError as exc:
-        print(f"dispatch: {exc}", file=sys.stderr)
-        return brain.default_state()
+    return brain.load(path)
 
 
 def _lanes(state: Mapping[str, Any]) -> List[Dict[str, Any]]:
@@ -100,9 +97,10 @@ def cmd_startup(args: argparse.Namespace) -> int:
     state = _state(args.repo)
     phase = state.get("orchestrator_phase", "unknown")
 
-    # Retire lanes whose pane no longer exists, keeping the evidence. Silently
-    # dropping them would make a crashed worker look like a finished one.
+    # Lifecycle observation is evidence, not ownership. A query failure or a
+    # pane absent from one snapshot cannot release a worktree claim.
     live: Dict[str, Any] = {}
+    lifecycle_observed = False
     if herdr.in_herdr():
         try:
             live = {
@@ -110,28 +108,31 @@ def cmd_startup(args: argparse.Namespace) -> int:
                 for a in herdr.agent_list()
                 if a.get("pane_id")
             }
+            lifecycle_observed = True
         except herdr.HerdrError as exc:
             print(f"dispatch startup: agent list unavailable ({exc})")
 
     lanes = _lanes(state)
-    orphans: List[str] = []
-    for lane in lanes:
-        pane_id = lane.get("pane_id") or lane.get("pane")
-        if not pane_id:
-            continue
-        if pane_id in live:
-            # Read-only: Herdr's integration owns this value.
-            lane["status"] = live[pane_id].get("agent_status", lane.get("status"))
-        else:
-            lane["status"] = "orphaned"
-            lane["orphan_pane"] = pane_id
-            orphans.append(lane["lane"])
+    recovery_required: List[str] = []
+    if lifecycle_observed and lanes:
+        def reconcile(current: Dict[str, Any]) -> Dict[str, Any]:
+            current_lanes = current.setdefault("lanes", {})
+            for lane_id, lane in list(current_lanes.items()):
+                if not isinstance(lane, dict):
+                    continue
+                pane_id = lane.get("pane_id") or lane.get("pane")
+                if not pane_id:
+                    continue
+                if pane_id in live:
+                    lane["status"] = live[pane_id].get("agent_status", lane.get("status"))
+                    lane.pop("recovery_pane", None)
+                else:
+                    lane["status"] = "recovery_required"
+                    lane["recovery_pane"] = pane_id
+                    recovery_required.append(str(lane_id))
+            return current
 
-    if lanes:
-        try:
-            brain.update(state_path(args), {"lanes": {l["lane"]: l for l in lanes}})
-        except brain.StateError as exc:
-            print(f"dispatch startup: state update skipped ({exc})")
+        brain.mutate(state_path(args), reconcile)
 
     # The view projection is opt-in and off by default; installing it unasked
     # would replace the session's agent_panel_sort policy.
@@ -142,7 +143,8 @@ def cmd_startup(args: argparse.Namespace) -> int:
             print(f"dispatch startup: agent view not applied ({exc})")
 
     print(
-        f"dispatch startup: phase={phase} lanes={len(lanes)} orphaned={len(orphans)}"
+        f"dispatch startup: phase={phase} lanes={len(lanes)} "
+        f"recovery_required={len(recovery_required)}"
     )
     return 0
 
@@ -602,23 +604,33 @@ def cmd_gate_a(args: argparse.Namespace) -> int:
 
 
 def _mark_delivery(plan: bus.DispatchPlan, *, status: str, delivered: Optional[bool], error: str = "") -> None:
-    """Persist the transport outcome without changing dispatch identity."""
+    """Persist the transport outcome under the shared lock and identity check."""
     try:
         path = brain.state_path(plan.repo)
-        state = brain.load(path)
-        lane = state.get("lanes", {}).get(plan.lane)
-        if not isinstance(lane, dict):
-            return
-        lane["status"] = status
-        lane["delivery_status"] = (
-            "delivered" if delivered is True else "rejected" if delivered is False else "unknown"
-        )
-        lane["delivered"] = delivered
-        if error:
-            lane["delivery_error"] = error
-        else:
-            lane.pop("delivery_error", None)
-        brain.save(path, state)
+
+        def mark(state: Dict[str, Any]) -> Dict[str, Any]:
+            lane = state.get("lanes", {}).get(plan.lane)
+            if not isinstance(lane, dict):
+                raise brain.StateError(f"lane {plan.lane!r} is missing while marking delivery")
+            if (
+                str(lane.get("run_id") or "") != plan.run_id
+                or str(lane.get("dispatch_id") or "") != plan.dispatch_id
+            ):
+                raise brain.StateError(
+                    f"lane {plan.lane!r} delivery identity changed before outcome persistence"
+                )
+            lane["status"] = status
+            lane["delivery_status"] = (
+                "delivered" if delivered is True else "rejected" if delivered is False else "unknown"
+            )
+            lane["delivered"] = delivered
+            if error:
+                lane["delivery_error"] = error
+            else:
+                lane.pop("delivery_error", None)
+            return state
+
+        brain.mutate(path, mark)
     except (brain.StateError, OSError) as exc:  # pragma: no cover - best effort
         print(f"dispatch: could not persist delivery outcome ({exc})", file=sys.stderr)
 
@@ -662,7 +674,7 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
                 return EXIT_GATE_REFUSED
-    except (brain.StateError, bus.DispatchRefused):
+    except bus.DispatchRefused:
         retry = None
 
     # The bus owns the pane rename so planning stays pure; it resolves the Herdr
@@ -759,10 +771,7 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
     If stalled, nudges or alerts.
     """
     path = state_path(args)
-    try:
-        state = brain.load(path)
-    except brain.StateError:
-        state = _state(getattr(args, "repo", None))
+    state = brain.load(path)
     lanes = _lanes(state)
     target_lanes: List[Dict[str, Any]] = []
 

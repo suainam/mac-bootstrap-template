@@ -190,10 +190,12 @@ def test_audit_payload_is_serialisable_and_names_the_holder() -> None:
     assert payload["violations"]
 
 
-def test_an_orphaned_lane_is_treated_as_released() -> None:
-    """A crashed worker's pane is gone; its worktree must not be stranded."""
-    lanes = {"1-1": {"worktree": "/tmp/a", "branch": "feat/a", "status": "orphaned"}}
-    assert isolation.audit_claim(lanes, "1-2", worktree="/tmp/a").ok
+@pytest.mark.parametrize("status", ["orphaned", "recovery_required", "unknown"])
+def test_unverified_terminal_state_keeps_the_claim(status: str) -> None:
+    """Loss of observability is not proof that the worker released its resources."""
+    lanes = {"1-1": {"worktree": "/tmp/a", "branch": "feat/a", "status": status}}
+    audit = isolation.audit_claim(lanes, "1-2", worktree="/tmp/a")
+    assert not audit.ok
 
 
 def test_status_matching_is_case_insensitive() -> None:

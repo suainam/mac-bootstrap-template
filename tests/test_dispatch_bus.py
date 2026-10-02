@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -156,6 +157,7 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> dict:
     monkeypatch.setattr(plugin.brain, "save", tracking_save)
     # Git is reached through the derivation module, so stub the reader rather
     # than the process spawn it wraps.
+    monkeypatch.setattr(bus.derive, "_git_toplevel", lambda cwd: os.fspath(Path(cwd).resolve()))
     monkeypatch.setattr(bus.derive, "_git_branch", lambda cwd: "feat/1-3")
     return recorded
 
@@ -400,11 +402,14 @@ def test_state_records_active_panes(repo: Path, task_file: Path, calls: dict) ->
     assert "1-3" in state["active_panes"]["lanes"]
 
 
-def test_state_pins_the_lane_worktree_and_branch(repo, task_file, calls, tmp_path) -> None:
-    # A real directory: an override is validated like a derived value, so a
-    # path that does not exist is refused rather than claimed.
+def test_state_pins_the_lane_worktree_and_branch(
+    repo, task_file, calls, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Overrides are assertions about the target pane's physical placement.
     worktree = tmp_path / "wt-1-3"
     worktree.mkdir()
+    _PANES["w3:p9"] = {"cwd": os.fspath(worktree)}
+    monkeypatch.setattr(bus.derive, "_git_branch", lambda cwd: "feat/x")
     plugin.main(_argv(repo, task_file, worktree=str(worktree), branch="feat/x"))
     state = brain.load(brain.state_path(repo))
     assert state["lanes"]["1-3"]["worktree"] == str(worktree.resolve())
@@ -450,6 +455,188 @@ def test_second_dispatch_preserves_the_first_waiting_lane(
 
     state = brain.load(brain.state_path(repo))
     assert state["brain"]["awaiting_lanes"] == ["1-3", "1-4"]
+
+
+def test_concurrent_stale_plans_allow_only_one_owner_of_the_same_resource(
+    repo: Path,
+    task_file: Path,
+    calls: dict,
+) -> None:
+    """Both plans may observe an empty ledger; commit must arbitrate under the state lock."""
+    lookup = lambda _target: os.fspath(repo)
+    branch = lambda _cwd: "feat/shared"
+    plans = [
+        bus.DispatchPlan.plan(
+            repo=repo,
+            task=task_file,
+            lane_name=lane_name,
+            target=target,
+            signature="",
+            callback_target="w3:pB",
+            run_id="run-a",
+            pane_lookup=lookup,
+            callback_lookup=lookup,
+            branch_reader=branch,
+        )
+        for lane_name, target in [
+            ("1-3-dispatch", "w3:p9"),
+            ("1-4-review", "w3:p8"),
+        ]
+    ]
+
+    outcomes: list[tuple[str, str]] = []
+
+    def commit(plan: bus.DispatchPlan) -> None:
+        try:
+            plan.commit()
+            outcomes.append(("ok", plan.lane))
+        except bus.DispatchRefused:
+            outcomes.append(("refused", plan.lane))
+
+    threads = [threading.Thread(target=commit, args=(plan,)) for plan in plans]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert sorted(status for status, _ in outcomes) == ["ok", "refused"]
+    winner = next(lane for status, lane in outcomes if status == "ok")
+    state = brain.load(brain.state_path(repo))
+    assert list(state["lanes"]) == [winner]
+    assert state["brain"]["awaiting_lanes"] == [winner]
+
+
+def test_concurrent_claims_on_different_resources_preserve_both_records(
+    repo: Path,
+    task_file: Path,
+    calls: dict,
+    tmp_path: Path,
+) -> None:
+    first_tree = tmp_path / "wt-1-3"
+    second_tree = tmp_path / "wt-1-4"
+    first_tree.mkdir()
+    second_tree.mkdir()
+
+    pane_cwds = {"w3:p9": str(first_tree), "w3:p8": str(second_tree)}
+    branches = {str(first_tree): "feat/1-3", str(second_tree): "feat/1-4"}
+
+    def pane_lookup(target: str) -> str:
+        return pane_cwds[target]
+
+    def branch_reader(cwd: str) -> str:
+        return branches[cwd]
+
+    plans = [
+        bus.DispatchPlan.plan(
+            repo=repo,
+            task=task_file,
+            lane_name=lane_name,
+            target=target,
+            signature="",
+            callback_target="w3:pB",
+            run_id="run-a",
+            pane_lookup=pane_lookup,
+            callback_lookup=lambda _target: os.fspath(repo),
+            worktree_reader=lambda cwd: cwd,
+            branch_reader=branch_reader,
+        )
+        for lane_name, target in [
+            ("1-3-dispatch", "w3:p9"),
+            ("1-4-review", "w3:p8"),
+        ]
+    ]
+
+    errors: list[BaseException] = []
+
+    def commit(plan: bus.DispatchPlan) -> None:
+        try:
+            plan.commit()
+        except BaseException as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=commit, args=(plan,)) for plan in plans]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors, errors
+    state = brain.load(brain.state_path(repo))
+    assert sorted(state["lanes"]) == ["1-3", "1-4"]
+    assert sorted(state["brain"]["awaiting_lanes"]) == ["1-3", "1-4"]
+
+
+def test_active_lane_cannot_be_replaced_by_a_new_run_or_dispatch(
+    repo: Path,
+    task_file: Path,
+    calls: dict,
+) -> None:
+    lookup = lambda _target: os.fspath(repo)
+    branch = lambda _cwd: "feat/shared"
+    first = bus.DispatchPlan.plan(
+        repo=repo,
+        task=task_file,
+        lane_name="1-3-dispatch",
+        target="w3:p9",
+        signature="",
+        callback_target="w3:pB",
+        run_id="run-a",
+        dispatch_id="dispatch-a",
+        pane_lookup=lookup,
+        callback_lookup=lookup,
+        branch_reader=branch,
+    )
+    first.commit()
+
+    replacement = bus.DispatchPlan.plan(
+        repo=repo,
+        task=task_file,
+        lane_name="1-3-dispatch",
+        target="w3:p9",
+        signature="",
+        callback_target="w3:pB",
+        run_id="run-b",
+        dispatch_id="dispatch-b",
+        pane_lookup=lookup,
+        callback_lookup=lookup,
+        branch_reader=branch,
+    )
+    with pytest.raises(bus.DispatchRefused, match="already owned|cannot replace"):
+        replacement.commit()
+
+    state = brain.load(brain.state_path(repo))
+    assert state["run_id"] == "run-a"
+    assert state["lanes"]["1-3"]["dispatch_id"] == "dispatch-a"
+
+
+def test_same_dispatch_identity_may_recommit_for_delivery_retry(
+    repo: Path,
+    task_file: Path,
+    calls: dict,
+) -> None:
+    lookup = lambda _target: os.fspath(repo)
+    branch = lambda _cwd: "feat/shared"
+    plan = bus.DispatchPlan.plan(
+        repo=repo,
+        task=task_file,
+        lane_name="1-3-dispatch",
+        target="w3:p9",
+        signature="",
+        callback_target="w3:pB",
+        run_id="run-a",
+        dispatch_id="dispatch-a",
+        timestamp="20261002_161500",
+        pane_lookup=lookup,
+        callback_lookup=lookup,
+        branch_reader=branch,
+    )
+    plan.commit()
+    plan.commit()
+
+    state = brain.load(brain.state_path(repo))
+    assert state["run_id"] == "run-a"
+    assert state["lanes"]["1-3"]["dispatch_id"] == "dispatch-a"
+    assert state["lanes"]["1-3"]["handoff"] == plan.handoff
 
 
 def test_dispatch_walks_a_legal_transition_path(repo: Path, task_file: Path, calls: dict) -> None:

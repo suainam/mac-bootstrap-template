@@ -374,6 +374,36 @@ def default_pane_lookup(target: str) -> str:
     return str(pane.get("cwd") or pane.get("foreground_cwd") or "")
 
 
+def _git_toplevel(cwd: str) -> str:
+    """Return the physical Git worktree root containing ``cwd``, or refuse."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT,
+        )
+    except FileNotFoundError as exc:
+        raise DerivationRefused(
+            "cannot derive the Git worktree: the git binary is not on PATH"
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise DerivationRefused(
+            f"cannot derive the Git worktree: git in {cwd} did not answer within {GIT_TIMEOUT}s"
+        ) from exc
+
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        raise DerivationRefused(
+            f"cannot derive the Git worktree from {cwd}: "
+            + (detail[0] if detail else f"git exited {proc.returncode}")
+        )
+    root = proc.stdout.strip()
+    if not root:
+        raise DerivationRefused(f"cannot derive the Git worktree from {cwd}: empty top-level")
+    return str(Path(root).expanduser().resolve())
+
+
 def _git_branch(cwd: str) -> str:
     """``git -C <cwd> rev-parse --abbrev-ref HEAD``, or raise."""
     try:
@@ -467,6 +497,7 @@ def derive_placement(
     target: str,
     *,
     pane_lookup: Optional[Callable[[str], str]] = None,
+    worktree_reader: Optional[Callable[[str], str]] = None,
     branch_reader: Optional[Callable[[str], str]] = None,
 ) -> Placement:
     """Derive ``(worktree, branch)`` for the pane at ``target``.
@@ -502,6 +533,8 @@ def derive_placement(
             f"cannot derive the worktree for lane pane {target}: {cwd} is not a "
             "directory. Herdr's cwd for that pane is stale."
         )
-    resolved = str(worktree.resolve())
+    pane_cwd = str(worktree.resolve())
+    resolved = (worktree_reader or _git_toplevel)(pane_cwd)
+    resolved = str(Path(resolved).expanduser().resolve())
     branch = checked_branch((branch_reader or _git_branch)(resolved), resolved)
     return Placement(worktree=resolved, branch=branch)

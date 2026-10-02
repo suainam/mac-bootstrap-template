@@ -55,7 +55,17 @@ one state file so there is a single truth:
 ```
 
 Anchoring on the git *common* dir is what keeps a linked worktree and its main
-checkout from growing two brains.
+checkout from growing two brains. Different repositories resolve to different
+state files, even when they use the same lane id.
+
+Python one-shot commands and the long-lived OMP extension share the same
+cross-process transaction lock. A mutation acquires the lock, re-reads the
+authoritative document, validates the claim/run identity, and atomically
+replaces the file before releasing the lock. Stale-lock recovery is also
+fail-closed: age alone never steals a lock from a live PID, and competing
+reapers serialize through a separate recovery mutex before deleting a lock
+whose owner is provably dead. Corrupt JSON or an unknown schema is an error,
+not an empty/default run.
 
 Two guards matter more than the field itself:
 
@@ -106,8 +116,11 @@ $PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py claim \
 ```
 
 Paths are compared after resolution, so `./wt`, a trailing slash and an absolute
-path all collide with each other. A lane renewing its *own* claim is a no-op,
-and a `closed` / `released` / `orphaned` lane frees its claim for the next run.
+path all collide with each other. A lane renewing the *same run + dispatch*
+identity is a no-op used for delivery retry. Only a verified `closed`,
+`released`, or `cleaned` lane frees the physical claim. `unknown`,
+`orphaned`, and `recovery_required` are observation states, not proof that
+the worker stopped, so they retain ownership.
 
 ## Closeout Lifecycle Gate (Issue #121)
 
@@ -336,7 +349,8 @@ timestamp, envelope assembly, state flush — and any one could be skipped. The
 omissions were invisible until closeout: a lane running with no state entry, a
 pane still called `worker-3`, a handoff referenced by a filename nobody minted.
 
-One command now does all of it, in order, atomically:
+One command now does all of it in order. State registration is transactional;
+the external Herdr delivery remains a separate recoverable side effect:
 
 ```bash
 python3 bin/dispatch_plugin.py --repo "$PWD" dispatch \
@@ -369,22 +383,20 @@ an earlier run is a value that is stale before it is audited.
 | `--worktree` | — | the target pane's cwd, read from Herdr |
 | `--branch` | — | `git -C <cwd> rev-parse --abbrev-ref HEAD` |
 
-The overrides still exist for the case where someone knows better than a probe.
-What changed is that they are no longer *required*, and each has a rule:
+The compatibility overrides still exist, but they are assertions, never a
+second source of placement truth:
 
 - **`--lane` is deprecated and never wins.** A value that disagrees with the
   lane name is reported in the receipt and discarded. Honouring it would keep
   the exact inconsistency the merge removes; ignoring it silently would leave
   the caller believing the wrong lane ran.
-- **Neither half of the placement may be supplied alone.** `(worktree, "")`
-  would reach the claim gate as a lane that claims a directory but no branch —
-  the interleaved-commits failure with one leg removed. Supply one and the
-  missing half is derived **from the supplied one**, not from the pane: the two
-  halves have to describe the same tree, and a branch read from a different
-  directory is a claim that looks valid and isolates nothing.
-- **A `--branch` that disagrees with the pane's own checkout does not win.** The
-  branch in the worktree the lane is actually going to work in is the one worth
-  claiming; the disagreement is reported in the receipt rather than applied.
+- **The target pane is always probed.** Its real cwd must resolve to a Git
+  worktree, its actual HEAD must be attached to a branch, and that physical
+  pair is what the lane claims.
+- **`--worktree` and `--branch` may only confirm those physical facts.** If
+  either supplied value disagrees with the target pane's resolved worktree or
+  checked-out branch, dispatch refuses before claim or prompt delivery. Passing
+  both values does not bypass the probe.
 - **Report bullets are overridden, not merged.** A `--highlight` replaces what
   the contract said, so the envelope never carries two sources of the same fact.
 

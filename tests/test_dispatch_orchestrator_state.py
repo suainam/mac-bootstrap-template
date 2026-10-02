@@ -382,6 +382,68 @@ def test_concurrent_writers_do_not_lose_fields(state_path: Path) -> None:
     assert lane["handoff"] == "~/h.md"
 
 
+def test_phase_cli_does_not_clobber_a_concurrent_lane_update(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy park/wake/advance commands must join the same locked mutation line."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    path = brain.state_path(repo)
+    state = brain.default_state()
+    state["orchestrator_phase"] = "topology"
+    brain.save(path, state)
+
+    entered = threading.Event()
+    release = threading.Event()
+    real_park = brain.park
+
+    def blocked_park(state, *args, **kwargs):
+        result = real_park(state, *args, **kwargs)
+        entered.set()
+        assert release.wait(2)
+        return result
+
+    monkeypatch.setattr(brain, "park", blocked_park)
+    result: list[int] = []
+
+    thread = threading.Thread(
+        target=lambda: result.append(
+            brain.main(
+                ["park", "--repo", str(repo), "--pane", "w3:p1", "--lane", "1-1"]
+            )
+        )
+    )
+    thread.start()
+    assert entered.wait(2)
+
+    update_errors: list[BaseException] = []
+
+    def concurrent_update() -> None:
+        try:
+            brain.update_lane(
+                path,
+                "2-1",
+                {"phase": "working", "handoff": "/tmp/handoff/2-1.md"},
+                writer="extension",
+            )
+        except BaseException as exc:  # pragma: no cover - surfaced below
+            update_errors.append(exc)
+
+    updater = threading.Thread(target=concurrent_update)
+    updater.start()
+    release.set()
+    thread.join(timeout=2)
+    updater.join(timeout=2)
+
+    assert result == [0]
+    assert not update_errors, update_errors
+    final = brain.load(path)
+    assert final["brain"]["awaiting_lanes"] == ["1-1"]
+    assert final["lanes"]["2-1"]["phase"] == "working"
+    assert final["lanes"]["2-1"]["handoff"] == "/tmp/handoff/2-1.md"
+
+
 def test_stale_lock_is_taken_over(state_path: Path) -> None:
     brain.save(state_path, brain.default_state())
     lock = state_path.parent / brain.LOCK_FILE_NAME
@@ -392,6 +454,56 @@ def test_stale_lock_is_taken_over(state_path: Path) -> None:
     state = brain.load(state_path)
     brain.save(state_path, state)  # must not wedge
     assert not lock.exists()
+
+
+def test_old_lock_with_a_live_owner_is_never_stolen(state_path: Path) -> None:
+    brain.save(state_path, brain.default_state())
+    lock = state_path.parent / brain.LOCK_FILE_NAME
+    lock.write_text(f"{os.getpid()} 0\n")
+    old = brain.time.time() - (brain.DEFAULT_LOCK_STALE_SECONDS + 60)
+    os.utime(lock, (old, old))
+
+    with pytest.raises(brain.LockTimeout):
+        with brain.state_lock(state_path, timeout=0.15, stale_after=0.01):
+            pass  # pragma: no cover
+
+    # This test owns the synthetic lock; production code correctly left it alone.
+    lock.unlink()
+
+
+def test_competing_reapers_preserve_both_updates_after_a_dead_stale_lock(
+    state_path: Path,
+) -> None:
+    brain.save(state_path, brain.default_state())
+    lock = state_path.parent / brain.LOCK_FILE_NAME
+    lock.write_text("999999 0\n")
+    old = brain.time.time() - (brain.DEFAULT_LOCK_STALE_SECONDS + 60)
+    os.utime(lock, (old, old))
+    errors: list[BaseException] = []
+
+    def writer(lane: str) -> None:
+        try:
+            brain.update_lane(
+                state_path,
+                lane,
+                {"phase": "working", "handoff": f"/tmp/handoff/{lane}.md"},
+                writer="extension",
+            )
+        except BaseException as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=writer, args=("1-1",)),
+        threading.Thread(target=writer, args=("1-2",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors, errors
+    state = brain.load(state_path)
+    assert sorted(state["lanes"]) == ["1-1", "1-2"]
 
 
 def test_lock_timeout_is_reported(tmp_path: Path) -> None:
