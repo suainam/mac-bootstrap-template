@@ -49,7 +49,9 @@
  * isolation as handler dispatch and are cleared on shutdown.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { createHash, createHmac, randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -121,8 +123,8 @@ import {
   paneFromSignature,
   parseNotify,
 } from "./notify.ts";
-import { reflexGate } from "./reflex.ts";
-import { registerDispatchCommand } from "./slash.ts";
+import { reflexGate, toolCallTargets } from "./reflex.ts";
+import { findPlugin, registerDispatchCommand, tokenizeArgs } from "./slash.ts";
 
 export {
   DISPATCH_DESCRIPTION,
@@ -213,6 +215,9 @@ export const DEFAULT_ROUTING = Object.freeze({
 export const GATED_PATTERNS = Object.freeze([
   /\bgit\s+push\b/,
   /\bgh\s+pr\s+merge\b/,
+  /\bgit\s+worktree\s+remove\b/,
+  /\bgit\s+branch\s+-[dD]\b/,
+  /\bherdr\s+pane\s+close\b/,
   /\bgh\s+release\s+create\b/,
   /\bterraform\s+(?:apply|destroy)\b/,
   /\bkubectl\s+delete\b/,
@@ -220,9 +225,142 @@ export const GATED_PATTERNS = Object.freeze([
   /\bgit\s+push\s+--force\b/,
 ]);
 
+export const AUTHORIZATION_KEY_ENV = "HERDR_DISPATCH_RUNTIME_AUTH_KEY";
+
+const PROTECTED_PYTHON_BOOTSTRAP = String.raw`
+import importlib.abc, importlib.util, json, sys
+bundle = json.load(sys.stdin)
+class FrozenFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname in bundle["modules"]:
+            return importlib.util.spec_from_loader(fullname, self)
+        return None
+    def exec_module(self, module):
+        source = bundle["modules"][module.__name__]
+        module.__file__ = "/__protected__/lib/" + module.__name__ + ".py"
+        exec(compile(source, module.__file__, "exec"), module.__dict__)
+sys.meta_path.insert(0, FrozenFinder())
+namespace = {"__name__": "__main__", "__file__": "/__protected__/bin/dispatch_plugin.py", "__package__": None}
+exec(compile(bundle["plugin"], namespace["__file__"], "exec"), namespace)
+`;
+
+export function freezeProtectedLifecycleBundle(plugin) {
+  if (!plugin) throw new Error("dispatch plugin not found");
+  const root = path.dirname(path.dirname(plugin));
+  const libDir = path.join(root, "lib");
+  const modules = {};
+  for (const entry of readdirSync(libDir)) {
+    if (!entry.endsWith(".py") || entry === "__init__.py") continue;
+    modules[entry.slice(0, -3)] = readFileSync(path.join(libDir, entry), "utf8");
+  }
+  return JSON.stringify({ plugin: readFileSync(plugin, "utf8"), modules });
+}
+
+function authorizationPayload(record) {
+  return [
+    record?.authorization_id,
+    record?.action,
+    record?.repo,
+    record?.remote,
+    record?.push_url,
+    record?.ref,
+    record?.destination_ref,
+    record?.pr_url,
+    record?.pr_base,
+    record?.pr_head_ref,
+    record?.cleanup_evidence_digest,
+    record?.run_id,
+    record?.lane,
+    record?.dispatch_id,
+    record?.gate_c_report_id,
+    record?.revision,
+    record?.outcome,
+    record?.delivery_scope,
+    record?.authorized_unix_ms,
+    record?.consumed_unix_ms,
+  ].map((value) => String(value ?? "")).join("\n");
+}
+
+export function authorizationProof(record, key) {
+  if (!key) return "";
+  return createHmac("sha256", key).update(authorizationPayload(record)).digest("hex");
+}
+
+function isAuthorizationProofValid(record, key) {
+  return Boolean(
+    record?.authorization_proof &&
+    authorizationProof(record, key) === record.authorization_proof
+  );
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function requiredCleanupSteps(binding, outcome) {
+  if (outcome === "no_change") return [];
+  const scope = String(binding?.delivery_scope ?? "");
+  if (scope === "local") return ["docs_aligned"];
+  if (scope === "repository") return ["docs_aligned", "child_pushed", "pr_merged"];
+  if (scope === "submodule") {
+    return ["docs_aligned", "child_pushed", "parent_pointer_updated", "pr_merged"];
+  }
+  return null;
+}
+
+function cleanupEvidenceDigestForGate(raw, gateC) {
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("evidence must be an object");
+  }
+  const steps = requiredCleanupSteps(gateC?.binding, gateC?.outcome ?? "delivered");
+  if (!steps) throw new Error("unsupported Gate C delivery scope");
+  const projection = {};
+  for (const step of steps) projection[step] = parsed[step] ?? {};
+  return createHash("sha256").update(stableJson(projection)).digest("hex");
+}
+
+function gateCProofPayload(gateC) {
+  const binding = gateC?.binding ?? {};
+  return [
+    gateC?.report_id,
+    gateC?.accepted,
+    gateC?.outcome,
+    binding?.repo,
+    binding?.run_id,
+    binding?.lane,
+    binding?.dispatch_id,
+    binding?.handoff,
+    binding?.revision,
+    binding?.delivery_scope,
+    binding?.evidence_digest,
+    gateC?.verified_unix_ms,
+  ].map((value) => String(value ?? "")).join("\n");
+}
+
+export function gateCProof(gateC, key) {
+  if (!key) return "";
+  return createHmac("sha256", key).update(gateCProofPayload(gateC)).digest("hex");
+}
+
+function isGateCProofValid(gateC, key) {
+  return Boolean(gateC?.gate_c_proof && gateCProof(gateC, key) === gateC.gate_c_proof);
+}
+
 /** True when the orchestrator is deliberately parked on worker IPC. */
 export function isParked(state) {
   return state?.orchestrator_phase === "yield_and_guard";
+}
+
+/** Hooks that steer models or gate tools apply only while a real dispatch run is active. */
+export function hasActiveRun(state) {
+  if (state?.run_id || state?.__persisted_dispatch_state === true) return true;
+  const lanes = Object.values(state?.lanes ?? {});
+  return lanes.some((lane) => lane?.status !== "released" || lane?.phase !== "closed");
 }
 
 /**
@@ -282,15 +420,166 @@ export function parkGuardMessage(state) {
   );
 }
 
+function canonicalPath(value) {
+  const resolved = path.resolve(String(value ?? "."));
+  try {
+    return realpathSync(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
+function classifyAuthorizableCommand(command) {
+  const tokens = tokenizeArgs(command);
+  if (!tokens || tokens.length < 2) return null;
+
+  if (tokens[0] === "git" && tokens[1] === "push") {
+    const tail = tokens.slice(2);
+    const safeFlags = new Set(["--set-upstream", "-u"]);
+    if (tail.some((token) => token.startsWith("-") && !safeFlags.has(token))) {
+      return null;
+    }
+    const positional = tail.filter((token) => token && !token.startsWith("-"));
+    if (positional.length !== 2) return null;
+    const [remote, refspec] = positional;
+    const split = refspec.split(":");
+    if (split.length !== 2 || !split[0] || !split[1]) return null;
+    const destination = split[1].replace(/^refs\/heads\//, "");
+    if (!destination || destination.startsWith("refs/")) return null;
+    return {
+      action: "git_push",
+      remote,
+      ref: destination,
+      destination_ref: destination,
+      revision: split[0],
+    };
+  }
+
+  if (
+    tokens.length === 6 &&
+    tokens[0] === "gh" &&
+    tokens[1] === "pr" &&
+    tokens[2] === "merge" &&
+    tokens[3] &&
+    !tokens[3].startsWith("-") &&
+    tokens[4] === "--match-head-commit" &&
+    tokens[5] &&
+    !tokens[5].startsWith("-")
+  ) {
+    return { action: "merge_pr", ref: tokens[3], revision: tokens[5] };
+  }
+
+  if (
+    tokens.length === 4 &&
+    tokens[0] === "herdr" &&
+    tokens[1] === "pane" &&
+    tokens[2] === "close" &&
+    tokens[3]
+  ) {
+    return { action: "close_pane", ref: tokens[3] };
+  }
+  return null;
+}
+
+function hasCommandShape(tokens, executable, sequence) {
+  for (let start = 0; start < tokens.length; start += 1) {
+    if (tokens[start] !== executable) continue;
+    let cursor = start + 1;
+    for (const expected of sequence) {
+      while (cursor < tokens.length && tokens[cursor] !== expected) cursor += 1;
+      if (cursor >= tokens.length) return false;
+      cursor += 1;
+    }
+    return true;
+  }
+  return false;
+}
+
+function structurallyDestructive(command) {
+  const tokens = tokenizeArgs(command) ?? [];
+  if (hasCommandShape(tokens, "git", ["push"])) return "git push";
+  if (hasCommandShape(tokens, "gh", ["pr", "merge"])) return "gh pr merge";
+  if (hasCommandShape(tokens, "git", ["worktree", "remove"])) return "git worktree remove";
+  if (hasCommandShape(tokens, "git", ["branch", "-d"]) || hasCommandShape(tokens, "git", ["branch", "-D"])) {
+    return "git branch delete";
+  }
+  if (hasCommandShape(tokens, "herdr", ["pane", "close"])) return "herdr pane close";
+  return "";
+}
+
+function invokesPythonInterpreter(command) {
+  const text = String(command ?? "");
+  // Fail closed on shell indirection that binds a variable to a Python
+  // interpreter, e.g. `p=python3; "$p" -c ...`. Token-only matching cannot
+  // see the expanded executable, so detecting the binding itself is required.
+  if (
+    /(?:^|[;&|\s])(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*["']?(?:[^\s;|&"']*\/)?(?:python(?:\d+(?:\.\d+)*)?|pypy(?:\d+)?)["']?(?=$|[\s;|&])/m.test(text)
+  ) {
+    return true;
+  }
+  const tokens = tokenizeArgs(text) ?? [];
+  return tokens.some((token) => {
+    const value = String(token ?? "").trim();
+    const first = value.split(/\s+/, 1)[0];
+    // POSIX shells remove a backslash before a non-newline character when it
+    // is used to escape part of a word. Normalize that form before matching so
+    // `p\\ython3` cannot hide the interpreter name from the gate.
+    const shellNormalized = first.replace(/\\([^\n])/g, "$1");
+    const base = shellNormalized.split("/").pop() ?? "";
+    return /^(?:python(?:\d+(?:\.\d+)*)?|pypy(?:\d+)?)$/.test(base);
+  });
+}
+
 /** Classify a tool call for the human gate. */
-export function classifyToolCall(toolName, input) {
-  if (toolName !== "bash" && toolName !== "python") {
+export function classifyToolCall(toolName, input, cwd = "") {
+  const shellLike = new Set(["bash", "python", "shell", "exec", "command"]);
+  if (!shellLike.has(toolName)) {
     return { gated: false, reason: "" };
   }
-  const command = String(input?.command ?? input?.code ?? "");
+  const command = toolCallTargets(input).command;
+  if (
+    toolName !== "python" &&
+    /(?:\$|\x60|\\|[;&|]{1,2}|[<>])/.test(command)
+  ) {
+    return {
+      gated: true,
+      reason: "dynamic or compound shell execution is not an authorizable publication path",
+      authority: null,
+    };
+  }
+  if (toolName !== "python" && invokesPythonInterpreter(command)) {
+    return {
+      gated: true,
+      reason: "shell-wrapped Python execution is not an authorizable publication path",
+      authority: null,
+    };
+  }
+  if (toolName === "python") {
+    const processCapablePython =
+      /\b(?:import\s+(?:subprocess|os|pty|importlib|ctypes)\b|from\s+(?:subprocess|os|pty|importlib|ctypes)\s+import\b|__import__\s*\(|importlib\.|subprocess\.|os\.(?:system|popen|spawn\w*|exec\w*)|pty\.spawn\s*\()/m;
+    if (processCapablePython.test(command)) {
+      return {
+        gated: true,
+        reason: "python process-capable code is not an authorizable publication path",
+        authority: null,
+      };
+    }
+  }
+  const shape = structurallyDestructive(command);
+  if (shape) {
+    return {
+      gated: true,
+      reason: `destructive operation ${shape}`,
+      authority: classifyAuthorizableCommand(command),
+    };
+  }
   for (const pattern of GATED_PATTERNS) {
     if (pattern.test(command)) {
-      return { gated: true, reason: `destructive operation matching ${pattern}` };
+      return {
+        gated: true,
+        reason: `destructive operation matching ${pattern}`,
+        authority: classifyAuthorizableCommand(command),
+      };
     }
   }
   return { gated: false, reason: "" };
@@ -362,6 +651,7 @@ export default function dispatchBrain(pi, options = {}) {
   const router = new RouterCursor();
   let brain = null;
   let rootSession = false;
+  let sessionRunActive = false;
   let stallPolls = 0;
   // Last observed Herdr state_change_seq per lane. Progress is measured by this
   // monotonic counter, never by the wall clock.
@@ -406,6 +696,47 @@ export default function dispatchBrain(pi, options = {}) {
   // Managed timers and the UI live on the handler context, not on the API
   // object: `pi` carries actions, `ctx` carries per-session facilities.
   let sessionCtx = null;
+  let runtimeAuthorizationKey = "";
+  let protectedLifecycleBundle = "";
+  const runtimeAuthorizationIds = new Set();
+  const runtimeConsumedAuthorizationIds = new Set();
+  const resolveGitRevision =
+    options.gitRevision ??
+    ((repo, ref) =>
+      execFileSync("git", ["-C", repo, "rev-parse", ref], { encoding: "utf8" }).trim());
+  const resolvePushUrl =
+    options.pushUrl ??
+    ((repo, remote) =>
+      execFileSync("git", ["-C", repo, "remote", "get-url", "--push", remote], {
+        encoding: "utf8",
+      }).trim());
+  const resolvePrHead =
+    options.prHead ??
+    ((repo, pr) =>
+      execFileSync(
+        "gh",
+        ["pr", "view", String(pr), "--json", "headRefOid", "--jq", ".headRefOid"],
+        { cwd: repo, encoding: "utf8" },
+      ).trim());
+  const resolvePrContext =
+    options.prContext ??
+    ((repo, pr) => {
+      if (options.prHead) {
+        return {
+          headRefOid: resolvePrHead(repo, pr),
+          headRefName: "",
+          baseRefName: "main",
+          url: `local-test://${canonicalPath(repo)}/pull/${String(pr)}`,
+        };
+      }
+      return JSON.parse(
+        execFileSync(
+          "gh",
+          ["pr", "view", String(pr), "--json", "headRefOid,headRefName,baseRefName,url"],
+          { cwd: repo, encoding: "utf8" },
+        ),
+      );
+    });
 
   const routing = loadRouting(process.env.HERDR_DISPATCH_CONFIG_DIR ?? null);
 
@@ -418,6 +749,26 @@ export default function dispatchBrain(pi, options = {}) {
     const agent = eventCtx.agent;
     return !agent || agent.kind !== "sub";
   };
+
+  function shouldAttachPersistedRun(state, persistedStateExists = false) {
+    const lanes = Object.values(state?.lanes ?? {});
+    // A persisted dispatch ledger with no surviving run/lane identity is
+    // tampering/recovery evidence, not proof that no run exists. Ordinary OMP
+    // sessions remain untouched because they have no persisted dispatch file.
+    if (lanes.length === 0) return Boolean(state?.run_id || persistedStateExists);
+    if (lanes.some((lane) => lane?.status !== "released" || lane?.phase !== "closed")) {
+      return true;
+    }
+    for (const lane of lanes) {
+      const paneId = lane?.pane_id ?? lane?.pane;
+      if (!paneId) continue;
+      const observed = lookupLifecyclePane(paneId);
+      if (observed?.status !== "absent") return true;
+    }
+    return false;
+  }
+
+  const isRootCommandContext = (ctx) => !ctx?.agent || ctx.agent.kind !== "sub";
 
   const note = (message) => {
     try {
@@ -438,6 +789,557 @@ export default function dispatchBrain(pi, options = {}) {
 
   pi.setLabel?.(LABEL);
 
+  function consumeHumanAuthorization(authority, cwd) {
+    if (!statePath || !authority) return false;
+    let matched = false;
+    const repo = canonicalPath(cwd || ".");
+    const result = updateState(statePath, (state) => {
+      const records = state?.extra_data?.authorizations;
+      if (!Array.isArray(records)) return state;
+      for (const record of records) {
+        if (
+          record?.consumed_unix_ms ||
+          !runtimeAuthorizationIds.has(record?.authorization_id) ||
+          !isAuthorizationProofValid(record, runtimeAuthorizationKey) ||
+          record?.action !== authority.action ||
+          record?.ref !== authority.ref ||
+          String(record?.remote ?? "") !== String(authority.remote ?? "") ||
+          String(record?.destination_ref ?? "") !== String(authority.destination_ref ?? "") ||
+          (record?.action === "git_push" && record?.revision !== authority.revision) ||
+          record?.repo !== repo ||
+          record?.run_id !== state?.run_id
+        ) {
+          continue;
+        }
+        const lane = state?.lanes?.[record.lane];
+        const gateC = lane?.gate_c;
+        if (
+          !lane ||
+          lane.run_id !== record.run_id ||
+          lane.dispatch_id !== record.dispatch_id ||
+          gateC?.accepted !== true ||
+          !isGateCProofValid(gateC, runtimeAuthorizationKey) ||
+          gateC?.report_id !== record.gate_c_report_id ||
+          gateC?.binding?.revision !== record.revision ||
+          String(gateC?.outcome ?? "delivered") !== String(record.outcome ?? "") ||
+          String(gateC?.binding?.delivery_scope ?? "") !== String(record.delivery_scope ?? "")
+        ) {
+          continue;
+        }
+
+        if (record.action === "git_push") {
+          let liveRevision = "";
+          try {
+            liveRevision = resolveGitRevision(repo, record.ref);
+          } catch {
+            continue;
+          }
+          if (liveRevision !== record.revision) continue;
+          let livePushUrl = "";
+          try {
+            livePushUrl = resolvePushUrl(repo, record.remote);
+          } catch {
+            continue;
+          }
+          if (livePushUrl !== record.push_url) continue;
+        }
+        if (record.action === "merge_pr") {
+          if (authority.revision !== record.revision) continue;
+          let livePr = null;
+          try {
+            livePr = resolvePrContext(repo, record.ref);
+          } catch {
+            continue;
+          }
+          if (
+            livePr?.headRefOid !== record.revision ||
+            String(livePr?.url ?? "") !== String(record.pr_url ?? "") ||
+            String(livePr?.baseRefName ?? "") !== String(record.pr_base ?? "") ||
+            String(livePr?.headRefName ?? "") !== String(record.pr_head_ref ?? "")
+          ) continue;
+        }
+
+        if (record.action === "remove_worktree") {
+          const cleanup = lane?.cleanup_authorization;
+          if (
+            !cleanup ||
+            cleanup.authorization_id !== record.authorization_id ||
+            cleanup.run_id !== record.run_id ||
+            cleanup.dispatch_id !== record.dispatch_id ||
+            cleanup.worktree !== record.ref ||
+            cleanup.gate_c_report_id !== record.gate_c_report_id ||
+            cleanup.revision !== record.revision
+          ) {
+            continue;
+          }
+        }
+        if (record.action === "close_pane") {
+          if (
+            lane?.pane_id !== record.ref ||
+            lane?.status !== "released" ||
+            lane?.phase !== "closed" ||
+            !lane?.cleanup_finalized_unix_ms
+          ) {
+            continue;
+          }
+        }
+
+        record.consumed_unix_ms = Date.now();
+        record.authorization_proof = authorizationProof(record, runtimeAuthorizationKey);
+        runtimeAuthorizationIds.delete(record.authorization_id);
+        matched = true;
+        break;
+      }
+      return state;
+    });
+    if (result?.ok && result.state) brain = result.state;
+    return Boolean(result?.ok && matched);
+  }
+
+  function lifecycleLaneId(argv) {
+    const index = argv.indexOf("--lane");
+    return index >= 0 ? String(argv[index + 1] ?? "") : "";
+  }
+
+  function matchingRuntimeCleanupAuthority(state, laneId, repo, consumed) {
+    const lane = state?.lanes?.[laneId];
+    const gateC = lane?.gate_c;
+    const binding = gateC?.binding;
+    if (!lane || !gateC?.accepted || !binding) return null;
+    const worktree = lane?.worktree ? canonicalPath(lane.worktree) : "";
+    const records = state?.extra_data?.authorizations;
+    if (!worktree || !Array.isArray(records)) return null;
+    for (const record of records) {
+      const id = record?.authorization_id;
+      const isConsumed = Boolean(record?.consumed_unix_ms);
+      if (
+        record?.action !== "remove_worktree" ||
+        record?.repo !== canonicalPath(repo) ||
+        record?.ref !== worktree ||
+        record?.run_id !== state?.run_id ||
+        record?.lane !== laneId ||
+        record?.dispatch_id !== lane?.dispatch_id ||
+        record?.gate_c_report_id !== gateC?.report_id ||
+        record?.revision !== binding?.revision ||
+        String(record?.outcome ?? "delivered") !== String(gateC?.outcome ?? "delivered") ||
+        String(record?.delivery_scope ?? "") !== String(binding?.delivery_scope ?? "") ||
+        !isAuthorizationProofValid(record, runtimeAuthorizationKey) ||
+        isConsumed !== consumed
+      ) {
+        continue;
+      }
+      if (consumed) {
+        if (!runtimeConsumedAuthorizationIds.has(id)) continue;
+      } else if (!runtimeAuthorizationIds.has(id) || runtimeConsumedAuthorizationIds.has(id)) {
+        continue;
+      }
+      return record;
+    }
+    return null;
+  }
+
+  const runProtectedLifecycle =
+    options.lifecycleRunner ??
+    ((repo, subcommand, argv, key) => {
+      if (!protectedLifecycleBundle) {
+        throw new Error("protected lifecycle runtime was not frozen at session start");
+      }
+      const python = process.env.HERDR_DISPATCH_PYTHON ?? "python3";
+      return execFileSync(
+        python,
+        ["-I", "-c", PROTECTED_PYTHON_BOOTSTRAP, "--repo", repo, subcommand, ...argv],
+        {
+          encoding: "utf8",
+          input: protectedLifecycleBundle,
+          env: { ...process.env, [AUTHORIZATION_KEY_ENV]: key },
+        },
+      );
+    });
+
+  if (typeof pi?.registerCommand === "function") {
+    pi.registerCommand("authorize-action", {
+      description:
+        "Authorize one human-gated action for the current run: " +
+        "<action> --lane <lane> [--remote <remote>] --ref <branch|pr|path|pane>",
+      handler: async (args, ctx) => {
+        if (!rootSession || !isRootCommandContext(ctx) || !sessionRunActive || !runtimeAuthorizationKey) {
+          ctx?.ui?.notify?.(
+            "authorize-action: only the active root OMP session may issue human authority",
+            "error",
+          );
+          return;
+        }
+        const tokens = tokenizeArgs(args);
+        const action = tokens?.[0] ?? "";
+        const laneIndex = tokens?.indexOf("--lane") ?? -1;
+        const refIndex = tokens?.indexOf("--ref") ?? -1;
+        const remoteIndex = tokens?.indexOf("--remote") ?? -1;
+        const evidenceIndex = tokens?.indexOf("--evidence") ?? -1;
+        const laneId = laneIndex >= 0 ? tokens?.[laneIndex + 1] ?? "" : "";
+        let ref = refIndex >= 0 ? tokens?.[refIndex + 1] ?? "" : "";
+        const remote = remoteIndex >= 0 ? tokens?.[remoteIndex + 1] ?? "" : "";
+        const cleanupEvidence = evidenceIndex >= 0 ? tokens?.[evidenceIndex + 1] ?? "" : "";
+        const allowed = new Set([
+          "git_push",
+          "merge_pr",
+          "remove_worktree",
+          "close_pane",
+        ]);
+        if (!allowed.has(action) || !laneId || !ref) {
+          ctx?.ui?.notify?.(
+            "authorize-action: usage <git_push|merge_pr|remove_worktree|close_pane> " +
+              "--lane <lane> [--remote <remote>] --ref <branch|pr|worktree|pane>",
+            "error",
+          );
+          return;
+        }
+
+        const targetStatePath = resolveStatePath(ctx?.cwd ?? ".");
+        const current = readState(targetStatePath);
+        const lane = current?.lanes?.[laneId];
+        const gateC = lane?.gate_c;
+        if (
+          current?.orchestrator_phase !== "human_gate" ||
+          !current?.run_id ||
+          !lane ||
+          lane.run_id !== current.run_id ||
+          !lane.dispatch_id ||
+          gateC?.accepted !== true ||
+          !isGateCProofValid(gateC, runtimeAuthorizationKey) ||
+          !gateC?.report_id ||
+          gateC?.binding?.run_id !== current.run_id ||
+          gateC?.binding?.lane !== laneId ||
+          gateC?.binding?.dispatch_id !== lane.dispatch_id ||
+          !gateC?.binding?.revision
+        ) {
+          ctx?.ui?.notify?.(
+            "authorize-action: current lane has no matching accepted Gate C binding",
+            "error",
+          );
+          return;
+        }
+
+        const repo = canonicalPath(ctx?.cwd ?? ".");
+        let cleanupEvidenceDigest = "";
+        if (action === "remove_worktree") {
+          ref = canonicalPath(path.resolve(repo, ref));
+          const laneWorktree = lane?.worktree ? canonicalPath(lane.worktree) : "";
+          if (!laneWorktree || ref !== laneWorktree) {
+            ctx?.ui?.notify?.(
+              "authorize-action: worktree ref does not match the current lane",
+              "error",
+            );
+            return;
+          }
+          if (!cleanupEvidence) {
+            ctx?.ui?.notify?.(
+              "authorize-action: remove_worktree requires --evidence so cleanup prerequisites are human-attested",
+              "error",
+            );
+            return;
+          }
+          try {
+            cleanupEvidenceDigest = cleanupEvidenceDigestForGate(cleanupEvidence, gateC);
+          } catch {
+            ctx?.ui?.notify?.(
+              "authorize-action: remove_worktree --evidence must match the current Gate C scope",
+              "error",
+            );
+            return;
+          }
+        }
+        let pushUrl = "";
+        if (action === "git_push") {
+          if (!remote) {
+            ctx?.ui?.notify?.(
+              "authorize-action: git_push requires --remote so destination scope is explicit",
+              "error",
+            );
+            return;
+          }
+          if (lane?.branch && ref !== lane.branch) {
+            ctx?.ui?.notify?.(
+              "authorize-action: push ref does not match the current lane branch",
+              "error",
+            );
+            return;
+          }
+          let liveRevision = "";
+          try {
+            liveRevision = resolveGitRevision(repo, ref);
+          } catch {
+            ctx?.ui?.notify?.(
+              "authorize-action: cannot resolve the requested branch revision",
+              "error",
+            );
+            return;
+          }
+          if (liveRevision !== gateC.binding.revision) {
+            ctx?.ui?.notify?.(
+              "authorize-action: branch revision changed after Gate C; re-run Gate C",
+              "error",
+            );
+            return;
+          }
+          try {
+            pushUrl = resolvePushUrl(repo, remote);
+          } catch {
+            ctx?.ui?.notify?.(
+              "authorize-action: cannot resolve the push URL for the requested remote",
+              "error",
+            );
+            return;
+          }
+          if (!pushUrl) {
+            ctx?.ui?.notify?.(
+              "authorize-action: resolved push URL is empty",
+              "error",
+            );
+            return;
+          }
+        }
+        let prContext = null;
+        if (action === "merge_pr") {
+          try {
+            prContext = resolvePrContext(repo, ref);
+          } catch {
+            ctx?.ui?.notify?.(
+              "authorize-action: cannot resolve the requested PR context",
+              "error",
+            );
+            return;
+          }
+          if (prContext?.headRefOid !== gateC.binding.revision) {
+            ctx?.ui?.notify?.(
+              "authorize-action: PR head changed after Gate C; re-run Gate C",
+              "error",
+            );
+            return;
+          }
+          if (!prContext?.url || !prContext?.baseRefName) {
+            ctx?.ui?.notify?.(
+              "authorize-action: PR repository/base context is incomplete",
+              "error",
+            );
+            return;
+          }
+        }
+        if (action === "close_pane" && (!lane?.pane_id || ref !== lane.pane_id)) {
+          ctx?.ui?.notify?.(
+            "authorize-action: pane ref does not match the current lane",
+            "error",
+          );
+          return;
+        }
+        const destinationLines = [
+          `action: ${action}`,
+          `repo: ${repo}`,
+          `ref: ${ref}`,
+          `Gate C revision: ${gateC.binding.revision}`,
+        ];
+        if (action === "git_push") {
+          destinationLines.push(
+            `remote: ${remote}`,
+            `push URL: ${pushUrl}`,
+            `destination ref: ${ref}`,
+          );
+        }
+        if (action === "merge_pr") {
+          destinationLines.push(
+            `PR: ${prContext?.url ?? ""}`,
+            `base: ${prContext?.baseRefName ?? ""}`,
+            `head: ${prContext?.headRefName ?? ""}`,
+          );
+        }
+        if (action === "remove_worktree") {
+          destinationLines.push(`cleanup evidence: ${cleanupEvidence}`);
+        }
+        const confirmed = await ctx?.ui?.confirm?.(
+          "Authorize destructive action?",
+          destinationLines.join("\n"),
+        );
+        if (confirmed !== true) {
+          ctx?.ui?.notify?.("authorize-action: human confirmation declined or unavailable", "error");
+          return;
+        }
+
+        const record = {
+          authorization_id: `human-${randomUUID()}`,
+          action,
+          repo,
+          remote: action === "git_push" ? remote : "",
+          push_url: action === "git_push" ? pushUrl : "",
+          ref,
+          destination_ref: action === "git_push" ? ref : "",
+          pr_url: action === "merge_pr" ? String(prContext?.url ?? "") : "",
+          pr_base: action === "merge_pr" ? String(prContext?.baseRefName ?? "") : "",
+          pr_head_ref: action === "merge_pr" ? String(prContext?.headRefName ?? "") : "",
+          cleanup_evidence_digest: action === "remove_worktree" ? cleanupEvidenceDigest : "",
+          run_id: current.run_id,
+          lane: laneId,
+          dispatch_id: lane.dispatch_id,
+          gate_c_report_id: gateC.report_id,
+          revision: gateC.binding.revision,
+          outcome: gateC.outcome ?? "delivered",
+          delivery_scope: gateC.binding.delivery_scope ?? "",
+          authorized_unix_ms: Date.now(),
+          consumed_unix_ms: 0,
+        };
+        record.authorization_proof = authorizationProof(record, runtimeAuthorizationKey);
+        const written = updateState(targetStatePath, (state) => {
+          if (
+            state?.run_id !== record.run_id ||
+            state?.lanes?.[laneId]?.dispatch_id !== record.dispatch_id ||
+            state?.lanes?.[laneId]?.gate_c?.report_id !== record.gate_c_report_id
+          ) {
+            throw new Error("authorization binding became stale before commit");
+          }
+          state.extra_data ??= {};
+          state.extra_data.authorizations ??= [];
+          state.extra_data.authorizations.push(record);
+          return state;
+        });
+        if (!written?.ok) {
+          ctx?.ui?.notify?.(
+            `authorize-action: ${written?.reason ?? "state update failed"}`,
+            "error",
+          );
+          return;
+        }
+        runtimeAuthorizationIds.add(record.authorization_id);
+        if (statePath === targetStatePath) brain = written.state;
+        ctx?.ui?.notify?.(
+          `authorize-action: recorded one-shot ${action} for ${ref}`,
+          "info",
+        );
+      },
+    });
+
+    pi.registerCommand("verify-handoff", {
+      description:
+        "Run authenticated Gate C binding in the active root OMP session; direct worker binding is refused.",
+      handler: async (args, ctx) => {
+        if (
+          !rootSession ||
+          !isRootCommandContext(ctx) ||
+          !sessionRunActive ||
+          !runtimeAuthorizationKey ||
+          !hasActiveRun(brain)
+        ) {
+          ctx?.ui?.notify?.(
+            "verify-handoff: only the active root OMP dispatch session may bind Gate C",
+            "error",
+          );
+          return;
+        }
+        const argv = tokenizeArgs(args);
+        if (!argv) {
+          ctx?.ui?.notify?.("verify-handoff: malformed arguments", "error");
+          return;
+        }
+        const repo = canonicalPath(ctx?.cwd ?? ".");
+        try {
+          const output = runProtectedLifecycle(
+            repo,
+            "verify-handoff",
+            argv,
+            runtimeAuthorizationKey,
+          );
+          if (String(output ?? "").trim()) {
+            ctx?.ui?.notify?.(String(output).trim(), "info");
+          }
+          const synced = readState(resolveStatePath(repo));
+          if (synced) brain = synced;
+        } catch (error) {
+          const stderr = String(error?.stderr ?? "").trim();
+          const message = stderr || String(error?.message ?? error);
+          ctx?.ui?.notify?.(`verify-handoff: ${message}`, "error");
+        }
+      },
+    });
+
+    for (const subcommand of [
+      "authorize-cleanup",
+      "cleanup-worktree",
+      "finalize-closeout",
+    ]) {
+      pi.registerCommand(subcommand, {
+        description:
+          "Run the protected #147 lifecycle executor in the active root OMP session.",
+        handler: async (args, ctx) => {
+          if (
+            !rootSession ||
+            !isRootCommandContext(ctx) ||
+            !sessionRunActive ||
+            !runtimeAuthorizationKey ||
+            !hasActiveRun(brain)
+          ) {
+            ctx?.ui?.notify?.(
+              `${subcommand}: only the active root OMP dispatch session may execute this command`,
+              "error",
+            );
+            return;
+          }
+          const argv = tokenizeArgs(args);
+          if (!argv) {
+            ctx?.ui?.notify?.(`${subcommand}: malformed arguments`, "error");
+            return;
+          }
+          const repo = canonicalPath(ctx?.cwd ?? ".");
+          const laneId = lifecycleLaneId(argv);
+          if (!options.lifecycleRunner) {
+            const current = readState(resolveStatePath(repo));
+            const consumed = subcommand === "finalize-closeout";
+            const authority = matchingRuntimeCleanupAuthority(
+              current,
+              laneId,
+              repo,
+              consumed,
+            );
+            const cleanupId = current?.lanes?.[laneId]?.cleanup_authorization?.authorization_id;
+            if (!authority || (consumed && authority.authorization_id !== cleanupId)) {
+              ctx?.ui?.notify?.(
+                `${subcommand}: no matching current-session ${consumed ? "consumed " : ""}` +
+                  "human remove_worktree authority is active",
+                "error",
+              );
+              return;
+            }
+          }
+          try {
+            const output = runProtectedLifecycle(
+              repo,
+              subcommand,
+              argv,
+              runtimeAuthorizationKey,
+            );
+            if (String(output ?? "").trim()) {
+              ctx?.ui?.notify?.(String(output).trim(), "info");
+            }
+            const synced = readState(resolveStatePath(repo));
+            if (synced) {
+              brain = synced;
+              if (!options.lifecycleRunner && subcommand === "cleanup-worktree") {
+                const consumedId = synced?.lanes?.[laneId]?.cleanup_authorization?.authorization_id;
+                const record = (synced?.extra_data?.authorizations ?? []).find(
+                  (entry) => entry?.authorization_id === consumedId,
+                );
+                if (consumedId && record?.consumed_unix_ms) {
+                  runtimeAuthorizationIds.delete(consumedId);
+                  runtimeConsumedAuthorizationIds.add(consumedId);
+                }
+              }
+            }
+          } catch (error) {
+            const stderr = String(error?.stderr ?? "").trim();
+            const message = stderr || String(error?.message ?? error);
+            ctx?.ui?.notify?.(`${subcommand}: ${message}`, "error");
+          }
+        },
+      });
+    }
+  }
+
   // Registered before any event fires, so `/dispatch` is available from the
   // first prompt rather than appearing once a session has warmed up. The
   // command holds no gates of its own — it is a way to reach the bus, and the
@@ -446,15 +1348,31 @@ export default function dispatchBrain(pi, options = {}) {
     onSuccess: () => {
       if (!statePath) return;
       const synced = readState(statePath);
-      if (synced) brain = synced;
+      if (synced) {
+        brain = synced;
+        sessionRunActive = true;
+      }
     },
   });
 
   pi.on("session_start", async (_event, eventCtx) => {
     if (!isRoot(eventCtx)) return;
     rootSession = true;
+    runtimeAuthorizationKey = options.authorizationKey ?? randomUUID();
+    runtimeAuthorizationIds.clear();
+    runtimeConsumedAuthorizationIds.clear();
+    protectedLifecycleBundle = "";
     sessionCtx = eventCtx;
     statePath = resolveStatePath(eventCtx.cwd);
+    const persistedStateExists = existsSync(statePath);
+    if (!options.lifecycleRunner) {
+      try {
+        protectedLifecycleBundle = freezeProtectedLifecycleBundle(findPlugin(eventCtx.cwd));
+      } catch {
+        // Ordinary OMP sessions must stay untouched. The protected command
+        // itself fails loudly if a dispatch run later needs this runtime.
+      }
+    }
     try {
       brain = readState(statePath) ?? {
         orchestrator_phase: "contract",
@@ -467,8 +1385,19 @@ export default function dispatchBrain(pi, options = {}) {
         brain: { awaiting_lanes: [] },
         lanes: {},
       };
+      sessionRunActive = true;
       note(brain.blocked_reason);
       return;
+    }
+
+    sessionRunActive = shouldAttachPersistedRun(brain, persistedStateExists);
+    if (
+      persistedStateExists &&
+      sessionRunActive &&
+      !brain?.run_id &&
+      Object.keys(brain?.lanes ?? {}).length === 0
+    ) {
+      brain = { ...brain, __persisted_dispatch_state: true };
     }
 
     const restoredStage = Object.entries(brain?.lanes ?? {})
@@ -559,6 +1488,11 @@ export default function dispatchBrain(pi, options = {}) {
       }
     }
     timers.clear();
+    runtimeAuthorizationIds.clear();
+    runtimeConsumedAuthorizationIds.clear();
+    protectedLifecycleBundle = "";
+    runtimeAuthorizationKey = "";
+    sessionRunActive = false;
   });
 
   /**
@@ -586,7 +1520,7 @@ export default function dispatchBrain(pi, options = {}) {
    * rather than once per consideration.
    */
   pi.on("before_subagent_spawn", async (event, eventCtx) => {
-    if (!isRoot(eventCtx)) return undefined;
+    if (!rootSession || !isRoot(eventCtx) || !sessionRunActive || !hasActiveRun(brain)) return undefined;
     if (!router.shouldAdvance(event?.spawnKey)) return undefined;
 
     const role = String(event?.agent ?? event?.modelRole ?? "default");
@@ -617,17 +1551,66 @@ export default function dispatchBrain(pi, options = {}) {
    * children rebind the parent's factories.
    */
   pi.on("tool_call", async (event, eventCtx) => {
-    if (!rootSession || !isRoot(eventCtx)) return undefined;
+    if (isRoot(eventCtx) && rootSession && sessionRunActive && brain) {
+      // Re-evaluate retained finalized lanes against the live Herdr pane set on
+      // every subsequent root tool call. The close-pane call itself stays
+      // gated while its target exists; once the pane is physically absent the
+      // same OMP session returns to ordinary behavior without a restart.
+      sessionRunActive = shouldAttachPersistedRun(
+        brain,
+        Boolean(brain?.__persisted_dispatch_state || (statePath && existsSync(statePath))),
+      );
+    }
+    const humanGate = classifyToolCall(
+      event?.toolName,
+      event?.input,
+      eventCtx?.cwd ?? "",
+    );
+    // Dispatched workers may perform ordinary implementation work, but they
+    // never inherit the root session's publication/destruction authority. A
+    // worker attempting a protected action is blocked before any root-only
+    // authorization record can be considered.
+    if (!isRoot(eventCtx)) {
+      if (!sessionRunActive || !hasActiveRun(brain)) return undefined;
+      // Python is a general process-launch surface: lexical inspection cannot
+      // soundly detect aliases, dynamic imports, ctypes, or constructed argv.
+      // During an active dispatch, workers use the normal structured tool/shell
+      // surfaces instead; Python execution stays root-only.
+      if (event?.toolName === "python") {
+        return {
+          block: true,
+          reason:
+            "Python execution is root-only during an active dispatch because it can " +
+            "bypass publication/destructive-action authorization.",
+        };
+      }
+      if (!humanGate.gated) return undefined;
+      return {
+        block: true,
+        reason:
+          `${humanGate.reason}. Protected publication/destructive actions are root-only ` +
+          "and require explicit human authority in the orchestrator session.",
+      };
+    }
+    if (!rootSession || !sessionRunActive || !hasActiveRun(brain)) return undefined;
 
     const reflex = reflexGate(brain, event, {
       home: eventCtx?.home ?? process.env.HOME ?? "",
       cwd: eventCtx?.cwd ?? "",
     });
-    const humanGate = classifyToolCall(event?.toolName, event?.input);
-    if (reflex.allowed && !humanGate.gated) return undefined;
+    let humanAuthorized = false;
+    // Human authority may unlock only the human gate. A Gate A actor/location
+    // refusal remains binding, and the authorization stays unconsumed.
+    if (reflex.allowed && humanGate.gated && humanGate.authority) {
+      humanAuthorized = consumeHumanAuthorization(
+        humanGate.authority,
+        eventCtx?.cwd ?? "",
+      );
+    }
+    if (reflex.allowed && (!humanGate.gated || humanAuthorized)) return undefined;
 
     const reasons = [];
-    if (humanGate.gated) {
+    if (humanGate.gated && !humanAuthorized) {
       reasons.push(
         `${humanGate.reason}. Publishing and destructive changes require explicit ` +
           "human authorisation (human_gate); ask rather than proceeding.",
@@ -1040,6 +2023,7 @@ export default function dispatchBrain(pi, options = {}) {
     // rather than only inspecting it.
     setState: (next) => {
       brain = next;
+      sessionRunActive = hasActiveRun(next);
     },
     router,
     timers,

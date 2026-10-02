@@ -159,6 +159,7 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> dict:
     # than the process spawn it wraps.
     monkeypatch.setattr(bus.derive, "_git_toplevel", lambda cwd: os.fspath(Path(cwd).resolve()))
     monkeypatch.setattr(bus.derive, "_git_branch", lambda cwd: "feat/1-3")
+    monkeypatch.setattr(bus.derive, "publication_scope", lambda _cwd: "local")
     return recorded
 
 
@@ -414,6 +415,7 @@ def test_state_pins_the_lane_worktree_and_branch(
     state = brain.load(brain.state_path(repo))
     assert state["lanes"]["1-3"]["worktree"] == str(worktree.resolve())
     assert state["lanes"]["1-3"]["branch"] == "feat/x"
+    assert state["lanes"]["1-3"]["delivery_scope"] == "local"
 
 
 def test_dispatch_parks_the_brain(repo: Path, task_file: Path, calls: dict) -> None:

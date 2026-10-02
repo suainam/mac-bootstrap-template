@@ -3,8 +3,6 @@
 Herdr-native lane orchestration for the dispatch family, plus the orchestrator
 brain state machine that keeps the orchestrator from doing the workers' jobs.
 
-Status: TB-01 and TB-02 implemented. TB-03 onward is not here yet.
-
 ## What lives where
 
 | Piece | Path | Shape |
@@ -122,44 +120,119 @@ identity is a no-op used for delivery retry. Only a verified `closed`,
 `orphaned`, and `recovery_required` are observation states, not proof that
 the worker stopped, so they retain ownership.
 
-## Closeout Lifecycle Gate (Issue #121)
+## Closeout Lifecycle Gate (Issues #121 / #147)
 
-"Premature pane destruction" is the same shape of bug: the feature works, the
-orchestrator wants the memory back, it closes the pane, and the push, the parent
-pointer update and the PR merge never happen. Destroying the pane is
-irreversible and it is the *last* step, so it is the step that must be gated
-hardest — a worker may be alive, working, or merely slow, and none of those are
-evidence that closeout is done.
+Closeout is a two-stage protocol, not one boolean. The failure it prevents is
+circular authorization: if the same gate requires `worktree_removed=true`
+before it can authorize `git worktree remove`, cleanup can never begin
+legitimately.
 
-Five steps, in order, each gated on facts the caller supplies:
+The successful delivery path is therefore:
 
 ```text
-docs_aligned -> child_pushed -> parent_pointer_updated -> pr_merged -> worktree_removed
+Gate C (bound report)
+  -> explicit human authority
+  -> authorize-cleanup
+  -> cleanup-worktree
+  -> finalize-closeout
+  -> released / closed
+  -> pane close may be authorized
 ```
+
+Gate C is formal evidence, not a loose `accepted: true` flag. With
+`verify-handoff --bind-current`, an accepted report is persisted against the
+current repository, run, lane, dispatch id, exact handoff path and worker Git
+revision. Reusing an old run, another lane, another handoff or a changed HEAD
+fails closed.
+
+Human authority is also scoped. The OMP command
+
+```text
+/authorize-action <action> --lane <lane> [--remote <remote>] --ref <ref>
+```
+
+records a one-shot authority bound to the current run/dispatch, Gate C report,
+revision, repository and exact ref. `git_push` additionally requires
+`--remote <remote>`; authorization and consumption both re-check the live
+branch tip against the Gate C revision and the remote's current push URL, so a
+branch advance or destination rewrite invalidates the authority. `merge_pr`
+can be consumed only by the narrow `gh pr merge <pr> --match-head-commit
+<Gate-C-revision>` form, letting GitHub reject a changed PR head at execution.
+It can unlock only the human gate; Gate A actor/location refusals remain
+binding. Every command-capable shell alias is classified; Python calls that can
+launch subprocesses are refused as an unstructured publication path rather than
+being allowed to wrap `git`/`gh` around the gate. Authorizable command shapes are narrow:
+for example, `gh pr merge <ref>` must not carry extra flags such as `--admin`,
+`--delete-branch` or `--repo`; those require a new explicitly modeled action
+rather than borrowing the merge authority. Human authority is scoped to the
+current root OMP session: a restart rotates the runtime proof key, so an old
+record never silently regains power. The protected Python lifecycle source is
+frozen into memory at root-session start and later executed from that snapshot;
+a worker-side edit to the checkout therefore cannot capture the proof key when
+a human lifecycle command runs. The root session also keeps an in-memory
+issued/consumed ledger for cleanup authority, so rolling the shared JSON state
+back to a previously signed unconsumed snapshot does not revive a one-shot
+authority. If cleanup must resume after restart, the human reissues the exact
+`remove_worktree` authority and the executor rebinds the already-persisted
+cleanup decision to that fresh one-shot record. A writable persisted
+`orchestrator_phase=closed` value is not treated as proof that enforcement may
+stop: the root session keeps the run attached while any lane is unreleased or
+any finalized worker pane still physically exists. A later ordinary OMP session
+ignores a stale released run only after those panes are actually absent. The
+public state CLI also refuses direct transitions to `closed`; callers must use
+the protected #147 lifecycle instead. Ordinary OMP sessions with no active
+dispatch run are not routed or publication-gated by this extension.
+
+Cleanup then separates permission from effect:
 
 ```bash
-$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py closeout --lane 1-1
-#   [BLOCK] docs_aligned: authoritative docs aligned with the change
-#          unproven: docs_reconciled not reported (an unproven step blocks closeout)
-#   [BLOCK] child_pushed: ...
-#          not reached: an earlier closeout step is unmet
-#   gate CLOSED at docs_aligned: the worker pane must stay open until this step passes
-# exit 2
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py --repo "$REPO"   authorize-cleanup --lane 1-1 --evidence "$EVIDENCE_JSON"
+
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py --repo "$REPO"   cleanup-worktree --lane 1-1
+
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py --repo "$REPO"   finalize-closeout --lane 1-1 --evidence "$EVIDENCE_JSON"
 ```
 
-Two properties make this more than a checklist:
+`authorize-cleanup` proves Gate C, current Git revision, current run identity,
+the exact unconsumed human worktree authority and every pre-removal lifecycle
+fact. It deliberately does **not** require `worktree_removed`, and its report
+keeps `pane_close_allowed=false`. `cleanup-worktree` is the only sanctioned
+physical removal path: it revalidates ownership and authority, refuses a
+worker that is still actively working, acquires a single live-executor PID
+claim, persists a matching cleanup-start record, calls `git worktree remove`
+with direct argv (no shell), and consumes that exact authority. A concurrent
+executor is refused while the recorded PID is alive; a dead executor may be
+taken over. A missing worktree with no matching cleanup-start record is treated
+as an out-of-band disappearance and refused. If OMP restarted after that start,
+the old authority remains invalid and cleanup resumes only after a fresh,
+human-confirmed `remove_worktree` authority is issued for the same
+repo/run/lane/dispatch/Gate-C revision.
+`finalize-closeout` then verifies the worktree is physically absent, persists
+`released/closed`, removes the lane from awaiting/active projections and only
+then returns `pane_close_allowed=true`.
 
-- **An unproven step is not a passed step.** A missing fact blocks; nothing is
-  inferred from its absence. This is the fail-loud rule from the orchestrator
-  lessons doc, applied to closeout.
-- **The order is enforced.** An unpushed child *also* means the worktree still
-  exists, but the reason to fix it is the push. Later steps report "not reached"
-  rather than as independently broken, so nobody is told to delete a worktree
-  whose commit was never pushed.
+Publication evidence is outcome-sensitive:
 
-The gate **decides and never acts**: it runs no `git push`, `gh pr merge`,
-`git worktree remove` or `herdr pane close`. A gate that performs the
-irreversible action cannot also be the thing that audits it.
+- **delivered code** derives the required ladder at Gate C from the bound
+  repository topology and persists that scope with the report: local-only
+  repositories require `docs_aligned`; ordinary repositories with a remote
+  require `docs_aligned -> child_pushed -> pr_merged`; submodule deliveries
+  require the full
+  `docs_aligned -> child_pushed -> parent_pointer_updated -> pr_merged`
+  ladder;
+- **no-change** is explicit: Gate C must see green checks and a zero diff, the
+  worktree must still be clean, and nonexistent push/PR facts are not invented;
+- **failed / cancelled** use `record-outcome` to leave awaiting and record the
+  terminal reason while keeping the physical claim and worktree for recovery.
+  They revoke any prior Gate C report, cleanup decision and derived human
+  authority, so older positive evidence cannot survive a later terminal result.
+  A later authoritative Gate C rejection likewise revokes earlier acceptance.
+  They do not masquerade as Gate C success or release resources.
+
+An unproven required fact still blocks, and the ordered delivery ladder still
+reports later steps as not reached. What changed is the lifecycle boundary:
+pure gate functions decide; the separate `cleanup-worktree` executor performs
+only an already-authorized, exactly-bound removal.
 
 ## Prompt protocol gate — and why it is not an interceptor
 

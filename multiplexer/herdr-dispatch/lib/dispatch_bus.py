@@ -223,6 +223,7 @@ class DispatchPlan:
     request: str
     worktree: str = ""
     branch: str = ""
+    delivery_scope: str = ""
     highlights: List[str] = field(default_factory=list)
     risks: List[str] = field(default_factory=list)
     # What the bus derived, and any caller input it discarded. Returned rather
@@ -255,6 +256,7 @@ class DispatchPlan:
         callback_lookup: Optional[Callable[[str], str]] = None,
         worktree_reader: Optional[Callable[[str], str]] = None,
         branch_reader: Optional[Callable[[str], str]] = None,
+        publication_scope_reader: Optional[Callable[[str], str]] = None,
     ) -> "DispatchPlan":
         """Run every gate and compute every value. Raises on any refusal.
 
@@ -345,6 +347,15 @@ class DispatchPlan:
             branch_reader=branch_reader,
         )
 
+        # Derivation 4 — publication topology, before the worker starts.
+        # This value is persisted into the lane and later copied into Gate C.
+        # Gate C must not re-derive it from mutable Git config controlled by the
+        # worker it is evaluating.
+        delivery_scope = _deriving(
+            publication_scope_reader or derive.publication_scope,
+            worktree,
+        )
+
         # Gate 3 — the claim. A placement is always present by now — either
         # derived or supplied — so this gate always runs, and an empty pair is
         # refused rather than read as "this lane claims nothing".
@@ -382,6 +393,7 @@ class DispatchPlan:
             request=request,
             worktree=worktree,
             branch=branch,
+            delivery_scope=delivery_scope,
             highlights=list(highlights),
             risks=list(risks),
             notes=notes,
@@ -409,6 +421,8 @@ class DispatchPlan:
             lane_entry["worktree"] = self.worktree
         if self.branch:
             lane_entry["branch"] = self.branch
+        if self.delivery_scope:
+            lane_entry["delivery_scope"] = self.delivery_scope
         return lane_entry
 
     # -- commit ----------------------------------------------------------

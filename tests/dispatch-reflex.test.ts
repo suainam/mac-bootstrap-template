@@ -34,6 +34,17 @@ import dispatchBrain, {
 
 const PARKED = { orchestrator_phase: "yield_and_guard", brain: { awaiting_lanes: ["1-4"] } };
 const SYNTHESIS = { orchestrator_phase: "synthesis", brain: { awaiting_lanes: ["1-4"] } };
+const ACTIVE_PARKED = { ...PARKED, run_id: "run-current" };
+const ACTIVE_TOPOLOGY = {
+  run_id: "run-current",
+  orchestrator_phase: "topology",
+  brain: { awaiting_lanes: [] },
+};
+const ACTIVE_HUMAN_GATE = {
+  run_id: "run-current",
+  orchestrator_phase: "human_gate",
+  brain: { awaiting_lanes: [] },
+};
 const HOME = "/srv/home/tester";
 
 /** A tool event as the host hands it over. */
@@ -528,7 +539,7 @@ describe("Gate A session wiring", () => {
     const pi = makeHost();
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState(PARKED);
+    brain.setState(ACTIVE_PARKED);
 
     const result = await pi.emit("tool_call", call("read_file", { path: ".worktrees/1-4/src/a.py" }));
     expect(result?.block).toBe(true);
@@ -544,7 +555,7 @@ describe("Gate A session wiring", () => {
     const pi = makeHost({ cwd: "/srv/home/tester/work/config/mac-bootstrap" });
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState({ orchestrator_phase: "topology", brain: { awaiting_lanes: [] } });
+    brain.setState(ACTIVE_TOPOLOGY);
 
     const result = await pi.emit("tool_call", {
       toolName: "bash",
@@ -560,7 +571,7 @@ describe("Gate A session wiring", () => {
     const pi = makeHost({ cwd: "/srv/home/tester/repo/.worktrees/feat-auth" });
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState({ orchestrator_phase: "topology", brain: { awaiting_lanes: [] } });
+    brain.setState(ACTIVE_TOPOLOGY);
 
     const result = await pi.emit("tool_call", {
       toolName: "bash",
@@ -573,7 +584,7 @@ describe("Gate A session wiring", () => {
     const pi = makeHost();
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState(PARKED);
+    brain.setState(ACTIVE_PARKED);
     expect(await pi.emit("tool_call", call("todo"))).toBeUndefined();
   });
 
@@ -581,7 +592,7 @@ describe("Gate A session wiring", () => {
     const pi = makeHost({ agent: { kind: "sub" } });
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState(PARKED);
+    brain.setState(ACTIVE_PARKED);
 
     // Blocking a lane's own tool calls would be the takeover in reverse.
     const result = await pi.emit("tool_call", call("read_file", { path: ".worktrees/1-4/src/a.py" }));
@@ -592,7 +603,7 @@ describe("Gate A session wiring", () => {
     const pi = makeHost();
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState({ orchestrator_phase: "human_gate", brain: { awaiting_lanes: [] } });
+    brain.setState(ACTIVE_HUMAN_GATE);
 
     const result = await pi.emit("tool_call", call("bash", { command: "git push origin feat" }));
     expect(result?.block).toBe(true);
@@ -609,7 +620,7 @@ describe("Gate A session wiring", () => {
     };
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState(PARKED);
+    brain.setState(ACTIVE_PARKED);
 
     const result = await pi.emit("tool_call", call("read_file", { path: ".worktrees/1-4/src/a.py" }));
     expect(result?.block).toBe(true);
@@ -620,7 +631,7 @@ describe("Gate A session wiring", () => {
     pi.sendUserMessage = undefined;
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState(PARKED);
+    brain.setState(ACTIVE_PARKED);
 
     const result = await pi.emit("tool_call", call("read_file", { path: ".worktrees/1-4/src/a.py" }));
     expect(result?.block).toBe(true);
@@ -633,7 +644,7 @@ describe("Gate A session wiring", () => {
     const pi = makeHost();
     const brain = dispatchBrain(pi);
     await pi.emit("session_start", {});
-    brain.setState(PARKED);
+    brain.setState(ACTIVE_PARKED);
 
     const result = await pi.emit("tool_call", call("bash", { command: "rm -rf /" }));
     expect(result?.block).toBe(true);

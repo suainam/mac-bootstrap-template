@@ -41,6 +41,7 @@ def _load(name: str, path: Path):
 
 judge = _load("handoff_judge", LIB / "handoff_judge.py")
 gate = _load("dispatch_closeout_gate", LIB / "closeout_gate.py")
+brain = _load("dispatch_orchestrator_state_for_gate_c", LIB / "orchestrator_state.py")
 plugin = _load("dispatch_plugin", BIN / "dispatch_plugin.py")
 
 
@@ -142,6 +143,32 @@ def test_zero_change_diff_summary_blocks_physically() -> None:
     )
     assert not report.accepted
     assert report.verdict is judge.HandoffVerdict.PHYSICAL_DIFF_MISSING
+
+
+def test_explicit_no_change_accepts_green_tests_and_zero_diff() -> None:
+    report = judge.verify_handoff(
+        handoff_text="No code changes were required; the requested checks passed.",
+        test_exit_code=0,
+        test_output=GENUINE_TEST_LOG,
+        diff_summary="0 files changed, 0 insertions(+), 0 deletions(-)",
+        key="",
+        allow_no_change=True,
+    )
+    assert report.accepted
+    assert report.verdict is judge.HandoffVerdict.ACCEPTED
+
+
+def test_explicit_no_change_rejects_when_the_diff_has_changes() -> None:
+    report = judge.verify_handoff(
+        handoff_text="No code changes were required.",
+        test_exit_code=0,
+        test_output=GENUINE_TEST_LOG,
+        diff_summary=GENUINE_DIFF,
+        key="",
+        allow_no_change=True,
+    )
+    assert not report.accepted
+    assert report.verdict is judge.HandoffVerdict.PHYSICAL_DIFF_MISMATCH
 
 
 def test_diff_touching_none_of_the_expected_files_blocks() -> None:
@@ -1267,3 +1294,226 @@ def test_a_bare_accepted_flag_cannot_unlock_closeout() -> None:
     """A report claiming success without naming a verdict is not evidence."""
     facts = {"handoff_accepted": True, "verified": True}
     assert not gate.evaluate_step(gate.HANDOFF_TRUTHFUL_STEP, facts).passed
+
+
+def test_formal_gate_c_report_binds_current_run_dispatch_handoff_and_revision(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    monkeypatch.setattr(plugin, "_AUTHORIZATION_RUNTIME_KEY", "gate-c-test-runtime-key")
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worker"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Dispatch-Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "dispatch-test"], check=True)
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "add", "-q", "-b", "feat/lane", str(worktree)],
+        check=True,
+    )
+    (worktree / "tracked.txt").write_text("changed\n", encoding="utf-8")
+
+    handoff_path = tmp_path / "handoff.md"
+    handoff_path.write_text("Changed tracked.txt and verified tests.\n", encoding="utf-8")
+    revision = subprocess.check_output(
+        ["git", "-C", str(worktree), "rev-parse", "HEAD"], text=True
+    ).strip()
+    state = brain.default_state()
+    state["run_id"] = "run-current"
+    state["lanes"] = {
+        "1-1": {
+            "lane": "1-1",
+            "run_id": "run-current",
+            "dispatch_id": "dispatch-current",
+            "worktree": str(worktree),
+            "branch": "feat/lane",
+            "delivery_scope": "local",
+            "handoff": str(handoff_path),
+            "status": "working",
+        }
+    }
+    brain.save(brain.state_path(repo), state)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "verify-handoff",
+        "--lane", "1-1",
+        "--handoff", str(handoff_path),
+        "--test-log-text", "worker fabricated: 99 failures\n",
+        "--diff-text", " fabricated.txt | 999 +\n 1 file changed, 999 insertions(+)",
+        "--exit-code", "99",
+        "--expect-file", "tracked.txt",
+        "--bind-current",
+        "--json",
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["binding"] | {"evidence_digest": payload["binding"]["evidence_digest"]} == payload["binding"]
+    assert payload["binding"]["repo"] == str(repo.resolve())
+    assert payload["binding"]["run_id"] == "run-current"
+    assert payload["binding"]["lane"] == "1-1"
+    assert payload["binding"]["dispatch_id"] == "dispatch-current"
+    assert payload["binding"]["handoff"] == str(handoff_path)
+    assert payload["binding"]["revision"] == revision
+    assert payload["binding"]["delivery_scope"] == "local"
+    assert len(payload["binding"]["evidence_digest"]) == 64
+    persisted = brain.load(brain.state_path(repo))["lanes"]["1-1"]["gate_c"]
+    assert persisted["report_id"] == payload["report_id"]
+    assert persisted["binding"] == payload["binding"]
+
+    # A later authoritative rejection for the same current dispatch must revoke
+    # the earlier acceptance and every authority derived from it.
+    state_path = brain.state_path(repo)
+    state = brain.load(state_path)
+    state["lanes"]["1-1"]["cleanup_authorization"] = {"authorization_id": "old-auth"}
+    state["extra_data"] = {
+        "authorizations": [
+            {
+                "authorization_id": "old-auth",
+                "action": "remove_worktree",
+                "run_id": "run-current",
+                "lane": "1-1",
+            }
+        ]
+    }
+    brain.save(state_path, state)
+    # Bound Gate C ignores worker-supplied exit/log claims; induce a real
+    # protected verifier failure instead.
+    (worktree / "tracked.txt").write_text("bad trailing space \n", encoding="utf-8")
+
+    rejected = plugin.main([
+        "--repo", str(repo),
+        "verify-handoff",
+        "--lane", "1-1",
+        "--handoff", str(handoff_path),
+        "--test-log-text", "1 failed in 0.1s\n",
+        "--diff-text", " tracked.txt | 1 +\n 1 file changed, 1 insertion(+)",
+        "--exit-code", "1",
+        "--expect-file", "tracked.txt",
+        "--bind-current",
+        "--json",
+    ])
+    assert rejected == plugin.EXIT_GATE_REFUSED
+    capsys.readouterr()
+    revoked = brain.load(state_path)
+    assert "gate_c" not in revoked["lanes"]["1-1"]
+    assert "cleanup_authorization" not in revoked["lanes"]["1-1"]
+    assert revoked["extra_data"]["authorizations"] == []
+
+
+def test_formal_gate_c_no_change_binds_the_current_revision(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    monkeypatch.setattr(plugin, "_AUTHORIZATION_RUNTIME_KEY", "gate-c-test-runtime-key")
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worker"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Dispatch-Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "dispatch-test"], check=True)
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "add", "-q", "-b", "feat/lane", str(worktree)],
+        check=True,
+    )
+    handoff_path = tmp_path / "handoff.md"
+    handoff_path.write_text(
+        "No code changes were required; the requested checks passed.\n",
+        encoding="utf-8",
+    )
+    revision = subprocess.check_output(
+        ["git", "-C", str(worktree), "rev-parse", "HEAD"], text=True
+    ).strip()
+
+    state = brain.default_state()
+    state["run_id"] = "run-current"
+    state["lanes"] = {
+        "1-1": {
+            "lane": "1-1",
+            "run_id": "run-current",
+            "dispatch_id": "dispatch-current",
+            "worktree": str(worktree),
+            "branch": "feat/lane",
+            "delivery_scope": "local",
+            "handoff": str(handoff_path),
+            "status": "done",
+        }
+    }
+    brain.save(brain.state_path(repo), state)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "verify-handoff",
+        "--lane", "1-1",
+        "--handoff", str(handoff_path),
+        "--test-log-text", GENUINE_TEST_LOG,
+        "--diff-text", "0 files changed, 0 insertions(+), 0 deletions(-)",
+        "--exit-code", "0",
+        "--outcome", "no_change",
+        "--bind-current",
+        "--json",
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["accepted"] is True
+    assert payload["binding"]["revision"] == revision
+
+    persisted = brain.load(brain.state_path(repo))["lanes"]["1-1"]["gate_c"]
+    assert persisted["outcome"] == "no_change"
+    assert persisted["binding"]["revision"] == revision
+
+
+def test_formal_gate_c_report_refuses_a_handoff_from_another_dispatch(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    monkeypatch.setattr(plugin, "_AUTHORIZATION_RUNTIME_KEY", "gate-c-test-runtime-key")
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worker"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Dispatch-Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "dispatch-test"], check=True)
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "add", "-q", "-b", "feat/lane", str(worktree)],
+        check=True,
+    )
+    expected = tmp_path / "current.md"
+    expected.write_text("current\n", encoding="utf-8")
+    stale = tmp_path / "stale.md"
+    stale.write_text("stale\n", encoding="utf-8")
+
+    state = brain.default_state()
+    state["run_id"] = "run-current"
+    state["lanes"] = {
+        "1-1": {
+            "lane": "1-1",
+            "run_id": "run-current",
+            "dispatch_id": "dispatch-current",
+            "worktree": str(worktree),
+            "branch": "feat/lane",
+            "handoff": str(expected),
+            "status": "working",
+        }
+    }
+    brain.save(brain.state_path(repo), state)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "verify-handoff",
+        "--lane", "1-1",
+        "--handoff", str(stale),
+        "--test-log-text", GENUINE_TEST_LOG,
+        "--diff-text", " tracked.txt | 1 +\n 1 file changed, 1 insertion(+)",
+        "--exit-code", "0",
+        "--bind-current",
+        "--json",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "current dispatch handoff" in capsys.readouterr().err

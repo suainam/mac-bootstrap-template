@@ -21,11 +21,21 @@ project.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
+import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
+
+AUTHORIZATION_KEY_ENV = "HERDR_DISPATCH_RUNTIME_AUTH_KEY"
+# Capture once and remove immediately, before importing any repository modules.
+# The proof key belongs only to this frozen Python process; Git, Herdr and any
+# future subprocess must never inherit it through the ambient environment.
+_AUTHORIZATION_RUNTIME_KEY = os.environ.pop(AUTHORIZATION_KEY_ENV, "")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
@@ -277,6 +287,969 @@ def cmd_claim(args: argparse.Namespace) -> int:
     return 0
 
 
+def _closeout_evidence(raw: str) -> tuple[Dict[str, Dict[str, Any]], str]:
+    if not raw:
+        return {}, ""
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return {}, f"dispatch: --evidence is not valid JSON ({exc})"
+    if not isinstance(loaded, dict):
+        return {}, "dispatch: --evidence must be a JSON object"
+    return {k: v for k, v in loaded.items() if isinstance(v, dict)}, ""
+
+
+def _formal_gate_c_truth(
+    lane: Mapping[str, Any],
+    authority: Optional[Mapping[str, Any]] = None,
+) -> tuple[Dict[str, Any], str]:
+    gate_c = lane.get("gate_c")
+    if not isinstance(gate_c, Mapping) or gate_c.get("accepted") is not True:
+        return {}, "dispatch: current lane has no accepted formal Gate C report"
+    binding = gate_c.get("binding")
+    if not isinstance(binding, Mapping):
+        return {}, "dispatch: current Gate C report has no binding"
+    proof_ok = _gate_c_proof_valid(gate_c)
+    if not proof_ok and isinstance(authority, Mapping):
+        proof_ok = bool(
+            _authorization_proof_valid(authority)
+            and authority.get("gate_c_report_id") == gate_c.get("report_id")
+            and authority.get("revision") == binding.get("revision")
+            and authority.get("run_id") == binding.get("run_id")
+            and authority.get("dispatch_id") == binding.get("dispatch_id")
+        )
+    if not proof_ok:
+        return {}, "dispatch: current formal Gate C proof is invalid or stale"
+    return {
+        "handoff_verdict": "ACCEPTED",
+        "handoff_accepted": True,
+        "verified": True,
+    }, ""
+
+
+def _authorization_payload(record: Mapping[str, Any]) -> str:
+    fields = (
+        "authorization_id",
+        "action",
+        "repo",
+        "remote",
+        "push_url",
+        "ref",
+        "destination_ref",
+        "pr_url",
+        "pr_base",
+        "pr_head_ref",
+        "cleanup_evidence_digest",
+        "run_id",
+        "lane",
+        "dispatch_id",
+        "gate_c_report_id",
+        "revision",
+        "outcome",
+        "delivery_scope",
+        "authorized_unix_ms",
+        "consumed_unix_ms",
+    )
+    return "\n".join(
+        "" if record.get(field) is None else str(record.get(field))
+        for field in fields
+    )
+
+
+def _authorization_proof(record: Mapping[str, Any], key: str) -> str:
+    if not key:
+        return ""
+    return hmac.new(
+        key.encode("utf-8"),
+        _authorization_payload(record).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _authorization_proof_valid(record: Mapping[str, Any]) -> bool:
+    key = _AUTHORIZATION_RUNTIME_KEY
+    proof = str(record.get("authorization_proof") or "")
+    return bool(key and proof) and hmac.compare_digest(
+        proof, _authorization_proof(record, key)
+    )
+
+
+def _matching_authorization(
+    state: Mapping[str, Any],
+    lane_id: str,
+    *,
+    action: str,
+    repo: str,
+    ref: str,
+    consumed: Optional[bool] = None,
+) -> Optional[Mapping[str, Any]]:
+    lane = (state.get("lanes") or {}).get(lane_id)
+    if not isinstance(lane, Mapping):
+        return None
+    gate_c = lane.get("gate_c")
+    if not isinstance(gate_c, Mapping):
+        return None
+    binding = gate_c.get("binding")
+    if not isinstance(binding, Mapping):
+        return None
+
+    for record in ((state.get("extra_data") or {}).get("authorizations") or []):
+        if not isinstance(record, Mapping):
+            continue
+        if not _authorization_proof_valid(record):
+            continue
+        is_consumed = bool(record.get("consumed_unix_ms"))
+        if consumed is not None and is_consumed is not consumed:
+            continue
+        if (
+            record.get("action") == action
+            and record.get("repo") == repo
+            and record.get("ref") == ref
+            and record.get("run_id") == state.get("run_id")
+            and record.get("lane") == lane_id
+            and record.get("dispatch_id") == lane.get("dispatch_id")
+            and record.get("gate_c_report_id") == gate_c.get("report_id")
+            and record.get("revision") == binding.get("revision")
+            and str(record.get("outcome") or "") == str(gate_c.get("outcome") or "delivered")
+            and str(record.get("delivery_scope") or "") == str(binding.get("delivery_scope") or "")
+        ):
+            return record
+    return None
+
+
+def _revoke_lane_closeout_state(state: Dict[str, Any], lane_id: str) -> None:
+    """Invalidate Gate C and every authority derived from it for one lane."""
+    lane = (state.get("lanes") or {}).get(lane_id)
+    if not isinstance(lane, dict):
+        return
+    lane.pop("gate_c", None)
+    lane.pop("cleanup_authorization", None)
+    for field in (
+        "cleanup_started_unix_ms",
+        "cleanup_started_authorization_id",
+        "cleanup_executor_pid",
+        "cleanup_removed_unix_ms",
+        "cleanup_finalized_unix_ms",
+    ):
+        lane.pop(field, None)
+    extra = state.get("extra_data") or {}
+    records = extra.get("authorizations")
+    if isinstance(records, list):
+        extra["authorizations"] = [
+            record
+            for record in records
+            if not (
+                isinstance(record, Mapping)
+                and record.get("lane") == lane_id
+                and record.get("run_id") == state.get("run_id")
+            )
+        ]
+
+
+def _gate_c_payload(gate_c: Mapping[str, Any]) -> str:
+    binding = gate_c.get("binding") or {}
+    fields = (
+        gate_c.get("report_id"),
+        gate_c.get("accepted"),
+        gate_c.get("outcome"),
+        binding.get("repo"),
+        binding.get("run_id"),
+        binding.get("lane"),
+        binding.get("dispatch_id"),
+        binding.get("handoff"),
+        binding.get("revision"),
+        binding.get("delivery_scope"),
+        binding.get("evidence_digest"),
+        gate_c.get("verified_unix_ms"),
+    )
+    def canonical(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
+    return "\n".join(canonical(value) for value in fields)
+
+
+def _gate_c_proof(gate_c: Mapping[str, Any], key: str) -> str:
+    if not key:
+        return ""
+    return hmac.new(
+        key.encode("utf-8"),
+        _gate_c_payload(gate_c).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _gate_c_proof_valid(gate_c: Mapping[str, Any]) -> bool:
+    key = _AUTHORIZATION_RUNTIME_KEY
+    proof = str(gate_c.get("gate_c_proof") or "")
+    return bool(key and proof) and hmac.compare_digest(proof, _gate_c_proof(gate_c, key))
+
+
+def _cleanup_payload(lane: Mapping[str, Any], cleanup: Mapping[str, Any]) -> str:
+    fields = (
+        cleanup.get("authorization_id"),
+        cleanup.get("gate_c_report_id"),
+        cleanup.get("run_id"),
+        cleanup.get("dispatch_id"),
+        cleanup.get("worktree"),
+        cleanup.get("revision"),
+        cleanup.get("outcome"),
+        cleanup.get("delivery_scope"),
+        cleanup.get("cleanup_evidence_digest"),
+        cleanup.get("reauthorized_from_authorization_id"),
+        lane.get("cleanup_started_unix_ms"),
+        lane.get("cleanup_started_authorization_id"),
+        lane.get("cleanup_executor_pid"),
+        lane.get("cleanup_removed_unix_ms"),
+    )
+    return "\n".join(str(value or "") for value in fields)
+
+
+def _cleanup_proof(lane: Mapping[str, Any], cleanup: Mapping[str, Any], key: str) -> str:
+    if not key:
+        return ""
+    return hmac.new(
+        key.encode("utf-8"),
+        _cleanup_payload(lane, cleanup).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _cleanup_proof_valid(lane: Mapping[str, Any], cleanup: Mapping[str, Any]) -> bool:
+    key = _AUTHORIZATION_RUNTIME_KEY
+    proof = str(cleanup.get("cleanup_proof") or "")
+    return bool(key and proof) and hmac.compare_digest(
+        proof, _cleanup_proof(lane, cleanup, key)
+    )
+
+
+def _resign_cleanup(lane: Dict[str, Any], cleanup: Dict[str, Any]) -> None:
+    key = _AUTHORIZATION_RUNTIME_KEY
+    if not key:
+        raise brain.StateError("protected cleanup executor has no runtime authorization key")
+    cleanup["cleanup_proof"] = _cleanup_proof(lane, cleanup, key)
+
+
+def _resign_authorization(record: Dict[str, Any]) -> None:
+    key = _AUTHORIZATION_RUNTIME_KEY
+    if not key:
+        raise brain.StateError("protected cleanup executor has no runtime authorization key")
+    record["authorization_proof"] = _authorization_proof(record, key)
+
+
+def cmd_record_outcome(args: argparse.Namespace) -> int:
+    """Record an honest failed/cancelled terminal lane without releasing its claim."""
+    path = state_path(args)
+
+    def record(state: Dict[str, Any]) -> Dict[str, Any]:
+        lane = (state.get("lanes") or {}).get(args.lane)
+        if not isinstance(lane, dict):
+            raise brain.StateError(f"lane {args.lane!r} is not in the current run")
+        if (
+            lane.get("run_id") != state.get("run_id")
+            or not lane.get("dispatch_id")
+        ):
+            raise brain.StateError("lane identity does not match the current run")
+
+        _revoke_lane_closeout_state(state, args.lane)
+        lane = state["lanes"][args.lane]
+        lane["status"] = args.outcome
+        lane["phase"] = "terminal"
+        lane["terminal_outcome"] = args.outcome
+        lane["terminal_reason"] = args.reason
+        lane["terminal_unix_ms"] = brain.now_unix_ms()
+
+        waiting = list((state.get("brain") or {}).get("awaiting_lanes") or [])
+        state.setdefault("brain", {})["awaiting_lanes"] = [
+            lane_id for lane_id in waiting if lane_id != args.lane
+        ]
+        if (
+            state.get("orchestrator_phase") == "yield_and_guard"
+            and not state["brain"]["awaiting_lanes"]
+        ):
+            signal = "stall_alarm" if args.outcome == "failed" else "human"
+            brain.advance(state, "synthesis", wake_signal=signal)
+        return state
+
+    try:
+        updated = brain.mutate(path, record)
+    except brain.StateError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    payload = {
+        "lane": args.lane,
+        "outcome": args.outcome,
+        "reason": args.reason,
+        "claim_released": False,
+        "orchestrator_phase": updated.get("orchestrator_phase"),
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(
+            f"dispatch: lane {args.lane} recorded {args.outcome}; "
+            "physical claim remains held for recovery/cleanup"
+        )
+    return 0
+
+
+def cmd_authorize_cleanup(args: argparse.Namespace) -> int:
+    """Prove that the current lane may have its exact worktree removed."""
+    evidence, err = _closeout_evidence(args.evidence)
+    if err:
+        print(err, file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    state = _state(args.repo)
+    lane = (state.get("lanes") or {}).get(args.lane)
+    if not isinstance(lane, Mapping):
+        print(f"dispatch: lane {args.lane!r} is not in the current run", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    if lane.get("run_id") != state.get("run_id") or not lane.get("dispatch_id"):
+        print("dispatch: lane identity does not match the current run", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    gate_c = lane.get("gate_c") or {}
+    binding = gate_c.get("binding") or {}
+    if (
+        binding.get("run_id") != state.get("run_id")
+        or binding.get("lane") != args.lane
+        or binding.get("dispatch_id") != lane.get("dispatch_id")
+    ):
+        print("dispatch: Gate C binding does not match the current lane", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    worktree = str(lane.get("worktree") or "")
+    if not worktree:
+        print("dispatch: current lane has no claimed worktree", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    try:
+        current_revision = _git_text(Path(worktree), "rev-parse", "HEAD")
+        repo_root = _git_text(Path(args.repo or "."), "rev-parse", "--show-toplevel")
+    except brain.StateError as exc:
+        print(f"dispatch: cannot verify current cleanup revision ({exc})", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    expected_revision = str(binding.get("revision") or "")
+    if not expected_revision or current_revision != expected_revision:
+        print(
+            "dispatch: current Git HEAD no longer matches the accepted Gate C revision",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+
+    resolved_repo = str(Path(repo_root).resolve())
+    resolved_worktree = str(Path(worktree).resolve())
+    outcome = str(gate_c.get("outcome") or "delivered")
+    if outcome not in {"delivered", "no_change"}:
+        print(f"dispatch: unsupported Gate C outcome {outcome!r}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    if outcome == "no_change":
+        try:
+            dirty = _git_text(Path(worktree), "status", "--porcelain")
+        except brain.StateError as exc:
+            print(f"dispatch: cannot verify no-change worktree ({exc})", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+        if dirty:
+            print(
+                "dispatch: no-change cleanup refused because the worktree is dirty",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+
+    if binding.get("repo") and binding.get("repo") != resolved_repo:
+        print("dispatch: Gate C repository binding does not match the current repo", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    authority = _matching_authorization(
+        state,
+        args.lane,
+        action="remove_worktree",
+        repo=resolved_repo,
+        ref=resolved_worktree,
+        consumed=False,
+    )
+    if authority is None:
+        print(
+            "dispatch: no unconsumed human authorization matches this worktree removal",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+    try:
+        cleanup_steps = _required_closeout_steps(
+            str(binding.get("delivery_scope") or ""),
+            outcome,
+        )
+    except brain.StateError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    evidence_digest = _cleanup_evidence_digest(evidence, cleanup_steps)
+    if authority.get("cleanup_evidence_digest") != evidence_digest:
+        print(
+            "dispatch: cleanup evidence was not part of the explicit human authorization",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+    truth, truth_err = _formal_gate_c_truth(lane, authority)
+    if truth_err:
+        print(truth_err, file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    report = gate.evaluate_cleanup_authorization(
+        args.lane,
+        evidence,
+        truthfulness=truth,
+        steps=cleanup_steps,
+    )
+    if not report.allowed:
+        if args.json:
+            print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(report.render())
+        return EXIT_GATE_REFUSED
+
+    path = state_path(args)
+
+    def persist(current: Dict[str, Any]) -> Dict[str, Any]:
+        current_lane = (current.get("lanes") or {}).get(args.lane)
+        if not isinstance(current_lane, dict):
+            raise brain.StateError("lane disappeared before cleanup authorization commit")
+        current_authority = _matching_authorization(
+            current,
+            args.lane,
+            action="remove_worktree",
+            repo=resolved_repo,
+            ref=resolved_worktree,
+            consumed=False,
+        )
+        if current_authority is None:
+            raise brain.StateError("human cleanup authorization became stale before commit")
+        current_lane["cleanup_authorization"] = {
+            "authorization_id": current_authority.get("authorization_id"),
+            "gate_c_report_id": gate_c.get("report_id"),
+            "run_id": current.get("run_id"),
+            "dispatch_id": current_lane.get("dispatch_id"),
+            "worktree": resolved_worktree,
+            "revision": expected_revision,
+            "outcome": outcome,
+            "delivery_scope": str(binding.get("delivery_scope") or ""),
+            "cleanup_evidence_digest": evidence_digest,
+        }
+        _resign_cleanup(current_lane, current_lane["cleanup_authorization"])
+        return current
+
+    try:
+        brain.mutate(path, persist)
+    except brain.StateError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    if args.json:
+        print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(report.render())
+    return 0
+
+
+def _pid_is_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _worker_quiescent_for_cleanup(lane: Mapping[str, Any]) -> tuple[bool, str]:
+    """Require a completed/idle worker, never a lane still actively working."""
+    pane_id = str(lane.get("pane_id") or lane.get("pane") or "")
+    if herdr.in_herdr() and pane_id:
+        try:
+            info = herdr.agent_info(pane_id)
+        except herdr.HerdrError as exc:
+            return False, f"cannot verify worker lifecycle before cleanup ({exc})"
+        status = str(info.get("agent_status") or "")
+        if status not in {"idle", "done"}:
+            return False, f"worker {pane_id} is still {status or 'unknown'}"
+        return True, ""
+
+    persisted_status = str(lane.get("status") or "")
+    persisted_phase = str(lane.get("phase") or "")
+    if persisted_status in {"idle", "done"} or persisted_phase == "done":
+        return True, ""
+    return False, (
+        "worker lifecycle is not quiescent and no authoritative Herdr lifecycle "
+        "record is available"
+    )
+
+
+def cmd_cleanup_worktree(args: argparse.Namespace) -> int:
+    """Execute the already-authorized worktree removal and consume its authority."""
+    state = _state(args.repo)
+    lane = (state.get("lanes") or {}).get(args.lane)
+    if not isinstance(lane, Mapping):
+        print(f"dispatch: lane {args.lane!r} is not in the current run", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    cleanup = lane.get("cleanup_authorization")
+    if not isinstance(cleanup, Mapping):
+        print("dispatch: cleanup was never authorized for this lane", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    cleanup_proof_valid = _cleanup_proof_valid(lane, cleanup)
+
+    try:
+        repo_root = _git_text(Path(args.repo or "."), "rev-parse", "--show-toplevel")
+    except brain.StateError as exc:
+        print(f"dispatch: cannot resolve current repo ({exc})", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    resolved_repo = str(Path(repo_root).resolve())
+    worktree = str(cleanup.get("worktree") or "")
+    authority = _matching_authorization(
+        state,
+        args.lane,
+        action="remove_worktree",
+        repo=resolved_repo,
+        ref=worktree,
+        consumed=False,
+    )
+    if authority is None:
+        print(
+            "dispatch: no current-session unconsumed human authorization matches this cleanup; "
+            "reauthorize remove_worktree after an OMP restart",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+
+    worktree_path = Path(worktree)
+    path = state_path(args)
+
+    # A root OMP restart deliberately rotates the runtime authorization key, so
+    # persisted human authority from the old session becomes unusable. If the
+    # process crashed after the physical worktree removal but before authority
+    # consumption, the old cleanup proof is stale too. Recovery is allowed only
+    # for that narrow post-removal state and only after a fresh human authority
+    # for the exact same lane worktree has been issued in the new session.
+    if not cleanup_proof_valid:
+        if worktree_path.exists():
+            print(
+                "dispatch: cleanup authorization proof is invalid or stale; "
+                "rerun authorize-cleanup before removing the worktree",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+
+        started_by = str(lane.get("cleanup_started_authorization_id") or "")
+        started_at = lane.get("cleanup_started_unix_ms")
+        old_authorization_id = str(cleanup.get("authorization_id") or "")
+        gate_c = lane.get("gate_c") or {}
+        binding = gate_c.get("binding") or {}
+        lane_worktree = str(Path(str(lane.get("worktree") or "")).resolve())
+        structurally_current = bool(
+            started_at
+            and started_by
+            and old_authorization_id
+            and started_by == old_authorization_id
+            and lane_worktree == worktree
+            and cleanup.get("gate_c_report_id") == gate_c.get("report_id")
+            and cleanup.get("run_id") == state.get("run_id")
+            and cleanup.get("dispatch_id") == lane.get("dispatch_id")
+            and cleanup.get("revision") == binding.get("revision")
+            and str(cleanup.get("outcome") or "delivered")
+            == str(gate_c.get("outcome") or "delivered")
+            and str(cleanup.get("delivery_scope") or "")
+            == str(binding.get("delivery_scope") or "")
+        )
+        if not structurally_current:
+            print(
+                "dispatch: stale cleanup record does not match the current Gate C binding",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+
+        def rebind_after_restart(current: Dict[str, Any]) -> Dict[str, Any]:
+            current_lane = (current.get("lanes") or {}).get(args.lane)
+            if not isinstance(current_lane, dict):
+                raise brain.StateError("lane disappeared during cleanup recovery")
+            current_cleanup = current_lane.get("cleanup_authorization") or {}
+            if not isinstance(current_cleanup, dict):
+                raise brain.StateError("cleanup authorization disappeared during recovery")
+            current_gate_c = current_lane.get("gate_c") or {}
+            current_binding = current_gate_c.get("binding") or {}
+            current_worktree = str(Path(str(current_lane.get("worktree") or "")).resolve())
+            previous_id = str(current_cleanup.get("authorization_id") or "")
+            if (
+                current_worktree != worktree
+                or str(current_lane.get("cleanup_started_authorization_id") or "") != previous_id
+                or not current_lane.get("cleanup_started_unix_ms")
+                or current_cleanup.get("gate_c_report_id") != current_gate_c.get("report_id")
+                or current_cleanup.get("run_id") != current.get("run_id")
+                or current_cleanup.get("dispatch_id") != current_lane.get("dispatch_id")
+                or current_cleanup.get("revision") != current_binding.get("revision")
+                or str(current_cleanup.get("outcome") or "delivered")
+                != str(current_gate_c.get("outcome") or "delivered")
+                or str(current_cleanup.get("delivery_scope") or "")
+                != str(current_binding.get("delivery_scope") or "")
+            ):
+                raise brain.StateError("stale cleanup record changed during restart recovery")
+            fresh_authority = _matching_authorization(
+                current,
+                args.lane,
+                action="remove_worktree",
+                repo=resolved_repo,
+                ref=worktree,
+                consumed=False,
+            )
+            if fresh_authority is None:
+                raise brain.StateError(
+                    "fresh human cleanup authorization became stale during recovery"
+                )
+            current_cleanup["reauthorized_from_authorization_id"] = previous_id
+            current_cleanup["authorization_id"] = fresh_authority.get("authorization_id")
+            _resign_cleanup(current_lane, current_cleanup)
+            return current
+
+        try:
+            brain.mutate(path, rebind_after_restart)
+        except brain.StateError as exc:
+            print(f"dispatch: {exc}", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+
+        state = _state(args.repo)
+        lane = (state.get("lanes") or {}).get(args.lane) or {}
+        cleanup = lane.get("cleanup_authorization") or {}
+        authority = _matching_authorization(
+            state,
+            args.lane,
+            action="remove_worktree",
+            repo=resolved_repo,
+            ref=worktree,
+            consumed=False,
+        )
+        if authority is None or not _cleanup_proof_valid(lane, cleanup):
+            print("dispatch: cleanup restart recovery could not be authenticated", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+
+    if worktree_path.exists():
+        quiescent, quiescent_reason = _worker_quiescent_for_cleanup(lane)
+        if not quiescent:
+            print(f"dispatch: cleanup refused because {quiescent_reason}", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+        try:
+            current_revision = _git_text(worktree_path, "rev-parse", "HEAD")
+            dirty = _git_text(worktree_path, "status", "--porcelain")
+            listed = _git_text(Path(resolved_repo), "worktree", "list", "--porcelain")
+        except brain.StateError as exc:
+            print(f"dispatch: cannot inspect authorized worktree ({exc})", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+        if current_revision != cleanup.get("revision"):
+            print(
+                "dispatch: cleanup refused because current HEAD no longer matches "
+                "the accepted Gate C revision",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+        if dirty:
+            print(
+                "dispatch: cleanup refused because the authorized worktree is dirty",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+        marker = f"worktree {worktree}"
+        if marker not in listed.splitlines():
+            print(
+                "dispatch: authorized path is not a worktree owned by the current repository",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+
+        def mark_started(current: Dict[str, Any]) -> Dict[str, Any]:
+            current_lane = (current.get("lanes") or {}).get(args.lane)
+            if not isinstance(current_lane, dict):
+                raise brain.StateError("lane disappeared before cleanup start")
+            current_cleanup = current_lane.get("cleanup_authorization") or {}
+            if not isinstance(current_cleanup, dict) or not _cleanup_proof_valid(
+                current_lane, current_cleanup
+            ):
+                raise brain.StateError("cleanup authorization proof became stale before removal start")
+            current_authority = _matching_authorization(
+                current,
+                args.lane,
+                action="remove_worktree",
+                repo=resolved_repo,
+                ref=worktree,
+                consumed=False,
+            )
+            if current_authority is None:
+                raise brain.StateError("cleanup authority became stale before removal start")
+
+            executor_pid = int(current_lane.get("cleanup_executor_pid") or 0)
+            if executor_pid and executor_pid != os.getpid() and _pid_is_alive(executor_pid):
+                raise brain.StateError(
+                    f"cleanup is already executing in live pid {executor_pid}"
+                )
+
+            previous_authorization_id = str(current_cleanup.get("authorization_id") or "")
+            current_authorization_id = str(current_authority.get("authorization_id") or "")
+            if previous_authorization_id != current_authorization_id:
+                current_cleanup["reauthorized_from_authorization_id"] = previous_authorization_id
+                current_cleanup["authorization_id"] = current_authorization_id
+
+            current_lane["cleanup_started_unix_ms"] = brain.now_unix_ms()
+            current_lane["cleanup_started_authorization_id"] = current_authorization_id
+            current_lane["cleanup_executor_pid"] = os.getpid()
+            _resign_cleanup(current_lane, current_cleanup)
+            return current
+
+        try:
+            brain.mutate(path, mark_started)
+        except brain.StateError as exc:
+            print(f"dispatch: {exc}", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+
+        try:
+            subprocess.run(
+                ["git", "-C", resolved_repo, "worktree", "remove", worktree],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            print(f"dispatch: worktree removal failed ({exc})", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+    else:
+        started_by = str(lane.get("cleanup_started_authorization_id") or "")
+        started_at = lane.get("cleanup_started_unix_ms")
+        if not started_by or not started_at:
+            print(
+                "dispatch: authorized worktree disappeared outside the authorized cleanup executor",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+
+    def consume(current: Dict[str, Any]) -> Dict[str, Any]:
+        current_lane = (current.get("lanes") or {}).get(args.lane)
+        if not isinstance(current_lane, dict):
+            raise brain.StateError("lane disappeared before cleanup consumption")
+        current_cleanup = current_lane.get("cleanup_authorization") or {}
+        if not isinstance(current_cleanup, dict) or not _cleanup_proof_valid(
+            current_lane, current_cleanup
+        ):
+            raise brain.StateError("cleanup authorization proof became stale before consumption")
+        current_authority = _matching_authorization(
+            current,
+            args.lane,
+            action="remove_worktree",
+            repo=resolved_repo,
+            ref=worktree,
+            consumed=False,
+        )
+        if current_authority is None:
+            raise brain.StateError("cleanup authority became stale before consumption")
+        started_by = str(current_lane.get("cleanup_started_authorization_id") or "")
+        if not started_by or not current_lane.get("cleanup_started_unix_ms"):
+            raise brain.StateError("cleanup removal has no matching executor start record")
+
+        current_authorization_id = str(current_authority.get("authorization_id") or "")
+        previous_authorization_id = str(current_cleanup.get("authorization_id") or "")
+        if current_authorization_id != previous_authorization_id:
+            current_cleanup["reauthorized_from_authorization_id"] = previous_authorization_id
+            current_cleanup["authorization_id"] = current_authorization_id
+            current_lane["cleanup_started_authorization_id"] = current_authorization_id
+
+        now = brain.now_unix_ms()
+        current_authority["consumed_unix_ms"] = now
+        _resign_authorization(current_authority)
+        current_lane["cleanup_removed_unix_ms"] = now
+        current_lane.pop("cleanup_executor_pid", None)
+        _resign_cleanup(current_lane, current_cleanup)
+        return current
+
+    try:
+        brain.mutate(path, consume)
+    except brain.StateError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    payload = {
+        "lane": args.lane,
+        "worktree": worktree,
+        "removed": not worktree_path.exists(),
+        "authorization_id": authority.get("authorization_id"),
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(f"dispatch: removed authorized worktree {worktree}")
+    return 0
+
+
+def cmd_finalize_closeout(args: argparse.Namespace) -> int:
+    """Release a lane only after its authorized worktree removal was consumed."""
+    evidence, err = _closeout_evidence(args.evidence)
+    if err:
+        print(err, file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    state = _state(args.repo)
+    lane = (state.get("lanes") or {}).get(args.lane)
+    if not isinstance(lane, Mapping):
+        print(f"dispatch: lane {args.lane!r} is not in the current run", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    cleanup = lane.get("cleanup_authorization")
+    if not isinstance(cleanup, Mapping):
+        print("dispatch: cleanup was never authorized for this lane", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    if not _cleanup_proof_valid(lane, cleanup):
+        print("dispatch: cleanup authorization proof is invalid or stale", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    try:
+        repo_root = _git_text(Path(args.repo or "."), "rev-parse", "--show-toplevel")
+    except brain.StateError as exc:
+        print(f"dispatch: cannot resolve current repo ({exc})", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    resolved_repo = str(Path(repo_root).resolve())
+    worktree = str(cleanup.get("worktree") or "")
+    authority = _matching_authorization(
+        state,
+        args.lane,
+        action="remove_worktree",
+        repo=resolved_repo,
+        ref=worktree,
+        consumed=True,
+    )
+    if authority is None or authority.get("authorization_id") != cleanup.get("authorization_id"):
+        print(
+            "dispatch: human worktree-removal authorization has not been consumed",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+    try:
+        attested_steps = _required_closeout_steps(
+            str(cleanup.get("delivery_scope") or ""),
+            str(cleanup.get("outcome") or "delivered"),
+        )
+    except brain.StateError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    evidence_digest = _cleanup_evidence_digest(evidence, attested_steps)
+    if (
+        cleanup.get("cleanup_evidence_digest") != evidence_digest
+        or authority.get("cleanup_evidence_digest") != evidence_digest
+    ):
+        print(
+            "dispatch: final closeout evidence does not match the human-attested cleanup evidence",
+            file=sys.stderr,
+        )
+        return EXIT_GATE_REFUSED
+    if Path(worktree).exists():
+        print("dispatch: authorized worktree still exists; finalization is premature", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    truth, truth_err = _formal_gate_c_truth(lane, authority)
+    if truth_err:
+        print(truth_err, file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    outcome = str(cleanup.get("outcome") or "delivered")
+    gate_c = lane.get("gate_c") or {}
+    gate_binding = gate_c.get("binding") or {}
+    if (
+        outcome != str(gate_c.get("outcome") or "delivered")
+        or str(cleanup.get("delivery_scope") or "")
+        != str(gate_binding.get("delivery_scope") or "")
+    ):
+        print("dispatch: cleanup outcome/scope no longer matches Gate C", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    final_evidence = dict(evidence)
+    final_evidence["worktree_removed"] = {"worktree_absent": True}
+    try:
+        required_steps = _required_closeout_steps(
+            str(cleanup.get("delivery_scope") or ""),
+            outcome,
+        )
+    except brain.StateError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+    final_steps = (*required_steps, "worktree_removed")
+    report = gate.evaluate_closeout(
+        args.lane,
+        final_evidence,
+        steps=final_steps,
+        truthfulness=truth,
+    )
+    if not report.allowed:
+        if args.json:
+            print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(report.render())
+        return EXIT_GATE_REFUSED
+
+    path = state_path(args)
+
+    def finalize(current: Dict[str, Any]) -> Dict[str, Any]:
+        current_lane = (current.get("lanes") or {}).get(args.lane)
+        if not isinstance(current_lane, dict):
+            raise brain.StateError("lane disappeared before finalization")
+        current_cleanup = current_lane.get("cleanup_authorization") or {}
+        if not isinstance(current_cleanup, dict) or not _cleanup_proof_valid(
+            current_lane, current_cleanup
+        ):
+            raise brain.StateError("cleanup proof became stale before finalization")
+        if (
+            current.get("run_id") != cleanup.get("run_id")
+            or current_lane.get("dispatch_id") != cleanup.get("dispatch_id")
+            or current_cleanup.get("authorization_id") != cleanup.get("authorization_id")
+        ):
+            raise brain.StateError("cleanup identity became stale before finalization")
+        if current_lane.get("status") == "released" or current_lane.get("phase") == "closed":
+            raise brain.StateError("lane is already finalized")
+        current_authority = _matching_authorization(
+            current,
+            args.lane,
+            action="remove_worktree",
+            repo=resolved_repo,
+            ref=worktree,
+            consumed=True,
+        )
+        if (
+            current_authority is None
+            or current_authority.get("authorization_id")
+            != current_cleanup.get("authorization_id")
+        ):
+            raise brain.StateError("consumed human authority became stale before finalization")
+        if Path(worktree).exists():
+            raise brain.StateError("worktree reappeared before finalization")
+        current_lane["status"] = "released"
+        current_lane["phase"] = "closed"
+        current_lane["terminal_outcome"] = outcome
+        current_lane["cleanup_finalized_unix_ms"] = brain.now_unix_ms()
+        waiting = list((current.get("brain") or {}).get("awaiting_lanes") or [])
+        current.setdefault("brain", {})["awaiting_lanes"] = [
+            lane_id for lane_id in waiting if lane_id != args.lane
+        ]
+        active = (current.get("active_panes") or {}).get("lanes")
+        if isinstance(active, dict):
+            active.pop(args.lane, None)
+        return current
+
+    try:
+        brain.mutate(path, finalize)
+    except brain.StateError as exc:
+        print(f"dispatch: {exc}", file=sys.stderr)
+        return EXIT_GATE_REFUSED
+
+    if args.json:
+        print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(report.render())
+    return 0
+
+
 def cmd_closeout(args: argparse.Namespace) -> int:
     """Evaluate the Closeout Lifecycle Gate for one lane.
 
@@ -301,7 +1274,12 @@ def cmd_closeout(args: argparse.Namespace) -> int:
         print(truth_err, file=sys.stderr)
         return 2
 
-    report = gate.evaluate_closeout(args.lane, evidence, truthfulness=truthfulness)
+    report = gate.evaluate_closeout(
+        args.lane,
+        evidence,
+        truthfulness=truthfulness,
+        purpose="diagnostic",
+    )
     if args.json:
         print(json.dumps(report.as_dict(), indent=2, ensure_ascii=False))
     else:
@@ -312,14 +1290,13 @@ def cmd_closeout(args: argparse.Namespace) -> int:
 def _truthfulness(args: argparse.Namespace) -> tuple[Optional[Dict[str, Any]], str]:
     """Load a Gate C report supplied as ``--handoff-report`` into gate facts.
 
-    Returns ``(None, "")`` when no report was supplied, which leaves the
-    lifecycle ladder untouched. A report that is present but unusable is an
-    error, not an omission: quietly dropping a malformed report would re-open
-    exactly the hole the reviewer was installed to close.
+    A truthfulness report is mandatory for this diagnostic path. Omitting it
+    is an error: no legacy/diagnostic command may imply closeout authority from
+    non-Gate-C evidence alone.
     """
     raw = getattr(args, "handoff_report", None)
     if not raw:
-        return None, ""
+        return None, "dispatch: --handoff-report is required for closeout evaluation"
     # Accept either a path to a Gate C report or the report itself, so a caller
     # can pipe it in the same way every other evidence input is supplied.
     if os.path.exists(raw):
@@ -366,6 +1343,231 @@ def _read_evidence_input(
         return "", f"dispatch: cannot read {label} {resolved} ({exc})"
 
 
+def _git_text(cwd: Path, *argv: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(cwd), *argv],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise brain.StateError(f"git {' '.join(argv)} failed in {cwd}: {exc}") from exc
+    return result.stdout.strip()
+
+
+def _required_closeout_steps(scope: str, outcome: str) -> tuple[str, ...]:
+    if outcome == "no_change":
+        return ()
+    if scope == "local":
+        return ("docs_aligned",)
+    if scope == "repository":
+        return ("docs_aligned", "child_pushed", "pr_merged")
+    if scope == "submodule":
+        return gate.PRE_CLEANUP_STEPS
+    raise brain.StateError(f"unsupported Gate C delivery scope {scope!r}")
+
+
+def _cleanup_evidence_digest(
+    evidence: Mapping[str, Mapping[str, Any]],
+    steps: Sequence[str],
+) -> str:
+    projection = {step: dict(evidence.get(step) or {}) for step in steps}
+    canonical = json.dumps(projection, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _formal_gate_c_binding(args: argparse.Namespace) -> tuple[Dict[str, Any], str]:
+    """Bind a Gate C report to the current authoritative lane and Git revision."""
+    if not args.lane:
+        return {}, "dispatch verify-handoff: --bind-current requires --lane"
+    if not args.handoff or args.handoff == "-":
+        return {}, (
+            "dispatch verify-handoff: --bind-current requires the current handoff file "
+            "via --handoff"
+        )
+
+    state = _state(args.repo)
+    lane = (state.get("lanes") or {}).get(args.lane)
+    if not isinstance(lane, Mapping):
+        return {}, f"dispatch verify-handoff: lane {args.lane!r} is not in the current run"
+
+    run_id = str(state.get("run_id") or "")
+    lane_run = str(lane.get("run_id") or "")
+    dispatch_id = str(lane.get("dispatch_id") or "")
+    expected_handoff = str(lane.get("handoff") or "")
+    worktree = str(lane.get("worktree") or "")
+    delivery_scope = str(lane.get("delivery_scope") or "")
+    if lane.get("status") in {"failed", "cancelled", "released"} or lane.get("phase") in {"terminal", "closed"}:
+        return {}, "dispatch verify-handoff: terminal/finalized lanes cannot re-enter Gate C"
+    if not run_id or lane_run != run_id or not dispatch_id:
+        return {}, (
+            "dispatch verify-handoff: current lane identity is incomplete or belongs "
+            "to another run"
+        )
+
+    supplied_handoff = str(Path(os.path.expanduser(args.handoff)).resolve())
+    current_handoff = (
+        str(Path(os.path.expanduser(expected_handoff)).resolve()) if expected_handoff else ""
+    )
+    if not current_handoff or supplied_handoff != current_handoff:
+        return {}, (
+            "dispatch verify-handoff: --handoff does not match the current dispatch handoff "
+            f"({current_handoff or 'missing'})"
+        )
+    if not worktree:
+        return {}, "dispatch verify-handoff: current lane has no claimed worktree"
+    if delivery_scope not in {"local", "repository", "submodule"}:
+        return {}, (
+            "dispatch verify-handoff: current lane has no trusted delivery scope; "
+            "redispatch from the current bus before Gate C"
+        )
+
+    try:
+        repo_root = _git_text(Path(args.repo or "."), "rev-parse", "--show-toplevel")
+        revision = _git_text(Path(worktree), "rev-parse", "HEAD")
+    except brain.StateError as exc:
+        return {}, f"dispatch verify-handoff: cannot bind current Git revision ({exc})"
+
+    return {
+        "repo": str(Path(repo_root).resolve()),
+        "run_id": run_id,
+        "lane": args.lane,
+        "dispatch_id": dispatch_id,
+        "handoff": current_handoff,
+        "revision": revision,
+        "delivery_scope": delivery_scope,
+    }, ""
+
+
+def _persist_gate_c_report(
+    repo: Optional[str],
+    lane_id: str,
+    *,
+    report_id: str,
+    binding: Mapping[str, Any],
+    outcome: str = "delivered",
+) -> None:
+    path = brain.state_path(Path(repo) if repo else None)
+
+    def persist(state: Dict[str, Any]) -> Dict[str, Any]:
+        lane = (state.get("lanes") or {}).get(lane_id)
+        if not isinstance(lane, dict):
+            raise brain.StateError(f"lane {lane_id!r} disappeared before Gate C commit")
+        if lane.get("status") in {"failed", "cancelled", "released"} or lane.get("phase") in {"terminal", "closed"}:
+            raise brain.StateError("terminal/finalized lanes cannot regain Gate C")
+        if (
+            str(state.get("run_id") or "") != binding.get("run_id")
+            or str(lane.get("run_id") or "") != binding.get("run_id")
+            or str(lane.get("dispatch_id") or "") != binding.get("dispatch_id")
+            or str(Path(str(lane.get("handoff") or "")).resolve()) != binding.get("handoff")
+        ):
+            raise brain.StateError("Gate C binding became stale before it could be recorded")
+        _revoke_lane_closeout_state(state, lane_id)
+        lane = state["lanes"][lane_id]
+        gate_c = {
+            "report_id": report_id,
+            "binding": dict(binding),
+            "accepted": True,
+            "outcome": outcome,
+            "verified_unix_ms": brain.now_unix_ms(),
+        }
+        key = _AUTHORIZATION_RUNTIME_KEY
+        if not key:
+            raise brain.StateError(
+                "binding Gate C requires the active root OMP protected runtime"
+            )
+        gate_c["gate_c_proof"] = _gate_c_proof(gate_c, key)
+        lane["gate_c"] = gate_c
+        return state
+
+    brain.mutate(path, persist)
+
+
+def _capture_trusted_gate_c_evidence(
+    args: argparse.Namespace,
+    binding: Mapping[str, Any],
+) -> tuple[int, str, str, str]:
+    """Capture Gate C facts in the protected root runtime, never from worker claims."""
+    state = _state(args.repo)
+    lane = (state.get("lanes") or {}).get(args.lane)
+    if not isinstance(lane, Mapping):
+        raise brain.StateError(f"lane {args.lane!r} disappeared before trusted Gate C capture")
+    worktree = Path(str(lane.get("worktree") or "")).resolve()
+    repo_root = Path(str(binding.get("repo") or "")).resolve()
+    if not worktree.exists():
+        raise brain.StateError("trusted Gate C capture requires the current lane worktree")
+
+    commands: List[List[str]] = []
+    root_python = repo_root / ".venv" / "bin" / "python"
+    if (repo_root / "tests").is_dir() and root_python.exists():
+        commands.append([
+            str(root_python),
+            "-m",
+            "pytest",
+            "tests/",
+            "-q",
+            "-m",
+            "not machine",
+        ])
+    if (repo_root / "tests" / "dispatch-brain.test.ts").exists():
+        commands.append(["bun", "test"])
+    if not commands:
+        commands.append(["git", "diff", "--check"])
+
+    outputs: List[str] = []
+    exit_code = 0
+    for command in commands:
+        proc = subprocess.run(
+            command,
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        outputs.append(
+            f"$ {' '.join(command)}\n{proc.stdout or ''}{proc.stderr or ''}".rstrip()
+        )
+        if proc.returncode != 0:
+            exit_code = proc.returncode
+            break
+
+    root_revision = _git_text(repo_root, "rev-parse", "HEAD")
+    worker_revision = str(binding.get("revision") or "")
+    diff_parts: List[str] = []
+    if worker_revision and worker_revision != root_revision:
+        committed = subprocess.run(
+            ["git", "-C", str(worktree), "diff", "--stat", root_revision, worker_revision],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if committed.stdout.strip():
+            diff_parts.append(committed.stdout.strip())
+    for argv in (
+        ["git", "-C", str(worktree), "diff", "--stat", "HEAD"],
+        ["git", "-C", str(worktree), "diff", "--cached", "--stat", "HEAD"],
+    ):
+        proc = subprocess.run(argv, capture_output=True, text=True, check=False)
+        if proc.stdout.strip():
+            diff_parts.append(proc.stdout.strip())
+
+    diff_summary = "\n".join(diff_parts).strip()
+    if not diff_summary:
+        diff_summary = "0 files changed, 0 insertions(+), 0 deletions(-)"
+    test_output = "\n\n".join(part for part in outputs if part)
+    handoff_path = Path(str(binding.get("handoff") or ""))
+    try:
+        handoff_bytes = handoff_path.read_bytes()
+    except OSError as exc:
+        raise brain.StateError(f"cannot read bound handoff for evidence digest ({exc})") from exc
+    handoff_digest = hashlib.sha256(handoff_bytes).hexdigest()
+    digest = hashlib.sha256(
+        f"{exit_code}\n{test_output}\n{diff_summary}\n{handoff_digest}".encode("utf-8")
+    ).hexdigest()
+    return exit_code, test_output, diff_summary, digest
+
+
 def cmd_verify_handoff(args: argparse.Namespace) -> int:
     """Gate C: review a worker's Done claim against its physical evidence.
 
@@ -406,6 +1608,34 @@ def cmd_verify_handoff(args: argparse.Namespace) -> int:
         print(err, file=sys.stderr)
         return EXIT_GATE_REFUSED
 
+    binding: Dict[str, Any] = {}
+    if args.bind_current:
+        if not _AUTHORIZATION_RUNTIME_KEY:
+            print(
+                "dispatch verify-handoff: --bind-current requires the active root OMP "
+                "protected runtime; direct worker binding is refused",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+        binding, bind_err = _formal_gate_c_binding(args)
+        if bind_err:
+            print(bind_err, file=sys.stderr)
+            return EXIT_GATE_REFUSED
+        try:
+            (
+                test_exit_code,
+                test_output,
+                diff_summary,
+                evidence_digest,
+            ) = _capture_trusted_gate_c_evidence(args, binding)
+        except (brain.StateError, OSError) as exc:
+            print(
+                f"dispatch verify-handoff: trusted Gate C evidence capture failed ({exc})",
+                file=sys.stderr,
+            )
+            return EXIT_GATE_REFUSED
+        binding["evidence_digest"] = evidence_digest
+
     report = handoff.verify_handoff(
         handoff_text=handoff_text,
         test_exit_code=test_exit_code,
@@ -417,11 +1647,50 @@ def cmd_verify_handoff(args: argparse.Namespace) -> int:
         # honest work, so an unreviewed default that calls the model would make
         # this gate refuse correct lanes.
         use_jev=args.online,
+        allow_no_change=args.outcome == "no_change",
     )
+
+    report_id = ""
+    if args.bind_current and report.accepted:
+        report_id = f"gate-c-{uuid.uuid4().hex}"
+        try:
+            _persist_gate_c_report(
+                args.repo,
+                args.lane,
+                report_id=report_id,
+                binding=binding,
+                outcome=args.outcome,
+            )
+        except brain.StateError as exc:
+            print(f"dispatch verify-handoff: {exc}", file=sys.stderr)
+            return EXIT_GATE_REFUSED
+    elif args.bind_current:
+        path = state_path(args)
+
+        def revoke_rejected(state: Dict[str, Any]) -> Dict[str, Any]:
+            lane = (state.get("lanes") or {}).get(args.lane)
+            if not isinstance(lane, dict):
+                raise brain.StateError(f"lane {args.lane!r} disappeared before Gate C rejection")
+            if (
+                str(state.get("run_id") or "") != binding.get("run_id")
+                or str(lane.get("dispatch_id") or "") != binding.get("dispatch_id")
+            ):
+                raise brain.StateError("Gate C rejection binding became stale before commit")
+            _revoke_lane_closeout_state(state, args.lane)
+            return state
+
+        try:
+            brain.mutate(path, revoke_rejected)
+        except brain.StateError as exc:
+            print(f"dispatch verify-handoff: {exc}", file=sys.stderr)
+            return EXIT_GATE_REFUSED
 
     if args.json:
         payload = report.as_dict()
         payload["lane"] = args.lane or ""
+        if args.bind_current:
+            payload["report_id"] = report_id
+            payload["binding"] = binding
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print(f"handoff truth gate: lane={args.lane or '-'}")
@@ -922,6 +2191,42 @@ def build_parser() -> argparse.ArgumentParser:
     claim.add_argument("--json", action="store_true")
     claim.set_defaults(func=cmd_claim)
 
+    terminal = sub.add_parser(
+        "record-outcome",
+        help="record a failed/cancelled lane terminal state without releasing its claim",
+    )
+    terminal.add_argument("--lane", required=True)
+    terminal.add_argument("--outcome", choices=("failed", "cancelled"), required=True)
+    terminal.add_argument("--reason", required=True)
+    terminal.add_argument("--json", action="store_true")
+    terminal.set_defaults(func=cmd_record_outcome)
+
+    cleanup = sub.add_parser(
+        "authorize-cleanup",
+        help="prove Gate C + human authority + pre-removal closeout facts",
+    )
+    cleanup.add_argument("--lane", required=True)
+    cleanup.add_argument("--evidence", default="", help="JSON object of closeout step facts")
+    cleanup.add_argument("--json", action="store_true")
+    cleanup.set_defaults(func=cmd_authorize_cleanup)
+
+    cleanup_exec = sub.add_parser(
+        "cleanup-worktree",
+        help="consume the current human cleanup authority and remove the exact owned worktree",
+    )
+    cleanup_exec.add_argument("--lane", required=True)
+    cleanup_exec.add_argument("--json", action="store_true")
+    cleanup_exec.set_defaults(func=cmd_cleanup_worktree)
+
+    finalize = sub.add_parser(
+        "finalize-closeout",
+        help="verify authorized worktree removal, release the lane claim, and allow pane close",
+    )
+    finalize.add_argument("--lane", required=True)
+    finalize.add_argument("--evidence", default="", help="JSON object of closeout step facts")
+    finalize.add_argument("--json", action="store_true")
+    finalize.set_defaults(func=cmd_finalize_closeout)
+
     closeout = sub.add_parser(
         "closeout", help="evaluate the Closeout Lifecycle Gate before cleanup/pane close"
     )
@@ -1125,6 +2430,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="file the handoff claims to change; repeatable",
+    )
+    verify.add_argument(
+        "--bind-current",
+        action="store_true",
+        help=(
+            "bind an accepted report to the current repo/run/lane/dispatch, "
+            "handoff path and worker Git revision, then persist that report identity"
+        ),
+    )
+    verify.add_argument(
+        "--outcome",
+        choices=("delivered", "no_change"),
+        default="delivered",
+        help=(
+            "physical result shape: delivered requires a real diff; no_change "
+            "requires green tests and zero diff"
+        ),
     )
     verify.add_argument(
         "--online",

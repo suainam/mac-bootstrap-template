@@ -806,6 +806,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 0
 
         if args.command == "advance":
+            if args.to == "closed":
+                raise StateError(
+                    "closed is a protected closeout state; use the authenticated "
+                    "#147 lifecycle instead of the public advance CLI"
+                )
             state = mutate(
                 target,
                 lambda current: advance(
