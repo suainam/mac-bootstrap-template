@@ -484,6 +484,8 @@ def _check_physical_facts(
     test_exit_code: Optional[int],
     diff: DiffFacts,
     expected_files: Sequence[str],
+    *,
+    allow_no_change: bool = False,
 ) -> Optional[HandoffReport]:
     """Decide the Level 1 questions, or return ``None`` to proceed to Jev.
 
@@ -518,7 +520,20 @@ def _check_physical_facts(
             reasons=(f"test suite exit code {test_exit_code} is non-zero",),
         )
 
-    if not diff.has_changes:
+    if allow_no_change:
+        if diff.has_changes:
+            return HandoffReport(
+                verdict=HandoffVerdict.PHYSICAL_DIFF_MISMATCH,
+                accepted=False,
+                rejection_message=(
+                    "No-change rejected: the git diff summary contains changes. "
+                    "A no-change result must prove that nothing was modified."
+                ),
+                test_exit_code=test_exit_code,
+                diff=diff,
+                reasons=("no-change outcome contradicts the diff summary",),
+            )
+    elif not diff.has_changes:
         return HandoffReport(
             verdict=HandoffVerdict.PHYSICAL_DIFF_MISSING,
             accepted=False,
@@ -794,6 +809,7 @@ def verify_handoff(
     api_url: Optional[str] = None,
     model: Optional[str] = None,
     use_jev: bool = False,
+    allow_no_change: bool = False,
 ) -> HandoffReport:
     """Review a worker's Done declaration against its physical evidence.
 
@@ -816,7 +832,12 @@ def verify_handoff(
     bounded_output = truncate_test_output(test_output or "")
     bounded_diff = truncate_diff(diff_summary or "")
 
-    physical = _check_physical_facts(test_exit_code, diff, expected_files)
+    physical = _check_physical_facts(
+        test_exit_code,
+        diff,
+        expected_files,
+        allow_no_change=allow_no_change,
+    )
     if physical is not None:
         return physical
 

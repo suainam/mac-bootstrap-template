@@ -355,6 +355,44 @@ def test_pane_in_an_existing_non_git_directory_is_refused(tmp_path: Path) -> Non
         derive.derive_placement("w3:p9", pane_lookup=lambda _target: str(plain))
 
 
+def test_publication_scope_distinguishes_local_and_remote_repositories(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    assert derive.publication_scope(str(repo)) == "local"
+
+    subprocess.run(
+        ["git", "-C", str(repo), "remote", "add", "origin", "https://example.invalid/repo.git"],
+        check=True,
+    )
+    assert derive.publication_scope(str(repo)) == "repository"
+
+
+def test_publication_scope_detects_a_submodule_before_dispatch(tmp_path: Path) -> None:
+    child = tmp_path / "child-source"
+    parent = tmp_path / "parent"
+    subprocess.run(["git", "init", "-q", str(child)], check=True)
+    subprocess.run(["git", "-C", str(child), "config", "user.email", "dispatch-test"], check=True)
+    subprocess.run(["git", "-C", str(child), "config", "user.name", "Dispatch Test"], check=True)
+    (child / "tracked.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(child), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(child), "commit", "-qm", "base"], check=True)
+
+    subprocess.run(["git", "init", "-q", str(parent)], check=True)
+    subprocess.run(["git", "-C", str(parent), "config", "user.email", "dispatch-test"], check=True)
+    subprocess.run(["git", "-C", str(parent), "config", "user.name", "Dispatch Test"], check=True)
+    subprocess.run(
+        [
+            "git", "-c", "protocol.file.allow=always", "-C", str(parent),
+            "submodule", "add", "-q", str(child), "deps/child",
+        ],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(parent), "commit", "-qm", "add submodule"], check=True)
+
+    submodule = parent / "deps" / "child"
+    assert derive.publication_scope(str(submodule)) == "submodule"
+
+
 # --------------------------------------------------------------------------
 # Integration: the bus uses the derivations and refuses on failure
 # --------------------------------------------------------------------------
@@ -403,6 +441,7 @@ def _plan(repo: Path, task: Path, **over):
         callback_lookup=over.pop("callback_lookup", lambda target: str(repo)),
         worktree_reader=over.pop("worktree_reader", lambda cwd: cwd),
         branch_reader=over.pop("branch_reader", lambda cwd: "feat/1-3"),
+        publication_scope_reader=over.pop("publication_scope_reader", lambda cwd: "local"),
     )
     kwargs.update(over)
     return bus.DispatchPlan.plan(**kwargs)
