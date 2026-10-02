@@ -1190,6 +1190,13 @@ describe("tool_call human gate", () => {
         `--lane 1-1 --evidence '${evidence}'`,
         { cwd: repo, ui: pi.ui },
       );
+      state = JSON.parse(readFileSync(statePath, "utf8"));
+      const persistedCleanupWorktree =
+        state.lanes["1-1"].cleanup_authorization.worktree;
+      expect(persistedCleanupWorktree).toBe(realpathSync(worktree));
+      if (process.platform === "darwin" && worktree.startsWith("/var/")) {
+        expect(persistedCleanupWorktree.startsWith("/private/var/")).toBe(true);
+      }
 
       const cleanup = pi.calls.commands.get("cleanup-worktree");
       await cleanup.handler("--lane 1-1 --json", { cwd: repo, ui: pi.ui });
@@ -1410,6 +1417,32 @@ describe("tool_call human gate", () => {
     );
     expect(result?.block ?? false).toBe(true);
     expect(result?.reason ?? "").toContain("root-only");
+  });
+
+  test("worker cannot delete or mutate the shared dispatch state path", async () => {
+    const { pi, brain } = boot();
+    await pi.emit("session_start");
+    activateRun(brain, "human_gate");
+    for (const command of [
+      "rm ../../.git/dispatch/ORCHESTRATOR_STATE.json",
+      "rm -rf ../../.git/dispatch",
+      "mv ../../.git/dispatch/ORCHESTRATOR_STATE.json /tmp/state",
+      "cp /dev/null ../../.git/dispatch/ORCHESTRATOR_STATE.json",
+    ]) {
+      const result = await pi.emit(
+        "tool_call",
+        { toolName: "bash", input: { command } },
+        { agent: { kind: "sub" }, hasUI: false, cwd: "/tmp/worker" },
+      );
+      expect(result?.block ?? false).toBe(true);
+      expect(result?.reason ?? "").toContain("shared dispatch state");
+    }
+    const ordinary = await pi.emit(
+      "tool_call",
+      { toolName: "bash", input: { command: "git status --short" } },
+      { agent: { kind: "sub" }, hasUI: false, cwd: "/tmp/worker" },
+    );
+    expect(ordinary).toBeUndefined();
   });
 
   test("shell-escaped Python interpreter names are fail-closed", async () => {
