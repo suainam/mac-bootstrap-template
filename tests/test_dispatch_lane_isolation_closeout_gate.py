@@ -12,7 +12,11 @@ passes is worse than no gate, because it looks like enforcement.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -270,6 +274,40 @@ def test_a_surviving_worktree_blocks_closeout() -> None:
     assert report.blocked_at == "worktree_removed"
 
 
+def test_cleanup_authorization_opens_before_the_worktree_is_removed() -> None:
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+    truth = {
+        "handoff_verdict": "ACCEPTED",
+        "handoff_accepted": True,
+        "verified": True,
+    }
+
+    cleanup = gate.evaluate_cleanup_authorization("1-1", evidence, truthfulness=truth)
+    final = gate.evaluate_closeout("1-1", evidence, truthfulness=truth)
+
+    assert cleanup.allowed
+    assert cleanup.pane_close_allowed is False
+    assert cleanup.result_for("worktree_removed") is None
+    assert not final.allowed
+    assert final.blocked_at == "worktree_removed"
+
+
+def test_cleanup_authorization_still_blocks_an_unpushed_code_change() -> None:
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["child_pushed"] = {"branch_pushed": False, "remote_contains_head": False}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+    truth = {
+        "handoff_verdict": "ACCEPTED",
+        "handoff_accepted": True,
+        "verified": True,
+    }
+
+    report = gate.evaluate_cleanup_authorization("1-1", evidence, truthfulness=truth)
+    assert not report.allowed
+    assert report.blocked_at == "child_pushed"
+
+
 def test_a_partial_evidence_bundle_blocks_rather_than_passing() -> None:
     """Fail loud: an unproven step is not a passed step."""
     report = gate.evaluate_closeout("1-1", {"docs_aligned": {"docs_reconciled": True}})
@@ -421,7 +459,10 @@ def test_claim_json_output_names_the_holding_lane(state_repo: Path, capsys) -> N
 
 
 def test_closeout_command_blocks_an_unpushed_lane(state_repo: Path, capsys) -> None:
-    code = plugin.main(["--repo", str(state_repo), "closeout", "--lane", "1-1"])
+    code = plugin.main([
+        "--repo", str(state_repo), "closeout", "--lane", "1-1",
+        "--handoff-report", '{"verdict":"ACCEPTED","accepted":true}',
+    ])
     assert code == plugin.EXIT_GATE_REFUSED
     assert "gate CLOSED" in capsys.readouterr().out
 
@@ -431,10 +472,12 @@ def test_closeout_command_opens_on_full_evidence(state_repo: Path, capsys) -> No
 
     code = plugin.main(
         ["--repo", str(state_repo), "closeout", "--lane", "1-1",
-         "--evidence", json.dumps(gate.SATISFIED_EVIDENCE)]
+         "--evidence", json.dumps(gate.SATISFIED_EVIDENCE),
+         "--handoff-report", '{"verdict":"ACCEPTED","accepted":true}']
     )
     assert code == 0
-    assert "gate OPEN" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "gate OPEN" in output
 
 
 def test_closeout_command_rejects_malformed_evidence(state_repo: Path, capsys) -> None:
@@ -453,6 +496,951 @@ def test_closeout_command_rejects_non_object_evidence(state_repo: Path, capsys) 
     assert "must be a JSON object" in capsys.readouterr().err
 
 
+def _setup_authorized_cleanup_repo(
+    tmp_path: Path, *, outcome: str = "delivered"
+) -> tuple[Path, Path, str]:
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worker"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Dispatch-Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "dispatch-test"], check=True)
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "add", "-q", "-b", "feat/lane", str(worktree)],
+        check=True,
+    )
+    revision = subprocess.check_output(
+        ["git", "-C", str(worktree), "rev-parse", "HEAD"], text=True
+    ).strip()
+
+    state = brain.default_state()
+    state["run_id"] = "run-current"
+    state["orchestrator_phase"] = "human_gate"
+    state["lanes"] = {
+        "1-1": {
+            "lane": "1-1",
+            "run_id": "run-current",
+            "dispatch_id": "dispatch-current",
+            "worktree": str(worktree),
+            "branch": "feat/lane",
+            "handoff": "/tmp/handoff/current.md",
+            "status": "done",
+            "gate_c": {
+                "accepted": True,
+                "report_id": "gate-c-current",
+                "outcome": outcome,
+                "binding": {
+                    "repo": str(repo.resolve()),
+                    "run_id": "run-current",
+                    "lane": "1-1",
+                    "dispatch_id": "dispatch-current",
+                    "handoff": "/tmp/handoff/current.md",
+                    "revision": revision,
+                    "delivery_scope": "local",
+                },
+            },
+        }
+    }
+    key = "test-runtime-authorization-key"
+    plugin._AUTHORIZATION_RUNTIME_KEY = key
+    cleanup_evidence = json.dumps({"docs_aligned": {"docs_reconciled": True}})
+    cleanup_steps = () if outcome == "no_change" else ("docs_aligned",)
+    authority = {
+        "authorization_id": "human-remove-current",
+        "action": "remove_worktree",
+        "repo": str(repo.resolve()),
+        "remote": "",
+        "push_url": "",
+        "ref": str(worktree.resolve()),
+        "destination_ref": "",
+        "cleanup_evidence_digest": plugin._cleanup_evidence_digest(json.loads(cleanup_evidence), cleanup_steps),
+        "run_id": "run-current",
+        "lane": "1-1",
+        "dispatch_id": "dispatch-current",
+        "gate_c_report_id": "gate-c-current",
+        "revision": revision,
+        "outcome": outcome,
+        "delivery_scope": "local",
+        "authorized_unix_ms": 1,
+        "consumed_unix_ms": 0,
+    }
+    authority["authorization_proof"] = plugin._authorization_proof(authority, key)
+    state["extra_data"] = {"authorizations": [authority]}
+    brain.save(brain.state_path(repo), state)
+    return repo, worktree, revision
+
+
+def _bind_cleanup_evidence(repo: Path, raw_evidence: str) -> None:
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    authority = state["extra_data"]["authorizations"][0]
+    gate_c = state["lanes"]["1-1"]["gate_c"]
+    steps = plugin._required_closeout_steps(
+        gate_c["binding"]["delivery_scope"], gate_c.get("outcome", "delivered")
+    )
+    authority["cleanup_evidence_digest"] = plugin._cleanup_evidence_digest(
+        json.loads(raw_evidence), steps
+    )
+    authority["authorization_proof"] = plugin._authorization_proof(
+        authority, plugin._AUTHORIZATION_RUNTIME_KEY
+    )
+    brain.save(path, state)
+
+
+def test_runtime_authorization_key_is_removed_from_ambient_environment_on_import(
+    tmp_path: Path,
+) -> None:
+    script = (
+        "import importlib.util, os; "
+        f"p={str(BIN / 'dispatch_plugin.py')!r}; "
+        "s=importlib.util.spec_from_file_location('protected_probe', p); "
+        "m=importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+        "print(m._AUTHORIZATION_RUNTIME_KEY); "
+        "print(os.environ.get(m.AUTHORIZATION_KEY_ENV, '<absent>'))"
+    )
+    env = dict(os.environ)
+    env[plugin.AUTHORIZATION_KEY_ENV] = "secret-that-must-not-reach-children"
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.stdout.splitlines() == [
+        "secret-that-must-not-reach-children",
+        "<absent>",
+    ]
+
+
+def test_python_authorization_proof_matches_the_typescript_canonical_vector() -> None:
+    record = {
+        "authorization_id": "human-vector",
+        "action": "remove_worktree",
+        "repo": "/repo",
+        "remote": "",
+        "push_url": "",
+        "ref": "/repo/wt",
+        "destination_ref": "",
+        "run_id": "run-1",
+        "lane": "1-1",
+        "dispatch_id": "dispatch-1",
+        "gate_c_report_id": "gate-c-1",
+        "revision": "abc123",
+        "outcome": "delivered",
+        "delivery_scope": "local",
+        "authorized_unix_ms": 123,
+        "consumed_unix_ms": 0,
+    }
+    assert plugin._authorization_proof(record, "vector-key") == (
+        "739728e446417f121622dbd1a2b808345c862dfe7e78c17ec8020962453108de"
+    )
+
+
+def test_python_gate_c_proof_matches_the_typescript_canonical_vector() -> None:
+    gate_c = {
+        "report_id": "gate-c-vector",
+        "accepted": True,
+        "outcome": "delivered",
+        "binding": {
+            "repo": "/repo",
+            "run_id": "run-1",
+            "lane": "1-1",
+            "dispatch_id": "dispatch-1",
+            "handoff": "/tmp/handoff/x.md",
+            "revision": "abc123",
+            "delivery_scope": "repository",
+            "evidence_digest": "digest123",
+        },
+        "verified_unix_ms": 123,
+    }
+    assert plugin._gate_c_proof(gate_c, "vector-key") == (
+        "dd976964e26571d30fe783a913bd87b7ced28af2d05188e998cbc7af509adb45"
+    )
+
+
+def test_forged_cleanup_authority_without_runtime_proof_is_rejected(
+    tmp_path: Path, capsys
+) -> None:
+    repo, _worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    state["extra_data"]["authorizations"][0]["authorization_proof"] = "forged"
+    brain.save(path, state)
+
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    code = plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "no unconsumed human authorization" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("outcome", "no_change"),
+        ("delivery_scope", "repository"),
+    ],
+)
+def test_authority_cannot_survive_gate_c_outcome_or_scope_tampering(
+    tmp_path: Path, capsys, field: str, value: str
+) -> None:
+    repo, _worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    if field == "outcome":
+        state["lanes"]["1-1"]["gate_c"]["outcome"] = value
+    else:
+        state["lanes"]["1-1"]["gate_c"]["binding"]["delivery_scope"] = value
+    brain.save(path, state)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps({"docs_aligned": {"docs_reconciled": True}}),
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "no unconsumed human authorization" in capsys.readouterr().err
+
+
+def test_authorize_cleanup_requires_current_gate_c_revision_and_human_authority(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+    evidence_json = json.dumps(evidence)
+    _bind_cleanup_evidence(repo, evidence_json)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", evidence_json,
+        "--json",
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["allowed"] is True
+    assert payload["purpose"] == "cleanup"
+
+    lane = brain.load(brain.state_path(repo))["lanes"]["1-1"]
+    cleanup = lane["cleanup_authorization"]
+    assert {
+        key: cleanup[key]
+        for key in (
+            "authorization_id",
+            "gate_c_report_id",
+            "run_id",
+            "dispatch_id",
+            "worktree",
+            "revision",
+            "outcome",
+            "delivery_scope",
+        )
+    } == {
+        "authorization_id": "human-remove-current",
+        "gate_c_report_id": "gate-c-current",
+        "run_id": "run-current",
+        "dispatch_id": "dispatch-current",
+        "worktree": str(worktree.resolve()),
+        "revision": revision,
+        "outcome": "delivered",
+        "delivery_scope": "local",
+    }
+    assert cleanup["cleanup_proof"]
+
+
+@pytest.mark.parametrize(
+    ("outcome", "reason"),
+    [
+        ("failed", "verification failed"),
+        ("cancelled", "cancelled by operator"),
+    ],
+)
+def test_failed_or_cancelled_lane_ends_honestly_without_releasing_claim(
+    tmp_path: Path, outcome: str, reason: str, capsys
+) -> None:
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worker"
+    repo.mkdir()
+    worktree.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+
+    state = brain.default_state()
+    state["run_id"] = "run-current"
+    state["orchestrator_phase"] = "yield_and_guard"
+    state["brain"]["awaiting_lanes"] = ["1-1"]
+    state["lanes"] = {
+        "1-1": {
+            "lane": "1-1",
+            "run_id": "run-current",
+            "dispatch_id": "dispatch-current",
+            "worktree": str(worktree),
+            "branch": "feat/lane",
+            "status": "working",
+            "gate_c": {
+                "accepted": True,
+                "report_id": "stale-gate-c",
+                "outcome": "delivered",
+                "binding": {
+                    "repo": str(repo.resolve()),
+                    "run_id": "run-current",
+                    "lane": "1-1",
+                    "dispatch_id": "dispatch-current",
+                    "handoff": "/tmp/stale.md",
+                    "revision": "stale-revision",
+                    "delivery_scope": "local",
+                },
+            },
+            "cleanup_authorization": {"authorization_id": "stale-auth"},
+        }
+    }
+    state["extra_data"] = {
+        "authorizations": [
+            {
+                "authorization_id": "stale-auth",
+                "action": "remove_worktree",
+                "run_id": "run-current",
+                "lane": "1-1",
+            }
+        ]
+    }
+    brain.save(brain.state_path(repo), state)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "record-outcome",
+        "--lane", "1-1",
+        "--outcome", outcome,
+        "--reason", reason,
+        "--json",
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["outcome"] == outcome
+
+    final = brain.load(brain.state_path(repo))
+    lane = final["lanes"]["1-1"]
+    assert lane["status"] == outcome
+    assert lane["phase"] == "terminal"
+    assert lane["terminal_outcome"] == outcome
+    assert lane["terminal_reason"] == reason
+    assert final["brain"]["awaiting_lanes"] == []
+    assert final["orchestrator_phase"] == "synthesis"
+    assert Path(worktree).exists()
+    assert "gate_c" not in lane
+    assert "cleanup_authorization" not in lane
+    assert final["extra_data"]["authorizations"] == []
+
+    collision = isolation.audit_claim(
+        final["lanes"],
+        "1-2",
+        worktree=str(worktree),
+        branch="feat/lane",
+    )
+    assert not collision.ok
+
+
+def test_local_delivered_cleanup_needs_no_remote_publication_evidence(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps({
+            "docs_aligned": {"docs_reconciled": True},
+        }),
+        "--json",
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["allowed"] is True
+    assert [step["step"] for step in payload["steps"]] == [
+        "handoff_truthful",
+        "docs_aligned",
+    ]
+    assert Path(worktree).exists()
+
+
+def test_no_change_cleanup_needs_no_push_or_pr_evidence(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(
+        tmp_path, outcome="no_change"
+    )
+    _bind_cleanup_evidence(repo, "{}")
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", "{}",
+        "--json",
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["allowed"] is True
+    assert payload["purpose"] == "cleanup"
+
+    lane = brain.load(brain.state_path(repo))["lanes"]["1-1"]
+    assert lane["cleanup_authorization"]["outcome"] == "no_change"
+    assert Path(worktree).exists()
+
+
+def test_no_change_cleanup_refuses_a_dirty_worktree(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(
+        tmp_path, outcome="no_change"
+    )
+    (worktree / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", "{}",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "worktree is dirty" in capsys.readouterr().err
+
+
+def test_authorize_cleanup_refuses_when_head_changed_after_gate_c(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    (worktree / "later.txt").write_text("later\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(worktree), "add", "later.txt"], check=True)
+    subprocess.run(["git", "-C", str(worktree), "commit", "-qm", "later"], check=True)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "Gate C revision" in capsys.readouterr().err
+
+
+def test_cleanup_worktree_refuses_if_head_changed_after_authorization(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    (worktree / "later.txt").write_text("later\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(worktree), "add", "later.txt"], check=True)
+    subprocess.run(["git", "-C", str(worktree), "commit", "-qm", "later"], check=True)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "Gate C revision" in capsys.readouterr().err
+    assert worktree.exists()
+
+    state = brain.load(brain.state_path(repo))
+    authority = state["extra_data"]["authorizations"][0]
+    assert authority["consumed_unix_ms"] == 0
+
+
+def test_cleanup_worktree_refuses_a_worker_that_is_still_working(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {"docs_aligned": {"docs_reconciled": True}}
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    state["lanes"]["1-1"]["status"] = "working"
+    state["lanes"]["1-1"]["phase"] = "working"
+    brain.save(path, state)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "lifecycle is not quiescent" in capsys.readouterr().err
+    assert worktree.exists()
+
+
+def test_cleanup_worktree_refuses_a_concurrent_live_executor(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {"docs_aligned": {"docs_reconciled": True}}
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    state["lanes"]["1-1"]["cleanup_executor_pid"] = os.getpid() + 100000
+    plugin._resign_cleanup(
+        state["lanes"]["1-1"],
+        state["lanes"]["1-1"]["cleanup_authorization"],
+    )
+    brain.save(path, state)
+    monkeypatch.setattr(plugin, "_pid_is_alive", lambda _pid: True)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "already executing in live pid" in capsys.readouterr().err
+    assert worktree.exists()
+
+
+def test_cleanup_worktree_refuses_out_of_band_missing_worktree(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    shutil.rmtree(worktree)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "disappeared outside the authorized cleanup executor" in capsys.readouterr().err
+
+    state = brain.load(brain.state_path(repo))
+    authority = state["extra_data"]["authorizations"][0]
+    assert authority["consumed_unix_ms"] == 0
+    assert "cleanup_started_unix_ms" not in state["lanes"]["1-1"]
+
+
+def test_cleanup_worktree_recovers_after_remove_before_authority_consumption(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    authority_id = state["extra_data"]["authorizations"][0]["authorization_id"]
+    state["lanes"]["1-1"]["cleanup_started_unix_ms"] = 1
+    state["lanes"]["1-1"]["cleanup_started_authorization_id"] = authority_id
+    state["lanes"]["1-1"]["cleanup_executor_pid"] = 999999
+    plugin._resign_cleanup(
+        state["lanes"]["1-1"],
+        state["lanes"]["1-1"]["cleanup_authorization"],
+    )
+    brain.save(path, state)
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "remove", str(worktree)],
+        check=True,
+    )
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+        "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["removed"] is True
+
+    final = brain.load(path)
+    assert final["extra_data"]["authorizations"][0]["consumed_unix_ms"] > 0
+
+
+def test_restart_after_removal_before_consumption_requires_fresh_authority(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {"docs_aligned": {"docs_reconciled": True}}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    old_authority = state["extra_data"]["authorizations"][0]
+    old_id = old_authority["authorization_id"]
+    state["lanes"]["1-1"]["cleanup_started_unix_ms"] = 1
+    state["lanes"]["1-1"]["cleanup_started_authorization_id"] = old_id
+    state["lanes"]["1-1"]["cleanup_executor_pid"] = 999999
+    plugin._resign_cleanup(
+        state["lanes"]["1-1"],
+        state["lanes"]["1-1"]["cleanup_authorization"],
+    )
+    brain.save(path, state)
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "remove", str(worktree)],
+        check=True,
+    )
+
+    plugin._AUTHORIZATION_RUNTIME_KEY = "rotated-runtime-key"
+    code = plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "reauthorize remove_worktree" in capsys.readouterr().err
+
+    state = brain.load(path)
+    fresh = {
+        "authorization_id": "human-remove-after-restart",
+        "action": "remove_worktree",
+        "repo": str(repo.resolve()),
+        "remote": "",
+        "push_url": "",
+        "ref": str(worktree.resolve()),
+        "destination_ref": "",
+        "cleanup_evidence_digest": plugin._cleanup_evidence_digest({"docs_aligned": {"docs_reconciled": True}}, ("docs_aligned",)),
+        "run_id": "run-current",
+        "lane": "1-1",
+        "dispatch_id": "dispatch-current",
+        "gate_c_report_id": "gate-c-current",
+        "revision": revision,
+        "outcome": "delivered",
+        "delivery_scope": "local",
+        "authorized_unix_ms": 2,
+        "consumed_unix_ms": 0,
+    }
+    fresh["authorization_proof"] = plugin._authorization_proof(
+        fresh, plugin._AUTHORIZATION_RUNTIME_KEY
+    )
+    state["extra_data"]["authorizations"].append(fresh)
+    brain.save(path, state)
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+        "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["authorization_id"] == fresh["authorization_id"]
+
+    final = brain.load(path)
+    cleanup = final["lanes"]["1-1"]["cleanup_authorization"]
+    assert cleanup["authorization_id"] == fresh["authorization_id"]
+    assert cleanup["reauthorized_from_authorization_id"] == old_id
+    assert final["extra_data"]["authorizations"][0]["consumed_unix_ms"] == 0
+    assert final["extra_data"]["authorizations"][1]["consumed_unix_ms"] > 0
+
+
+def test_consumed_authority_cannot_be_replayed_by_resetting_consumption(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {"docs_aligned": {"docs_reconciled": True}}
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ]) == 0
+    capsys.readouterr()
+    assert not worktree.exists()
+
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    state["extra_data"]["authorizations"][0]["consumed_unix_ms"] = 0
+    brain.save(path, state)
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "no current-session unconsumed human authorization" in capsys.readouterr().err
+
+
+def test_restart_after_cleanup_consumption_requires_fresh_authority_before_finalize(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ]) == 0
+    capsys.readouterr()
+    assert not worktree.exists()
+
+    path = brain.state_path(repo)
+    state = brain.load(path)
+    old_id = state["lanes"]["1-1"]["cleanup_authorization"]["authorization_id"]
+    assert state["extra_data"]["authorizations"][0]["consumed_unix_ms"] > 0
+
+    plugin._AUTHORIZATION_RUNTIME_KEY = "rotated-finalize-runtime-key"
+    assert plugin.main([
+        "--repo", str(repo),
+        "finalize-closeout",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == plugin.EXIT_GATE_REFUSED
+    assert "cleanup authorization proof is invalid or stale" in capsys.readouterr().err
+
+    state = brain.load(path)
+    fresh = {
+        "authorization_id": "human-remove-before-finalize-after-restart",
+        "action": "remove_worktree",
+        "repo": str(repo.resolve()),
+        "remote": "",
+        "push_url": "",
+        "ref": str(worktree.resolve()),
+        "destination_ref": "",
+        "cleanup_evidence_digest": plugin._cleanup_evidence_digest({"docs_aligned": {"docs_reconciled": True}}, ("docs_aligned",)),
+        "run_id": "run-current",
+        "lane": "1-1",
+        "dispatch_id": "dispatch-current",
+        "gate_c_report_id": "gate-c-current",
+        "revision": revision,
+        "outcome": "delivered",
+        "delivery_scope": "local",
+        "authorized_unix_ms": 3,
+        "consumed_unix_ms": 0,
+    }
+    fresh["authorization_proof"] = plugin._authorization_proof(
+        fresh, plugin._AUTHORIZATION_RUNTIME_KEY
+    )
+    state["extra_data"]["authorizations"].append(fresh)
+    brain.save(path, state)
+
+    # The worktree is already gone, so cleanup-worktree performs only the
+    # authenticated restart-recovery handoff and consumes the fresh authority.
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ]) == 0
+    capsys.readouterr()
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "finalize-closeout",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    final = brain.load(path)
+    cleanup = final["lanes"]["1-1"]["cleanup_authorization"]
+    assert cleanup["authorization_id"] == fresh["authorization_id"]
+    assert cleanup["reauthorized_from_authorization_id"] == old_id
+    assert final["extra_data"]["authorizations"][0]["consumed_unix_ms"] > 0
+    assert final["extra_data"]["authorizations"][1]["consumed_unix_ms"] > 0
+    assert final["lanes"]["1-1"]["status"] == "released"
+    assert final["lanes"]["1-1"]["phase"] == "closed"
+
+
+def test_finalize_is_one_shot_and_does_not_rewrite_terminal_timestamp(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ]) == 0
+    capsys.readouterr()
+    assert not worktree.exists()
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "finalize-closeout",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+    path = brain.state_path(repo)
+    first = brain.load(path)
+    finalized_at = first["lanes"]["1-1"]["cleanup_finalized_unix_ms"]
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "finalize-closeout",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == plugin.EXIT_GATE_REFUSED
+    assert "already finalized" in capsys.readouterr().err
+
+    second = brain.load(path)
+    assert second["lanes"]["1-1"]["cleanup_finalized_unix_ms"] == finalized_at
+
+
+def test_finalize_closeout_refuses_if_worktree_path_reappears(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+    ]) == 0
+    capsys.readouterr()
+
+    worktree.mkdir()
+
+    code = plugin.main([
+        "--repo", str(repo),
+        "finalize-closeout",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ])
+    assert code == plugin.EXIT_GATE_REFUSED
+    assert "still exists" in capsys.readouterr().err
+
+
+def test_finalize_closeout_requires_consumed_authority_and_physical_removal(
+    tmp_path: Path, capsys
+) -> None:
+    repo, worktree, _revision = _setup_authorized_cleanup_repo(tmp_path)
+    evidence = {k: dict(v) for k, v in gate.SATISFIED_EVIDENCE.items()}
+    evidence["worktree_removed"] = {"worktree_absent": False}
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "authorize-cleanup",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == 0
+    capsys.readouterr()
+
+    # No physical deletion and no consumed human authority: finalization refuses.
+    assert plugin.main([
+        "--repo", str(repo),
+        "finalize-closeout",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+    ]) == plugin.EXIT_GATE_REFUSED
+    assert "not been consumed" in capsys.readouterr().err
+
+    path = brain.state_path(repo)
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "cleanup-worktree",
+        "--lane", "1-1",
+        "--json",
+    ]) == 0
+    cleanup_payload = json.loads(capsys.readouterr().out)
+    assert cleanup_payload["removed"] is True
+    assert not worktree.exists()
+
+    assert plugin.main([
+        "--repo", str(repo),
+        "finalize-closeout",
+        "--lane", "1-1",
+        "--evidence", json.dumps(evidence),
+        "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["allowed"] is True
+    assert payload["pane_close_allowed"] is True
+
+    final = brain.load(path)
+    assert final["lanes"]["1-1"]["status"] == "released"
+    assert final["lanes"]["1-1"]["phase"] == "closed"
+    assert "1-1" not in final["brain"]["awaiting_lanes"]
 def _code_lines(path: Path) -> list[str]:
     """Source lines with docstrings and comments removed.
 

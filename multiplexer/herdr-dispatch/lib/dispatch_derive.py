@@ -431,6 +431,48 @@ def _git_branch(cwd: str) -> str:
     return proc.stdout.strip()
 
 
+def publication_scope(worktree: str) -> str:
+    """Freeze the publication topology before the worker receives its task.
+
+    This is deliberately derived during dispatch, not at Gate C. A worker may
+    legitimately run Git commands inside its lane; letting a later closeout
+    gate derive scope from mutable repository config would let that worker
+    remove a remote and downgrade its own publication obligations.
+    """
+    resolved = normalise_worktree(worktree)
+
+    def run_git(*args: str) -> str:
+        try:
+            proc = subprocess.run(
+                ["git", "-C", resolved, *args],
+                capture_output=True,
+                text=True,
+                timeout=GIT_TIMEOUT,
+            )
+        except FileNotFoundError as exc:
+            raise DerivationRefused(
+                "cannot derive publication scope: the git binary is not on PATH"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise DerivationRefused(
+                f"cannot derive publication scope: git in {resolved} did not answer "
+                f"within {GIT_TIMEOUT}s"
+            ) from exc
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+            raise DerivationRefused(
+                f"cannot derive publication scope from {resolved}: "
+                + (detail[0] if detail else f"git exited {proc.returncode}")
+            )
+        return proc.stdout.strip()
+
+    remotes = [line for line in run_git("remote").splitlines() if line.strip()]
+    if not remotes:
+        return "local"
+    superproject = run_git("rev-parse", "--show-superproject-working-tree")
+    return "submodule" if superproject else "repository"
+
+
 def normalise_worktree(raw: str) -> str:
     """Resolve a *named* worktree path, or raise.
 

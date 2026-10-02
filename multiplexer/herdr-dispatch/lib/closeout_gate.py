@@ -60,6 +60,10 @@ CLOSEOUT_STEPS: tuple[str, ...] = (
     "worktree_removed",
 )
 
+# Cleanup authorization proves every prerequisite before physical deletion.
+# Final closeout separately proves that deletion actually happened.
+PRE_CLEANUP_STEPS: tuple[str, ...] = CLOSEOUT_STEPS[:-1]
+
 # Gate C: the supplied precondition (Issue #132). It is not part of
 # :data:`CLOSEOUT_STEPS` because it is not a lifecycle step — it judges whether
 # the work was real before the lifecycle begins. A caller that has not run
@@ -146,6 +150,7 @@ class CloseoutReport:
     # supplied no report, which is *not* the same as a report that passed — see
     # :attr:`truthfulness_not_run`.
     truthfulness_evaluated: bool = False
+    purpose: str = "finalize"
 
     @property
     def truthfulness_not_run(self) -> bool:
@@ -180,7 +185,7 @@ class CloseoutReport:
         the question an orchestrator actually asks, and collapsing the two
         invites someone to re-derive the rule at the call site.
         """
-        return self.allowed
+        return self.allowed and self.purpose == "finalize"
 
     def result_for(self, step: str) -> Optional[StepResult]:
         for result in self.steps:
@@ -195,6 +200,7 @@ class CloseoutReport:
             "pane_close_allowed": self.pane_close_allowed,
             "blocked_at": self.blocked_at,
             "truthfulness_evaluated": self.truthfulness_evaluated,
+            "purpose": self.purpose,
             "truthfulness_not_run": self.truthfulness_not_run,
             "steps": [s.as_dict() for s in self.steps],
         }
@@ -289,6 +295,7 @@ def evaluate_closeout(
     steps: Sequence[str] = CLOSEOUT_STEPS,
     stop_at_first_failure: bool = True,
     truthfulness: Optional[Mapping[str, Any]] = None,
+    purpose: str = "finalize",
 ) -> CloseoutReport:
     """Run the closeout ladder and report whether destruction is permitted.
 
@@ -307,7 +314,9 @@ def evaluate_closeout(
     nobody is told to delete a worktree whose child commit was never pushed.
     """
     report = CloseoutReport(
-        lane_id=lane_id, truthfulness_evaluated=truthfulness is not None
+        lane_id=lane_id,
+        truthfulness_evaluated=truthfulness is not None,
+        purpose=purpose,
     )
     supplied = dict(evidence or {})
     failure_seen = False
@@ -335,6 +344,23 @@ def evaluate_closeout(
             failure_seen = True
 
     return report
+
+
+def evaluate_cleanup_authorization(
+    lane_id: str = "",
+    evidence: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    *,
+    truthfulness: Optional[Mapping[str, Any]] = None,
+    steps: Sequence[str] = PRE_CLEANUP_STEPS,
+) -> CloseoutReport:
+    """Prove deletion prerequisites without pretending deletion already happened."""
+    return evaluate_closeout(
+        lane_id,
+        evidence,
+        steps=steps,
+        truthfulness=truthfulness,
+        purpose="cleanup",
+    )
 
 
 def assert_closeout_allowed(

@@ -596,6 +596,28 @@ def test_cli_refuses_reminder_driven_advance(tmp_path: Path) -> None:
     assert exit_code == 2
 
 
+def test_cli_cannot_mark_run_closed_from_caller_supplied_human_string(
+    tmp_path: Path, capsys
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    assert brain.main(["advance", "--repo", str(repo), "--to", "topology"]) == 0
+    assert brain.main(["advance", "--repo", str(repo), "--to", "yield_and_guard"]) == 0
+    assert brain.main([
+        "advance", "--repo", str(repo), "--to", "synthesis", "--wake-signal", "human"
+    ]) == 0
+    assert brain.main(["advance", "--repo", str(repo), "--to", "human_gate"]) == 0
+    capsys.readouterr()
+
+    code = brain.main([
+        "advance", "--repo", str(repo), "--to", "closed", "--wake-signal", "human"
+    ])
+    assert code == 2
+    assert "protected closeout state" in capsys.readouterr().err
+    assert brain.load(brain.state_path(repo))["orchestrator_phase"] == "human_gate"
+
+
 def test_cli_path(tmp_path: Path, capsys) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
