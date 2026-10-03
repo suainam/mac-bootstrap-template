@@ -481,6 +481,41 @@ def test_board_json_output_is_machine_readable(monkeypatch: pytest.MonkeyPatch) 
 # --------------------------------------------------------------------------
 
 
+def test_certification_state_distinguishes_match_mismatch_and_missing() -> None:
+    assert plugin._certification_state("omp/18.5.0", "18.5.0") == "certified"
+    assert plugin._certification_state("omp/18.4.10", "18.5.0") == "not_verified"
+    assert plugin._certification_state("unavailable", "18.5.0") == "unsupported"
+    assert plugin._certification_state("unknown", "18.5.0") == "unknown"
+
+
+def test_status_capabilities_are_truthful_without_repo_state(capsys) -> None:
+    assert plugin.main(["status", "--capabilities", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    capabilities = payload["capabilities"]
+    assert capabilities["resource_admission"] == "omp_spawn_enabled"
+    assert capabilities["semantic_watchdog"] == "offline_default_online_opt_in"
+    assert capabilities["automatic_nudge"] == "disabled"
+    assert capabilities["automatic_abort"] == "disabled"
+    assert capabilities["context_pruning"] == "policy_only_disabled"
+    assert capabilities["session_rollover"] == "policy_only_disabled"
+    assert capabilities["phase_model_downgrade"] == "policy_only_disabled"
+    assert capabilities["plugin_entrypoint"] == "enabled"
+    assert capabilities["omp_extension"] == "separate_surface_not_probed"
+    assert set(capabilities["host_versions"]) == {"omp", "herdr", "codex", "bun"}
+    assert capabilities["certification_baseline"] == {
+        "omp": "18.5.0",
+        "herdr": "0.9.3",
+        "codex": "0.160.0",
+        "bun": "1.4.2",
+    }
+    assert set(capabilities["certification_status"].values()) <= {
+        "certified",
+        "not_verified",
+        "unsupported",
+        "unknown",
+    }
+
+
 def test_status_command_runs(tmp_path: Path, capsys) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

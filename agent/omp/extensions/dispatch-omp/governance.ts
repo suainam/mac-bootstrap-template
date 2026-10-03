@@ -240,7 +240,8 @@ export function readHostMemory(platform = process.platform, exec = execFileSync)
   try {
     if (platform === "darwin") {
       const out = exec("vm_stat", { encoding: "utf8" });
-      const pageSize = 4096;
+      const pageSize = Number(out.match(/page size of\s+(\d+)/i)?.[1] ?? NaN);
+      if (!Number.isFinite(pageSize) || pageSize <= 0) return null;
       const free = Number(out.match(/Pages free:\s*(\d+)/)?.[1] ?? NaN) * pageSize;
       const inactive = Number(out.match(/Pages inactive:\s*(\d+)/)?.[1] ?? NaN) * pageSize;
       const spec = Number(out.match(/Pages speculative:\s*(\d+)/)?.[1] ?? NaN) * pageSize;
@@ -253,7 +254,9 @@ export function readHostMemory(platform = process.platform, exec = execFileSync)
       const out = exec("free", ["-b"], { encoding: "utf8" });
       const lines = out.trim().split("\n");
       const header = lines[0].trim().split(/\s+/);
-      const values = lines[lines.length - 1].trim().split(/\s+/);
+      const memLine = lines.find((line) => /^Mem:\s/.test(line.trim()));
+      if (!memLine) return null;
+      const values = memLine.trim().split(/\s+/);
       // Read by header name: column positions shift between free(1) versions
       // and platforms, and guessing an index silently reports the wrong number.
       // The data row carries a leading "Mem:" label the header does not.

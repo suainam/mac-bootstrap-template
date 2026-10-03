@@ -135,8 +135,13 @@ STATUS: <key diagnostic or progress summary>
 PROGRESS: <percentage or N/M>
 ```
 
+Use the guarded prompt transport with resolved pane ids; do not send a raw
+`herdr agent prompt` heartbeat:
+
 ```bash
-herdr agent prompt <orch-pane> "\n[HEARTBEAT] [<pane_id>_<agent_kind>_<repo_slug>]\nSTAGE: <stage>\nSTATUS: <status>\nPROGRESS: <N/M>"
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py prompt \
+  --text "\n[HEARTBEAT] [w3:p6_opencode_mac-bootstrap]\nSTAGE: <stage>\nSTATUS: <status>\nPROGRESS: <N/M>" \
+  --send --target w3:p1 --allow-no-callback
 ```
 
 ### Example

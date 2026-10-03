@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -74,6 +76,75 @@ def test_bash_wrapper_rechecks_readiness_and_maps_codex_permissions():
     assert "--approve-for-me" in content
     assert "--dangerously-bypass-approvals-and-sandbox" in content
     assert "Documents/handoffs" not in content
+
+
+def test_external_lane_uses_shared_role_routing(tmp_path: Path):
+    sh = _script_path.parent / "herdr-dispatch.sh"
+    task = tmp_path / "TASK.md"
+    task.write_text(_CONTRACT_BODY, encoding="utf-8")
+    config = tmp_path / "config"
+    config.mkdir()
+    (config / "routing.json").write_text(
+        json.dumps({"researcher": {"patterns": ["@slow"], "kind": "agy"}}),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    agy = fake_bin / "agy"
+    agy.write_text('#!/bin/sh\nprintf "ROUTED:%s\\n" "$*"\n', encoding="utf-8")
+    agy.chmod(0o755)
+    env = os.environ | {
+        "HERDR_ENV": "1",
+        "HERDR_PANE_ID": "w1:p1",
+        "HERDR_DISPATCH_CONFIG_DIR": str(config),
+        "PATH": f"{fake_bin}:{os.environ.get('PATH', '')}",
+    }
+    result = subprocess.run(
+        [str(sh), "--task", str(task), "--role", "researcher"],
+        env=env,
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "via agy" in result.stdout
+    assert "ROUTED:-p" in result.stdout
+
+
+def test_external_lane_fails_closed_without_routing_config(tmp_path: Path):
+    sh = _script_path.parent / "herdr-dispatch.sh"
+    task = tmp_path / "TASK.md"
+    task.write_text(_CONTRACT_BODY, encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    missing_config = tmp_path / "missing-config"
+    env = os.environ | {
+        "HERDR_ENV": "1",
+        "HERDR_PANE_ID": "w1:p1",
+        "HERDR_DISPATCH_CONFIG_DIR": str(missing_config),
+    }
+    result = subprocess.run(
+        [str(sh), "--task", str(task), "--role", "reviewer"],
+        env=env,
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "routing config" in result.stderr.lower()
+    assert "reviewer" in result.stderr
+
+
+def test_shipped_routing_matches_omp_defaults():
+    routing = json.loads(
+        (_script_path.parents[5] / "multiplexer" / "herdr-dispatch" / "routing.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert routing["writer"] == {"patterns": ["@smol"], "kind": "codex"}
+    assert routing["reviewer"] == {"patterns": ["@plan"], "kind": "agy"}
+    assert routing["researcher"] == {"patterns": ["@slow"], "kind": "opencode"}
 
 
 def test_bash_wrapper_resolves_engine():

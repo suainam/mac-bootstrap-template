@@ -14,8 +14,8 @@ The optimal strategy combines **Primary Event Interrupts** with **Secondary Zero
                                        ▼
            ┌────────────────────────────────────────────────────────────────────┐
            │ L1 Primary: Event-Driven Soft Interrupt                            │
-           │ Child agent finishes turn → herdr agent prompt <orch-pane>         │
-           │ Orchestrator woken immediately by incoming event message.          │
+           │ Child finishes → dispatch_plugin.py notify --target <bound-pane>  │
+           │ Orchestrator receives the identity-bound completion event.         │
            └────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼ Only on Suspected Hang / Inactivity
@@ -24,7 +24,7 @@ The optimal strategy combines **Primary Event Interrupts** with **Secondary Zero
            │ Query: herdr agent get <name> (Takes 5ms, costs 0 LLM Tokens)      │
            │ 1. agent_status == blocked  → Interactive modal trapped. Intervene.│
            │ 2. agent_status == idle     → Silent turn finish. Intervene.       │
-           │ 3. state_change_seq stalled → Stalled/looping. Issue Nudge/Abort.  │
+           │ 3. state_change_seq stalled → classify; recommend operator action. │
            └────────────────────────────────────────────────────────────────────┘
 
 ### Redline: Todo Blocker Guard (Suppressing Anxious Wakeups)
@@ -52,7 +52,7 @@ When inspecting `herdr agent get <name>`:
 | :--- | :--- | :--- |
 | `agent_status == blocked` | Trapped in trust modal or dangerous tool confirmation | Read visible screen via `herdr pane read <pane> --source visible`. If safe, send `enter` or `y`; if dangerous, surface to user. |
 | `agent_status == idle` and no notify-back received | Agent finished turn but omitted notify-back or crashed | Inspect git status & `.dispatch/progress.md`. If criteria met, mark verified; otherwise send continuation nudge. |
-| `state_change_seq` unchanged $\ge$ 10 min | Long compilation/test OR process hung | Run **Gate D: Semantic Watchdog** (`dispatch_plugin.py watchdog --lane <id>`). Evaluates tail 15-line buffer via TypeSafe Jev: if $P(\text{legit}) > 0.70$, extends lease by 10 min (0 false alarms); if $P(\text{stalled}) > 0.65$, sends `\n` soft nudge or aborts. |
+| `state_change_seq` unchanged beyond the configured silence window | Long compilation/test OR process hung | Run **Gate D: Semantic Watchdog** (`dispatch_plugin.py watchdog --lane <id>`). It skips terminal, recently active and leased lanes. Classification is local by default; `--online` explicitly sends a redacted, byte-capped payload. Legitimate work may extend the lease; a stall/deadlock only returns an operator recommendation. Gate D never sends Enter or aborts a lane automatically. |
 | Visible screen contains rate limit pattern | Quota exhausted mid-turn | Capture signature, stop agent, relaunch task on failover agent kind. |
 
 ---

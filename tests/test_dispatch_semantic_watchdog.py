@@ -74,6 +74,34 @@ def test_extract_tail_buffer_empty() -> None:
     assert watchdog.extract_tail_buffer("   \n\n  \n", max_lines=15) == ""
 
 
+def test_sanitize_online_buffer_redacts_prefixed_secret_assignments_and_tokens() -> None:
+    synthetic_openai = "sk-" + "proj-abcdefghijk"
+    synthetic_aws_secret = "super-" + "secret-value"
+    synthetic_aws_id = "AK" + "IA" + "ABCDEFGHIJKLMNOP"
+    synthetic_gitlab = "glpat-" + "abcdefghijklmnop"
+    raw = "\n".join(
+        [
+            f"OPENAI_API_KEY={synthetic_openai}",
+            f"AWS_SECRET_ACCESS_KEY={synthetic_aws_secret}",
+            f"AWS_ACCESS_KEY_ID={synthetic_aws_id}",
+            f"GITLAB_TOKEN={synthetic_gitlab}",
+            f'"AWS_SECRET_ACCESS_KEY": "{synthetic_aws_secret}"',
+            f'"OPENAI_API_KEY": "{synthetic_openai}"',
+            "safe=status-ok",
+        ]
+    )
+    redacted = watchdog.sanitize_online_buffer(raw)
+    assert synthetic_openai not in redacted
+    assert synthetic_aws_secret not in redacted
+    assert synthetic_aws_id not in redacted
+    assert synthetic_gitlab not in redacted
+    assert "OPENAI_API_KEY=[REDACTED]" in redacted
+    assert "AWS_SECRET_ACCESS_KEY=[REDACTED]" in redacted
+    assert "AWS_ACCESS_KEY_ID=[REDACTED]" in redacted
+    assert "GITLAB_TOKEN=[REDACTED]" in redacted
+    assert "safe=status-ok" in redacted
+
+
 # --------------------------------------------------------------------------
 # Semantic Watchdog Judgment with TypeSafe Jev System One
 # --------------------------------------------------------------------------
@@ -109,6 +137,7 @@ def test_jev_judgment_legitimate_compilation() -> None:
             buffer_tail=cargo_buffer,
             process_name="cargo",
             key="placeholder-key",
+            online=True,
         )
 
         assert judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE
@@ -145,6 +174,7 @@ def test_jev_judgment_legitimate_pytest() -> None:
             buffer_tail=pytest_buffer,
             process_name="pytest",
             key="placeholder-key",
+            online=True,
         )
 
         assert judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE
@@ -178,6 +208,7 @@ def test_jev_judgment_interactive_prompt_hang() -> None:
             buffer_tail=prompt_buffer,
             process_name="zsh",
             key="placeholder-key",
+            online=True,
         )
 
         assert judgment.verdict == watchdog.WatchdogVerdict.NUDGE
@@ -211,6 +242,7 @@ def test_jev_judgment_fatal_deadlock() -> None:
             buffer_tail=deadlock_buffer,
             process_name="app",
             key="placeholder-key",
+            online=True,
         )
 
         assert judgment.verdict == watchdog.WatchdogVerdict.ABORT
@@ -259,6 +291,69 @@ def test_offline_heuristic_deadlock() -> None:
     assert judgment.p_stalled >= 0.65
 
 
+def test_online_classification_is_opt_in_even_when_key_exists(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TYPESAFE_API_KEY", "synthetic-key")
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        judgment = watchdog.evaluate_watchdog_state(
+            buffer_tail="cargo build still running",
+            process_name="cargo",
+        )
+    assert judgment.model == "heuristic-fallback"
+    mock_urlopen.assert_not_called()
+
+
+def test_online_payload_redacts_secrets_and_caps_buffer_bytes() -> None:
+    fixture_marker = "SYNTHETIC_SUPER_SECRET_VALUE"
+    huge = f"{'API' + '_KEY'}={fixture_marker} " + ("x" * 100_000)
+    mock_jev_response = {
+        "model": "jev-latest",
+        "answers": {
+            "is_legitimate_long_running": {"type": "noul", "noul": 0.4},
+            "is_stalled_or_deadlocked": {"type": "noul", "noul": 0.4},
+        },
+    }
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(mock_jev_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+        watchdog.evaluate_watchdog_state(
+            buffer_tail=huge,
+            process_name="worker --token=" + "ghp" + "_SYNTHETIC_PROCESS_SECRET",
+            key="synthetic-key",
+            online=True,
+            facts={
+                "lane": "1-4",
+                "status": "working",
+                "phase": "yield_and_guard",
+                "state_change_seq": 10,
+                "last_heartbeat_age_ms": 600_000,
+                "private_path": "/" + "Users/example/private",
+            },
+        )
+        request = mock_urlopen.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+    sent = payload["state"]["tail_buffer"]
+    assert fixture_marker not in sent
+    assert len(sent.encode("utf-8")) <= watchdog.MAX_ONLINE_BUFFER_BYTES
+    assert payload["state"]["process_name"] == "worker"
+    assert payload["state"]["facts"] == {
+        "lane": "1-4",
+        "status": "working",
+        "phase": "yield_and_guard",
+        "state_change_seq": 10,
+        "last_heartbeat_age_ms": 600_000,
+    }
+
+
+def test_offline_deadlock_fact_beats_compiler_word() -> None:
+    judgment = watchdog.evaluate_watchdog_state(
+        buffer_tail="cargo build blocked: mutex deadlock detected",
+        process_name="cargo",
+        key="",
+    )
+    assert judgment.verdict == watchdog.WatchdogVerdict.ABORT
+
+
 def test_network_failure_falls_back_gracefully() -> None:
     """Network exception during Jev call falls back safely rather than crashing."""
     buffer = "Compiling module..."
@@ -267,6 +362,7 @@ def test_network_failure_falls_back_gracefully() -> None:
             buffer_tail=buffer,
             process_name="cargo",
             key="placeholder-key",
+            online=True,
         )
         # Should gracefully fall back to heuristic evaluation
         assert judgment.verdict == watchdog.WatchdogVerdict.EXTEND_LEASE
@@ -313,7 +409,14 @@ def test_is_lane_lease_active() -> None:
 def test_plugin_watchdog_command_evaluation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     state_file = tmp_path / "ORCHESTRATOR_STATE.json"
     state = brain.default_state()
-    state["lanes"] = {"1-4": {"lane": "1-4", "status": "working", "pane_id": "w3:p4"}}
+    state["lanes"] = {
+        "1-4": {
+            "lane": "1-4",
+            "status": "working",
+            "pane_id": "w3:p4",
+            "last_heartbeat": int(time.time() * 1000) - 600_000,
+        }
+    }
     brain.save(state_file, state)
 
     monkeypatch.setattr(plugin, "state_path", lambda args: state_file)
@@ -345,7 +448,14 @@ def test_plugin_watchdog_command_stepped_and_reset(
     """CLI plugin tracks consecutive extensions on same seq, and resets counter on newer seq."""
     state_file = tmp_path / "ORCHESTRATOR_STATE.json"
     state = brain.default_state()
-    state["lanes"] = {"1-4": {"lane": "1-4", "status": "working", "pane_id": "w3:p4"}}
+    state["lanes"] = {
+        "1-4": {
+            "lane": "1-4",
+            "status": "working",
+            "pane_id": "w3:p4",
+            "last_heartbeat": int(time.time() * 1000) - 600_000,
+        }
+    }
     brain.save(state_file, state)
 
     seq_holder = {"seq": 10}
@@ -370,15 +480,21 @@ def test_plugin_watchdog_command_stepped_and_reset(
     lane1 = brain.load(state_file)["lanes"]["1-4"]
     assert lane1["consecutive_extensions"] == 1
     assert lane1["last_seen_seq"] == 10
+    expired = brain.load(state_file)
+    expired["lanes"]["1-4"]["watchdog_lease_until_unix_ms"] = int(time.time() * 1000) - 1
+    brain.save(state_file, expired)
 
-    # 2nd run: still seq 10 -> consecutive becomes 2
+    # 2nd eligible run: still seq 10 -> consecutive becomes 2
     assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
     out2 = json.loads(capsys.readouterr().out)
     assert out2["results"][0]["consecutive_extensions"] == 2
     lane2 = brain.load(state_file)["lanes"]["1-4"]
     assert lane2["consecutive_extensions"] == 2
+    expired = brain.load(state_file)
+    expired["lanes"]["1-4"]["watchdog_lease_until_unix_ms"] = int(time.time() * 1000) - 1
+    brain.save(state_file, expired)
 
-    # 3rd run: seq advances to 11 -> counter resets to 0 before award, then becomes 1
+    # 3rd eligible run: seq advances to 11 -> counter resets to 0 before award, then becomes 1
     seq_holder["seq"] = 11
     assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
     out3 = json.loads(capsys.readouterr().out)
@@ -387,6 +503,133 @@ def test_plugin_watchdog_command_stepped_and_reset(
     assert lane3["consecutive_extensions"] == 1
     assert lane3["last_seen_seq"] == 11
 
+
+def test_plugin_watchdog_refuses_lane_from_another_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["run_id"] = "run-current"
+    state["lanes"] = {
+        "1-4": {
+            "lane": "1-4",
+            "run_id": "run-stale",
+            "status": "working",
+            "pane_id": "w3:p4",
+            "last_heartbeat": int(time.time() * 1000) - 600_000,
+        }
+    }
+    brain.save(state_file, state)
+    monkeypatch.setattr(plugin, "state_path", lambda args: state_file)
+    evaluate = MagicMock(side_effect=AssertionError("stale run lane must not be classified"))
+    monkeypatch.setattr(plugin.watchdog, "evaluate_watchdog_state", evaluate)
+
+    assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert evaluate.call_count == 0
+    assert "current run" in payload["results"][0]["reason"]
+
+
+def test_plugin_watchdog_skips_terminal_recent_and_leased_lanes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    now = int(time.time() * 1000)
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["brain"]["awaiting_lanes"] = ["1-1", "1-2", "1-3", "1-4"]
+    state["lanes"] = {
+        "1-1": {"lane": "1-1", "status": "released", "phase": "closed", "last_heartbeat": now - 600_000},
+        "1-2": {"lane": "1-2", "status": "working", "last_heartbeat": now - 1_000},
+        "1-3": {
+            "lane": "1-3",
+            "status": "working",
+            "last_heartbeat": now - 600_000,
+            "watchdog_lease_until_unix_ms": now + 600_000,
+        },
+        "1-4": {"lane": "1-4", "status": "done", "phase": "done", "last_heartbeat": now - 600_000},
+    }
+    brain.save(state_file, state)
+    monkeypatch.setattr(plugin, "state_path", lambda args: state_file)
+    evaluate = MagicMock(side_effect=AssertionError("filtered lane must not be classified"))
+    monkeypatch.setattr(plugin.watchdog, "evaluate_watchdog_state", evaluate)
+
+    assert plugin.main(["watchdog", "--sweep", "--repo", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert evaluate.call_count == 0
+    reasons = {row["lane"]: row["reason"] for row in payload["results"]}
+    assert "terminal" in reasons["1-1"]
+    assert "not silent" in reasons["1-2"]
+    assert "lease" in reasons["1-3"]
+    assert "terminal" in reasons["1-4"]
+
+
+def test_plugin_watchdog_skips_when_herdr_agent_is_not_active(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["lanes"] = {
+        "1-4": {
+            "lane": "1-4",
+            "status": "working",
+            "pane_id": "w3:p4",
+            "last_heartbeat": int(time.time() * 1000) - 600_000,
+        }
+    }
+    brain.save(state_file, state)
+    monkeypatch.setattr(plugin, "state_path", lambda args: state_file)
+    monkeypatch.setattr(plugin.herdr, "in_herdr", lambda: True)
+    monkeypatch.setattr(plugin.herdr, "run_herdr", lambda args: {"text": "quiet"})
+    monkeypatch.setattr(
+        plugin.herdr,
+        "agent_info",
+        lambda pane: {"process_name": "worker", "agent_status": "exited", "state_change_seq": 10},
+    )
+    evaluate = MagicMock(side_effect=AssertionError("inactive agent must not be classified"))
+    monkeypatch.setattr(plugin.watchdog, "evaluate_watchdog_state", evaluate)
+
+    assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert evaluate.call_count == 0
+    assert "not active" in payload["results"][0]["reason"]
+
+
+def test_plugin_watchdog_never_blindly_sends_enter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    state_file = tmp_path / "ORCHESTRATOR_STATE.json"
+    state = brain.default_state()
+    state["lanes"] = {
+        "1-4": {
+            "lane": "1-4",
+            "status": "working",
+            "pane_id": "w3:p4",
+            "last_heartbeat": int(time.time() * 1000) - 600_000,
+        }
+    }
+    brain.save(state_file, state)
+    calls = []
+    monkeypatch.setattr(plugin, "state_path", lambda args: state_file)
+    monkeypatch.setattr(plugin.herdr, "in_herdr", lambda: True)
+
+    def run_herdr(argv):
+        calls.append(argv)
+        if argv[:2] == ["pane", "read"]:
+            return {"text": "Waiting for input...\n❯ "}
+        raise AssertionError(f"unexpected mutating Herdr call: {argv}")
+
+    monkeypatch.setattr(plugin.herdr, "run_herdr", run_herdr)
+    monkeypatch.setattr(
+        plugin.herdr,
+        "agent_info",
+        lambda pane: {"process_name": "shell", "agent_status": "working", "state_change_seq": 10},
+    )
+
+    assert plugin.main(["watchdog", "--lane", "1-4", "--repo", str(tmp_path), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["results"][0]["verdict"] == "NUDGE"
+    assert payload["results"][0]["operator_action"] == "review_and_nudge"
+    assert all(argv[:2] != ["pane", "send-keys"] for argv in calls)
 
 
 # --------------------------------------------------------------------------

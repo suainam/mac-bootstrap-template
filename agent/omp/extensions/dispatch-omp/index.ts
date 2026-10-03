@@ -203,12 +203,12 @@ export const STALL_THRESHOLD_MS =
 
 /** Default routing matrix; override from the plugin config directory. */
 export const DEFAULT_ROUTING = Object.freeze({
-  scout: { patterns: ["@slow"] },
-  researcher: { patterns: ["@slow"] },
-  writer: { patterns: ["@smol"] },
-  reviewer: { patterns: ["@plan"] },
-  skeptic: { patterns: ["@slow"] },
-  default: { patterns: ["@smol"] },
+  scout: { patterns: ["@slow"], kind: "opencode" },
+  researcher: { patterns: ["@slow"], kind: "opencode" },
+  writer: { patterns: ["@smol"], kind: "codex" },
+  reviewer: { patterns: ["@plan"], kind: "agy" },
+  skeptic: { patterns: ["@slow"], kind: "agy" },
+  default: { patterns: ["@smol"], kind: "opencode" },
 });
 
 /** Destructive operations that must not happen without human sign-off. */
@@ -626,10 +626,10 @@ export class RouterCursor {
   }
 }
 
-/** Load the routing matrix, preferring operator config over defaults. */
+/** Load the routing matrix, preferring operator config over the shipped matrix. */
 export function loadRouting(configDir) {
-  if (!configDir) return DEFAULT_ROUTING;
-  const file = path.join(configDir, "routing.json");
+  const shipped = path.resolve(import.meta.dir, "../../../../multiplexer/herdr-dispatch/routing.json");
+  const file = configDir ? path.join(configDir, "routing.json") : shipped;
   try {
     if (!existsSync(file)) return DEFAULT_ROUTING;
     return { ...DEFAULT_ROUTING, ...JSON.parse(readFileSync(file, "utf8")) };
@@ -647,6 +647,7 @@ export function loadRouting(configDir) {
  */
 export default function dispatchBrain(pi, options = {}) {
   const lifecycleLookup = options.lookupPane ?? lookupHerdrAgent;
+  const hostMemory = options.hostMemory ?? (() => readHostMemory());
   const timers = new Set();
   const router = new RouterCursor();
   let brain = null;
@@ -672,11 +673,12 @@ export default function dispatchBrain(pi, options = {}) {
   const sidebarStage = new Map();
   let statePath = null;
   let coldStart = { live: [], orphaned: [], unknown: [], resume: [] };
-  let pressure = "ok";
+  let pressure = "unknown";
 
-  /** Recompute host pressure; a probe failure yields no opinion, not a freeze. */
+  /** Recompute host pressure; a probe failure stays visible as unknown. */
   function hostPressureState() {
-    pressure = classifyPressure(memoryFreeFraction(readHostMemory() ?? {}));
+    const fraction = memoryFreeFraction(hostMemory() ?? {});
+    pressure = fraction === null ? "unknown" : classifyPressure(fraction);
     return pressure;
   }
 
@@ -1002,8 +1004,11 @@ export default function dispatchBrain(pi, options = {}) {
         const current = readState(targetStatePath);
         const lane = current?.lanes?.[laneId];
         const gateC = lane?.gate_c;
+        const phase = current?.orchestrator_phase ?? "";
+        const canEnterHumanGate =
+          phase === "human_gate" || checkTransition(phase, "human_gate") === null;
         if (
-          current?.orchestrator_phase !== "human_gate" ||
+          !canEnterHumanGate ||
           !current?.run_id ||
           !lane ||
           lane.run_id !== current.run_id ||
@@ -1197,6 +1202,11 @@ export default function dispatchBrain(pi, options = {}) {
             state?.lanes?.[laneId]?.gate_c?.report_id !== record.gate_c_report_id
           ) {
             throw new Error("authorization binding became stale before commit");
+          }
+          if (state.orchestrator_phase !== "human_gate") {
+            const transitionError = checkTransition(state.orchestrator_phase, "human_gate");
+            if (transitionError) throw new Error(transitionError);
+            state.orchestrator_phase = "human_gate";
           }
           state.extra_data ??= {};
           state.extra_data.authorizations ??= [];
@@ -1502,7 +1512,7 @@ export default function dispatchBrain(pi, options = {}) {
   /**
    * The park guard.
    *
-   * OMP 18.4.10 exposes no todo mutation API to extensions. A parked reminder
+   * OMP 18.5.0 exposes no todo mutation API to extensions. A parked reminder
    * therefore cannot be turned into a native blocked todo from here. The safe
    * fallback is deliberately UI-only: do not inject an aside, because that
    * schedules the very continuation the guard is meant to suppress.
@@ -1525,9 +1535,27 @@ export default function dispatchBrain(pi, options = {}) {
    */
   pi.on("before_subagent_spawn", async (event, eventCtx) => {
     if (!rootSession || !isRoot(eventCtx) || !sessionRunActive || !hasActiveRun(brain)) return undefined;
+
+    const currentPressure = hostPressureState();
+    if (!admitAgent(currentPressure, "heavy")) {
+      return {
+        block: true,
+        reason: `dispatch admission: host memory pressure is ${currentPressure}`,
+      };
+    }
+
+    // Explicit host-resolved kind/model/patterns are operator choices. Routing
+    // is only a fallback for spawns that have not already selected a worker or
+    // model chain.
+    if (
+      event?.kind ||
+      event?.model ||
+      event?.pattern ||
+      (Array.isArray(event?.patterns) && event.patterns.length > 0)
+    ) return undefined;
     if (!router.shouldAdvance(event?.spawnKey)) return undefined;
 
-    const role = String(event?.agent ?? event?.modelRole ?? "default");
+    const role = String(event?.modelRole ?? event?.role ?? event?.agent ?? "default");
     const patterns = chooseModel(routing, role);
     if (!patterns) return undefined;
 
@@ -2028,7 +2056,7 @@ export default function dispatchBrain(pi, options = {}) {
     getInbox: () => inbox,
     getHeartbeats: () => heartbeats,
     /** Host memory pressure, recomputed on demand rather than cached. */
-    hostPressure: () => classifyPressure(memoryFreeFraction(readHostMemory() ?? {})),
+    hostPressure: () => hostPressureState(),
     admit: (weight = "heavy") => admitAgent(hostPressureState(), weight),
     getSidebarStages: () => Object.fromEntries(sidebarStage),
     consumeNotify,

@@ -169,19 +169,16 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
    - 遗留 1: ...
    ```
 
-   > **Never write `herdr agent prompt w3:p1 '\n[NOTIFY] ...'`.** Bash single
-   > quotes do not expand escapes, so `\n` reaches the worker as two literal
-   > characters and the whole report renders as one long single line. That exact
-   > mis-quoting shipped in this file for a long time. If you must use the raw
-   > CLI, use `$'\n[NOTIFY] ...'` with **double**-inner/single-outer quoting —
-   > but the `notify` command above is preferred, because it cannot be
-   > mis-quoted and it renders the standard layout for you.
+   > **Never write a hand-quoted `herdr agent prompt ... [NOTIFY] ...`.** The
+   > formal callback path is the `notify` command above; it preserves the bound
+   > target/run/dispatch identity and renders the standard report layout without
+   > shell-quoting ambiguity.
 4. **Todo Blocker Invariant**:
    If the active host exposes a todo mutation surface, block the waiting task:
    ```bash
    todo(op="block", task="<task>", reason="Awaiting background child agent <name> IPC [NOTIFY]")
    ```
-   OMP 18.4.10 does **not** expose todo mutation to extensions. In that host the
+   OMP 18.5.0 does **not** expose todo mutation to extensions. In that host the
    dispatch extension may only show a UI-only `NOT VERIFIED` diagnostic; it
    MUST NOT use `sendUserMessage`/aside to imitate blocking, because that
    creates a model continuation. Do not claim native blocked state from the
@@ -189,7 +186,7 @@ python3 scripts/dispatch.py state advance --to-phase writer_implementation --rep
 
 ### Phase 4: Fire-and-Yield Supervision
 - **Yield immediately**: A successful unified-bus dispatch and `todo(op="block")` are terminal actions. Stop and yield control to user.
-- **Zero-Token L2 Watchdog & Gate D Semantic Watchdog**: Check `herdr agent get <name>` on suspected stall ($\ge$ 10 min without state change). Gate D (`dispatch_plugin.py watchdog --lane <id>`) parses tail 15-line buffer via TypeSafe Jev System One: extends lease by 10 min if $P(\text{legitimate}) > 0.70$ (zero false alarms); sends soft nudge or aborts if $P(\text{stalled}) > 0.65$. Details in [references/supervision.md](references/supervision.md).
+- **Zero-Token L2 Watchdog & Gate D Semantic Watchdog**: Check `herdr agent get <name>` on suspected stall. Gate D (`dispatch_plugin.py watchdog --lane <id>`) first requires an active lane, expired lease and configured silence window. It is offline by default; `--online` explicitly opts into a sanitized, byte-capped TypeSafe payload. Legitimate work may extend the lease; prompt/deadlock findings only return `review_and_nudge` / `review_and_cancel` recommendations. Gate D never presses Enter or cancels a lane by itself. Details in [references/supervision.md](references/supervision.md).
 - **Gate A PreToolUse Reflex Gate (Issue #133)**: While parked, a tool call that reads a lane's code, or probes a running lane, is **blocked mechanically** — not discouraged. Destructive commands (`git reset --hard`, `git clean -fd`, `rm -rf`, `git push --force`) are refused in **every** phase unless the cwd is an isolated lane worktree (`.worktrees/`, `.herdr/worktrees/`); a canonical root checkout holds the only copy of what is uncommitted there. A refusal returns `block: true` and injects a corrective steer — obey the steer instead of retrying with a different tool. See [references/supervision.md](references/supervision.md) §4.
 
 ### Phase 5: Result Harvest & Human Gate

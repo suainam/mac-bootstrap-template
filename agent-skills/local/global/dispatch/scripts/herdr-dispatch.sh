@@ -72,14 +72,26 @@ fi
 # Pre-flight Gate: Enforce Qiaomu Goal Contract & Anti-Pseudo-Delegation via dispatch_engine.py
 python3 "${ENGINE_PY}" lint "${TASK}"
 
-# Auto-route agent kind based on Diamond role if not explicitly provided
+# Auto-route agent kind from the same role matrix used by the OMP extension.
+# An operator-supplied --kind remains authoritative.
 if [[ -z "${KIND}" ]]; then
-  case "${ROLE}" in
-    researcher) KIND="opencode" ;;
-    skeptic)    KIND="agy" ;;
-    writer)     KIND="codex" ;;
-    *)          KIND="opencode" ;;
-  esac
+  ROUTING_FILE="${HERDR_DISPATCH_CONFIG_DIR:-}/routing.json"
+  if [[ -z "${HERDR_DISPATCH_CONFIG_DIR:-}" ]]; then
+    ROUTING_FILE="${SCRIPT_DIR}/../../../../../multiplexer/herdr-dispatch/routing.json"
+  fi
+  if [[ ! -f "${ROUTING_FILE}" ]]; then
+    echo "Error: routing config '${ROUTING_FILE}' is unavailable for role '${ROLE}'." >&2
+    exit 2
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required to resolve dispatch routing from '${ROUTING_FILE}'." >&2
+    exit 2
+  fi
+  KIND="$(jq -er --arg role "${ROLE}" '.[$role].kind // .default.kind // empty' "${ROUTING_FILE}" 2>/dev/null || true)"
+  if [[ -z "${KIND}" ]]; then
+    echo "Error: routing config '${ROUTING_FILE}' has no kind for role '${ROLE}' and no default kind." >&2
+    exit 2
+  fi
 fi
 
 # Portable timeout execution helper

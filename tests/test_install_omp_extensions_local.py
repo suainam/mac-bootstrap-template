@@ -258,6 +258,41 @@ def test_local_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert not agent_dir.exists()
 
 
+def test_doctor_recognizes_plugin_extension_and_reports_baseline_status(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, [_local_entry()])
+    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
+    source.mkdir(parents=True)
+    (source / "index.ts").write_text("export default function () {}\n")
+    plugin = repo / "multiplexer" / "herdr-dispatch" / "bin" / "dispatch_plugin.py"
+    plugin.parent.mkdir(parents=True)
+    plugin.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+    agent_dir = tmp_path / "agent"
+    bindir = _fake_omp(tmp_path)
+    assert _run(repo, agent_dir, bindir).returncode == 0
+
+    result = _run(repo, agent_dir, bindir, "--doctor")
+    assert result.returncode == 0, result.stderr
+    assert "OK   plugin entrypoint:" in result.stdout
+    assert "OK   local extension dispatch-omp.ts" in result.stdout
+    assert "certification baseline 18.5.0" in result.stdout
+    assert "NOT VERIFIED" in result.stdout
+
+
+def test_doctor_fails_when_local_extension_is_not_installed(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, [_local_entry()])
+    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
+    source.mkdir(parents=True)
+    (source / "index.ts").write_text("export default function () {}\n")
+    plugin = repo / "multiplexer" / "herdr-dispatch" / "bin" / "dispatch_plugin.py"
+    plugin.parent.mkdir(parents=True)
+    plugin.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+    result = _run(repo, tmp_path / "agent", _fake_omp(tmp_path), "--doctor")
+    assert result.returncode == 1
+    assert "MISS local extension dispatch-omp.ts" in result.stdout
+
+
 def test_local_entry_may_carry_settings(tmp_path: Path) -> None:
     repo = _repo(
         tmp_path,
