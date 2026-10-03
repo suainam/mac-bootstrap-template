@@ -41,6 +41,7 @@ DEFAULT_BASE_INSPECTION_SECONDS = 180  # 3 minutes base inactivity inspection
 LEASE_STEP_SECONDS: Sequence[int] = (180, 300, 600)  # 3m -> 5m -> 10m (cap)
 DEFAULT_JITTER_SECONDS = 15
 DEFAULT_LEASE_EXTENSION_SECONDS = 180  # Default 1st step base (3 minutes)
+MAX_ONLINE_BUFFER_BYTES = 2048
 
 # Thresholds per Issue #134 specification
 THRESHOLD_LEGITIMATE_LONG_RUNNING = 0.70
@@ -83,6 +84,20 @@ INTERACTIVE_PROMPT_PATTERNS = re.compile(
     r"which\s+(?:one|team|file)\b|"
     r"are you sure\?"
     r")"
+)
+
+SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9_])['\"]?"
+    r"((?:[A-Za-z0-9]+[_-])*(?:"
+    r"api[_-]?key|access[_-]?token|access[_-]?key(?:[_-]?id)?|"
+    r"secret(?:[_-]?access)?[_-]?key|token|password|secret|authorization"
+    r")(?:[_-][A-Za-z0-9]+)*)['\"]?"
+    r"\s*[:=]\s*['\"]?(?:bearer\s+)?[^'\"\s,}\]]+['\"]?"
+)
+BEARER_TOKEN_RE = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
+KNOWN_TOKEN_RE = re.compile(
+    r"\b(?:sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|"
+    r"xox[baprs]-[A-Za-z0-9_-]{8,}|glpat-[A-Za-z0-9_-]{8,}|AKIA[0-9A-Z]{16})\b"
 )
 
 DEADLOCK_PATTERNS = re.compile(
@@ -133,6 +148,18 @@ def extract_tail_buffer(text: str, max_lines: int = 15) -> str:
     return "\n".join(tail)
 
 
+def sanitize_online_buffer(text: str, max_bytes: int = MAX_ONLINE_BUFFER_BYTES) -> str:
+    """Redact common secret shapes and cap the external payload by UTF-8 bytes."""
+    tail = extract_tail_buffer(text, max_lines=15)
+    redacted = SECRET_ASSIGNMENT_RE.sub(lambda m: f"{m.group(1)}=[REDACTED]", tail)
+    redacted = BEARER_TOKEN_RE.sub("Bearer [REDACTED]", redacted)
+    redacted = KNOWN_TOKEN_RE.sub("[REDACTED]", redacted)
+    encoded = redacted.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return redacted
+    return encoded[-max_bytes:].decode("utf-8", errors="ignore")
+
+
 def compute_stepped_lease_seconds(
     consecutive_extensions: int,
     jitter_range: int = DEFAULT_JITTER_SECONDS,
@@ -176,6 +203,16 @@ def _heuristic_judgment(
     has_deadlock = bool(DEADLOCK_PATTERNS.search(combined))
     has_prompt = bool(INTERACTIVE_PROMPT_PATTERNS.search(combined))
 
+    if has_deadlock:
+        return WatchdogJudgment(
+            verdict=WatchdogVerdict.ABORT,
+            p_legitimate=0.01,
+            p_stalled=0.92,
+            reason="Heuristic: Fatal deadlock or crash trace detected in tail buffer",
+            lease_extension_seconds=0,
+            model="heuristic-fallback",
+        )
+
     if has_legitimate and not has_prompt:
         ext_sec = compute_stepped_lease_seconds(
             consecutive_extensions, jitter_range=jitter_range, rng=rng
@@ -186,16 +223,6 @@ def _heuristic_judgment(
             p_stalled=0.05,
             reason="Heuristic: Legitimate compilation/test activity detected in tail buffer",
             lease_extension_seconds=ext_sec,
-            model="heuristic-fallback",
-        )
-
-    if has_deadlock:
-        return WatchdogJudgment(
-            verdict=WatchdogVerdict.ABORT,
-            p_legitimate=0.01,
-            p_stalled=0.92,
-            reason="Heuristic: Fatal deadlock or crash trace detected in tail buffer",
-            lease_extension_seconds=0,
             model="heuristic-fallback",
         )
 
@@ -230,9 +257,20 @@ def evaluate_watchdog_state(
     consecutive_extensions: int = 0,
     jitter_range: int = DEFAULT_JITTER_SECONDS,
     rng: Optional[random.Random] = None,
+    online: bool = False,
+    facts: Optional[Mapping[str, Any]] = None,
 ) -> WatchdogJudgment:
-    """Evaluate child lane state using TypeSafe Jev System One or offline fallback."""
+    """Evaluate lane state offline by default; external classification is explicit opt-in."""
     clean_tail = extract_tail_buffer(buffer_tail, max_lines=15)
+    if not online:
+        return _heuristic_judgment(
+            clean_tail,
+            process_name,
+            consecutive_extensions=consecutive_extensions,
+            jitter_range=jitter_range,
+            rng=rng,
+        )
+
     resolved_key = key or os.environ.get("TYPESAFE_API_KEY", "").strip()
 
     if not resolved_key and key is None:
@@ -258,9 +296,24 @@ def evaluate_watchdog_state(
     endpoint = api_url or os.environ.get("TYPESAFE_API_URL") or DEFAULT_TYPESAFE_API_URL
     target_model = model or os.environ.get("TYPESAFE_MODEL") or DEFAULT_JEV_MODEL
 
+    allowed_fact_keys = (
+        "lane",
+        "status",
+        "phase",
+        "state_change_seq",
+        "last_heartbeat_age_ms",
+    )
+    safe_facts = {
+        key: facts[key]
+        for key in allowed_fact_keys
+        if isinstance(facts, Mapping) and key in facts
+    }
+    process_token = (process_name or "").strip().split(maxsplit=1)[0]
+    safe_process_name = os.path.basename(process_token)[:64]
     state_payload = {
-        "process_name": process_name,
-        "tail_buffer": clean_tail,
+        "facts": safe_facts,
+        "process_name": safe_process_name,
+        "tail_buffer": sanitize_online_buffer(clean_tail),
     }
 
     questions_payload = {

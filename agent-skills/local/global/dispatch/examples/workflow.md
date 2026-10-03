@@ -33,28 +33,14 @@ First, formulate a structured 7-section task specification via `/skill:qiaomu-go
 遇到需要生产变更、未知私有凭据或破坏性操作时立即暂停。
 ```
 
-### 2. Panel Provisioning & Agent Startup (Phase 2 & Phase 3)
+### 2. Read-only Research Dispatch
 ```bash
-# Step 1: Create a sibling pane in current directory without stealing focus
-PANE_ID=$(herdr pane split --current --direction right --cwd "$PWD" --no-focus | jq -r '.result.pane.pane_id')
-
-# Step 2: Start OpenCode interactive TUI in the pane
-# CRUCIAL: Bare opencode launches the TUI and NEVER accepts -m or --model. Pass only --auto.
-herdr agent start issue-pr-solution --kind opencode --pane "$PANE_ID" --timeout 60000 -- --auto
-
-# Step 3: Two-step handshake & Inspect-on-Failure
-VISIBLE=$(herdr pane read "$PANE_ID" --source visible)
-# If trust modal appears:
-if echo "$VISIBLE" | grep -qE "trust|Trust|Accessing workspace"; then
-  herdr pane send-keys "$PANE_ID" enter
-  sleep 1
-fi
-
-# Step 4: Inject pre-flight contract file
-herdr agent prompt issue-pr-solution "Read /tmp/investigate_goal_task.md and execute step by step. Report findings when complete."
-
-# Step 5: Fire-and-Yield
-# Orchestrator immediately yields control back to user without blocking or busy polling.
+# Researcher mode is the supported zero-worktree path. The wrapper applies the
+# shared role routing matrix and executes non-interactively; no raw Herdr prompt
+# injection is part of the formal protocol.
+agent-skills/local/global/dispatch/scripts/herdr-dispatch.sh \
+  --task /tmp/investigate_goal_task.md \
+  --role researcher
 ```
 
 ### 3. Monitoring, Recovery & Handoff
@@ -66,16 +52,10 @@ herdr agent prompt issue-pr-solution "Read /tmp/investigate_goal_task.md and exe
 
 ## Golden Case 2: Implementation Worktree Dispatched to Codex (luna / sol)
 
-### 1. Goal Contract in Worktree (.dispatch/TASK.md)
-When performing real code edits, worktree isolation is mandatory:
+### 1. Goal Contract
+When performing real code edits, worktree isolation is mandatory and is created by the dispatch wrapper. Prepare the seven-section contract outside the target worktree:
 ```bash
-# Provision isolated worktree
-CREATE_JSON=$(herdr worktree create --cwd "$PWD" --branch feat/jwt-auth --label jwt-auth --no-focus)
-PANE_ID=$(echo "$CREATE_JSON" | jq -r '.result.root_pane.pane_id')
-CHECKOUT=$(echo "$CREATE_JSON" | jq -r '.result.worktree.path')
-
-# Write 7-section goal contract to .dispatch/TASK.md
-cat <<'EOF' > "${CHECKOUT}/.dispatch/TASK.md"
+cat <<'EOF' > /tmp/jwt-auth-task.md
 # 目标 (Outcome)
 实现 JWT 鉴权模块并替换旧有的 Session 验证。
 # 验证 (Verification)
@@ -93,20 +73,20 @@ pytest tests/test_auth.py 全部通过。
 EOF
 ```
 
-### 2. Start Codex & Inject Prompt
+### 2. Dispatch Codex Through the Unified Bus
 ```bash
-# Start Codex interactive session
-herdr agent start jwt-auth --kind codex --pane "$PANE_ID" --timeout 60000 -- -m gpt-6-luna -c model_reasoning_effort="xhigh"
-
-# Verify composer ready (› Ask Codex to do anything)
-VISIBLE=$(herdr pane read "$PANE_ID" --source visible)
-if echo "$VISIBLE" | grep -qE "trust|Trust|Accessing workspace"; then
-  herdr pane send-keys "$PANE_ID" enter
-  sleep 1
-fi
-
-# Inject prompt with standardized Handoff and notify-back instructions
-herdr agent prompt jwt-auth "Read .dispatch/TASK.md and implement. Keep .dispatch/progress.md updated. When done, write .dispatch/DONE and notify."
+# The wrapper provisions the isolated worktree, resolves the trust handshake,
+# applies the shared role routing matrix, and performs formal delivery through
+# dispatch_plugin.py with a bound callback target. Explicit --kind/--model remain
+# authoritative when supplied.
+agent-skills/local/global/dispatch/scripts/herdr-dispatch.sh \
+  --task /tmp/jwt-auth-task.md \
+  --role writer \
+  --name 1-1-jwt-auth \
+  --branch feat/jwt-auth \
+  --kind codex \
+  --model gpt-6-luna \
+  --cwd "$PWD"
 ```
 
 ---

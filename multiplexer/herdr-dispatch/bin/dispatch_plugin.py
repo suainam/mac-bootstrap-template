@@ -25,8 +25,10 @@ import hashlib
 import hmac
 import json
 import os
+import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
@@ -50,6 +52,65 @@ import prompt_protocol as promptproto  # noqa: E402
 import watchdog_judge as watchdog  # noqa: E402
 
 PLUGIN_SOURCE = "plugin:herdr-dispatch"
+CAPABILITY_STATUS = {
+    "routing": "enabled",
+    "external_lane_routing": "enabled",
+    "resource_admission": "omp_spawn_enabled",
+    "host_memory_probe": "enabled",
+    "semantic_watchdog": "offline_default_online_opt_in",
+    "automatic_nudge": "disabled",
+    "automatic_abort": "disabled",
+    "context_pruning": "policy_only_disabled",
+    "session_rollover": "policy_only_disabled",
+    "phase_model_downgrade": "policy_only_disabled",
+}
+
+
+def _command_version(name: str) -> str:
+    executable = shutil.which(name)
+    if not executable:
+        return "unavailable"
+    try:
+        result = subprocess.run(
+            [executable, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return (result.stdout or result.stderr).strip().splitlines()[0] or "unknown"
+
+
+def _certification_state(actual: str, expected: str) -> str:
+    if actual == "unavailable":
+        return "unsupported"
+    if actual == "unknown":
+        return "unknown"
+    return "certified" if expected in actual else "not_verified"
+
+
+def capability_status() -> Dict[str, Any]:
+    baseline = {
+        "omp": "18.5.0",
+        "herdr": "0.9.3",
+        "codex": "0.160.0",
+        "bun": "1.4.2",
+    }
+    versions = {name: _command_version(name) for name in baseline}
+    return {
+        **CAPABILITY_STATUS,
+        "plugin_entrypoint": "enabled",
+        "omp_extension": "separate_surface_not_probed",
+        "host_versions": versions,
+        "certification_baseline": baseline,
+        "certification_status": {
+            name: _certification_state(versions[name], expected)
+            for name, expected in baseline.items()
+        },
+    }
+
 
 # Gate refusals are a distinct exit code from a generic failure: 2 means "the
 # lifecycle rules refused this", which an orchestrator must not retry past.
@@ -195,6 +256,18 @@ def cmd_project(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
+    if getattr(args, "capabilities", False):
+        capabilities = capability_status()
+        if args.json:
+            print(json.dumps({"capabilities": capabilities}, indent=2, ensure_ascii=False))
+        else:
+            for name, status in capabilities.items():
+                if isinstance(status, Mapping):
+                    print(f"{name}: {json.dumps(status, ensure_ascii=False, sort_keys=True)}")
+                else:
+                    print(f"{name}: {status}")
+        return 0
+
     state = _state(args.repo)
     if args.json:
         print(json.dumps(state, indent=2, ensure_ascii=False))
@@ -2032,6 +2105,34 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _watchdog_skip_reason(
+    lane: Mapping[str, Any], inactivity_seconds: int, now_ms: int, current_run_id: str
+) -> str:
+    if not lane:
+        return "lane is not recorded in the current run"
+    lane_run_id = str(lane.get("run_id") or "")
+    if current_run_id and lane_run_id != current_run_id:
+        return "lane does not belong to the current run"
+    status = str(lane.get("status") or "")
+    phase = str(lane.get("phase") or "")
+    if status in {"done", "closed", "failed", "cancelled", "released"} or phase in {
+        "done",
+        "terminal",
+        "closed",
+    }:
+        return "terminal lane"
+    if status not in {"working", "running"}:
+        return f"lane is not active (status={status or 'unknown'})"
+    if watchdog.is_lease_active(lane, now_ms=now_ms):
+        return "watchdog lease is still active"
+    last_heartbeat = lane.get("last_heartbeat")
+    if not isinstance(last_heartbeat, (int, float)):
+        return "lane silence is unknown (no heartbeat timestamp)"
+    if now_ms - int(last_heartbeat) < max(0, inactivity_seconds) * 1000:
+        return "lane is not silent for the configured inactivity window"
+    return ""
+
+
 def cmd_watchdog(args: argparse.Namespace) -> int:
     """Gate D: Zero-Token Semantic Watchdog check (Issue #134).
 
@@ -2069,6 +2170,25 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
             continue
 
         lane_record = state.get("lanes", {}).get(lane_id, {})
+        now_ms = int(time.time() * 1000)
+        skip_reason = _watchdog_skip_reason(
+            lane_record,
+            args.inactivity_threshold,
+            now_ms,
+            str(state.get("run_id") or ""),
+        )
+        if skip_reason:
+            results.append(
+                {
+                    "lane": lane_id,
+                    "pane_id": pane_id or "",
+                    "verdict": watchdog.WatchdogVerdict.INCONCLUSIVE.value,
+                    "reason": skip_reason,
+                    "skipped": True,
+                }
+            )
+            continue
+
         consecutive = int(lane_record.get("consecutive_extensions") or 0)
         prev_seq = lane_record.get("last_seen_seq")
 
@@ -2090,20 +2210,65 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
                 buffer_text = ""
             try:
                 info = herdr.agent_info(pane_id)
+                agent_status = str(info.get("agent_status") or info.get("status") or "").lower()
+                if agent_status not in {"working", "running"}:
+                    results.append(
+                        {
+                            "lane": lane_id,
+                            "pane_id": pane_id or "",
+                            "verdict": watchdog.WatchdogVerdict.INCONCLUSIVE.value,
+                            "reason": f"Herdr agent is not active (status={agent_status or 'unknown'})",
+                            "skipped": True,
+                        }
+                    )
+                    continue
                 process_name = info.get("process_name") or info.get("command") or ""
                 if current_seq is None and isinstance(info.get("state_change_seq"), int):
                     current_seq = info.get("state_change_seq")
             except herdr.HerdrError:
-                pass
+                results.append(
+                    {
+                        "lane": lane_id,
+                        "pane_id": pane_id or "",
+                        "verdict": watchdog.WatchdogVerdict.INCONCLUSIVE.value,
+                        "reason": "Herdr lifecycle observation is unknown",
+                        "skipped": True,
+                    }
+                )
+                continue
+        else:
+            results.append(
+                {
+                    "lane": lane_id,
+                    "pane_id": pane_id or "",
+                    "verdict": watchdog.WatchdogVerdict.INCONCLUSIVE.value,
+                    "reason": "supported Herdr lifecycle observation is unavailable",
+                    "skipped": True,
+                }
+            )
+            continue
 
         # Progress self-healing: if sequence advanced, reset consecutive counter before evaluation
         if current_seq is not None and prev_seq is not None and current_seq > prev_seq:
             consecutive = 0
 
+        heartbeat_age = (
+            now_ms - int(lane_record["last_heartbeat"])
+            if isinstance(lane_record.get("last_heartbeat"), (int, float))
+            else None
+        )
         judgment = watchdog.evaluate_watchdog_state(
             buffer_tail=buffer_text,
             process_name=process_name,
             consecutive_extensions=consecutive,
+            online=bool(getattr(args, "online", False)),
+            facts={
+                "lane": lane_id,
+                "status": lane_record.get("status"),
+                "phase": lane_record.get("phase"),
+                "state_change_seq": current_seq,
+                "last_heartbeat_age_ms": heartbeat_age,
+            },
         )
 
         res: Dict[str, Any] = {
@@ -2135,12 +2300,15 @@ def cmd_watchdog(args: argparse.Namespace) -> int:
                     judgment.verdict,
                     current_seq=current_seq,
                 )
-            if pane_id and herdr.in_herdr() and judgment.nudge_command:
-                try:
-                    herdr.run_herdr(["pane", "send-keys", pane_id, judgment.nudge_command])
-                    res["nudge_sent"] = True
-                except herdr.HerdrError:
-                    res["nudge_sent"] = False
+            # A diagnostic must never blindly press Enter: it could approve a
+            # modal or mutate worker state. Surface the recommendation instead.
+            res["operator_action"] = "review_and_nudge"
+        elif judgment.verdict == watchdog.WatchdogVerdict.ABORT:
+            res["operator_action"] = "review_and_cancel"
+            res["operator_command"] = (
+                f"dispatch-plugin record-outcome --lane {lane_id} --outcome cancelled "
+                "--reason 'watchdog abort accepted by operator'"
+            )
 
         results.append(res)
 
@@ -2169,8 +2337,13 @@ def build_parser() -> argparse.ArgumentParser:
     project = sub.add_parser("project", help="publish lane tokens to the sidebar")
     project.set_defaults(func=cmd_project)
 
-    status = sub.add_parser("status", help="show brain phase and lanes")
+    status = sub.add_parser("status", help="show brain phase, lanes, or truthful capability state")
     status.add_argument("--json", action="store_true")
+    status.add_argument(
+        "--capabilities",
+        action="store_true",
+        help="report implemented versus policy-only dispatch capabilities",
+    )
     status.set_defaults(func=cmd_status)
 
     harvest = sub.add_parser("harvest", help="collect lane handoffs")
@@ -2403,6 +2576,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="inactivity threshold in seconds before semantic inspection (default: 180s / 3m)",
     )
     watchdog_p.add_argument("--seq", type=int, default=None, help="override current state_change_seq")
+    watchdog_p.add_argument(
+        "--online",
+        action="store_true",
+        help="explicitly opt in to sanitized external semantic classification",
+    )
     watchdog_p.add_argument("--json", action="store_true")
     watchdog_p.set_defaults(func=cmd_watchdog)
 

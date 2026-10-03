@@ -6,12 +6,14 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MANIFEST="${OMP_EXTENSIONS_MANIFEST:-$ROOT/agent/omp/extensions.json}"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
 DRY_RUN=0
+DOCTOR=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/install-omp-extensions.sh [--dry-run]
+Usage: scripts/install-omp-extensions.sh [--dry-run|--doctor]
 
 Install the version-pinned public OMP extensions and link their non-secret settings.
+Use --doctor to verify the plugin entrypoint, local extension links, and host-version certification status without mutating anything.
 
 Manifest entries are either registry packages or repository-owned local sources:
 
@@ -28,6 +30,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
+    --doctor) DOCTOR=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -36,7 +39,6 @@ done
 
 [[ -r "$MANIFEST" ]] || { echo "Missing OMP extension manifest: $MANIFEST" >&2; exit 2; }
 command -v jq >/dev/null || { echo "Missing required command: jq" >&2; exit 2; }
-command -v omp >/dev/null || { echo "Missing required command: omp" >&2; exit 2; }
 
 jq -e '.version == 1 and (.extensions | type == "array")' "$MANIFEST" >/dev/null || {
   echo "Invalid OMP extension manifest: $MANIFEST" >&2
@@ -63,6 +65,45 @@ link_setting() {
   ln -s "$source" "$target"
 }
 
+doctor_version() {
+  local name="$1" expected="$2" actual="unavailable"
+  if command -v "$name" >/dev/null 2>&1; then
+    actual="$("$name" --version 2>&1 | head -n 1 || true)"
+    [[ -n "$actual" ]] || actual="unknown"
+  fi
+  if [[ "$actual" == *"$expected"* ]]; then
+    echo "OK   host $name: $actual (baseline $expected)"
+  else
+    echo "INFO host $name: $actual (certification baseline $expected; NOT VERIFIED)"
+  fi
+}
+
+doctor_local_link() {
+  local package="$1" target="$2"
+  [[ -n "$target" ]] || target="$(basename "$package")"
+  local source="$ROOT/$package"
+  local link="$AGENT_DIR/extensions/$target"
+  if [[ -L "$link" && "$(readlink "$link")" == "$source" ]]; then
+    echo "OK   local extension $target -> $source"
+    return 0
+  fi
+  echo "MISS local extension $target (expected -> $source)"
+  return 1
+}
+
+doctor_settings_link() {
+  local settings="$1"
+  [[ -n "$settings" ]] || return 0
+  local source="$ROOT/agent/omp/$settings"
+  local target="$AGENT_DIR/$settings"
+  if [[ -L "$target" && "$(readlink "$target")" == "$source" ]]; then
+    echo "OK   settings $settings -> $source"
+    return 0
+  fi
+  echo "MISS settings $settings (expected -> $source)"
+  return 1
+}
+
 link_settings_file() {
   local settings="$1"
   local source="$ROOT/agent/omp/$settings"
@@ -74,6 +115,49 @@ link_settings_file() {
     link_setting "$source" "$target"
   fi
 }
+
+if [[ "$DOCTOR" -eq 1 ]]; then
+  doctor_rc=0
+  echo "== OMP dispatch capability doctor =="
+  doctor_version omp "18.5.0"
+  doctor_version herdr "0.9.3"
+  doctor_version codex "0.160.0"
+  doctor_version bun "1.4.2"
+  plugin="$ROOT/multiplexer/herdr-dispatch/bin/dispatch_plugin.py"
+  if [[ -r "$plugin" ]]; then
+    echo "OK   plugin entrypoint: $plugin"
+  else
+    echo "MISS plugin entrypoint: $plugin"
+    doctor_rc=1
+  fi
+  while IFS=$'\x1f' read -r kind package version settings target; do
+    [[ -n "$package" ]] || continue
+    if [[ "$kind" == "local" ]]; then
+      doctor_local_link "$package" "$target" || doctor_rc=1
+    fi
+    doctor_settings_link "$settings" || doctor_rc=1
+  done < <(
+    jq -r '
+      .extensions[]
+      | [
+          (
+            if .kind then .kind
+            elif (.package | type) == "string" and (.package | startswith("@") | not)
+            then "local"
+            else "package"
+            end
+          ),
+          (.package // ""),
+          (.version // ""),
+          (.settings // ""),
+          (.target // "")
+        ]
+      | join("\u001f")' "$MANIFEST"
+  )
+  exit "$doctor_rc"
+fi
+
+command -v omp >/dev/null || { echo "Missing required command: omp" >&2; exit 2; }
 
 # Registry state is only consulted when a package entry is actually processed,
 # so a manifest made purely of local sources needs no registry round-trip.

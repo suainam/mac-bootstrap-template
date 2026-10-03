@@ -19,12 +19,15 @@ Two properties make this worse:
 - **The symptom is invisible.** The pane still shows a running agent. Nothing
   reports "approaching the ceiling"; the process simply stops existing.
 
-## Four defences
+## Four policies, one live enforcement path
 
-All implemented in `governance.ts` as pure policy, so each is testable without a
-session and overridable from the plugin config directory.
+All four policies are implemented in `governance.ts` and unit-tested. Only
+**host memory admission** is currently connected to a live host boundary:
+`before_subagent_spawn` checks pressure before the child is created. Pruning,
+rollover and phase-aware model downgrading are policy-only and **disabled in the
+runtime capability report** until they gain a real execution path.
 
-### 1. Append-only pruning at stage boundaries
+### 1. Append-only pruning at stage boundaries — policy only / disabled
 
 When a worker crosses a milestone ("research done, implementing"), most of the
 recent context is spent: build errors already triaged, greps already answered.
@@ -42,7 +45,7 @@ evidence the stage needs.
 An unknown context size produces **no** prune. Unknown is not a licence to
 discard work.
 
-### 2. Session rollover
+### 2. Session rollover — policy only / disabled
 
 Past a hard ceiling, checkpoint and continue in a fresh small session rather
 than growing one process without bound.
@@ -53,7 +56,7 @@ than growing one process without bound.
 - rollover is deliberately a *later* trigger than pruning: it costs a process
   restart, so pruning carries the middle range
 
-### 3. Phase-aware model downgrading
+### 3. Phase-aware model downgrading — policy only / disabled
 
 Waiting for a build or tailing a log does not need the largest model. Dropping
 to a light one cuts token spend *and* the runtime heap holding it.
@@ -66,10 +69,12 @@ point of the whole rule: memory pressure must not quietly trade correctness
 away. The only override is `critical` host pressure, and when it applies the
 reason says so explicitly rather than pretending the stage was mechanical.
 
-### 4. Host memory pressure
+### 4. Host memory pressure — live admission gate
 
-The watchdog watches headroom and stops *admitting* agents before the host is
-forced to kill one.
+The OMP spawn hook probes headroom and stops *admitting* new child agents before
+the host is forced to kill one. macOS uses the page size reported by `vm_stat`;
+Linux parses the `Mem:` row and never substitutes `Swap:`. A failed probe is
+reported as `unknown` and does not fabricate pressure.
 
 | Free memory | Pressure | Effect |
 |---|---|---|
@@ -100,7 +105,7 @@ They look similar and are not the same thing:
 |---|---|---|
 | Symptom | pane quiet | pane busy but enormous |
 | Cause | worker stopped reporting | context exceeded a budget |
-| Response | inspect, nudge, abort, re-dispatch | prune, roll over, downgrade, throttle |
+| Response | inspect; recommend nudge/cancel; extend lease | live: admission throttle; policy-only: prune/rollover/downgrade |
 
 ## Configuration
 

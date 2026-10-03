@@ -171,6 +171,7 @@ function boot(options: any = {}) {
     prContext: prContextOverride,
     lifecycleRunner: lifecycleRunnerOverride,
     authorizationKey: authorizationKeyOverride = TEST_AUTHORIZATION_KEY,
+    hostMemory: hostMemoryOverride,
     ...hostOptions
   } = options;
   const pi = makeHost(hostOptions);
@@ -191,6 +192,7 @@ function boot(options: any = {}) {
     prContext: prContextOverride,
     lifecycleRunner: lifecycleRunnerOverride,
     authorizationKey: authorizationKeyOverride,
+    hostMemory: hostMemoryOverride,
   });
   return { pi, brain };
 }
@@ -330,6 +332,66 @@ describe("before_subagent_spawn routing", () => {
     });
     expect(result.model).toEqual(["@slow"]);
     expect(result.note).toContain("role=researcher");
+  });
+
+  test("modelRole wins over the custom agent name", async () => {
+    const { pi, brain } = boot();
+    await pi.emit("session_start");
+    activateRun(brain);
+    const result = await pi.emit("before_subagent_spawn", {
+      agent: "custom-worker",
+      modelRole: "reviewer",
+      spawnKey: "role-reviewer",
+    });
+    expect(result.model).toEqual(["@plan"]);
+    expect(result.note).toContain("role=reviewer");
+  });
+
+  test("explicit spawn kind/model/patterns are preserved", async () => {
+    const { pi, brain } = boot();
+    await pi.emit("session_start");
+    activateRun(brain);
+    for (const [spawnKey, explicit] of [
+      ["explicit-kind", { kind: "codex" }],
+      ["explicit-model", { model: "openai/gpt-explicit" }],
+      ["explicit-pattern", { pattern: "openai/gpt-*" }],
+      ["explicit-patterns", { patterns: ["anthropic/claude-sonnet-4-5"] }],
+    ]) {
+      const result = await pi.emit("before_subagent_spawn", {
+        agent: "custom-worker",
+        modelRole: "reviewer",
+        spawnKey,
+        ...explicit,
+      });
+      expect(result).toBeUndefined();
+    }
+  });
+
+  test("resource admission blocks a spawn before routing under pressure", async () => {
+    const { pi, brain } = boot({
+      hostMemory: () => ({ totalBytes: 100, freeBytes: 5 }),
+    });
+    await pi.emit("session_start");
+    activateRun(brain);
+    const result = await pi.emit("before_subagent_spawn", {
+      modelRole: "researcher",
+      spawnKey: "pressure-block",
+    });
+    expect(result.block).toBe(true);
+    expect(result.reason).toContain("memory pressure");
+    expect(brain.router.snapshot().seen).not.toContain("pressure-block");
+  });
+
+  test("unknown host memory is visible but does not invent pressure", async () => {
+    const { pi, brain } = boot({ hostMemory: () => null });
+    await pi.emit("session_start");
+    activateRun(brain);
+    expect(brain.getPressure()).toBe("unknown");
+    const result = await pi.emit("before_subagent_spawn", {
+      modelRole: "researcher",
+      spawnKey: "unknown-pressure",
+    });
+    expect(result.block ?? false).toBe(false);
   });
 
   test("an unrouted role falls through to the default", async () => {
@@ -517,6 +579,52 @@ describe("tool_call human gate", () => {
       input: { command: "git push origin main" },
     });
     expect(result).toBeUndefined();
+  });
+
+  test("explicit human authorization enters human_gate from synthesis", async () => {
+    const { repo } = makeRepoWithState({
+      schema: 2,
+      run_id: "run-current",
+      orchestrator_phase: "synthesis",
+      brain: { awaiting_lanes: [], notifications_seen: 1 },
+      lanes: {
+        "1-1": {
+          lane: "1-1",
+          run_id: "run-current",
+          dispatch_id: "dispatch-current",
+          branch: "feat/lane",
+          handoff: "/tmp/handoff/current.md",
+          gate_c: {
+            accepted: true,
+            report_id: "gate-c-current",
+            binding: {
+              repo: "ignored-by-authorization-command",
+              run_id: "run-current",
+              lane: "1-1",
+              dispatch_id: "dispatch-current",
+              handoff: "/tmp/handoff/current.md",
+              revision: "abc123",
+            },
+          },
+        },
+      },
+      extra_data: {},
+      active_panes: { orchestrator: "", lanes: {} },
+    });
+    const statePath = resolveStatePath(repo);
+    const { pi } = boot({ cwd: repo });
+    await pi.emit("session_start");
+
+    const command = pi.calls.commands.get("authorize-action");
+    expect(command).toBeDefined();
+    await command.handler("git_push --lane 1-1 --remote origin --ref feat/lane", {
+      cwd: repo,
+      ui: pi.ui,
+    });
+
+    const final = JSON.parse(readFileSync(statePath, "utf8"));
+    expect(final.orchestrator_phase).toBe("human_gate");
+    expect(final.extra_data.authorizations).toHaveLength(1);
   });
 
   test("a bound human authorization is consumed once by the matching tool call", async () => {
@@ -2173,8 +2281,19 @@ describe("state path resolution", () => {
 });
 
 describe("routing config", () => {
-  test("defaults apply when no config directory is given", async () => {
-    expect(loadRouting(null)).toBe(DEFAULT_ROUTING);
+  test("shipped routing applies when no operator config directory is given", async () => {
+    expect(loadRouting(null)).toEqual(DEFAULT_ROUTING);
+  });
+
+  test("operator routing config overrides the shared role mapping", async () => {
+    const configDir = mkdtempSync(path.join(tmpdir(), "dispatch-routing-"));
+    writeFileSync(
+      path.join(configDir, "routing.json"),
+      JSON.stringify({ researcher: { patterns: ["@plan"], kind: "agy" } }),
+    );
+    const routing = loadRouting(configDir);
+    expect(routing.researcher).toEqual({ patterns: ["@plan"], kind: "agy" });
+    expect(routing.writer).toEqual(DEFAULT_ROUTING.writer);
   });
 
   test("a missing config file falls back to defaults", async () => {

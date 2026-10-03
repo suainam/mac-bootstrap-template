@@ -173,20 +173,19 @@ describe("host memory pressure", () => {
 });
 
 describe("host memory probing", () => {
-  test("parses macOS vm_stat", () => {
+  test("parses macOS vm_stat with the reported page size", () => {
     const fake = (cmd: string) =>
       cmd === "vm_stat"
-        ? "Mach Virtual Memory Statistics: (page size of 4096)\nPages free:                             100000.\nPages inactive:                          200000.\nPages speculative:                       50000.\n"
+        ? "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                             100.\nPages inactive:                          200.\nPages speculative:                       0.\n"
         : "17179869184\n";
     const usage = readHostMemory("darwin", fake as never);
     expect(usage?.totalBytes).toBe(17179869184);
-    // free + inactive + speculative reclaimable.
-    expect(usage?.freeBytes).toBe(350_000 * 4096);
+    expect(usage?.freeBytes).toBe(300 * 16384);
   });
 
-  test("parses Linux free", () => {
+  test("parses the Linux Mem row rather than Swap", () => {
     const fake = () =>
-      "              total        used        free      shared  buff/cache   available\nMem:     16777216     8000000     4000000      100000     2000000     8777716\n";
+      "              total        used        free      shared  buff/cache   available\nMem:     16777216     8000000     4000000      100000     2000000     8777716\nSwap:     8388608           0     8388608\n";
     const usage = readHostMemory("linux", fake as never);
     expect(usage?.totalBytes).toBe(16777216);
     expect(usage?.freeBytes).toBe(8777716);

@@ -172,7 +172,9 @@ Pi 列描述旧安装兼容层；`omp` 是当前默认 CLI，使用相同 `AGENT
 公共 OMP 扩展清单位于 [`agent/omp/extensions.json`](omp/extensions.json)。运行
 `make omp-extensions` 会按精确版本安装扩展，并将非敏感扩展设置链接到
 `$PI_CODING_AGENT_DIR`（默认 `~/.omp/agent`）。密钥仍由私有 overlay 的 `.env`
-提供；扩展安装器不会读取或打印密钥。
+提供；扩展安装器不会读取或打印密钥。可运行
+`scripts/install-omp-extensions.sh --doctor` 做只读能力检查：确认 plugin 入口、local
+extension/settings 链接与宿主版本，并把偏离认证基线的宿主明确标为 `NOT VERIFIED`。
 
 当前清单包含 `@narumitw/pi-typesafe`，它提供 `typesafe_question` 和随包携带的
 `typesafe-ai` Skill。公共 registry 中的 TypeSafe 条目只面向 Claude Code、Codex

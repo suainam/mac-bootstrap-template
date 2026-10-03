@@ -12,10 +12,10 @@ brain state machine that keeps the orchestrator from doing the workers' jobs.
 | Closeout lifecycle gate | `lib/closeout_gate.py` | pure policy; decides, never destroys |
 | Prompt protocol gate | `lib/prompt_protocol.py` | pure policy; judges, never rewrites |
 | Gate A reflex gate | `lib/orchestrator_guard.py` | judges a tool call at the PreToolUse boundary; whitelist, mechanical, then Jev |
-| Gate D semantic watchdog | `lib/watchdog_judge.py` | System One (TypeSafe Jev); autonomous lease extension |
+| Gate D semantic watchdog | `lib/watchdog_judge.py` | offline by default; optional sanitized TypeSafe classification; lease extension only |
 | Single-writer audit gate | `../../scripts/dispatch-single-writer-gate.py` | repo gate, wired into `make repo-check` |
 | omp-side extension | `agent/omp/extensions/dispatch-omp/` | in-process; brain loop, routing, gate, heartbeats |
-| Context & memory governance | [`docs/memory-governance.md`](docs/memory-governance.md) | pure policy; pruning, rollover, downgrading, host pressure |
+| Context & memory governance | [`docs/memory-governance.md`](docs/memory-governance.md) | live host-pressure admission plus policy-only pruning/rollover/downgrade planners |
 | Research register | [`docs/research-register.md`](docs/research-register.md) | what fed this design, and what is deferred to an issue |
 
 ## Memory governance
@@ -25,9 +25,17 @@ long agent at 300–500k context tokens sits at 1.5–3 GB RSS, and four in
 parallel is 6–12 GB. The kernel's response is a `SIGKILL` that looks like an
 agent failure.
 
-Four defences ship as policy in `governance.ts` — stage-boundary pruning,
-session rollover, phase-aware model downgrading, and host-pressure admission
-gating. See [docs/memory-governance.md](docs/memory-governance.md).
+`governance.ts` contains four policies, but only **host-pressure admission** is
+wired into the live `before_subagent_spawn` creation gate today. Stage-boundary
+pruning, session rollover and phase-aware model downgrading remain tested policy
+planners and are intentionally reported as disabled until a real host execution
+path exists. See [docs/memory-governance.md](docs/memory-governance.md).
+
+Runtime truth can be queried without an active repo state:
+
+```bash
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py status --capabilities --json
+```
 
 ## The orchestrator brain loop
 
@@ -68,7 +76,7 @@ not an empty/default run.
 Two guards matter more than the field itself:
 
 - **Leaving `yield_and_guard` needs a real wake signal** — a worker `[NOTIFY]`
-  or a stall alarm. A todo reminder is explicitly not one. OMP 18.4.10 exposes
+  or a stall alarm. A todo reminder is explicitly not one. OMP 18.5.0 exposes
   no todo-mutation API to extensions, so parked reminders are UI-only and
   marked `NOT VERIFIED`; the extension never uses an aside to simulate blocked
   state because that would schedule a model continuation.
@@ -152,7 +160,10 @@ Human authority is also scoped. The OMP command
 ```
 
 records a one-shot authority bound to the current run/dispatch, Gate C report,
-revision, repository and exact ref. `git_push` additionally requires
+revision, repository and exact ref. When a confirmed authorization is issued
+from `synthesis` or `decision`, that same explicit human confirmation advances
+the brain into `human_gate`; operators do not need a shell-wrapped Python phase
+mutation first. `git_push` additionally requires
 `--remote <remote>`; authorization and consumption both re-check the live
 branch tip against the Gate C revision and the remote's current push URL, so a
 branch advance or destination rewrite invalidates the authority. `merge_pr`
@@ -573,16 +584,18 @@ When a child lane is quiet for $\ge$ 3 minutes (measured by monotonic `state_cha
 the semantic watchdog (`lib/watchdog_judge.py`) evaluates whether the lane is engaged in
 legitimate heavy computation (e.g. `cargo build`, `pytest`, `npm install`) or is hung:
 
-- **Non-autoregressive classification**: Invokes TypeSafe Jev System One endpoint for typed Noul probabilities, consuming zero conversational tokens.
-- **Strict buffer truncation**: Extracts at most the tail 15 lines of sanitized terminal output with ANSI sequences stripped.
-- **Dynamic stepped backoff & jitter**: When $P(\text{legitimate}) > 0.70$, automatically extends the watchdog lease with stepped backoff (1st extension: 3m, 2nd: 5m, 3rd+: 10m cap) plus $\pm 15$s random jitter to prevent API thundering herds.
-- **Forward progress self-healing**: When `state_change_seq` advances, the consecutive extension counter resets to 0 (next extension returns to 3m baseline).
-- **Prompt nudge / abort**: When $P(\text{stalled}) > 0.65$, triggers an automated soft nudge (`\n`) for interactive input prompts or aborts fatal deadlocks.
+- **Offline by default**: deterministic local heuristics are used unless the operator explicitly passes `--online`.
+- **Sanitized online payload**: opt-in TypeSafe classification sends only a whitelist of lifecycle/progress facts plus a redacted terminal tail capped by UTF-8 bytes; ambient API credentials do not enable network use by themselves.
+- **Dynamic stepped backoff & jitter**: legitimate long-running work extends the watchdog lease with stepped backoff (1st extension: 3m, 2nd: 5m, 3rd+: 10m cap) plus $\pm 15$s random jitter.
+- **Forward progress self-healing**: when `state_change_seq` advances, the consecutive extension counter resets to 0.
+- **No blind input or abort**: prompt/deadlock findings are recommendations (`review_and_nudge` / `review_and_cancel`). The watchdog never sends Enter and never releases/cancels a lane on its own.
 
 ```bash
 # Evaluate a single lane or sweep all awaiting lanes
 $PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py watchdog --lane 1-4
 $PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py watchdog --sweep
+# Explicit external classification only when required:
+$PY multiplexer/herdr-dispatch/bin/dispatch_plugin.py watchdog --lane 1-4 --online
 ```
 
 Agent **lifecycle** reporting is not in this table on purpose: Herdr's own
