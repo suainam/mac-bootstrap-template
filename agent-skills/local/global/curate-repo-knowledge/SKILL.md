@@ -5,7 +5,7 @@ description: Curate repository knowledge when a cold-start project needs Agent r
 
 # Curate Repository Knowledge
 
-Curate the smallest navigable knowledge surface. Keep each fact at one authority, route other mentions to it, and add machinery only after repeated evidence.
+Curate the smallest navigable knowledge surface. Keep each fact at one authority, route other mentions to it, and enforce **Doc-as-Code (代码即文档)** so documentation derives from living executable code, schemas, and catalogs rather than manual Markdown drift. Add machinery only after repeated evidence.
 
 ## 1. Audit
 
@@ -42,6 +42,13 @@ workflow authoritative:
 If the TypeSafe SDK or live documentation is unavailable, do not invent an API
 call or claim model verification. Continue with a tabletop classification,
 label it as such, and keep the normal deterministic and human review gates.
+### Doc-as-Code (SSOT) Invariants
+
+Apply the Doc-as-Code discipline across all knowledge curation:
+
+1. **Executable Single Source of Truth (SSOT)**: Catalogs (e.g., `catalog/roles.yml`), schemas, manifests, and declared configs are the sole authority. Never manually maintain redundant inventory or role matrices in Markdown. Markdown surfaces must project from, validate against, or link to executable SSOT artifacts.
+2. **Live Evidence over Narrative Drift**: When code behavior, network ports, or configuration values change, update the authoritative declarative code first. Prose claims that contradict executable contracts or runtime facts are treated as defects, not alternative documentation.
+3. **Closed-Loop Reconciliation**: Every milestone or PR affecting contracts must reconcile the executable SSOT, regenerate projected references via native commands, and verify alignment before closing tickets.
 
 ## 2. Select one branch
 

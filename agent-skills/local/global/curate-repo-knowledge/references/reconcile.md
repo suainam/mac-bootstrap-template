@@ -25,6 +25,8 @@ A fact graduates when it repeatedly recurs, explains how the system works, or mu
 
 Keep Agent rules limited to constraints whose absence changes Agent behavior: red lines, non-obvious boundaries, critical commands, permission rules, routing, and recurring traps. Move mechanisms, tutorials, event narratives, and tool-enforced lint rules to their proper surfaces or remove them.
 
+Enforce **Doc-as-Code**: treat manual documentation duplication as code smell. Never manually replicate facts maintained by code schemas, ports manifests, or role registries; use code generators or canonical cross-references.
+
 ## Mutation classes
 
 - **safe**: reversible link repair, verified compatibility symlink creation, or bounded correction with one unambiguous authority.
