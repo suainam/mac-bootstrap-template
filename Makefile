@@ -8,12 +8,13 @@ GIT_HOOK_REPO ?= .
 GIT_HOOK_REGISTRY ?= agent/runtime/registry.jsonc
 GIT_HOOK_APPROVALS ?=
 GIT_HOOK_PYTHON ?= $(shell command -v python3)
+DISPATCH_SOURCE ?= $(HOME)/.local/src/Dispatch
 
 .PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent install-maintenance-agents unload-maintenance-agents \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
-	omp-extensions \
+	omp-extensions dispatch-install dispatch-upgrade dispatch-status dispatch-doctor dispatch-uninstall \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	external-tools devspace-check devspace-run devspace-doctor devspace-tunnel \
@@ -79,6 +80,11 @@ help:
 	@echo "  agent-sync             Sync managed skills + prompt libraries"
 	@echo "  agent-refresh          Full sync + full agent reconfigure"
 	@echo "  omp-extensions         Install version-pinned OMP extensions"
+	@echo "  dispatch-install       Install standalone Dispatch from DISPATCH_SOURCE"
+	@echo "  dispatch-upgrade       Upgrade standalone Dispatch from DISPATCH_SOURCE"
+	@echo "  dispatch-status        Show standalone Dispatch status"
+	@echo "  dispatch-doctor        Run standalone Dispatch doctor"
+	@echo "  dispatch-uninstall     Uninstall standalone Dispatch (state preserved by default)"
 	@echo "  skill-plan             Summarize skill registry and targets"
 	@echo "  skill-fetch            Fetch one non-bundle external skill: SOURCE=id SKILL=name"
 	@echo "  skill-fetch-bundle     Fetch one external bundle: SOURCE=id"
@@ -163,14 +169,12 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 repo-check:
-	+$(MAKE) syntax-check skill-check privacy-audit dispatch-single-writer-gate dispatch-test pytest-parallel
+	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
 
 repo-check-serial:
 	$(MAKE) syntax-check
 	$(MAKE) skill-check
 	./scripts/privacy-audit.sh
-	$(MAKE) dispatch-single-writer-gate
-	$(MAKE) dispatch-test
 	$(MAKE) pytest
 
 repo-check-parallel: repo-check
@@ -361,6 +365,26 @@ agent-tools:
 omp-extensions:
 	./scripts/install-omp-extensions.sh
 
+dispatch-install:
+	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
+	"$(DISPATCH_SOURCE)/bin/dispatchctl" install
+
+dispatch-upgrade:
+	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
+	"$(DISPATCH_SOURCE)/bin/dispatchctl" upgrade
+
+dispatch-status:
+	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
+	"$(DISPATCH_SOURCE)/bin/dispatchctl" status
+
+dispatch-doctor:
+	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
+	"$(DISPATCH_SOURCE)/bin/dispatchctl" doctor
+
+dispatch-uninstall:
+	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
+	"$(DISPATCH_SOURCE)/bin/dispatchctl" uninstall
+
 agent-refresh: agent-sync agent-tools omp-extensions
 
 skill-plan:
@@ -411,24 +435,6 @@ system-upgrade:
 
 skill-check:
 	$(PYTHON) scripts/skill_supply_chain.py check
-
-# Fails when dispatch-owned code takes ownership of agent lifecycle
-# reporting, which Herdr's own `herdr:omp` integration already owns.
-dispatch-single-writer-gate:
-	$(PYTHON) scripts/dispatch-single-writer-gate.py
-
-# omp-side extension tests. bun runs the TypeScript suite directly; when
-# bun is absent we report and skip rather than installing a toolchain,
-# matching the installer's missing-dependency contract.
-dispatch-test:
-	@if command -v bun >/dev/null 2>&1; then \
-		bun test tests/dispatch-brain.test.ts tests/dispatch-notify.test.ts \
-			  tests/dispatch-ledger.test.ts tests/dispatch-governance.test.ts \
-			  tests/dispatch-slash.test.ts tests/dispatch-e2e.test.ts \
-			  tests/dispatch-reflex.test.ts; \
-	else \
-		echo 'dispatch-test: SKIPPED (bun not installed; TypeScript suite not run)'; \
-	fi
 
 prompt-sync:
 	./scripts/sync-agent-prompts.sh
@@ -488,7 +494,7 @@ hook-matchers:
 	./scripts/add-hook-matchers.sh
 
 patch-chrome-gemini:
-	TARGET_USER=$(if $(USER),$(USER),) KILL_CHROME=$(if $(KILL),$(KILL),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh
+	TARGET_USER=$(if $(USER),$(USER),) KILL_CHROME=$(if $(KILL),$(KILL_CHROME),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh
 
 install-maintenance-agents:
 	./scripts/install-maintenance-agents.sh install
@@ -512,9 +518,7 @@ claude-daemon-logs:
 claude-daemon-unload:
 	./scripts/install-maintenance-agents.sh unload claude-daemon
 	@echo "=== Claude daemon unloaded ==="
-# ── System maxfiles limit (survives reboot) ─────────────────
-# launchd's default global soft limit (256) is too low for tools like
-# codex/context-mode that fan out many fds; this raises it at every boot.
+
 maxfiles-limit-install:
 	sudo cp "$(CURDIR)/launchd/io.local.mac-bootstrap.maxfiles.plist" /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	sudo chown root:wheel /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
@@ -535,11 +539,9 @@ maxfiles-limit-uninstall:
 	sudo rm -f /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	@echo "=== maxfiles daemon uninstalled ==="
 
-# ── Daemon & LaunchAgent Maintenance ──────────────────────────────
 cleanup-services:
 	./scripts/cleanup-daemon-services.sh
 
-# ── External Tools Manifest ──────────────────────────────────────────
 external-tools:
 	./scripts/install-external-tools.sh
 
@@ -555,13 +557,11 @@ imgup-install:
 
 imgup: imgup-install
 
-# ── Cold Start (Proxy Bootstrap) ────────────────────────────────────
 cold-start:
 	./scripts/install-clash.sh
 cold-start-dry:
 	./scripts/install-clash.sh --dry-run
 
-# ── Network Tuning & Dynamic BDP (macOS Client) ──────────────────────
 net-tune:
 	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) $(if $(APPLY),--apply,)
 
