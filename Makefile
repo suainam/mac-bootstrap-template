@@ -494,7 +494,7 @@ hook-matchers:
 	./scripts/add-hook-matchers.sh
 
 patch-chrome-gemini:
-	TARGET_USER=$(if $(USER),$(USER),) KILL_CHROME=$(if $(KILL),$(KILL_CHROME),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh
+	TARGET_USER=$(if $(USER),$(USER),) KILL_CHROME=$(if $(KILL),$(KILL),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh
 
 install-maintenance-agents:
 	./scripts/install-maintenance-agents.sh install
@@ -518,7 +518,9 @@ claude-daemon-logs:
 claude-daemon-unload:
 	./scripts/install-maintenance-agents.sh unload claude-daemon
 	@echo "=== Claude daemon unloaded ==="
-
+# ── System maxfiles limit (survives reboot) ─────────────────
+# launchd's default global soft limit (256) is too low for tools like
+# codex/context-mode that fan out many fds; this raises it at every boot.
 maxfiles-limit-install:
 	sudo cp "$(CURDIR)/launchd/io.local.mac-bootstrap.maxfiles.plist" /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	sudo chown root:wheel /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
@@ -539,9 +541,11 @@ maxfiles-limit-uninstall:
 	sudo rm -f /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	@echo "=== maxfiles daemon uninstalled ==="
 
+# ── Daemon & LaunchAgent Maintenance ──────────────────────────────
 cleanup-services:
 	./scripts/cleanup-daemon-services.sh
 
+# ── External Tools Manifest ──────────────────────────────────────────
 external-tools:
 	./scripts/install-external-tools.sh
 
@@ -557,11 +561,13 @@ imgup-install:
 
 imgup: imgup-install
 
+# ── Cold Start (Proxy Bootstrap) ────────────────────────────────────
 cold-start:
 	./scripts/install-clash.sh
 cold-start-dry:
 	./scripts/install-clash.sh --dry-run
 
+# ── Network Tuning & Dynamic BDP (macOS Client) ──────────────────────
 net-tune:
 	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) $(if $(APPLY),--apply,)
 

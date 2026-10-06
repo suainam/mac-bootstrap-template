@@ -149,6 +149,8 @@ fi
 
 command -v omp >/dev/null || { echo "Missing required command: omp" >&2; exit 2; }
 
+# Registry state is only consulted when a package entry is actually processed,
+# so a manifest made purely of local sources needs no registry round-trip.
 installed=""
 installed_loaded=0
 
@@ -174,6 +176,8 @@ install_package() {
   fi
 }
 
+# Unit separator, not tab: tab is IFS whitespace, so `read` would collapse runs
+# of empty fields and silently shift every column after the first gap.
 while IFS=$'\x1f' read -r kind package version settings target; do
   [[ -n "$package" ]] || continue
 
