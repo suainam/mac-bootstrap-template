@@ -1177,11 +1177,6 @@
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "免认证公共 REST API 目录与即时查询工具（天气、地理/IP、加密汇率、DNS网络、知识检索）"
         },
-        "dispatch": {
-          "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "通用异构多Agent编排与派发引擎（支持Codex/OpenCode/Claude/Agy/OMP），内置任务模型路由、额度降级、两步法握手与看门狗"
-        },
         "herdr-nvim-qa-workspace": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
