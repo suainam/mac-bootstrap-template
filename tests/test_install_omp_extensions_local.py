@@ -125,25 +125,30 @@ def test_version_mismatch_triggers_install(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------
 
 
-def _local_entry(target: str = "dispatch-omp.ts") -> dict:
+def _local_entry(target: str = "local-fixture.ts") -> dict:
     return {
         "kind": "local",
-        "package": "multiplexer/herdr-dispatch/omp/index.ts",
+        "package": "agent/omp/extensions/local-fixture/index.ts",
         "target": target,
     }
 
 
-def test_local_source_is_symlinked(tmp_path: Path) -> None:
-    repo = _repo(tmp_path, [_local_entry()])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
+def _local_source(repo: Path) -> Path:
+    source = repo / "agent" / "omp" / "extensions" / "local-fixture"
     source.mkdir(parents=True)
     (source / "index.ts").write_text("export default function () {}\n")
+    return source
+
+
+def test_local_source_is_symlinked(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, [_local_entry()])
+    source = _local_source(repo)
 
     agent_dir = tmp_path / "agent"
     result = _run(repo, agent_dir, _fake_omp(tmp_path))
 
     assert result.returncode == 0, result.stderr
-    link = agent_dir / "extensions" / "dispatch-omp.ts"
+    link = agent_dir / "extensions" / "local-fixture.ts"
     assert link.is_symlink()
     assert link.resolve() == (source / "index.ts").resolve()
     # A pure-local manifest must not need a registry round-trip.
@@ -152,15 +157,13 @@ def test_local_source_is_symlinked(tmp_path: Path) -> None:
 
 def test_local_install_is_idempotent(tmp_path: Path) -> None:
     repo = _repo(tmp_path, [_local_entry()])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
+    _local_source(repo)
 
     agent_dir = tmp_path / "agent"
     bindir = _fake_omp(tmp_path)
     assert _run(repo, agent_dir, bindir).returncode == 0
 
-    link = agent_dir / "extensions" / "dispatch-omp.ts"
+    link = agent_dir / "extensions" / "local-fixture.ts"
     first = link.lstat().st_ino
 
     assert _run(repo, agent_dir, bindir).returncode == 0
@@ -172,9 +175,9 @@ def test_local_install_is_idempotent(tmp_path: Path) -> None:
 def test_local_target_defaults_to_basename(tmp_path: Path) -> None:
     repo = _repo(
         tmp_path,
-        [{"kind": "local", "package": "multiplexer/herdr-dispatch/omp/brain-loop.ts"}],
+        [{"kind": "local", "package": "agent/omp/extensions/local-fixture/brain-loop.ts"}],
     )
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
+    source = repo / "agent" / "omp" / "extensions" / "local-fixture"
     source.mkdir(parents=True)
     (source / "brain-loop.ts").write_text("export default function () {}\n")
 
@@ -185,10 +188,8 @@ def test_local_target_defaults_to_basename(tmp_path: Path) -> None:
 
 def test_unscoped_package_without_kind_is_treated_as_local(tmp_path: Path) -> None:
     """Backwards-compatible inference for manifests that omit `kind`."""
-    repo = _repo(tmp_path, [{"package": "multiplexer/herdr-dispatch/omp/index.ts"}])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
+    repo = _repo(tmp_path, [{"package": "agent/omp/extensions/local-fixture/index.ts"}])
+    _local_source(repo)
 
     agent_dir = tmp_path / "agent"
     result = _run(repo, agent_dir, _fake_omp(tmp_path))
@@ -207,49 +208,43 @@ def test_missing_local_source_is_refused(tmp_path: Path) -> None:
 
 def test_local_source_refuses_to_clobber_without_backup_consent(tmp_path: Path) -> None:
     repo = _repo(tmp_path, [_local_entry()])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
+    _local_source(repo)
 
     agent_dir = tmp_path / "agent"
-    link = agent_dir / "extensions" / "dispatch-omp.ts"
+    link = agent_dir / "extensions" / "local-fixture.ts"
     link.parent.mkdir(parents=True)
     link.write_text("operator-owned content\n")
-    (link.parent / "dispatch-omp.ts.pre-mac-bootstrap").write_text("older backup\n")
+    (link.parent / "local-fixture.ts.pre-mac-bootstrap").write_text("older backup\n")
 
     result = _run(repo, agent_dir, _fake_omp(tmp_path))
     assert result.returncode == 2
     assert "Refusing to overwrite" in result.stderr
     # Operator content and the older backup both survive untouched.
     assert link.read_text() == "operator-owned content\n"
-    assert (link.parent / "dispatch-omp.ts.pre-mac-bootstrap").read_text() == (
+    assert (link.parent / "local-fixture.ts.pre-mac-bootstrap").read_text() == (
         "older backup\n"
     )
 
 
 def test_local_source_backs_up_operator_file_once(tmp_path: Path) -> None:
     repo = _repo(tmp_path, [_local_entry()])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
+    _local_source(repo)
 
     agent_dir = tmp_path / "agent"
-    link = agent_dir / "extensions" / "dispatch-omp.ts"
+    link = agent_dir / "extensions" / "local-fixture.ts"
     link.parent.mkdir(parents=True)
     link.write_text("operator content\n")
 
     assert _run(repo, agent_dir, _fake_omp(tmp_path)).returncode == 0
     assert link.is_symlink()
-    assert (link.parent / "dispatch-omp.ts.pre-mac-bootstrap").read_text() == (
+    assert (link.parent / "local-fixture.ts.pre-mac-bootstrap").read_text() == (
         "operator content\n"
     )
 
 
 def test_local_dry_run_writes_nothing(tmp_path: Path) -> None:
     repo = _repo(tmp_path, [_local_entry()])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
+    _local_source(repo)
 
     agent_dir = tmp_path / "agent"
     result = _run(repo, agent_dir, _fake_omp(tmp_path), "--dry-run")
@@ -258,14 +253,9 @@ def test_local_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert not agent_dir.exists()
 
 
-def test_doctor_recognizes_plugin_extension_and_reports_baseline_status(tmp_path: Path) -> None:
+def test_doctor_recognizes_local_extension_and_reports_omp_baseline(tmp_path: Path) -> None:
     repo = _repo(tmp_path, [_local_entry()])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
-    plugin = repo / "multiplexer" / "herdr-dispatch" / "bin" / "dispatch_plugin.py"
-    plugin.parent.mkdir(parents=True)
-    plugin.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    _local_source(repo)
 
     agent_dir = tmp_path / "agent"
     bindir = _fake_omp(tmp_path)
@@ -273,40 +263,34 @@ def test_doctor_recognizes_plugin_extension_and_reports_baseline_status(tmp_path
 
     result = _run(repo, agent_dir, bindir, "--doctor")
     assert result.returncode == 0, result.stderr
-    assert "OK   plugin entrypoint:" in result.stdout
-    assert "OK   local extension dispatch-omp.ts" in result.stdout
+    assert "== OMP extension doctor ==" in result.stdout
+    assert "OK   local extension local-fixture.ts" in result.stdout
     assert "certification baseline 18.5.0" in result.stdout
     assert "NOT VERIFIED" in result.stdout
+    assert "plugin entrypoint" not in result.stdout
 
 
 def test_doctor_fails_when_local_extension_is_not_installed(tmp_path: Path) -> None:
     repo = _repo(tmp_path, [_local_entry()])
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
-    plugin = repo / "multiplexer" / "herdr-dispatch" / "bin" / "dispatch_plugin.py"
-    plugin.parent.mkdir(parents=True)
-    plugin.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    _local_source(repo)
 
     result = _run(repo, tmp_path / "agent", _fake_omp(tmp_path), "--doctor")
     assert result.returncode == 1
-    assert "MISS local extension dispatch-omp.ts" in result.stdout
+    assert "MISS local extension local-fixture.ts" in result.stdout
 
 
 def test_local_entry_may_carry_settings(tmp_path: Path) -> None:
     repo = _repo(
         tmp_path,
-        [{**_local_entry(), "settings": "dispatch.json"}],
-        settings=("dispatch.json",),
+        [{**_local_entry(), "settings": "fixture.json"}],
+        settings=("fixture.json",),
     )
-    source = repo / "multiplexer" / "herdr-dispatch" / "omp"
-    source.mkdir(parents=True)
-    (source / "index.ts").write_text("export default function () {}\n")
+    _local_source(repo)
 
     agent_dir = tmp_path / "agent"
     assert _run(repo, agent_dir, _fake_omp(tmp_path)).returncode == 0
-    assert (agent_dir / "extensions" / "dispatch-omp.ts").is_symlink()
-    assert (agent_dir / "dispatch.json").is_symlink()
+    assert (agent_dir / "extensions" / "local-fixture.ts").is_symlink()
+    assert (agent_dir / "fixture.json").is_symlink()
 
 
 # --------------------------------------------------------------------------

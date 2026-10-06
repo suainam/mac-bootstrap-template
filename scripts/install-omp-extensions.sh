@@ -13,13 +13,13 @@ usage() {
 Usage: scripts/install-omp-extensions.sh [--dry-run|--doctor]
 
 Install the version-pinned public OMP extensions and link their non-secret settings.
-Use --doctor to verify the plugin entrypoint, local extension links, and host-version certification status without mutating anything.
+Use --doctor to verify local extension links and the OMP host baseline without mutating anything.
 
 Manifest entries are either registry packages or repository-owned local sources:
 
   { "package": "@scope/name", "version": "1.2.3", "settings": "name.json" }
-  { "kind": "local", "package": "multiplexer/herdr-dispatch/omp/index.ts",
-    "target": "dispatch-omp.ts" }
+  { "kind": "local", "package": "agent/omp/extensions/example.ts",
+    "target": "example.ts" }
 
 Local entries are symlinked into $PI_CODING_AGENT_DIR/extensions/ so this
 repository stays their single source of truth: they are never fetched, never
@@ -118,18 +118,8 @@ link_settings_file() {
 
 if [[ "$DOCTOR" -eq 1 ]]; then
   doctor_rc=0
-  echo "== OMP dispatch capability doctor =="
+  echo "== OMP extension doctor =="
   doctor_version omp "18.5.0"
-  doctor_version herdr "0.9.3"
-  doctor_version codex "0.160.0"
-  doctor_version bun "1.4.2"
-  plugin="$ROOT/multiplexer/herdr-dispatch/bin/dispatch_plugin.py"
-  if [[ -r "$plugin" ]]; then
-    echo "OK   plugin entrypoint: $plugin"
-  else
-    echo "MISS plugin entrypoint: $plugin"
-    doctor_rc=1
-  fi
   while IFS=$'\x1f' read -r kind package version settings target; do
     [[ -n "$package" ]] || continue
     if [[ "$kind" == "local" ]]; then
