@@ -1,8 +1,0 @@
-{
-  "scout": { "patterns": ["@slow"], "kind": "opencode" },
-  "researcher": { "patterns": ["@slow"], "kind": "opencode" },
-  "writer": { "patterns": ["@smol"], "kind": "codex" },
-  "reviewer": { "patterns": ["@plan"], "kind": "agy" },
-  "skeptic": { "patterns": ["@slow"], "kind": "agy" },
-  "default": { "patterns": ["@smol"], "kind": "opencode" }
-}
