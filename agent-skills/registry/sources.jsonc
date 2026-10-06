@@ -1357,36 +1357,6 @@
         "network-path-triage": {
           "scope": "project",
           "projects": ["mac-bootstrap"]
-        },
-        "dispatch-codex": {
-          "scope": "project",
-          "projects": ["mac-bootstrap"],
-          "reason": "OMP-hosted Herdr dispatch skill for Codex lanes; adapted from bestony/herdr-dispatch for OMP orchestration with no-push default"
-        },
-        "dispatch-opencode": {
-          "scope": "project",
-          "projects": ["mac-bootstrap"],
-          "reason": "OMP-hosted Herdr dispatch skill for OpenCode workers (#112); nudge-driven with safe default approvals"
-        },
-        "dispatch-claude": {
-          "scope": "project",
-          "projects": ["mac-bootstrap"],
-          "reason": "OMP-hosted Herdr dispatch skill for Claude Code workers (#113); native session resume and isolated worktree"
-        },
-        "dispatch-agy": {
-          "scope": "project",
-          "projects": ["mac-bootstrap"],
-          "reason": "OMP-hosted Herdr dispatch skill for Antigravity CLI (agy) workers (#114); distinguishes kind agy from antigravity-cli integration"
-        },
-        "dispatch-omp": {
-          "scope": "project",
-          "projects": ["mac-bootstrap"],
-          "reason": "OMP-hosted Herdr dispatch skill for OMP worker lanes (#115); isolated session directory and native resume (Pi worker documented absent)"
-        },
-        "dispatch-fleet": {
-          "scope": "project",
-          "projects": ["mac-bootstrap"],
-          "reason": "OMP-hosted heterogeneous multi-lane dispatch and supervision (#116); guards worktree isolation and publication boundary"
         }
       }
     },
