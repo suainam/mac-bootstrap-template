@@ -2,7 +2,7 @@
 
 `mac-bootstrap-template` does not own the Dispatch runtime, Gate C implementation, OMP human-control adapter, or Dispatch agent skill.
 
-Dispatch is a standalone product. This repository only provides thin lifecycle targets that call an existing Dispatch checkout:
+Dispatch is a standalone product. Its own installer manages the global `dispatch` skill; `mac-bootstrap-template` does not register that skill in its skill registry. This repository only provides thin lifecycle targets that call an existing Dispatch checkout:
 
 ```bash
 make dispatch-install
