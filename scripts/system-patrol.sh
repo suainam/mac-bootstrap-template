@@ -114,6 +114,16 @@ if [ "${SYSTEM_PATROL_SKIP_CLEANUP:-false}" != "true" ] && [ "$SKIP_CLEANUP" = f
         fi
       fi
     fi
+
+    # 0.5 Clean macOS 4K aerial screensaver video caches
+    WALLPAPER_VIDEOS_DIR="$HOME/Library/Application Support/com.apple.wallpaper/aerials/videos"
+    if [ -d "$WALLPAPER_VIDEOS_DIR" ]; then
+      video_count="$(find "$WALLPAPER_VIDEOS_DIR" -type f 2>/dev/null | wc -l | tr -d ' ' || echo 0)"
+      if [ "$video_count" -gt 0 ]; then
+        rm -rf "${WALLPAPER_VIDEOS_DIR:?}"/* 2>/dev/null || true
+        REMEDIATIONS+=("Cleaned 4K aerial wallpaper video cache (${video_count} videos removed)")
+      fi
+    fi
   fi
 fi
 

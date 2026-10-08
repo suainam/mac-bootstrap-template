@@ -124,7 +124,7 @@
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-10-08",
-            "approved_hash": "sha256:1c665d92a2fc815e89356ea2597d18409f8ef90f6fa433babf9900efdb871868",
+            "approved_hash": "sha256:1415168dcb0bc68c1993f3259f82f5254cf0c449c5d51d515233190f5f87e06f",
             "reason": "User-approved upstream answer-me-with-html skill for single-page visual HTML explainer"
           },
           "reason": "Official answer-me-with-html skill for visual one-page reports and diagrams"
