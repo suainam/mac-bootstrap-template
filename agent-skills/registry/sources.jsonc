@@ -1282,9 +1282,9 @@
           "projects": ["product_strategy"]
         },
         "ps-analytics": {
-          "scope": "project",
-          "projects": ["product_strategy"],
-          "reason": "Product Strategy 统一数据分析全流程规范：MAX_PT/防笛卡尔积/多模型掩盖排查/环形跨年时间解析"
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "Product Strategy 统一数据分析全流程规范：MAX_PT/防笛卡尔积/物理中间表去CTE/分批双日期基准/历史零漂移三段切片回归/多模型掩盖排查/环形跨年时间解析"
         },
         "dataworks-yoy-backfill": {
           "scope": "project",
