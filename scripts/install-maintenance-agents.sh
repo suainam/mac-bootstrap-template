@@ -9,14 +9,14 @@ SELECTION="${2:-all}"
 
 case "$ACTION" in
   install|unload) ;;
-  *) echo "Usage: $0 [install|unload] [all|claude-daemon|cache-cleanup|downloads-organizer]" >&2; exit 2 ;;
+  *) echo "Usage: $0 [install|unload] [all|claude-daemon|cache-cleanup|downloads-organizer|system-patrol]" >&2; exit 2 ;;
 esac
 
 case "$SELECTION" in
   all)
-    LABELS=(claude-daemon cache-cleanup downloads-organizer)
+    LABELS=(claude-daemon cache-cleanup downloads-organizer system-patrol)
     ;;
-  claude-daemon|cache-cleanup|downloads-organizer)
+  claude-daemon|cache-cleanup|downloads-organizer|system-patrol)
     LABELS=("$SELECTION")
     ;;
   *) echo "Unknown maintenance agent: $SELECTION" >&2; exit 2 ;;

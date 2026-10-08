@@ -153,6 +153,7 @@ def test_maintenance_agent_renderer_expands_paths_for_every_task(tmp_path):
         "claude-daemon": "claude-daemon.sh",
         "cache-cleanup": "clean-cache.sh",
         "downloads-organizer": "organize-downloads.sh",
+        "system-patrol": "system-patrol.sh",
     }
     for name, script in expected.items():
         plist = launch_agents / f"io.local.mac-bootstrap.{name}.plist"
@@ -162,6 +163,6 @@ def test_maintenance_agent_renderer_expands_paths_for_every_task(tmp_path):
         assert "{{BOOTSTRAP}}" not in plist.read_text(encoding="utf-8")
 
     calls_text = calls.read_text(encoding="utf-8")
-    assert calls_text.count("bootout gui/") == 3
-    assert calls_text.count("bootstrap gui/") == 3
+    assert calls_text.count("bootout gui/") == 4
+    assert calls_text.count("bootstrap gui/") == 4
 
