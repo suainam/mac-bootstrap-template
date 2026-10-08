@@ -108,6 +108,30 @@
       }
     },
 
+    "qingyuna-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/QingYunA/answer-me-with-html.git",
+      "skills": {
+        "answer-me-with-html": {
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-10-08",
+            "approved_hash": "sha256:1c665d92a2fc815e89356ea2597d18409f8ef90f6fa433babf9900efdb871868",
+            "reason": "User-approved upstream answer-me-with-html skill for single-page visual HTML explainer"
+          },
+          "reason": "Official answer-me-with-html skill for visual one-page reports and diagrams"
+        }
+      }
+    },
+
     "vercel-skills": {
       "type": "external",
       "fetcher": "skills.sh",
