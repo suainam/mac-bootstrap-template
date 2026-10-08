@@ -1,12 +1,13 @@
 # Maintenance LaunchAgents
 
-Three user LaunchAgents run scheduled one-shot tasks:
+Four user LaunchAgents run scheduled one-shot tasks:
 
 - Claude keepalive: 00:00, 08:00, and 15:00.
 - Cache cleanup: Sundays at 04:15.
 - Downloads organizer: every 30 minutes.
+- System patrol: daily at 21:00 (trash emptying, package/bun/npm/Docker cache hygiene, runaway log auto-rotation, crash & resource alarms, notification on fault).
 
-Install or refresh all three from the template checkout:
+Install or refresh all four from the template checkout:
 
 ```bash
 make install-maintenance-agents

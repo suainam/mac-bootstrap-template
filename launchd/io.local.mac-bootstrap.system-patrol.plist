@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.local.mac-bootstrap.system-patrol</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>{{BOOTSTRAP}}/scripts/system-patrol.sh</string>
+    <string>--notify</string>
+  </array>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>21</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/mac-bootstrap-system-patrol.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/mac-bootstrap-system-patrol.err</string>
+</dict>
+</plist>
