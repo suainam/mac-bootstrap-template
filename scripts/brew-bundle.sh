@@ -99,28 +99,50 @@ should_skip_manual_cask() {
   esac
 }
 
-while IFS= read -r line; do
+ZB_BIN="${ZB_BIN:-$(command -v zb 2>/dev/null || echo '')}"
+is_in_zerobrew() {
+  local pkg="$1"
+  [ -n "$ZB_BIN" ] || return 1
+  # Check both direct name and lowercase basename
+  local name="${pkg##*/}"
+  [ -d "/opt/zerobrew/Cellar/$name" ] || [ -d "/opt/zerobrew/Cellar/$pkg" ]
+}
+
+process_brewfile_line() {
+  local line="$1"
   case "$line" in
     brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
       token="${line#*\"}"
       token="${token%\"*}"
       if is_skipped "$token"; then
         echo "Skip $token: in private brew skip list."
-        continue
+        return 0
       fi
       ;;
   esac
   case "$line" in
+    brew\ \"*\")
+      token="${line#brew \"}"
+      token="${token%\"}"
+      if is_in_zerobrew "$token"; then
+        echo "Skip $token: managed by zerobrew."
+        return 0
+      fi
+      ;;
     cask\ \"*\")
       token="${line#cask \"}"
       token="${token%\"}"
       if should_skip_manual_cask "$token"; then
         echo "Skip $token: app already exists outside Homebrew."
-        continue
+        return 0
       fi
       ;;
   esac
   printf '%s\n' "$line" >> "$TMP_BREWFILE"
+}
+
+while IFS= read -r line; do
+  process_brewfile_line "$line"
 done < "$BREWFILE"
 
 # 2. Additive Profile & Experimental Brewfiles
@@ -137,27 +159,7 @@ fi
 for extra in "${EXTRA_BREWFILES[@]}"; do
   echo "Applying extra Brewfile ($PROFILE): $extra"
   while IFS= read -r line; do
-    case "$line" in
-      brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
-        token="${line#*\"}"
-        token="${token%\"*}"
-        if is_skipped "$token"; then
-          echo "Skip $token: in private brew skip list."
-          continue
-        fi
-        ;;
-    esac
-    case "$line" in
-      cask\ \"*\")
-        token="${line#cask \"}"
-        token="${token%\"}"
-        if should_skip_manual_cask "$token"; then
-          echo "Skip $token: app already exists outside Homebrew."
-          continue
-        fi
-        ;;
-    esac
-    printf '%s\n' "$line" >> "$TMP_BREWFILE"
+    process_brewfile_line "$line"
   done < "$extra"
 done
 

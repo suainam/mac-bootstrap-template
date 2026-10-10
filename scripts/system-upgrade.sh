@@ -20,6 +20,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BREW_BIN="${BREW_BIN:-$(command -v brew 2>/dev/null || echo '')}"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/.venv/bin/python}"
 SKILL_SOURCE="${SKILL_SOURCE:-}"
+ZB_BIN="${ZB_BIN:-$(command -v zb 2>/dev/null || echo '')}"
 
 if [[ -z "${BREW_BIN}" || ! -x "${BREW_BIN}" ]]; then
   echo "Homebrew executable not found" >&2
@@ -28,6 +29,13 @@ fi
 if [[ ! -x "${PYTHON_BIN}" ]]; then
   echo "Python executable not found: ${PYTHON_BIN}" >&2
   exit 1
+fi
+
+if [[ -n "${ZB_BIN}" && -x "${ZB_BIN}" ]]; then
+  echo "Updating Zerobrew formula index..."
+  "${ZB_BIN}" update || true
+  echo "Upgrading Zerobrew managed packages..."
+  "${ZB_BIN}" upgrade || true
 fi
 
 echo "Updating Homebrew and reconciling packages from Brewfile..."

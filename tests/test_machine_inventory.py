@@ -18,9 +18,16 @@ def test_declared_brew_formulas_are_installed():
     assert rc == 0, f"brew formula inventory failed: {err}"
 
     installed = set(out.splitlines())
+    # If zerobrew is initialized and managing packages, include them in installed set
+    zb_out, _, zb_rc = run("zb list 2>/dev/null || true")
+    if zb_rc == 0 and zb_out:
+        for line in zb_out.splitlines():
+            parts = line.split()
+            if parts:
+                installed.add(parts[0])
+
     missing = sorted((declared_brew_formulas() - brew_skip_tokens()) - installed)
     assert not missing, f"Brewfile formulae not installed: {', '.join(missing)}"
-
 
 # ── GUI apps ──────────────────────────────────────────────────────────
 
