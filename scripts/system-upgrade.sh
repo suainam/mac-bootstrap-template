@@ -85,9 +85,13 @@ echo "Refreshing approved external skill bundles..."
 (
   cd "${ROOT_DIR}"
   if [[ -n "${SKILL_SOURCE}" ]]; then
-    "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles --source "${SKILL_SOURCE}"
+    "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles --source "${SKILL_SOURCE}" || {
+      echo "Warning: update-bundles encountered failures (some upstream repositories may be temporarily unreachable)" >&2
+    }
   else
-    "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles
+    "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles || {
+      echo "Warning: update-bundles encountered failures (some upstream repositories may be temporarily unreachable)" >&2
+    }
   fi
-  "${PYTHON_BIN}" scripts/skill_supply_chain.py distribute
+  "${PYTHON_BIN}" scripts/skill_supply_chain.py distribute || true
 )
