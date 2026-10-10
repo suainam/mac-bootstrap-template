@@ -67,7 +67,6 @@ brew "sops"
 brew "gitleaks"
 # ========== 办公 & 系统字体 ==========
 cask "wpsoffice-cn"
-cask "doubaoime"
 cask "chatgpt"
 cask "font-sf-mono-nerd-font-ligaturized"
 # ========== npm CLI ==========
