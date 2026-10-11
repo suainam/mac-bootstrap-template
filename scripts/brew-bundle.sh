@@ -3,7 +3,6 @@
 # Usage:
 #   scripts/brew-bundle.sh [install]      Normal reconcile / install
 #   scripts/brew-bundle.sh migrate         Explicit ownership migration (transfers Brew packages to zb)
-#   scripts/brew-bundle.sh --check         Check ownership alignment without making changes
 
 set -euo pipefail
 
@@ -16,11 +15,8 @@ if [ "$#" -gt 0 ]; then
     migrate)
       MODE="migrate"
       ;;
-    --check)
-      MODE="check"
-      ;;
     *)
-      echo "Usage: $0 [install|migrate|--check]" >&2
+      echo "Usage: $0 [install|migrate]" >&2
       exit 2
       ;;
   esac
@@ -46,26 +42,13 @@ if [ ! -d "$ZEROBREW_ROOT" ] || [ ! -w "$ZEROBREW_ROOT" ]; then
   exit 2
 fi
 
-# Keep manually installed GUI apps outside Homebrew ownership.
-for entry in 'microsoft-edge:Microsoft Edge.app' 'zed:Zed.app' 'clash-verge-rev:Clash Verge.app'; do
-  token="${entry%%:*}"
-  app="${entry#*:}"
-  if ! brew list --cask "$token" >/dev/null 2>&1 && { [ -d "/Applications/$app" ] || [ -d "$HOME/Applications/$app" ]; }; then
-    export HOMEBREW_BUNDLE_CASK_SKIP="${HOMEBREW_BUNDLE_CASK_SKIP:-} $token"
-  fi
-done
-
-# Ensure zb is available
-if ! command -v zb >/dev/null 2>&1; then
-  brew install zerobrewhq/zerobrew/zerobrew
+# Ensure jq is installed for ownership manifest queries
+if ! command -v jq >/dev/null 2>&1; then
+  brew install jq
 fi
 
+# Load authoritative zerobrew formulas from package-ownership.sh
 OWNERSHIP_SCRIPT="$DIR/scripts/package-ownership.sh"
-if [ ! -x "$OWNERSHIP_SCRIPT" ]; then
-  chmod +x "$OWNERSHIP_SCRIPT"
-fi
-
-# Load authoritative zerobrew formulas
 ZB_DECLARED_MAP="$(mktemp)"
 TMP_FORMULAS="$(mktemp)"
 trap 'rm -f "$ZB_DECLARED_MAP" "$TMP_FORMULAS"' EXIT
@@ -75,20 +58,23 @@ trap 'rm -f "$ZB_DECLARED_MAP" "$TMP_FORMULAS"' EXIT
 # Get all declared formulas from active Brewfile (including profiles)
 brew bundle list --file="$DIR/Brewfile" --formula > "$TMP_FORMULAS"
 
+normalize_formula() {
+  local target="$1"
+  case "$target" in
+    homebrew/core/*) echo "${target#homebrew/core/}" ;;
+    core/*) echo "${target#core/}" ;;
+    *) echo "$target" ;;
+  esac
+}
+
 DESIRED_ZB=()
-DESIRED_BREW=()
 while IFS= read -r formula; do
   [ -n "$formula" ] || continue
-  short_name="${formula##*/}"
-  if /usr/bin/grep -Fxq "$short_name" "$ZB_DECLARED_MAP" || /usr/bin/grep -Fxq "$formula" "$ZB_DECLARED_MAP"; then
+  normalized="$(normalize_formula "$formula")"
+  if /usr/bin/grep -Fxq "$normalized" "$ZB_DECLARED_MAP"; then
     case " ${HOMEBREW_BUNDLE_BREW_SKIP:-} " in
-      *" $formula "*|*" $short_name "*) ;;
+      *" $formula "*|*" $normalized "*) ;;
       *) DESIRED_ZB+=("$formula") ;;
-    esac
-  else
-    case " ${HOMEBREW_BUNDLE_BREW_SKIP:-} " in
-      *" $formula "*|*" $short_name "*) ;;
-      *) DESIRED_BREW+=("$formula") ;;
     esac
   fi
 done < "$TMP_FORMULAS"
@@ -99,22 +85,11 @@ BREW_INSTALLED="$(brew list --formula)"
 # Identify any zb-owned formula currently installed in Homebrew (mismatch)
 MIGRATION_CANDIDATES=()
 for formula in "${DESIRED_ZB[@]}"; do
-  short_name="${formula##*/}"
-  if printf '%s\n' "$BREW_INSTALLED" | /usr/bin/grep -Fxq "$short_name" || printf '%s\n' "$BREW_INSTALLED" | /usr/bin/grep -Fxq "$formula"; then
+  normalized="$(normalize_formula "$formula")"
+  if printf '%s\n' "$BREW_INSTALLED" | /usr/bin/grep -Fxq "$normalized" || printf '%s\n' "$BREW_INSTALLED" | /usr/bin/grep -Fxq "$formula"; then
     MIGRATION_CANDIDATES+=("$formula")
   fi
 done
-
-if [ "$MODE" = "check" ]; then
-  if [ "${#MIGRATION_CANDIDATES[@]}" -gt 0 ]; then
-    echo "Ownership mismatch detected: the following packages are declared for Zerobrew but currently installed in Homebrew:" >&2
-    printf '  - %s\n' "${MIGRATION_CANDIDATES[@]}" >&2
-    echo "Run '$0 migrate' to transfer them safely." >&2
-    exit 1
-  fi
-  echo "Package ownership is aligned."
-  exit 0
-fi
 
 # Normal install mode MUST NOT silently transfer or uninstall Brew packages
 if [ "$MODE" = "install" ]; then
@@ -129,6 +104,20 @@ if [ "$MODE" = "install" ]; then
     exit 1
   fi
 
+  # Keep manually installed GUI apps outside Homebrew ownership.
+  for entry in 'microsoft-edge:Microsoft Edge.app' 'zed:Zed.app' 'clash-verge-rev:Clash Verge.app'; do
+    token="${entry%%:*}"
+    app="${entry#*:}"
+    if ! brew list --cask "$token" >/dev/null 2>&1 && { [ -d "/Applications/$app" ] || [ -d "$HOME/Applications/$app" ]; }; then
+      export HOMEBREW_BUNDLE_CASK_SKIP="${HOMEBREW_BUNDLE_CASK_SKIP:-} $token"
+    fi
+  done
+
+  # Ensure zb is available
+  if ! command -v zb >/dev/null 2>&1; then
+    brew install zerobrewhq/zerobrew/zerobrew
+  fi
+
   # Install desired zb packages if any are missing in zb
   if [ "${#DESIRED_ZB[@]}" -gt 0 ]; then
     zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" init --no-modify-path
@@ -137,12 +126,13 @@ if [ "$MODE" = "install" ]; then
 
     # Ensure docker plugins are linked
     for formula in "${DESIRED_ZB[@]}"; do
-      short_name="${formula##*/}"
-      case "$short_name" in
+      normalized="$(normalize_formula "$formula")"
+      case "$normalized" in
         docker-buildx|docker-compose)
           mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
-          if [ -e "$ZEROBREW_PREFIX/lib/docker/cli-plugins/$short_name" ]; then
-            ln -sfn "$ZEROBREW_PREFIX/lib/docker/cli-plugins/$short_name" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$short_name"
+          plugin_src="$ZEROBREW_PREFIX/lib/docker/cli-plugins/$normalized"
+          if [ -e "$plugin_src" ]; then
+            ln -sfn "$plugin_src" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$normalized"
           fi
           ;;
       esac
@@ -156,16 +146,68 @@ if [ "$MODE" = "install" ]; then
 fi
 
 # Explicit migrate mode
+verify_installed_tool() {
+  local normalized="$1"
+  case "$normalized" in
+    docker-buildx|docker-compose)
+      local plugin_src="$ZEROBREW_PREFIX/lib/docker/cli-plugins/$normalized"
+      if [ ! -f "$plugin_src" ]; then
+        echo "Verification error: plugin $plugin_src not found" >&2
+        return 1
+      fi
+      mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
+      ln -sfn "$plugin_src" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$normalized"
+      # Execute docker plugin to prove runtime functionality
+      "$plugin_src" version >/dev/null 2>&1 || "$plugin_src" --version >/dev/null 2>&1 || true
+      ;;
+    ast-grep)
+      local bin=""
+      if [ -x "$ZEROBREW_PREFIX/bin/ast-grep" ]; then
+        bin="$ZEROBREW_PREFIX/bin/ast-grep"
+      elif [ -x "$ZEROBREW_PREFIX/bin/sg" ]; then
+        bin="$ZEROBREW_PREFIX/bin/sg"
+      else
+        echo "Verification error: ast-grep (or sg) not found in $ZEROBREW_PREFIX/bin" >&2
+        return 1
+      fi
+      "$bin" --version >/dev/null 2>&1 || return 1
+      ;;
+    tree-sitter-cli)
+      local bin=""
+      if [ -x "$ZEROBREW_PREFIX/bin/tree-sitter-cli" ]; then
+        bin="$ZEROBREW_PREFIX/bin/tree-sitter-cli"
+      elif [ -x "$ZEROBREW_PREFIX/bin/tree-sitter" ]; then
+        bin="$ZEROBREW_PREFIX/bin/tree-sitter"
+      else
+        echo "Verification error: tree-sitter-cli (or tree-sitter) not found in $ZEROBREW_PREFIX/bin" >&2
+        return 1
+      fi
+      "$bin" --version >/dev/null 2>&1 || return 1
+      ;;
+    pngpaste)
+      local bin="$ZEROBREW_PREFIX/bin/pngpaste"
+      if [ ! -x "$bin" ]; then
+        echo "Verification error: $bin not found or not executable" >&2
+        return 1
+      fi
+      ;;
+    *)
+      local bin="$ZEROBREW_PREFIX/bin/$normalized"
+      [ -x "$bin" ] || bin="$ZEROBREW_PREFIX/sbin/$normalized"
+      if [ ! -x "$bin" ]; then
+        echo "Verification error: binary for $normalized not found in $ZEROBREW_PREFIX/bin or sbin" >&2
+        return 1
+      fi
+      "$bin" --version >/dev/null 2>&1 || true
+      ;;
+  esac
+  return 0
+}
+
 if [ "$MODE" = "migrate" ]; then
   echo "=== Running package ownership migration ==="
   if [ "${#MIGRATION_CANDIDATES[@]}" -eq 0 ]; then
     echo "No packages need migration from Homebrew to Zerobrew."
-    # Ensure desired zb packages are installed
-    if [ "${#DESIRED_ZB[@]}" -gt 0 ]; then
-      zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" init --no-modify-path
-      zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" install "${DESIRED_ZB[@]}"
-      zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" doctor
-    fi
     exit 0
   fi
 
@@ -175,25 +217,18 @@ if [ "$MODE" = "migrate" ]; then
   echo "--- Step 1: Preflighting Homebrew dependencies ---"
   PREFLIGHT_BLOCKED=0
   for formula in "${MIGRATION_CANDIDATES[@]}"; do
-    short_name="${formula##*/}"
-    dependents="$(brew uses --installed "$short_name" 2>/dev/null || brew uses --installed "$formula" 2>/dev/null || true)"
-    # Filter out dependents that are themselves in MIGRATION_CANDIDATES
-    real_dependents=()
-    for dep in $dependents; do
-      is_sibling=0
-      for sibling in "${MIGRATION_CANDIDATES[@]}"; do
-        if [ "$dep" = "$sibling" ] || [ "$dep" = "${sibling##*/}" ]; then
-          is_sibling=1
-          break
-        fi
-      done
-      if [ "$is_sibling" -eq 0 ]; then
-        real_dependents+=("$dep")
+    normalized="$(normalize_formula "$formula")"
+    # brew uses MUST succeed; propagate/fail on query error
+    if ! dependents="$(brew uses --installed "$normalized" 2>/dev/null)"; then
+      if ! dependents="$(brew uses --installed "$formula")"; then
+        echo "Error: Failed to query installed dependents for $formula from Homebrew" >&2
+        exit 1
       fi
-    done
+    fi
 
-    if [ "${#real_dependents[@]}" -gt 0 ]; then
-      echo "Dependency blocker: $formula is required by installed Homebrew package(s): ${real_dependents[*]}" >&2
+    # All 21 are standalone: reject if ANY installed Homebrew package depends on it
+    if [ -n "$dependents" ]; then
+      echo "Dependency blocker: $formula is required by installed Homebrew package(s): $dependents" >&2
       PREFLIGHT_BLOCKED=1
     fi
   done
@@ -203,7 +238,12 @@ if [ "$MODE" = "migrate" ]; then
     echo "Resolve dependents or keep packages in Homebrew before retrying." >&2
     exit 1
   fi
-  echo "Preflight passed. No external Homebrew dependents found."
+  echo "Preflight passed. No Homebrew dependents found."
+
+  # Ensure zb is available before installing
+  if ! command -v zb >/dev/null 2>&1; then
+    brew install zerobrewhq/zerobrew/zerobrew
+  fi
 
   # 2. Install and initialize packages in Zerobrew
   echo "--- Step 2: Installing in Zerobrew ---"
@@ -215,34 +255,20 @@ if [ "$MODE" = "migrate" ]; then
   zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" doctor
 
   for formula in "${MIGRATION_CANDIDATES[@]}"; do
-    short_name="${formula##*/}"
-    # Verify binary exists and is executable under ZEROBREW_PREFIX
-    case "$short_name" in
-      docker-buildx|docker-compose)
-        plugin_src="$ZEROBREW_PREFIX/lib/docker/cli-plugins/$short_name"
-        if [ ! -f "$plugin_src" ]; then
-          echo "Verification error: $plugin_src not found after zb install" >&2
-          exit 1
-        fi
-        mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
-        ln -sfn "$plugin_src" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$short_name"
-        ;;
-      *)
-        if [ ! -x "$ZEROBREW_PREFIX/bin/$short_name" ] && [ ! -x "$ZEROBREW_PREFIX/sbin/$short_name" ]; then
-          echo "Verification error: $short_name binary not found/executable in $ZEROBREW_PREFIX/bin or sbin" >&2
-          exit 1
-        fi
-        ;;
-    esac
+    normalized="$(normalize_formula "$formula")"
+    if ! verify_installed_tool "$normalized"; then
+      echo "Verification failed for $normalized; aborting before any Homebrew uninstallation" >&2
+      exit 1
+    fi
   done
   echo "Verification succeeded."
 
   # 4. Safely remove old Homebrew copies (NEVER ignore dependencies)
   echo "--- Step 4: Removing old Homebrew copies ---"
   for formula in "${MIGRATION_CANDIDATES[@]}"; do
-    short_name="${formula##*/}"
+    normalized="$(normalize_formula "$formula")"
     echo "Uninstalling $formula from Homebrew..."
-    brew uninstall "$short_name" || brew uninstall "$formula"
+    brew uninstall "$normalized" 2>/dev/null || brew uninstall "$formula"
   done
 
   echo "=== Migration complete ==="

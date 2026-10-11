@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # package-ownership.sh: Query authoritative package manager ownership.
 # Usage:
-#   scripts/package-ownership.sh list-zb               # Print all Zerobrew formula names (from declaration)
+#   scripts/package-ownership.sh list-zb               # Print all Zerobrew formula names
 #   scripts/package-ownership.sh owner <formula>       # Print "zb" or "brew"
 #   scripts/package-ownership.sh desired-zb [Brewfile] # Print Zerobrew formulas declared in active Brewfile
 #   scripts/package-ownership.sh desired-brew [Brewfile] # Print Homebrew formulas declared in active Brewfile
@@ -12,56 +12,35 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="${PACKAGE_OWNERSHIP_MANIFEST:-$DIR/scripts/package-ownership.json}"
 
 list_zb() {
-  if [ -f "$MANIFEST" ]; then
-    if command -v jq >/dev/null 2>&1; then
-      jq -r '.zerobrew_formulas[]' "$MANIFEST"
-    else
-      /usr/bin/sed -n 's/^[[:space:]]*"\([a-zA-Z0-9_@-]*\)",\{0,1\}[[:space:]]*$/\1/p' "$MANIFEST"
-    fi
-  else
-    # Fallback to hardcoded list if manifest is missing
-    cat << 'EOF'
-age
-ast-grep
-docker
-docker-buildx
-docker-compose
-fd
-fzf
-gh
-gitleaks
-herdr
-lazygit
-pngpaste
-rclone
-rtk
-rustic
-sops
-tree
-tree-sitter-cli
-uv
-yazi
-zoxide
-EOF
+  if [ ! -f "$MANIFEST" ]; then
+    echo "Error: package ownership manifest not found at $MANIFEST" >&2
+    exit 1
   fi
-}
-
-is_zb() {
-  local target="$1"
-  local formula
-  while IFS= read -r formula; do
-    if [ "$formula" = "$target" ]; then
-      return 0
-    fi
-  done < <(list_zb)
-  return 1
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required to parse $MANIFEST" >&2
+    exit 1
+  fi
+  jq -er '.zerobrew_formulas[]' "$MANIFEST"
 }
 
 owner() {
   local target="$1"
-  # Short name stripping tap prefix if present
-  local short_name="${target##*/}"
-  if is_zb "$short_name" || is_zb "$target"; then
+  local normalized="$target"
+
+  # Only normalize homebrew/core/<name> or core/<name>; do NOT strip other tap prefixes (e.g. custom/tap/fd stays custom/tap/fd)
+  case "$target" in
+    homebrew/core/*)
+      normalized="${target#homebrew/core/}"
+      ;;
+    core/*)
+      normalized="${target#core/}"
+      ;;
+  esac
+
+  local zb_formulas
+  zb_formulas="$(list_zb)"
+
+  if printf '%s\n' "$zb_formulas" | /usr/bin/grep -Fxq "$normalized"; then
     echo "zb"
   else
     echo "brew"
@@ -89,7 +68,7 @@ desired() {
     [ -n "$formula" ] || continue
     local pkg_owner
     pkg_owner="$(owner "$formula")"
-    if [ "$pkg_owner" = "$target_manager" ]; then
+    if [ "$target_manager" = "$pkg_owner" ]; then
       echo "$formula"
     fi
   done < "$tmp_list"
@@ -100,10 +79,7 @@ case "${1:-}" in
     list_zb
     ;;
   owner)
-    if [ -z "${2:-}" ]; then
-      echo "Usage: $0 owner <formula>" >&2
-      exit 2
-    fi
+    [ -n "${2:-}" ] || { echo "Usage: $0 owner <formula>" >&2; exit 2; }
     owner "$2"
     ;;
   desired-zb)

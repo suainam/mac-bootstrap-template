@@ -2,7 +2,9 @@
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -50,6 +52,15 @@ def test_package_ownership_script_queries():
     )
     assert res.stdout.strip() == "zb"
 
+    # Test owner for homebrew/core normalized package
+    res = subprocess.run(
+        [str(OWNERSHIP_SCRIPT), "owner", "homebrew/core/uv"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert res.stdout.strip() == "zb"
+
     # Test owner for brew package (default fallback)
     res = subprocess.run(
         [str(OWNERSHIP_SCRIPT), "owner", "git"],
@@ -59,7 +70,16 @@ def test_package_ownership_script_queries():
     )
     assert res.stdout.strip() == "brew"
 
-    # Test owner with tap prefix
+    # Test owner for custom tapped formula with same base name defaults to brew
+    res = subprocess.run(
+        [str(OWNERSHIP_SCRIPT), "owner", "custom/tap/fd"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert res.stdout.strip() == "brew"
+
+    # Test owner with tapped formula
     res = subprocess.run(
         [str(OWNERSHIP_SCRIPT), "owner", "anomalyco/tap/opencode-v2"],
         capture_output=True,
@@ -69,9 +89,21 @@ def test_package_ownership_script_queries():
     assert res.stdout.strip() == "brew"
 
 
+def test_ownership_manifest_missing_or_jq_missing_fails_loud(tmp_path):
+    env = os.environ.copy()
+    env["PACKAGE_OWNERSHIP_MANIFEST"] = str(tmp_path / "nonexistent.json")
+
+    res = subprocess.run(
+        [str(OWNERSHIP_SCRIPT), "list-zb"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode != 0
+    assert "not found" in res.stderr
+
+
 def test_ownership_is_independent_of_upstream_metadata(tmp_path):
-    # Verify that changing metadata does not dynamically change ownership
-    # The authority is strictly the manifest, not brew info or bottle relocation attributes
     fake_manifest = tmp_path / "fake-manifest.json"
     fake_manifest.write_text(json.dumps({"zerobrew_formulas": ["custom-tool"]}))
 
@@ -98,12 +130,6 @@ def test_ownership_is_independent_of_upstream_metadata(tmp_path):
 
 
 def test_brewfile_evaluates_homebrew_prefixed_env_vars(tmp_path):
-    # Verify that HOMEBREW_MAC_BOOTSTRAP_PROFILE and HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR
-    # are recognized by Brewfile (transport past Homebrew 7 environment filtering)
-    profile_dir = tmp_path / "private" / "profiles" / "custom"
-    profile_dir.mkdir(parents=True)
-    (profile_dir / "Brewfile").write_text('brew "custom-profile-pkg"\n')
-
     brewfile = TEMPLATE / "Brewfile"
     assert brewfile.exists()
     content = brewfile.read_text()
@@ -112,78 +138,76 @@ def test_brewfile_evaluates_homebrew_prefixed_env_vars(tmp_path):
 
 
 def test_normal_reconcile_halts_on_ownership_mismatch(tmp_path):
-    # Setup mock binaries for brew and zb
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    # Short temporary prefix <= 13 chars
+    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    try:
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
 
-    # Mock brew
-    mock_brew = bin_dir / "brew"
-    mock_brew.write_text("""#!/usr/bin/env bash
+        mock_brew = bin_dir / "brew"
+        mock_brew.write_text("""#!/usr/bin/env bash
 if [ "$1" = "bundle" ] && [ "$2" = "list" ]; then
     echo "git"
     echo "uv"
     exit 0
 fi
 if [ "$1" = "list" ] && [ "$2" = "--formula" ]; then
-    # Return uv as installed in brew (mismatch because uv is declared for zb)
     echo "uv"
     echo "git"
     exit 0
 fi
-if [ "$1" = "list" ] && [ "$2" = "--cask" ]; then
-    exit 0
-fi
 exit 0
 """)
-    mock_brew.chmod(0o755)
+        mock_brew.chmod(0o755)
 
-    # Mock zb
-    mock_zb = bin_dir / "zb"
-    mock_zb.write_text("""#!/usr/bin/env bash
+        mock_zb = bin_dir / "zb"
+        mock_zb.write_text("""#!/usr/bin/env bash
 exit 0
 """)
-    mock_zb.chmod(0o755)
+        mock_zb.chmod(0o755)
 
-    env = os.environ.copy()
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["ZEROBREW_ROOT"] = str(tmp_path / "zerobrew")
-    env["ZEROBREW_PREFIX"] = str(tmp_path / "zerobrew")
-    (tmp_path / "zerobrew").mkdir()
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}:{env['PATH']}"
+        env["ZEROBREW_ROOT"] = short_zb
+        env["ZEROBREW_PREFIX"] = short_zb
 
-    # Running brew-bundle.sh install should exit with code 1 and tell user to migrate
-    res = subprocess.run(
-        [str(BREW_BUNDLE_SCRIPT), "install"],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert res.returncode != 0
-    assert "Ownership mismatch detected" in res.stderr
-    assert "uv" in res.stderr
-    assert "migrate" in res.stderr
+        res = subprocess.run(
+            [str(BREW_BUNDLE_SCRIPT), "install"],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert res.returncode != 0
+        assert "Ownership mismatch detected" in res.stderr
+        assert "uv" in res.stderr
+        assert "migrate" in res.stderr
+    finally:
+        shutil.rmtree(short_zb, ignore_errors=True)
 
 
 def test_explicit_migrate_dependency_preflight_blocks_uninstall(tmp_path):
-    # Setup mock binaries: candidate package 'uv' has dependent 'dependent-tool'
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    # Test multiple candidates (uv and fd), where fd is blocked by dependent
+    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    try:
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
 
-    mock_brew_log = tmp_path / "brew_calls.log"
-    mock_brew = bin_dir / "brew"
-    mock_brew.write_text(f"""#!/usr/bin/env bash
+        mock_brew_log = tmp_path / "brew_calls.log"
+        mock_brew = bin_dir / "brew"
+        mock_brew.write_text(f"""#!/usr/bin/env bash
 echo "brew $@" >> "{mock_brew_log}"
 if [ "$1" = "bundle" ] && [ "$2" = "list" ]; then
-    echo "git"
     echo "uv"
+    echo "fd"
     exit 0
 fi
 if [ "$1" = "list" ] && [ "$2" = "--formula" ]; then
     echo "uv"
-    echo "git"
+    echo "fd"
     exit 0
 fi
 if [ "$1" = "uses" ] && [ "$2" = "--installed" ]; then
-    if [ "$3" = "uv" ]; then
+    if [ "$3" = "fd" ]; then
         echo "some-dependent-app"
         exit 0
     fi
@@ -191,48 +215,46 @@ if [ "$1" = "uses" ] && [ "$2" = "--installed" ]; then
 fi
 exit 0
 """)
-    mock_brew.chmod(0o755)
+        mock_brew.chmod(0o755)
 
-    mock_zb = bin_dir / "zb"
-    mock_zb.write_text("""#!/usr/bin/env bash
+        mock_zb = bin_dir / "zb"
+        mock_zb.write_text("""#!/usr/bin/env bash
 exit 0
 """)
-    mock_zb.chmod(0o755)
+        mock_zb.chmod(0o755)
 
-    env = os.environ.copy()
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["ZEROBREW_ROOT"] = str(tmp_path / "zerobrew")
-    env["ZEROBREW_PREFIX"] = str(tmp_path / "zerobrew")
-    (tmp_path / "zerobrew").mkdir()
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}:{env['PATH']}"
+        env["ZEROBREW_ROOT"] = short_zb
+        env["ZEROBREW_PREFIX"] = short_zb
 
-    # Running brew-bundle.sh migrate should fail during preflight and NEVER call brew uninstall
-    res = subprocess.run(
-        [str(BREW_BUNDLE_SCRIPT), "migrate"],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert res.returncode != 0
-    assert "Dependency blocker" in res.stderr
-    assert "some-dependent-app" in res.stderr
+        res = subprocess.run(
+            [str(BREW_BUNDLE_SCRIPT), "migrate"],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert res.returncode != 0
+        assert "Dependency blocker" in res.stderr
+        assert "some-dependent-app" in res.stderr
 
-    # Verify no uninstalls were attempted
-    log_content = mock_brew_log.read_text()
-    assert "uninstall" not in log_content
+        # Assert no uninstall was attempted for ANY candidate (neither uv nor fd)
+        log_content = mock_brew_log.read_text()
+        assert "uninstall" not in log_content
+    finally:
+        shutil.rmtree(short_zb, ignore_errors=True)
 
 
-def test_explicit_migrate_success_flow(tmp_path):
-    # Setup mock binaries where preflight passes and install succeeds
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+def test_explicit_migrate_inventory_query_failure_blocks_uninstall(tmp_path):
+    # Test that failure of brew uses query aborts immediately without uninstall
+    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    try:
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
 
-    zb_root = tmp_path / "zerobrew"
-    zb_bin = zb_root / "bin"
-    zb_bin.mkdir(parents=True)
-
-    mock_brew_log = tmp_path / "brew_calls.log"
-    mock_brew = bin_dir / "brew"
-    mock_brew.write_text(f"""#!/usr/bin/env bash
+        mock_brew_log = tmp_path / "brew_calls.log"
+        mock_brew = bin_dir / "brew"
+        mock_brew.write_text(f"""#!/usr/bin/env bash
 echo "brew $@" >> "{mock_brew_log}"
 if [ "$1" = "bundle" ] && [ "$2" = "list" ]; then
     echo "uv"
@@ -243,44 +265,112 @@ if [ "$1" = "list" ] && [ "$2" = "--formula" ]; then
     exit 0
 fi
 if [ "$1" = "uses" ] && [ "$2" = "--installed" ]; then
-    # No dependents
+    echo "Simulated brew uses error" >&2
+    exit 5
+fi
+exit 0
+""")
+        mock_brew.chmod(0o755)
+
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}:{env['PATH']}"
+        env["ZEROBREW_ROOT"] = short_zb
+        env["ZEROBREW_PREFIX"] = short_zb
+
+        res = subprocess.run(
+            [str(BREW_BUNDLE_SCRIPT), "migrate"],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert res.returncode != 0
+        assert "Failed to query installed dependents" in res.stderr
+
+        log_content = mock_brew_log.read_text()
+        assert "uninstall" not in log_content
+    finally:
+        shutil.rmtree(short_zb, ignore_errors=True)
+
+
+def test_explicit_migrate_success_flow_verifies_bins_and_removes(tmp_path):
+    # Candidates: uv, ast-grep, docker-compose
+    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    try:
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+
+        zb_bin = Path(short_zb) / "bin"
+        zb_bin.mkdir(parents=True)
+        zb_plugins = Path(short_zb) / "lib" / "docker" / "cli-plugins"
+        zb_plugins.mkdir(parents=True)
+
+        mock_brew_log = tmp_path / "brew_calls.log"
+        mock_brew = bin_dir / "brew"
+        mock_brew.write_text(f"""#!/usr/bin/env bash
+echo "brew $@" >> "{mock_brew_log}"
+if [ "$1" = "bundle" ] && [ "$2" = "list" ]; then
+    echo "uv"
+    echo "ast-grep"
+    echo "docker-compose"
+    exit 0
+fi
+if [ "$1" = "list" ] && [ "$2" = "--formula" ]; then
+    echo "uv"
+    echo "ast-grep"
+    echo "docker-compose"
+    exit 0
+fi
+if [ "$1" = "uses" ] && [ "$2" = "--installed" ]; then
     exit 0
 fi
 if [ "$1" = "uninstall" ]; then
-    echo "Uninstalled $2"
+    echo "uninstalled $2" >> "{mock_brew_log}"
     exit 0
 fi
 exit 0
 """)
-    mock_brew.chmod(0o755)
+        mock_brew.chmod(0o755)
 
-    mock_zb = bin_dir / "zb"
-    mock_zb.write_text(f"""#!/usr/bin/env bash
+        mock_zb = bin_dir / "zb"
+        mock_zb.write_text(f"""#!/usr/bin/env bash
 if [ "$5" = "install" ]; then
-    # Create the binary to simulate successful install
-    touch "{zb_bin}/$6"
-    chmod +x "{zb_bin}/$6"
+    # Create valid binaries
+    echo '#!/bin/sh' > "{zb_bin}/uv"
+    echo 'echo uv 0.13.0' >> "{zb_bin}/uv"
+    chmod +x "{zb_bin}/uv"
+
+    echo '#!/bin/sh' > "{zb_bin}/ast-grep"
+    echo 'echo ast-grep 0.50.0' >> "{zb_bin}/ast-grep"
+    chmod +x "{zb_bin}/ast-grep"
+
+    echo '#!/bin/sh' > "{zb_plugins}/docker-compose"
+    echo 'echo Docker Compose version v2.29.0' >> "{zb_plugins}/docker-compose"
+    chmod +x "{zb_plugins}/docker-compose"
     exit 0
 fi
 exit 0
 """)
-    mock_zb.chmod(0o755)
+        mock_zb.chmod(0o755)
 
-    env = os.environ.copy()
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["ZEROBREW_ROOT"] = str(zb_root)
-    env["ZEROBREW_PREFIX"] = str(zb_root)
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}:{env['PATH']}"
+        env["ZEROBREW_ROOT"] = short_zb
+        env["ZEROBREW_PREFIX"] = short_zb
 
-    res = subprocess.run(
-        [str(BREW_BUNDLE_SCRIPT), "migrate"],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert res.returncode == 0
-    assert "Preflight passed" in res.stdout
-    assert "Migration complete" in res.stdout
+        res = subprocess.run(
+            [str(BREW_BUNDLE_SCRIPT), "migrate"],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert res.returncode == 0
+        assert "Preflight passed" in res.stdout
+        assert "Verification succeeded" in res.stdout
+        assert "Migration complete" in res.stdout
 
-    # Verify brew uninstall WAS called only after verification
-    log_content = mock_brew_log.read_text()
-    assert "brew uninstall uv" in log_content
+        log_content = mock_brew_log.read_text()
+        assert "brew uninstall uv" in log_content
+        assert "brew uninstall ast-grep" in log_content
+        assert "brew uninstall docker-compose" in log_content
+    finally:
+        shutil.rmtree(short_zb, ignore_errors=True)
