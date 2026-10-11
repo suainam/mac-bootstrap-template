@@ -26,17 +26,46 @@ def tokens_split(text: str) -> list[str]:
     return [token for token in text.split() if token]
 
 
-def declared_brew_formulas() -> set[str]:
-    """Return active formula declarations; commented Brewfile lines are optional."""
-    formulas: set[str] = set()
-    for raw in (Path(TEMPLATE) / "Brewfile").read_text().splitlines():
-        line = raw.strip()
-        if line.startswith('brew "') and line.endswith('"'):
-            name = line[len('brew "'):-1]
-            # brew list --formula outputs the short name for tapped formulae (e.g. opencode-v2)
-            formulas.add(name.split("/")[-1])
-    return formulas
+def brew_bundle_env() -> dict[str, str]:
+    env = os.environ.copy()
+    template_path = Path(TEMPLATE)
+    private_dir = env.get("HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR") or env.get("MAC_BOOTSTRAP_PRIVATE_DIR")
+    if not private_dir:
+        candidate = template_path.parent / "private"
+        if candidate.is_dir():
+            private_dir = str(candidate.resolve())
+    profile = env.get("HOMEBREW_MAC_BOOTSTRAP_PROFILE") or env.get("MAC_BOOTSTRAP_PROFILE")
+    if not profile:
+        resolver = template_path / "scripts" / "resolve-profile.sh"
+        if resolver.is_file() and os.access(resolver, os.X_OK):
+            probe_env = env.copy()
+            if private_dir:
+                probe_env["MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+            res = subprocess.run([str(resolver)], capture_output=True, text=True, check=False, env=probe_env)
+            if res.returncode == 0 and res.stdout.strip():
+                profile = res.stdout.strip()
+    if private_dir:
+        env["MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+        env["HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+    if profile:
+        env["MAC_BOOTSTRAP_PROFILE"] = profile
+        env["HOMEBREW_MAC_BOOTSTRAP_PROFILE"] = profile
+    return env
 
+
+def declared_brew_formulas() -> set[str]:
+    """Return active formula declarations evaluated by Homebrew Bundle."""
+    brewfile = Path(TEMPLATE) / "Brewfile"
+    res = subprocess.run(
+        ["brew", "bundle", "list", f"--file={brewfile}", "--formula"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=brew_bundle_env(),
+    )
+    if res.returncode != 0:
+        raise RuntimeError(f"brew bundle list failed: {(res.stderr or res.stdout).strip()}")
+    return {line.strip().split("/")[-1] for line in res.stdout.splitlines() if line.strip()}
 
 def brew_skip_tokens() -> set[str]:
     """Return native Homebrew Bundle opt-outs."""

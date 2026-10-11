@@ -1,6 +1,8 @@
 """Local CLI, app, font, and Brewfile inventory checks."""
 
+import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -13,17 +15,30 @@ pytestmark = pytest.mark.machine
 # ── Brewfile formula inventory ───────────────────────────────────────
 
 def test_declared_brew_formulas_are_installed():
-    """The active Brewfile declarations are the machine's required formula set."""
+    """The active Brewfile declarations are installed in their authoritative manager."""
     out, err, rc = run("brew list --formula")
     assert rc == 0, f"brew formula inventory failed: {err}"
+    brew_installed = set(out.splitlines())
 
-    installed = set(out.splitlines())
     out, err, rc = run('zb --root "${ZEROBREW_ROOT:-/opt/zerobrew}" list')
     assert rc == 0, f"zerobrew formula inventory failed: {err}"
-    installed.update(line.split()[0] for line in out.splitlines() if line)
-    missing = sorted((declared_brew_formulas() - brew_skip_tokens()) - installed)
+    zb_installed = {line.split()[0] for line in out.splitlines() if line}
+
+    ownership = json.loads((Path(TEMPLATE) / "scripts" / "package-ownership.json").read_text())
+    zb_manifest = set(ownership["zerobrew_formulas"])
+
+    active = declared_brew_formulas() - brew_skip_tokens()
+    missing = sorted(active - (brew_installed | zb_installed))
     assert not missing, f"Brewfile formulae not installed: {', '.join(missing)}"
 
+    duplicates = sorted(active & brew_installed & zb_installed)
+    assert not duplicates, f"Brewfile formulae duplicated across brew and zb: {', '.join(duplicates)}"
+
+    wrong_zb = sorted((active & zb_manifest) - zb_installed)
+    assert not wrong_zb, f"Zerobrew-owned formulae not in zb: {', '.join(wrong_zb)}"
+
+    wrong_brew = sorted((active - zb_manifest) - brew_installed)
+    assert not wrong_brew, f"Homebrew-owned formulae not in brew: {', '.join(wrong_brew)}"
 
 # ── GUI apps ──────────────────────────────────────────────────────────
 
