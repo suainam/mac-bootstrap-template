@@ -83,6 +83,9 @@ This installs Homebrew dependencies from `Brewfile` (filtered by machine profile
 shell, Git, Neovim, Ghostty, Herdr, and Hammerspoon configurations, configures Docker/npm proxy settings,
 and runs safe cache cleanup.
 It does not delete project virtual environments or files under `~/work`.
+Default bootstrap links Colima configuration without auto-starting Colima or registering a launch agent.
+When a local Docker runtime is needed, start it explicitly via `COLIMA_PROXY_PORT=<port> make colima-start`
+(with prerequisites and health checks documented in [`docs/colima-local.md`](docs/colima-local.md)).
 If Clash Verge already exists under `/Applications` from a manual install, bootstrap skips that cask.
 Manual app notes and `make doctor` cask overrides live in [`docs/manual-apps.md`](docs/manual-apps.md).
 Homebrew/zerobrew coexistence and profile migration follow
@@ -504,7 +507,7 @@ Template subsystem boundaries:
 
 - `agent/`: agent runtime configuration, rules, prompts, extensions, and quality gates
 - `agent-skills/`: Skill source registry, local Skill sources, external quarantine, and distribution targets
-- `data-hub/`: knowledge persistence, SQLite state, lifecycle workflows, summaries, and projections
+- `data-hub/`: optional knowledge persistence, SQLite state, lifecycle workflows, summaries, and projections (instance configuration and credentials belong to the private overlay and are not pulled into default bootstrap)
 
 The global `knowledge-lifecycle-manager` Skill is the Data Hub control entrypoint; implementation and subsystem runbooks live under [`data-hub/`](data-hub/README.md).
 

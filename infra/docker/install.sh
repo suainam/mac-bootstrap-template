@@ -14,22 +14,8 @@ if [ -f "$DIR/colima.yaml" ]; then
   echo "  $HOME/.colima/default/colima.yaml -> docker/colima.yaml"
 fi
 
-echo "=== Start Colima (first boot creates VM) ==="
-if ! colima status >/dev/null 2>&1; then
-  colima start
-  echo "  Colima started"
-else
-  echo "  Colima already running"
-fi
-
-echo "=== Register Colima launch agent (auto-start on boot) ==="
-PLIST="$HOME/Library/LaunchAgents/homebrew.mxcl.colima.plist"
-if [ -f "$PLIST" ]; then
-  launchctl bootout gui/$(id -u) "$PLIST" 2>/dev/null || true
-  launchctl bootstrap gui/$(id -u) "$PLIST"
-  echo "  Launch agent registered"
-fi
-
-echo "=== Verify Docker ==="
-docker info --format '{{.ServerVersion}}' 2>/dev/null && echo "  Docker {{.ServerVersion}} ready" || echo "  Docker not ready yet — try 'colima start'"
+echo "=== Local Docker runtime (Colima) ==="
+echo "  Default bootstrap does not auto-start Colima or register its launch agent."
+echo "  When local container runtime is needed, start explicitly via:"
+echo "    COLIMA_PROXY_PORT=<port> make colima-start"
 
