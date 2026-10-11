@@ -1,11 +1,12 @@
 """Tests for service opt-in lifecycle and container defaults (issue #167).
 
-Verifies that default bootstrap does not auto-start Colima or register its launch
-agent, that explicit container entrypoints require mandatory proxy configuration,
-and that Data Hub remains an optional capability decoupled from default bootstrap.
+Verifies via command logs that default bootstrap performs no daemon starts or
+LaunchAgent registrations, and that explicit colima starts enforce mandatory
+proxy ports before transitioning service state.
 """
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -14,15 +15,32 @@ DOCKER_INSTALL_SH = ROOT / "infra" / "docker" / "install.sh"
 COLIMA_LOCAL_SH = ROOT / "scripts" / "colima-local.sh"
 
 
-def test_docker_install_links_config_without_starting_service(tmp_path: Path):
-    """Default docker install script links colima.yaml without starting daemon or launchctl."""
+def make_spy_tool(bin_dir: Path, name: str, log_file: Path, script_body: str = ""):
+    tool = bin_dir / name
+    body = (
+        "#!/usr/bin/env bash\n"
+        f"echo \"{name} $@\" >> \"{log_file}\"\n"
+        f"{script_body}\n"
+    )
+    tool.write_text(body, encoding="utf-8")
+    tool.chmod(0o755)
+    return tool
+
+
+def test_default_docker_install_does_not_start_colima_or_launchctl(tmp_path: Path):
+    """Default docker install script links colima.yaml without calling colima or launchctl."""
     fake_home = tmp_path / "home"
     fake_home.mkdir()
-    launch_agents = fake_home / "Library" / "LaunchAgents"
-    launch_agents.mkdir(parents=True)
+    spy_bin = tmp_path / "bin"
+    spy_bin.mkdir()
+    cmd_log = tmp_path / "commands.log"
+
+    make_spy_tool(spy_bin, "colima", cmd_log, "exit 0")
+    make_spy_tool(spy_bin, "launchctl", cmd_log, "exit 0")
+    make_spy_tool(spy_bin, "docker", cmd_log, "exit 0")
 
     env = {
-        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PATH": f"{spy_bin}:/usr/bin:/bin",
         "HOME": str(fake_home),
     }
 
@@ -35,19 +53,29 @@ def test_docker_install_links_config_without_starting_service(tmp_path: Path):
     )
 
     assert result.returncode == 0
-    # Config is linked
+    # Config symlink is created
     target_config = fake_home / ".colima" / "default" / "colima.yaml"
     assert target_config.is_symlink()
-    # Does not start or register launch agent
-    assert "Default bootstrap does not auto-start Colima" in result.stdout
-    assert "COLIMA_PROXY_PORT=<port> make colima-start" in result.stdout
-    assert not (launch_agents / "homebrew.mxcl.colima.plist").exists()
+    assert target_config.resolve() == (ROOT / "infra" / "docker" / "colima.yaml").resolve()
+
+    # Neither colima nor launchctl was invoked
+    logged_cmds = cmd_log.read_text(encoding="utf-8") if cmd_log.exists() else ""
+    assert "colima" not in logged_cmds
+    assert "launchctl" not in logged_cmds
 
 
-def test_colima_local_requires_mandatory_proxy_port():
-    """Explicit colima-local.sh start fails with clear error when COLIMA_PROXY_PORT is missing."""
+def test_explicit_colima_start_fails_without_mandatory_proxy_port(tmp_path: Path):
+    """Explicit colima start fails without COLIMA_PROXY_PORT and never invokes colima start."""
+    spy_bin = tmp_path / "bin"
+    spy_bin.mkdir()
+    cmd_log = tmp_path / "commands.log"
+
+    make_spy_tool(spy_bin, "colima", cmd_log, "exit 0")
+    make_spy_tool(spy_bin, "docker", cmd_log, "exit 0")
+    make_spy_tool(spy_bin, "nc", cmd_log, "exit 0")
+
     env = {
-        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "PATH": f"{spy_bin}:/usr/bin:/bin",
         "COLIMA_PROXY_PORT": "",
     }
     result = subprocess.run(
@@ -58,36 +86,34 @@ def test_colima_local_requires_mandatory_proxy_port():
         check=False,
     )
 
-    # scripts/colima-local.sh checks require_command first or check_host_proxy
-    # In both cases it fails without starting or silently falling back
     assert result.returncode != 0
-    # If colima/docker/nc are present, it mentions COLIMA_PROXY_PORT; if missing command, mentions missing command
-    assert ("COLIMA_PROXY_PORT is required" in result.stderr or "missing required command" in result.stderr)
+    logged_cmds = cmd_log.read_text(encoding="utf-8") if cmd_log.exists() else ""
+    assert "colima --profile www start" not in logged_cmds
 
 
-def test_colima_local_status_invokes_cli_profile_with_stubs(tmp_path: Path):
-    """Explicit status command delegates to colima status with profile without daemon."""
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+def test_explicit_colima_start_with_mandatory_proxy_port_transitions(tmp_path: Path):
+    """Explicit start invokes colima start with proxy and resource args when port is given."""
+    spy_bin = tmp_path / "bin"
+    spy_bin.mkdir()
+    cmd_log = tmp_path / "commands.log"
 
-    stub_colima = bin_dir / "colima"
-    stub_colima.write_text(
-        "#!/bin/sh\n"
-        'if [ "$1" = "--profile" ] && [ "$2" = "www" ] && [ "$3" = "status" ]; then\n'
-        '  echo "colima www status: stopped"\n'
-        '  exit 0\n'
-        "fi\n"
-        "exit 1\n",
-        encoding="utf-8",
-    )
-    stub_colima.chmod(0o755)
+    # colima: status -> return 1 (not running), start -> return 0
+    colima_logic = """
+    if [ "$1" = "--profile" ] && [ "$3" = "status" ]; then
+      exit 1
+    fi
+    exit 0
+    """
+    make_spy_tool(spy_bin, "colima", cmd_log, colima_logic)
+    make_spy_tool(spy_bin, "docker", cmd_log, "exit 0")
+    make_spy_tool(spy_bin, "nc", cmd_log, "exit 0")
 
     env = {
-        "PATH": f"{bin_dir}:/usr/bin:/bin",
-        "COLIMA_PROFILE": "www",
+        "PATH": f"{spy_bin}:/usr/bin:/bin",
+        "COLIMA_PROXY_PORT": "7890",
     }
     result = subprocess.run(
-        ["/bin/bash", str(COLIMA_LOCAL_SH), "status"],
+        ["/bin/bash", str(COLIMA_LOCAL_SH), "start"],
         env=env,
         capture_output=True,
         text=True,
@@ -95,4 +121,32 @@ def test_colima_local_status_invokes_cli_profile_with_stubs(tmp_path: Path):
     )
 
     assert result.returncode == 0
-    assert "colima www status: stopped" in result.stdout
+    logged_cmds = cmd_log.read_text(encoding="utf-8")
+    assert "nc -z 127.0.0.1 7890" in logged_cmds
+    assert "colima --profile www start" in logged_cmds
+    assert "--env HTTP_PROXY=http://host.lima.internal:7890" in logged_cmds
+    assert "--env HTTPS_PROXY=http://host.lima.internal:7890" in logged_cmds
+
+
+def test_explicit_colima_stop_invokes_profile_stop(tmp_path: Path):
+    """Explicit stop delegates to colima profile stop."""
+    spy_bin = tmp_path / "bin"
+    spy_bin.mkdir()
+    cmd_log = tmp_path / "commands.log"
+
+    make_spy_tool(spy_bin, "colima", cmd_log, "exit 0")
+
+    env = {
+        "PATH": f"{spy_bin}:/usr/bin:/bin",
+    }
+    result = subprocess.run(
+        ["/bin/bash", str(COLIMA_LOCAL_SH), "stop"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    logged_cmds = cmd_log.read_text(encoding="utf-8")
+    assert "colima --profile www stop" in logged_cmds
