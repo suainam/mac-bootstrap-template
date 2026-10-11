@@ -612,6 +612,15 @@ def _runtime_state_paths(
         return None
     return state.context.runtime_state_paths(event.session_id, registry.log_dir)
 
+def _profile_gates(
+    state: RepositoryState,
+    registry: RuntimeRegistry,
+) -> tuple[str, ...]:
+    assert state.profile is not None
+    if state.profile not in registry.profiles:
+        raise ConfigurationError(f"unknown profile: {state.profile}")
+    return registry.profiles[state.profile]
+
 
 def build_plan(
     event: StandardEvent,
@@ -637,14 +646,12 @@ def build_plan(
             "matched_gate_details": [],
             "skipped_gates": [],
         }
-    assert state.profile is not None
-    if state.profile not in registry.profiles:
-        raise ConfigurationError(f"unknown profile: {state.profile}")
+    profile_gates = _profile_gates(state, registry)
 
     matched: list[str] = []
     matched_details: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
-    for gate_id in registry.profiles[state.profile]:
+    for gate_id in profile_gates:
         gate = registry.gates[gate_id]
         if event.event_type not in gate.events:
             skipped.append({"gate_id": gate_id, "reason": "event-type"})
@@ -1080,11 +1087,7 @@ def doctor(registry_path: Path, cwd: Path | None = None) -> int:
     effective_gates: list[str] = []
     event_plans: dict[str, Any] = {}
     if state.enabled:
-        assert state.profile is not None
-        if state.profile not in registry.profiles:
-            raise ConfigurationError(f"unknown profile: {state.profile}")
-
-        profile_gates = registry.profiles[state.profile]
+        profile_gates = _profile_gates(state, registry)
         effective_gates = list(profile_gates)
 
         event_types: list[str] = []
