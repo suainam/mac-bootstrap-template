@@ -10,7 +10,8 @@ Colima 由 Homebrew 管理；Python、Node 和应用依赖仍留在容器内。
 - 宿主 HTTP/HTTPS 代理：由 `COLIMA_PROXY_PORT` 显式提供
 - Docker 日志：`json-file`，单文件 `10m`，保留 `3` 个文件
 - Kubernetes：不启用
-- 登录启动：不启用；需要时手动启动
+- 登录与默认启动：默认 bootstrap 不启动 Colima 也不注册 LaunchAgent 自启动服务；需要时按需显式启动
+- 启动前置条件：必须提供 `COLIMA_PROXY_PORT` 宿主代理端口（由 private overlay 或机器环境显式提供，无默认端口）
 
 资源和日志默认值可通过 `COLIMA_*` 环境变量覆盖。代理端口属于机器实例配置，
 公开模板不提供默认值；父仓应从 private overlay 注入。脚本不会读取或写入代理
@@ -22,6 +23,12 @@ Colima 由 Homebrew 管理；Python、Node 和应用依赖仍留在容器内。
 
 ```bash
 COLIMA_PROXY_PORT=<port> make colima-start
+```
+
+查询当前运行时状态：
+
+```bash
+make colima-status
 ```
 
 检查 profile、Docker context、宿主代理和日志策略：

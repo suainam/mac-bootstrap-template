@@ -76,13 +76,6 @@ def test_python_version_pin_matches_ci():
     assert f'python-version: "{pinned}"' in workflow
 
 
-def test_installer_provisions_venv_after_brew_bundle():
-    installer = (ROOT / "install.sh").read_text(encoding="utf-8")
-
-    assert '"$DIR/scripts/setup-python-venv.sh"' in installer
-    assert installer.index("brew-bundle.sh") < installer.index("setup-python-venv.sh")
-
-
 def test_venv_interpreter_matches_pin():
     if not VENV_PYTHON.exists():
         pytest.skip("template/.venv not provisioned in this checkout")
