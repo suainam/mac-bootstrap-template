@@ -406,6 +406,8 @@ def test_default_registry_doctor_is_available_through_wrapper(tmp_path: Path):
         "template-push-ref-integrity",
     ]
     assert payload["enabled"] is False
+    assert payload["effective_gates"] == []
+    assert payload["planned_gates"] == {}
 
 
 def test_default_generic_profile_dispatch_is_silent(tmp_path: Path):
@@ -498,4 +500,75 @@ def test_async_gate_timeout_is_recorded_in_external_log(tmp_path: Path):
         time.sleep(0.05)
     assert logs
     assert "timed out" in logs[0].read_text(encoding="utf-8")
+    assert marker.exists() is False
+
+
+def test_doctor_rejects_unknown_profile_nonzero(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    opt_in(repo, "unknown-profile")
+    registry = write_registry(tmp_path / "registry.json")
+
+    result = run_runtime(repo, registry, "doctor", None)
+
+    assert result.returncode == 1
+    assert "unknown profile: unknown-profile" in result.stderr
+
+
+def test_doctor_reports_planned_gates_matching_explain(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    opt_in(repo, "test")
+    marker = tmp_path / "marker.txt"
+    script = tmp_path / "gate.py"
+    script.write_text("import pathlib, sys\npathlib.Path(sys.argv[1]).touch()\n", encoding="utf-8")
+    registry = write_registry(
+        tmp_path / "registry.json",
+        gates={"write-marker": gate_command(script, marker)},
+    )
+
+    doc_res = run_runtime(repo, registry, "doctor", None)
+    assert doc_res.returncode == 0
+    assert doc_res.stderr == ""
+    doc_payload = json.loads(doc_res.stdout)
+    assert doc_payload["enabled"] is True
+    assert doc_payload["profile"] == "test"
+    assert doc_payload["effective_gates"] == ["write-marker"]
+    assert "after.edit" in doc_payload["planned_gates"]
+    doc_plan = doc_payload["planned_gates"]["after.edit"]
+
+    # compare with explain
+    payload = event(repo, target_paths=())
+    exp_res = run_runtime(repo, registry, "explain", payload)
+    assert exp_res.returncode == 0
+    exp_payload = json.loads(exp_res.stdout)
+
+    assert doc_plan["matched_gates"] == exp_payload["matched_gates"]
+    assert doc_plan["matched_gate_details"] == exp_payload["matched_gate_details"]
+    assert doc_plan["skipped_gates"] == exp_payload["skipped_gates"]
+
+    # Ensure doctor did not execute the gate
+    assert marker.exists() is False
+
+
+def test_doctor_disabled_state_is_accurate_and_read_only(tmp_path: Path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    # disabled repository
+    marker = tmp_path / "marker.txt"
+    script = tmp_path / "gate.py"
+    script.write_text("import pathlib, sys\npathlib.Path(sys.argv[1]).touch()\n", encoding="utf-8")
+    registry = write_registry(
+        tmp_path / "registry.json",
+        gates={"write-marker": gate_command(script, marker)},
+    )
+
+    result = run_runtime(repo, registry, "doctor", None)
+    assert result.returncode == 0
+    assert result.stderr == ""
+    payload = json.loads(result.stdout)
+    assert payload["enabled"] is False
+    assert payload["profile"] is None
+    assert payload["effective_gates"] == []
+    assert payload["planned_gates"] == {}
     assert marker.exists() is False
