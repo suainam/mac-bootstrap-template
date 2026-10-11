@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from helpers import PYTHON
 
 
@@ -34,6 +36,7 @@ def write_ownership_manifest(root: Path, zb_formulas: list[str] | None = None) -
     return path
 
 
+@pytest.mark.machine
 def test_evaluate_brewfile_respects_ruby_conditionals_options_and_profiles(tmp_path):
     private_dir = tmp_path / "private"
     for profile, extra_pkg in (("home", "fd"), ("work", "tree")):
