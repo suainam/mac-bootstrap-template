@@ -89,7 +89,7 @@ def test_package_ownership_script_queries():
     assert res.stdout.strip() == "brew"
 
 
-def test_ownership_manifest_missing_or_jq_missing_fails_loud(tmp_path):
+def test_ownership_manifest_missing_fails_loud(tmp_path):
     env = os.environ.copy()
     env["PACKAGE_OWNERSHIP_MANIFEST"] = str(tmp_path / "nonexistent.json")
 
@@ -138,7 +138,6 @@ def test_brewfile_evaluates_homebrew_prefixed_env_vars(tmp_path):
 
 
 def test_normal_reconcile_halts_on_ownership_mismatch(tmp_path):
-    # Short temporary prefix <= 13 chars
     short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
@@ -186,7 +185,6 @@ exit 0
 
 
 def test_explicit_migrate_dependency_preflight_blocks_uninstall(tmp_path):
-    # Test multiple candidates (uv and fd), where fd is blocked by dependent
     short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
@@ -238,19 +236,22 @@ exit 0
         assert "Dependency blocker" in res.stderr
         assert "some-dependent-app" in res.stderr
 
-        # Assert no uninstall was attempted for ANY candidate (neither uv nor fd)
+        # Assert no uninstall was attempted for ANY candidate
         log_content = mock_brew_log.read_text()
         assert "uninstall" not in log_content
     finally:
         shutil.rmtree(short_zb, ignore_errors=True)
 
 
-def test_explicit_migrate_inventory_query_failure_blocks_uninstall(tmp_path):
-    # Test that failure of brew uses query aborts immediately without uninstall
+def test_explicit_migrate_runtime_verification_failure_blocks_uninstall(tmp_path):
+    # Candidate 'uv' fails runtime execution (returns exit 1 on --version)
     short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
+
+        zb_bin = Path(short_zb) / "bin"
+        zb_bin.mkdir(parents=True)
 
         mock_brew_log = tmp_path / "brew_calls.log"
         mock_brew = bin_dir / "brew"
@@ -265,12 +266,29 @@ if [ "$1" = "list" ] && [ "$2" = "--formula" ]; then
     exit 0
 fi
 if [ "$1" = "uses" ] && [ "$2" = "--installed" ]; then
-    echo "Simulated brew uses error" >&2
-    exit 5
+    exit 0
+fi
+if [ "$1" = "uninstall" ]; then
+    echo "uninstall $2" >> "{mock_brew_log}"
+    exit 0
 fi
 exit 0
 """)
         mock_brew.chmod(0o755)
+
+        mock_zb = bin_dir / "zb"
+        mock_zb.write_text(f"""#!/usr/bin/env bash
+if [ "$5" = "install" ]; then
+    # Create uv binary that fails runtime execution
+    echo '#!/bin/sh' > "{zb_bin}/uv"
+    echo 'echo "Fatal runtime error: missing dynamic library" >&2' >> "{zb_bin}/uv"
+    echo 'exit 1' >> "{zb_bin}/uv"
+    chmod +x "{zb_bin}/uv"
+    exit 0
+fi
+exit 0
+""")
+        mock_zb.chmod(0o755)
 
         env = os.environ.copy()
         env["PATH"] = f"{bin_dir}:{env['PATH']}"
@@ -284,8 +302,9 @@ exit 0
             env=env,
         )
         assert res.returncode != 0
-        assert "Failed to query installed dependents" in res.stderr
+        assert "Verification failed for uv" in res.stderr
 
+        # Assert no uninstall was called because runtime verification failed
         log_content = mock_brew_log.read_text()
         assert "uninstall" not in log_content
     finally:
@@ -293,7 +312,6 @@ exit 0
 
 
 def test_explicit_migrate_success_flow_verifies_bins_and_removes(tmp_path):
-    # Candidates: uv, ast-grep, docker-compose
     short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
@@ -334,7 +352,6 @@ exit 0
         mock_zb = bin_dir / "zb"
         mock_zb.write_text(f"""#!/usr/bin/env bash
 if [ "$5" = "install" ]; then
-    # Create valid binaries
     echo '#!/bin/sh' > "{zb_bin}/uv"
     echo 'echo uv 0.13.0' >> "{zb_bin}/uv"
     chmod +x "{zb_bin}/uv"

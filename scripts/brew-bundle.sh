@@ -166,7 +166,7 @@ verify_installed_tool() {
       fi
       mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
       ln -sfn "$plugin_src" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$normalized"
-      "$plugin_src" version >/dev/null 2>&1 || "$plugin_src" --version >/dev/null 2>&1 || true
+      "$plugin_src" version >/dev/null 2>&1 || "$plugin_src" --version >/dev/null 2>&1
       ;;
     ast-grep)
       local bin=""
@@ -178,7 +178,7 @@ verify_installed_tool() {
         echo "Verification error: ast-grep (or sg) not found in $ZEROBREW_PREFIX/bin" >&2
         return 1
       fi
-      "$bin" --version >/dev/null 2>&1 || return 1
+      "$bin" --version >/dev/null 2>&1
       ;;
     tree-sitter-cli)
       local bin=""
@@ -190,12 +190,20 @@ verify_installed_tool() {
         echo "Verification error: tree-sitter-cli (or tree-sitter) not found in $ZEROBREW_PREFIX/bin" >&2
         return 1
       fi
-      "$bin" --version >/dev/null 2>&1 || return 1
+      "$bin" --version >/dev/null 2>&1
+      ;;
+    rclone)
+      local bin="$ZEROBREW_PREFIX/bin/rclone"
+      if [ ! -x "$bin" ]; then
+        echo "Verification error: rclone binary not found in $ZEROBREW_PREFIX/bin" >&2
+        return 1
+      fi
+      "$bin" version >/dev/null 2>&1 || "$bin" --version >/dev/null 2>&1
       ;;
     pngpaste)
       local bin="$ZEROBREW_PREFIX/bin/pngpaste"
       if [ ! -x "$bin" ]; then
-        echo "Verification error: $bin not found or not executable" >&2
+        echo "Verification error: pngpaste binary not found or not executable" >&2
         return 1
       fi
       ;;
@@ -206,10 +214,9 @@ verify_installed_tool() {
         echo "Verification error: binary for $normalized not found in $ZEROBREW_PREFIX/bin or sbin" >&2
         return 1
       fi
-      "$bin" --version >/dev/null 2>&1 || true
+      "$bin" --version >/dev/null 2>&1
       ;;
   esac
-  return 0
 }
 
 if [ "$MODE" = "migrate" ]; then
@@ -226,12 +233,9 @@ if [ "$MODE" = "migrate" ]; then
   echo "--- Step 1: Preflighting Homebrew dependencies ---"
   PREFLIGHT_BLOCKED=0
   for formula in "${MIGRATION_CANDIDATES[@]}"; do
-    normalized="$(normalize_formula "$formula")"
-    if ! dependents="$(brew uses --installed "$normalized" 2>/dev/null)"; then
-      if ! dependents="$(brew uses --installed "$formula")"; then
-        echo "Error: Failed to query installed dependents for $formula from Homebrew" >&2
-        exit 1
-      fi
+    if ! dependents="$(brew uses --installed "$formula" 2>/dev/null)"; then
+      echo "Error: Failed to query installed dependents for $formula from Homebrew" >&2
+      exit 1
     fi
 
     if [ -n "$dependents" ]; then
@@ -265,9 +269,8 @@ if [ "$MODE" = "migrate" ]; then
   # 4. Safely remove old Homebrew copies (NEVER ignore dependencies)
   echo "--- Step 4: Removing old Homebrew copies ---"
   for formula in "${MIGRATION_CANDIDATES[@]}"; do
-    normalized="$(normalize_formula "$formula")"
     echo "Uninstalling $formula from Homebrew..."
-    brew uninstall "$normalized" 2>/dev/null || brew uninstall "$formula"
+    brew uninstall "$formula"
   done
 
   echo "=== Migration complete ==="
