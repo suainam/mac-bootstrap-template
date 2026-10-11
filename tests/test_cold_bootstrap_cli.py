@@ -16,8 +16,8 @@ INSTALL_SH = ROOT / "install.sh"
 
 def make_short_zb_path() -> Path:
     """Generate a short temporary path strictly <= 13 characters on macOS."""
-    token = uuid.uuid4().hex[:5]
-    path = Path(f"/tmp/z{token}")
+    suffix = uuid.uuid4().hex[:5]
+    path = Path(f"/tmp/z{suffix}")
     assert len(str(path)) <= 13, f"Path exceeds 13 characters: {path}"
     return path
 
@@ -73,6 +73,20 @@ def test_prefix_preflight_fails_when_root_missing(tmp_path: Path):
     # Must have passed length check (not failed with >13 error)
     assert "ZEROBREW_PREFIX must be at most 13 characters on macOS" not in result.stderr
     assert not (fake_home / "work").exists()
+
+def test_prefix_preflight_rejects_separate_missing_prefix(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    missing_prefix = make_short_zb_path()
+    result = subprocess.run(
+        ["/bin/bash", str(INSTALL_SH)],
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin", "ZEROBREW_ROOT": str(tmp_path), "ZEROBREW_PREFIX": str(missing_prefix)},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert str(missing_prefix) in result.stderr
+    assert not (home / "work").exists()
+
 
 
 def test_prefix_preflight_fails_when_root_unwritable(tmp_path: Path):
@@ -164,6 +178,7 @@ def test_cold_installer_reaches_downstream_tooling_with_zb_path(tmp_path: Path):
         "configure-proxies.sh",
         "clear-proxies.sh",
         "render-configs.sh",
+        "install-omp-extensions.sh",
     ]:
         stub = scripts_dir / stub_name
         stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -189,6 +204,9 @@ def test_cold_installer_reaches_downstream_tooling_with_zb_path(tmp_path: Path):
         s = ext_bin / cmd
         s.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         s.chmod(0o755)
+        isolated_tool = tmp_path / "home" / ".local" / "bin" / cmd
+        isolated_tool.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(s, isolated_tool)
 
     # Short prefix <= 13 chars
     short_zb = make_short_zb_path()
@@ -196,7 +214,7 @@ def test_cold_installer_reaches_downstream_tooling_with_zb_path(tmp_path: Path):
     (short_zb / "bin").mkdir()
 
     fake_home = tmp_path / "home"
-    fake_home.mkdir()
+    fake_home.mkdir(exist_ok=True)
 
     try:
         for profile in ["home", "work"]:

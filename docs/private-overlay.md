@@ -100,11 +100,15 @@ Explicit migration executes the following safe sequence:
    installed Homebrew package, migration halts immediately without uninstalling anything.
    Migration never uses `--ignore-dependencies`.
 2. **Zerobrew Installation & Verification**: Initializes and installs candidate bottles in
-   `ZEROBREW_ROOT`, executes `zb doctor`, verifies binary existence/executability in `bin`/`sbin`
-   (handling tool name variations such as `ast-grep`/`sg` and `tree-sitter-cli`/`tree-sitter`),
+   `ZEROBREW_ROOT`, executes `zb doctor` and version probes before removal
+   (`pngpaste -v` avoids clipboard access). Tool aliases such as `ast-grep`/`sg`
+   and `tree-sitter-cli`/`tree-sitter` are handled explicitly,
    and verifies Docker CLI plugins (`docker-compose`, `docker-buildx`) via version checks and
    links in `$DOCKER_CONFIG/cli-plugins` (default: `$HOME/.docker/cli-plugins`).
 3. **Safe Removal**: Uninstalls old copies from Homebrew only after successful install and runtime verification.
+Normal fresh installation provisions `jq` before reading the ownership manifest;
+explicit migration requires it already installed so preflight remains non-mutating.
+
 
 For recovery, if a package needs to be restored to Homebrew ownership:
 1. Update `scripts/package-ownership.json` so the package is no longer listed under `zerobrew_formulas`.

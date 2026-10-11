@@ -58,11 +58,8 @@ desired() {
   export HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR="$export_private"
   export HOMEBREW_MAC_BOOTSTRAP_PROFILE="$export_profile"
 
-  local tmp_list
-  tmp_list="$(mktemp)"
-  trap 'rm -f "$tmp_list"' RETURN
-
-  brew bundle list --file="$brewfile" --formula > "$tmp_list"
+  local declared
+  declared="$(brew bundle list --file="$brewfile" --formula)"
 
   while IFS= read -r formula; do
     [ -n "$formula" ] || continue
@@ -71,7 +68,7 @@ desired() {
     if [ "$target_manager" = "$pkg_owner" ]; then
       echo "$formula"
     fi
-  done < "$tmp_list"
+  done <<< "$declared"
 }
 
 case "${1:-}" in

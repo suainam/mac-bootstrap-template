@@ -97,10 +97,14 @@ def test_explicit_colima_start_with_mandatory_proxy_port_transitions(tmp_path: P
     spy_bin.mkdir()
     cmd_log = tmp_path / "commands.log"
 
-    # colima: status -> return 1 (not running), start -> return 0
-    colima_logic = """
-    if [ "$1" = "--profile" ] && [ "$3" = "status" ]; then
-      exit 1
+    running = tmp_path / "running"
+    colima_logic = f"""
+    if [ "$3" = "status" ]; then
+      test -f "{running}"
+      exit $?
+    fi
+    if [ "$3" = "start" ]; then
+      touch "{running}"
     fi
     exit 0
     """

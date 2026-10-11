@@ -100,7 +100,10 @@ def evaluate_brewfile(brewfile: Path, env: dict[str, str] | None = None) -> dict
 
 
 def brew_list(kind: str) -> set[str]:
-    return set(run_checked(["brew", "list", kind]))
+    args = ["brew", "list", kind]
+    if kind == "--formula":
+        args.append("--full-name")
+    return set(run_checked(args))
 
 
 def zb_list(root: str | None = None) -> set[str]:
@@ -123,7 +126,7 @@ def load_zb_ownership(template_root: Path) -> set[str]:
 
 
 def expected_formula_owner(name: str, zb_manifest: set[str]) -> str:
-    normalized = name.removeprefix("homebrew/core/")
+    normalized = name.removeprefix("homebrew/core/").removeprefix("core/")
     if name in zb_manifest or normalized in zb_manifest:
         return "zb"
     return "brew"
@@ -141,7 +144,10 @@ def check_formulae(
     for name in declared_formulas:
         expected = expected_formula_owner(name, zb_manifest)
         short_name = name.split("/")[-1]
-        in_brew = name in brew_installed or short_name in brew_installed
+        normalized = name.removeprefix("homebrew/core/").removeprefix("core/")
+        in_brew = normalized in brew_installed
+        if "/" not in name:
+            in_brew = in_brew or any(item.endswith("/" + name) for item in brew_installed)
         in_zb = name in zb_installed or (
             short_name in zb_installed and (expected == "zb" or short_name not in zb_manifest)
         )

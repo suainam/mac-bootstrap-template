@@ -87,11 +87,13 @@ if [ "${#ZEROBREW_PREFIX}" -gt 13 ]; then
   exit 2
 fi
 
-if [ ! -d "$ZEROBREW_ROOT" ] || [ ! -w "$ZEROBREW_ROOT" ]; then
-  echo "Create a user-owned zerobrew directory before bootstrap:" >&2
-  echo "sudo install -d -o \"\$(id -un)\" -g \"\$(id -gn)\" -m 755 \"$ZEROBREW_ROOT\"" >&2
-  exit 2
-fi
+for path in "$ZEROBREW_ROOT" "$ZEROBREW_PREFIX"; do
+  if [ ! -d "$path" ] || [ ! -w "$path" ]; then
+    echo "Create a user-owned zerobrew directory before bootstrap:" >&2
+    echo "sudo install -d -o \"\$(id -un)\" -g \"\$(id -gn)\" -m 755 \"$path\"" >&2
+    exit 2
+  fi
+done
 
 # Ensure installer PATH includes zerobrew bins, local bins, and Homebrew ahead of system tools
 # without sourcing dotfiles or shell_env (avoiding proxy/nvm side effects).

@@ -104,7 +104,7 @@ def test_ownership_is_independent_of_upstream_metadata(tmp_path):
 
 
 def test_normal_reconcile_halts_on_ownership_mismatch(tmp_path):
-    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    short_zb = tempfile.mkdtemp(prefix="", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -136,6 +136,7 @@ exit 0
         env["PATH"] = f"{bin_dir}:{env['PATH']}"
         env["ZEROBREW_ROOT"] = short_zb
         env["ZEROBREW_PREFIX"] = short_zb
+        env["DOCKER_CONFIG"] = str(tmp_path / "docker")
 
         res = subprocess.run(
             [str(BREW_BUNDLE_SCRIPT), "install"],
@@ -152,7 +153,7 @@ exit 0
 
 
 def test_explicit_migrate_dependency_preflight_blocks_uninstall(tmp_path):
-    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    short_zb = tempfile.mkdtemp(prefix="", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -193,6 +194,7 @@ exit 0
         env["PATH"] = f"{bin_dir}:{env['PATH']}"
         env["ZEROBREW_ROOT"] = short_zb
         env["ZEROBREW_PREFIX"] = short_zb
+        env["DOCKER_CONFIG"] = str(tmp_path / "docker")
 
         res = subprocess.run(
             [str(BREW_BUNDLE_SCRIPT), "migrate"],
@@ -211,7 +213,7 @@ exit 0
 
 
 def test_explicit_migrate_runtime_verification_failure_blocks_uninstall(tmp_path):
-    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    short_zb = tempfile.mkdtemp(prefix="", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -260,6 +262,7 @@ exit 0
         env["PATH"] = f"{bin_dir}:{env['PATH']}"
         env["ZEROBREW_ROOT"] = short_zb
         env["ZEROBREW_PREFIX"] = short_zb
+        env["DOCKER_CONFIG"] = str(tmp_path / "docker")
 
         res = subprocess.run(
             [str(BREW_BUNDLE_SCRIPT), "migrate"],
@@ -277,7 +280,7 @@ exit 0
 
 
 def test_explicit_migrate_success_flow_verifies_bins_and_removes(tmp_path):
-    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    short_zb = tempfile.mkdtemp(prefix="", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -339,6 +342,7 @@ exit 0
         env["PATH"] = f"{bin_dir}:{env['PATH']}"
         env["ZEROBREW_ROOT"] = short_zb
         env["ZEROBREW_PREFIX"] = short_zb
+        env["DOCKER_CONFIG"] = str(tmp_path / "docker")
 
         res = subprocess.run(
             [str(BREW_BUNDLE_SCRIPT), "migrate"],
@@ -361,7 +365,7 @@ exit 0
 
 def test_repeat_reconcile_after_migration_causes_no_uninstalls_or_duplicate_management(tmp_path):
     # Stateful fake inventory: after migration, brew list --formula no longer contains uv/ast-grep
-    short_zb = tempfile.mkdtemp(prefix="zb", dir="/tmp")
+    short_zb = tempfile.mkdtemp(prefix="", dir="/tmp")
     try:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
@@ -405,6 +409,7 @@ exit 0
         env["PATH"] = f"{bin_dir}:{env['PATH']}"
         env["ZEROBREW_ROOT"] = short_zb
         env["ZEROBREW_PREFIX"] = short_zb
+        env["DOCKER_CONFIG"] = str(tmp_path / "docker")
 
         # Run normal reconcile: should succeed without error
         res = subprocess.run(

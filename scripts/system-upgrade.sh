@@ -82,7 +82,7 @@ if [[ "$ONLY_EXPLICIT" -eq 1 ]]; then
     fi
     # Deduplicate repeated selections
     already_selected=0
-    for prev in "${SELECTED_STAGES[@]}"; do
+    for prev in ${SELECTED_STAGES[@]+"${SELECTED_STAGES[@]}"}; do
       if [[ "$prev" == "$s" ]]; then
         already_selected=1
         break
@@ -329,11 +329,9 @@ else
   done
   echo "To retry only failed stages, run:"
   if [[ "$ASSUME_YES" -eq 1 ]]; then
-    echo "  ./scripts/system-upgrade.sh --yes --only ${FAILED_CSV}"
-    echo "  (or: make system-upgrade UPGRADE_ONLY=${FAILED_CSV})"
+    echo "  MAC_BOOTSTRAP_YES=1 make system-upgrade UPGRADE_ONLY=${FAILED_CSV}"
   else
-    echo "  ./scripts/system-upgrade.sh --only ${FAILED_CSV}"
-    echo "  (or: make system-upgrade UPGRADE_ONLY=${FAILED_CSV})"
+    echo "  make system-upgrade UPGRADE_ONLY=${FAILED_CSV}"
   fi
   echo ""
   echo "Note: If failures were caused by authentication or sudo timeouts, run in an interactive terminal."

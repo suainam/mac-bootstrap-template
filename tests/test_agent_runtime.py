@@ -524,7 +524,7 @@ def test_doctor_reports_planned_gates_matching_explain(tmp_path: Path):
     script.write_text("import pathlib, sys\npathlib.Path(sys.argv[1]).touch()\n", encoding="utf-8")
     registry = write_registry(
         tmp_path / "registry.json",
-        gates={"write-marker": gate_command(script, marker)},
+        gates={"write-marker": {**gate_command(script, marker), "path_globs": []}},
     )
 
     doc_res = run_runtime(repo, registry, "doctor", None)
@@ -538,7 +538,7 @@ def test_doctor_reports_planned_gates_matching_explain(tmp_path: Path):
     doc_plan = doc_payload["planned_gates"]["after.edit"]
 
     # compare with explain
-    payload = event(repo, target_paths=())
+    payload = event(repo, target_paths=("example.py",))
     exp_res = run_runtime(repo, registry, "explain", payload)
     assert exp_res.returncode == 0
     exp_payload = json.loads(exp_res.stdout)

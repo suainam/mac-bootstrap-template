@@ -230,7 +230,7 @@ exit 1
     assert "bun          [ SUCCESS ]" in result.stdout
     assert uv_log.exists()
     assert bun_log.exists()
-    assert "--only uv" in result.stdout
+    assert "UPGRADE_ONLY=uv" in result.stdout
 
 
 def test_system_upgrade_simulated_package_and_skill_failure_with_targeted_recovery(tmp_path: Path) -> None:
@@ -343,8 +343,7 @@ exit 0
     assert "uv           [ SKIPPED ]" in result.stdout
     assert "claude       [ SKIPPED ]" in result.stdout
 
-    # Recovery command specifies exact failed stages with --only packages,skills
-    assert "--only packages,skills" in result.stdout
+    assert "UPGRADE_ONLY=packages,skills" in result.stdout
 
     # Now simulate recovery by fixing the causes and rerunning only the failed stages
     make_executable(
@@ -376,4 +375,4 @@ exit 0
     # Unselected stages were NOT run
     assert "npm" not in recovery_result.stdout
     assert "chrome" not in recovery_result.stdout
-    assert "bun" not in recovery_result.stdout
+    assert "bun          [" not in recovery_result.stdout

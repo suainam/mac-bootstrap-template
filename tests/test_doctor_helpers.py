@@ -117,7 +117,7 @@ def test_run_doctor_checks_main_success(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(
         run_doctor_checks,
         "brew_list",
-        lambda kind: {"git", "opencode-v2"} if kind == "--formula" else set(),
+        lambda kind: {"git", "anomalyco/tap/opencode-v2"} if kind == "--formula" else set(),
     )
     monkeypatch.setattr(run_doctor_checks, "zb_list", lambda root=None: {"uv"})
     monkeypatch.setattr(run_doctor_checks, "has_command", lambda name: False)
@@ -268,6 +268,12 @@ def test_custom_tap_does_not_match_core_zb_ownership(monkeypatch, tmp_path, caps
     out = capsys.readouterr().out
     assert rc == 1
     assert "missing formula: custom/tap/fd (expected brew)" in out
+
+def test_core_alias_and_custom_tap_inventory_are_distinct(capsys):
+    assert run_doctor_checks.check_formulae(["core/uv"], set(), {"uv"}, {"uv"}, {}) is False
+    assert run_doctor_checks.check_formulae(["custom/tap/fd"], {"fd"}, set(), {"fd"}, {}) is True
+    assert "missing formula: custom/tap/fd" in capsys.readouterr().out
+
 
 
 def test_run_doctor_checks_fails_when_ownership_manifest_missing_or_command_fails(monkeypatch, tmp_path, capsys):

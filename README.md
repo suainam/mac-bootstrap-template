@@ -192,17 +192,16 @@ and runtime state.
 
 ## 全生态统一升级 (System Upgrade)
 
-系统将声明式包管理器与工具链聚合至 `system-upgrade`（`scripts/system-upgrade.sh`），严格遵循单一真源原则：Homebrew 通过分层 `Brewfile` 声明对齐与升级，npm globals 经清单管理，Python 工具由 `uv` 托管，Agent 技能供应链分发及 Chrome Gemini 补丁全自动串联。
+`make system-upgrade` 聚合已有包与工具升级，按请求阶段输出结果。默认要求交互终端，可能出现升级确认或 sudo；不自动重试失败阶段。包归属以 `scripts/package-ownership.json` 为准。
 
 ```mermaid
 flowchart TD
-    All[统一生态升级入口: make system-upgrade] --> Brew[Homebrew 分层 Brewfile 对齐 + 升级 + 清理]
+    All[统一生态升级入口: make system-upgrade] --> Brew[Homebrew + zb 对齐、升级与清理]
     All --> Bun[Bun 全局 CLI: opencode2 等]
     All --> UV[uv tool: ansible 等 CLI 工具]
     All --> NPM[npm globals 清单驱动升级]
     All --> Skills[技能全生态: global skills + 供应链 external bundles]
     All --> Chrome[Chrome Gemini 补丁自动保持]
-    All --> Mihomo[Mihomo 守护进程订阅同步]
 ```
 
 - **编排与分工**:
@@ -221,7 +220,7 @@ flowchart TD
   make system-upgrade                            # 默认全生态升级
   ./scripts/system-upgrade.sh --only npm,skills  # 仅运行指定阶段
   make system-upgrade UPGRADE_ONLY=npm,skills    # Make 入口参数传递
-  ./scripts/system-upgrade.sh --yes              # 预设非交互式（如需 sudo 仍要求 TTY 认证）
+  ./scripts/system-upgrade.sh --yes              # 仅绕过入口 TTY 检查；工具确认或 sudo 仍可能需要终端
   ```
 
 ## Public template + private overlay
