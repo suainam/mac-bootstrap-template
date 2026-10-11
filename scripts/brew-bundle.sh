@@ -44,11 +44,17 @@ fi
 
 # Ensure jq is installed for ownership manifest queries
 if ! command -v jq >/dev/null 2>&1; then
-  brew install jq
+  echo "Error: jq is required to query package ownership" >&2
+  exit 1
 fi
 
 # Load authoritative zerobrew formulas from package-ownership.sh
 OWNERSHIP_SCRIPT="$DIR/scripts/package-ownership.sh"
+if [ ! -x "$OWNERSHIP_SCRIPT" ]; then
+  echo "Error: $OWNERSHIP_SCRIPT is not executable" >&2
+  exit 1
+fi
+
 ZB_DECLARED_MAP="$(mktemp)"
 TMP_FORMULAS="$(mktemp)"
 trap 'rm -f "$ZB_DECLARED_MAP" "$TMP_FORMULAS"' EXIT
@@ -91,6 +97,33 @@ for formula in "${DESIRED_ZB[@]}"; do
   fi
 done
 
+# Shared helper: ensure zb packages are installed, healthy, and docker plugins linked
+reconcile_zb_packages() {
+  local packages=("$@")
+  [ "${#packages[@]}" -gt 0 ] || return 0
+
+  if ! command -v zb >/dev/null 2>&1; then
+    brew install zerobrewhq/zerobrew/zerobrew
+  fi
+
+  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" init --no-modify-path
+  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" install "${packages[@]}"
+  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" doctor
+
+  for formula in "${packages[@]}"; do
+    normalized="$(normalize_formula "$formula")"
+    case "$normalized" in
+      docker-buildx|docker-compose)
+        mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
+        local plugin_src="$ZEROBREW_PREFIX/lib/docker/cli-plugins/$normalized"
+        if [ -e "$plugin_src" ]; then
+          ln -sfn "$plugin_src" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$normalized"
+        fi
+        ;;
+    esac
+  done
+}
+
 # Normal install mode MUST NOT silently transfer or uninstall Brew packages
 if [ "$MODE" = "install" ]; then
   if [ "${#MIGRATION_CANDIDATES[@]}" -gt 0 ]; then
@@ -113,31 +146,7 @@ if [ "$MODE" = "install" ]; then
     fi
   done
 
-  # Ensure zb is available
-  if ! command -v zb >/dev/null 2>&1; then
-    brew install zerobrewhq/zerobrew/zerobrew
-  fi
-
-  # Install desired zb packages if any are missing in zb
-  if [ "${#DESIRED_ZB[@]}" -gt 0 ]; then
-    zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" init --no-modify-path
-    zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" install "${DESIRED_ZB[@]}"
-    zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" doctor
-
-    # Ensure docker plugins are linked
-    for formula in "${DESIRED_ZB[@]}"; do
-      normalized="$(normalize_formula "$formula")"
-      case "$normalized" in
-        docker-buildx|docker-compose)
-          mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
-          plugin_src="$ZEROBREW_PREFIX/lib/docker/cli-plugins/$normalized"
-          if [ -e "$plugin_src" ]; then
-            ln -sfn "$plugin_src" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$normalized"
-          fi
-          ;;
-      esac
-    done
-  fi
+  reconcile_zb_packages "${DESIRED_ZB[@]}"
 
   # Tell brew bundle install to skip all zb formulas
   export HOMEBREW_BUNDLE_BREW_SKIP="${HOMEBREW_BUNDLE_BREW_SKIP:-} ${DESIRED_ZB[*]}"
@@ -145,7 +154,7 @@ if [ "$MODE" = "install" ]; then
   exit 0
 fi
 
-# Explicit migrate mode
+# Explicit migrate mode verification
 verify_installed_tool() {
   local normalized="$1"
   case "$normalized" in
@@ -157,7 +166,6 @@ verify_installed_tool() {
       fi
       mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
       ln -sfn "$plugin_src" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$normalized"
-      # Execute docker plugin to prove runtime functionality
       "$plugin_src" version >/dev/null 2>&1 || "$plugin_src" --version >/dev/null 2>&1 || true
       ;;
     ast-grep)
@@ -208,6 +216,7 @@ if [ "$MODE" = "migrate" ]; then
   echo "=== Running package ownership migration ==="
   if [ "${#MIGRATION_CANDIDATES[@]}" -eq 0 ]; then
     echo "No packages need migration from Homebrew to Zerobrew."
+    reconcile_zb_packages "${DESIRED_ZB[@]}"
     exit 0
   fi
 
@@ -218,7 +227,6 @@ if [ "$MODE" = "migrate" ]; then
   PREFLIGHT_BLOCKED=0
   for formula in "${MIGRATION_CANDIDATES[@]}"; do
     normalized="$(normalize_formula "$formula")"
-    # brew uses MUST succeed; propagate/fail on query error
     if ! dependents="$(brew uses --installed "$normalized" 2>/dev/null)"; then
       if ! dependents="$(brew uses --installed "$formula")"; then
         echo "Error: Failed to query installed dependents for $formula from Homebrew" >&2
@@ -226,7 +234,6 @@ if [ "$MODE" = "migrate" ]; then
       fi
     fi
 
-    # All 21 are standalone: reject if ANY installed Homebrew package depends on it
     if [ -n "$dependents" ]; then
       echo "Dependency blocker: $formula is required by installed Homebrew package(s): $dependents" >&2
       PREFLIGHT_BLOCKED=1
@@ -240,20 +247,12 @@ if [ "$MODE" = "migrate" ]; then
   fi
   echo "Preflight passed. No Homebrew dependents found."
 
-  # Ensure zb is available before installing
-  if ! command -v zb >/dev/null 2>&1; then
-    brew install zerobrewhq/zerobrew/zerobrew
-  fi
-
   # 2. Install and initialize packages in Zerobrew
   echo "--- Step 2: Installing in Zerobrew ---"
-  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" init --no-modify-path
-  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" install "${MIGRATION_CANDIDATES[@]}"
+  reconcile_zb_packages "${MIGRATION_CANDIDATES[@]}"
 
   # 3. Verify installs and runtime health in Zerobrew
   echo "--- Step 3: Verifying Zerobrew health and binaries ---"
-  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" doctor
-
   for formula in "${MIGRATION_CANDIDATES[@]}"; do
     normalized="$(normalize_formula "$formula")"
     if ! verify_installed_tool "$normalized"; then
