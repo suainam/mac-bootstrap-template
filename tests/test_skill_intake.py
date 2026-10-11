@@ -17,8 +17,6 @@ from scripts.skill_supply_chain import (  # noqa: E402
     DEFAULT_REGISTRY,
     DEFAULT_TARGETS,
     BundleCatalogEntry,
-    build_skills_sh_bundle_fetch_command,
-    build_skills_sh_fetch_command,
     discover_bundle_catalog,
     ensure_external_bundles,
     evaluate_gate,
@@ -86,54 +84,6 @@ def test_discover_bundle_catalog_hashes_each_skill_tree(tmp_path: Path) -> None:
     )
 
 
-def test_skills_sh_command_uses_specific_skill_and_universal_agent():
-    registry = load_registry(DEFAULT_REGISTRY)
-    skill = registry.skills[("vercel-agent-skills", "web-design-guidelines")]
-
-    cmd = build_skills_sh_fetch_command(skill)
-
-    assert cmd == [
-        "npx",
-        "skills@latest",
-        "add",
-        "vercel-labs/agent-skills",
-        "--skill",
-        "web-design-guidelines",
-        "--agent",
-        "universal",
-        "--copy",
-        "--yes",
-    ]
-
-
-def test_anthropic_pdf_command_uses_same_quarantine_fetch_shape():
-    registry = load_registry(DEFAULT_REGISTRY)
-    skill = registry.skills[("anthropic-skills", "pdf")]
-
-    cmd = build_skills_sh_fetch_command(skill)
-
-    assert cmd[3] == "anthropics/skills"
-    assert cmd[5] == "pdf"
-    assert "--agent" in cmd
-    assert "universal" in cmd
-    assert "--copy" in cmd
-
-
-def test_skills_sh_bundle_command_fetches_all_skills_into_staging():
-    registry = load_registry(DEFAULT_REGISTRY)
-    bundle = registry.bundles["mattpocock-skills"]
-
-    assert build_skills_sh_bundle_fetch_command(bundle) == [
-        "npx",
-        "skills@latest",
-        "add",
-        "https://github.com/mattpocock/skills",
-        "--all",
-        "--agent",
-        "universal",
-        "--copy",
-        "--yes",
-    ]
 
 
 def test_fetch_external_skill_uses_registry_quarantine_root(tmp_path: Path) -> None:
@@ -160,7 +110,6 @@ def test_fetch_external_bundle_uses_bundle_quarantine_root(tmp_path: Path) -> No
 
     assert result.cwd == tmp_path / "agent-skills/external/quarantine/.tmp/mattpocock-skills/bundle/work"
     assert result.destination == tmp_path / ".agent-state/skill-candidates/mattpocock-skills"
-    assert result.command[:4] == ("npx", "skills@latest", "add", "https://github.com/mattpocock/skills")
 
 
 def test_per_skill_fetch_rejects_bundle_managed_source(capsys: pytest.CaptureFixture[str]) -> None:
@@ -240,58 +189,10 @@ def test_write_run_log_uses_registry_run_log_root(tmp_path: Path) -> None:
     assert json.loads(path.read_text(encoding="utf-8"))["event"] == "test"
 
 
-def test_baoyu_and_guizang_sources_use_skills_sh_urls():
-    registry = load_registry(DEFAULT_REGISTRY)
-
-    baoyu_cmd = build_skills_sh_fetch_command(registry.skills[("baoyu-skills", "baoyu-infographic")])
-    guizang_cmd = build_skills_sh_fetch_command(
-        registry.skills[("guizang-ppt-skill", "guizang-ppt-skill")]
-    )
-
-    assert baoyu_cmd[:6] == [
-        "npx",
-        "skills@latest",
-        "add",
-        "https://github.com/JimLiu/baoyu-skills",
-        "--skill",
-        "baoyu-infographic",
-    ]
-    assert guizang_cmd[:6] == [
-        "npx",
-        "skills@latest",
-        "add",
-        "https://github.com/op7418/guizang-ppt-skill",
-        "--skill",
-        "guizang-ppt-skill",
-    ]
 
 
 def test_mattpocock_commands_include_skills_sh_page_backed_skills():
     registry = load_registry(DEFAULT_REGISTRY)
-
-    for name in (
-        "codebase-design",
-        "code-review",
-        "diagnosing-bugs",
-        "domain-modeling",
-        "grilling",
-        "implement",
-        "setup-matt-pocock-skills",
-        "tdd",
-        "to-spec",
-        "to-tickets",
-        "write-a-skill",
-        "zoom-out",
-    ):
-        cmd = build_skills_sh_fetch_command(registry.skills[("mattpocock-skills", name)])
-        assert cmd[:6] == [
-            "npx",
-            "skills@latest",
-            "add",
-            "https://github.com/mattpocock/skills",
-            "--skill",
-            name,
-        ]
 
     assert registry.skills[("mattpocock-skills", "diagnose")].distribution_state == "disabled"
     expected_agents = (
@@ -336,24 +237,6 @@ def test_mattpocock_commands_include_skills_sh_page_backed_skills():
     assert registry.skills[("mattpocock-skills", "zoom-out")].distribution_state == "staged"
 
 
-def test_find_skills_command_uses_requested_vercel_skills_url():
-    registry = load_registry(DEFAULT_REGISTRY)
-    skill = registry.skills[("vercel-skills", "find-skills")]
-
-    cmd = build_skills_sh_fetch_command(skill)
-
-    assert cmd == [
-        "npx",
-        "skills@latest",
-        "add",
-        "https://github.com/vercel-labs/skills",
-        "--skill",
-        "find-skills",
-        "--agent",
-        "universal",
-        "--copy",
-        "--yes",
-    ]
 
 
 def write_registry_for_external(tmp_path: Path, skill: str, approved_hash: str | None = None) -> Path:

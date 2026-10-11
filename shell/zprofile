@@ -3,3 +3,6 @@ export ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 
 # Created by `pipx` on 2026-07-11 03:33:14
 export PATH="$PATH:${HOME}/.local/bin"
+
+# macOS path_helper runs after zshenv; restore the managed CLI precedence.
+export PATH="$ZEROBREW_PREFIX/bin:$ZEROBREW_PREFIX/sbin:$HOME/.local/bin:$PATH"

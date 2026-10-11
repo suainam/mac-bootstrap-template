@@ -154,6 +154,9 @@ def main(argv: list[str]) -> int:
                 declared[k].extend(extra_declared.get(k, []))
 
     formulas = brew_list("--formula")
+    if has_command("zb"):
+        root = os.environ.get("ZEROBREW_ROOT", "/opt/zerobrew")
+        formulas.update(line.split()[0] for line in run_stdout("zb", "--root", root, "list").splitlines() if line)
     casks = brew_list("--cask")
     formula_cmd_overrides = manifest.get("formula_command_overrides", {})
     cask_overrides = manifest.get("cask_overrides", {})

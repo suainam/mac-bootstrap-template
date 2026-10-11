@@ -85,6 +85,8 @@ and runs safe cache cleanup.
 It does not delete project virtual environments or files under `~/work`.
 If Clash Verge already exists under `/Applications` from a manual install, bootstrap skips that cask.
 Manual app notes and `make doctor` cask overrides live in [`docs/manual-apps.md`](docs/manual-apps.md).
+Homebrew/zerobrew coexistence and profile migration follow
+[`docs/private-overlay.md`](docs/private-overlay.md); `brew` remains available.
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 Neovim / LazyVim notes live in `editors/neovim/README.md`.

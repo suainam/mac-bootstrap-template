@@ -18,6 +18,9 @@ def test_declared_brew_formulas_are_installed():
     assert rc == 0, f"brew formula inventory failed: {err}"
 
     installed = set(out.splitlines())
+    out, err, rc = run('zb --root "${ZEROBREW_ROOT:-/opt/zerobrew}" list')
+    assert rc == 0, f"zerobrew formula inventory failed: {err}"
+    installed.update(line.split()[0] for line in out.splitlines() if line)
     missing = sorted((declared_brew_formulas() - brew_skip_tokens()) - installed)
     assert not missing, f"Brewfile formulae not installed: {', '.join(missing)}"
 
@@ -34,7 +37,7 @@ GUI_APPS = {
 def test_gui_app_installed(name, entry):
     path, token = entry
     if token in brew_skip_tokens():
-        pytest.skip(f"{name} opted out via private brew skip list")
+        pytest.skip(f"{name} opted out via Homebrew Bundle")
     assert os.path.isdir(path), f"{name} not found at {path}"
 
 # ── Font ──────────────────────────────────────────────────────────────

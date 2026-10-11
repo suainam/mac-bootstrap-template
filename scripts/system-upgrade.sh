@@ -38,6 +38,13 @@ if [[ -x "${ROOT_DIR}/scripts/brew-bundle.sh" ]]; then
   }
 fi
 "${BREW_BIN}" upgrade
+if command -v zb >/dev/null 2>&1; then
+  export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
+  export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
+  zb update
+  zb upgrade
+  zb gc
+fi
 "${BREW_BIN}" cleanup
 
 BUN_BIN="$(command -v bun 2>/dev/null || echo '')"

@@ -7,158 +7,83 @@ if [ "$#" -gt 0 ] && [ "$1" != "install" ]; then
 fi
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BREWFILE="$DIR/Brewfile"
-TMP_BREWFILE="$(mktemp)"
-
-# Private skip list: space-separated tokens in $MAC_BOOTSTRAP_BREW_SKIP plus
-# one token per line in $PRIVATE_SKIP_FILE ("#"-comments and blanks ignored).
-# Lets a machine opt out of Brewfile entries (e.g. home vs. work) without
-# forking the public Brewfile.
-PRIVATE_DIR=""
-if [ -n "${MAC_BOOTSTRAP_PRIVATE_DIR:-}" ] && [ -d "$MAC_BOOTSTRAP_PRIVATE_DIR" ]; then
-  PRIVATE_DIR="$MAC_BOOTSTRAP_PRIVATE_DIR"
-elif [ -d "$DIR/../private" ]; then
-  PRIVATE_DIR="$(cd "$DIR/../private" && pwd)"
+export MAC_BOOTSTRAP_PRIVATE_DIR="${MAC_BOOTSTRAP_PRIVATE_DIR:-$DIR/../private}"
+export MAC_BOOTSTRAP_PROFILE="${MAC_BOOTSTRAP_PROFILE:-$("$DIR/scripts/resolve-profile.sh")}"
+export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
+export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
+if [ "${#ZEROBREW_PREFIX}" -gt 13 ]; then
+  echo "ZEROBREW_PREFIX must be at most 13 characters on macOS: $ZEROBREW_PREFIX" >&2
+  exit 2
+fi
+if [ ! -d "$ZEROBREW_ROOT" ] || [ ! -w "$ZEROBREW_ROOT" ]; then
+  echo "Create a user-owned zerobrew directory before bootstrap:" >&2
+  echo "sudo install -d -o \"\$(id -un)\" -g \"\$(id -gn)\" -m 755 \"$ZEROBREW_ROOT\"" >&2
+  exit 2
 fi
 
-if [ -z "${MAC_BOOTSTRAP_PROFILE:-}" ]; then
-  if [ -x "$DIR/scripts/resolve-profile.sh" ]; then
-    PROFILE="$("$DIR/scripts/resolve-profile.sh" 2>/dev/null || true)"
-  elif [ -x "$DIR/resolve-profile.sh" ]; then
-    PROFILE="$("$DIR/resolve-profile.sh" 2>/dev/null || true)"
+# Keep manually installed GUI apps outside Homebrew ownership.
+for entry in 'microsoft-edge:Microsoft Edge.app' 'zed:Zed.app' 'clash-verge-rev:Clash Verge.app'; do
+  token="${entry%%:*}"
+  app="${entry#*:}"
+  if ! brew list --cask "$token" >/dev/null 2>&1 && { [ -d "/Applications/$app" ] || [ -d "$HOME/Applications/$app" ]; }; then
+    export HOMEBREW_BUNDLE_CASK_SKIP="${HOMEBREW_BUNDLE_CASK_SKIP:-} $token"
   fi
-else
-  PROFILE="${MAC_BOOTSTRAP_PROFILE:-}"
-fi
-if [ -z "$PROFILE" ] && [ -n "$PRIVATE_DIR" ]; then
-  if [ -f "$PRIVATE_DIR/current_profile" ]; then
-    PROFILE="$(tr -d '[:space:]' < "$PRIVATE_DIR/current_profile")"
-  elif [ -f "$PRIVATE_DIR/profile" ]; then
-    PROFILE="$(tr -d '[:space:]' < "$PRIVATE_DIR/profile")"
-  fi
-fi
-
-BREW_SKIP="${MAC_BOOTSTRAP_BREW_SKIP:-}"
-
-load_skip_file() {
-  local file="$1"
-  [ -f "$file" ] || return 0
-  while IFS= read -r skip_line || [ -n "$skip_line" ]; do
-    case "$skip_line" in
-      ''|'#'*) continue ;;
-    esac
-    BREW_SKIP="$BREW_SKIP ${skip_line%%#*}"
-  done < "$file"
-}
-
-if [ -n "$PRIVATE_DIR" ]; then
-  # 1. Base private/brew.skip (common to all profiles)
-  load_skip_file "$PRIVATE_DIR/brew.skip"
-  # 2. Profile-specific skip file (e.g. private/profiles/home/brew.skip or private/brew.home.skip)
-  if [ -n "$PROFILE" ]; then
-    load_skip_file "$PRIVATE_DIR/profiles/$PROFILE/brew.skip"
-    load_skip_file "$PRIVATE_DIR/brew.$PROFILE.skip"
-  fi
-fi
-
-is_skipped() {
-  local token="$1"
-  case " $BREW_SKIP " in
-    *" $token "*) return 0 ;;
-  esac
-  return 1
-}
-
-cleanup() {
-  rm -f "$TMP_BREWFILE"
-}
-trap cleanup EXIT
-
-has_cask() {
-  brew list --cask "$1" >/dev/null 2>&1
-}
-
-has_app() {
-  [ -d "/Applications/$1" ] || [ -d "$HOME/Applications/$1" ]
-}
-
-should_skip_manual_cask() {
-  case "$1" in
-    microsoft-edge)
-      has_cask "$1" || has_app "Microsoft Edge.app"
-      ;;
-    zed)
-      has_cask "$1" || has_app "Zed.app"
-      ;;
-    clash-verge-rev)
-      has_cask "$1" || has_app "Clash Verge.app"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-while IFS= read -r line; do
-  case "$line" in
-    brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
-      token="${line#*\"}"
-      token="${token%\"*}"
-      if is_skipped "$token"; then
-        echo "Skip $token: in private brew skip list."
-        continue
-      fi
-      ;;
-  esac
-  case "$line" in
-    cask\ \"*\")
-      token="${line#cask \"}"
-      token="${token%\"}"
-      if should_skip_manual_cask "$token"; then
-        echo "Skip $token: app already exists outside Homebrew."
-        continue
-      fi
-      ;;
-  esac
-  printf '%s\n' "$line" >> "$TMP_BREWFILE"
-done < "$BREWFILE"
-
-# 2. Additive Profile & Experimental Brewfiles
-EXTRA_BREWFILES=()
-if [ -n "$PRIVATE_DIR" ] && [ -n "$PROFILE" ]; then
-  if [ -f "$PRIVATE_DIR/profiles/$PROFILE/Brewfile" ]; then
-    EXTRA_BREWFILES+=("$PRIVATE_DIR/profiles/$PROFILE/Brewfile")
-  fi
-  if [ -f "$PRIVATE_DIR/profiles/$PROFILE/Brewfile.experimental" ]; then
-    EXTRA_BREWFILES+=("$PRIVATE_DIR/profiles/$PROFILE/Brewfile.experimental")
-  fi
-fi
-
-for extra in "${EXTRA_BREWFILES[@]}"; do
-  echo "Applying extra Brewfile ($PROFILE): $extra"
-  while IFS= read -r line; do
-    case "$line" in
-      brew\ \"*\"|cask\ \"*\"|npm\ \"*\")
-        token="${line#*\"}"
-        token="${token%\"*}"
-        if is_skipped "$token"; then
-          echo "Skip $token: in private brew skip list."
-          continue
-        fi
-        ;;
-    esac
-    case "$line" in
-      cask\ \"*\")
-        token="${line#cask \"}"
-        token="${token%\"}"
-        if should_skip_manual_cask "$token"; then
-          echo "Skip $token: app already exists outside Homebrew."
-          continue
-        fi
-        ;;
-    esac
-    printf '%s\n' "$line" >> "$TMP_BREWFILE"
-  done < "$extra"
 done
 
-brew bundle --file="$TMP_BREWFILE"
+# Homebrew evaluates Ruby/profile inclusions; zb's line parser cannot do so.
+# Taps, casks, npm, services and post-install hooks remain Homebrew-owned.
+if ! command -v zb >/dev/null 2>&1; then
+  brew install zerobrewhq/zerobrew/zerobrew
+fi
+TMP_FORMULAS="$(mktemp)"
+TMP_INFO="$(mktemp)"
+if ! command -v jq >/dev/null 2>&1; then
+  brew install jq
+fi
+trap 'rm -f "$TMP_FORMULAS" "$TMP_INFO"' EXIT
+brew bundle list --file="$DIR/Brewfile" --formula > "$TMP_FORMULAS"
+FORMULAS=()
+while IFS= read -r formula; do
+  [ -n "$formula" ] && FORMULAS+=("$formula")
+done < "$TMP_FORMULAS"
+if [ "${#FORMULAS[@]}" -gt 0 ]; then
+  brew info --json=v2 "${FORMULAS[@]}" > "$TMP_INFO"
+  # Only standalone bottles can transfer ownership without breaking Brew dependents.
+  jq -r '.formulae[] | select(.tap == "homebrew/core" and .versions.bottle == true and .post_install_defined != true and ((.post_install_steps // []) | length) == 0 and .service == null and (.dependencies | length) == 0 and ([.bottle.stable.files[].cellar] | all(. == ":any_skip_relocation"))) | .name' "$TMP_INFO" > "$TMP_FORMULAS"
+fi
+ZB_FORMULAS=()
+while IFS= read -r formula; do
+  [ -n "$formula" ] || continue
+  case " ${HOMEBREW_BUNDLE_BREW_SKIP:-} " in
+    *" $formula "*) continue ;;
+  esac
+  ZB_FORMULAS+=("$formula")
+done < "$TMP_FORMULAS"
+if [ "${#ZB_FORMULAS[@]}" -gt 0 ]; then
+  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" init --no-modify-path
+  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" install "${ZB_FORMULAS[@]}"
+  zb --root "$ZEROBREW_ROOT" --prefix "$ZEROBREW_PREFIX" doctor
+  # Docker discovers plugins separately from PATH; expose the relocated bottles.
+  for formula in "${ZB_FORMULAS[@]}"; do
+    case "$formula" in
+      docker-buildx|docker-compose)
+        mkdir -p "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
+        ln -sfn "$ZEROBREW_PREFIX/lib/docker/cli-plugins/$formula" "${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins/$formula"
+        ;;
+    esac
+  done
+  BREW_INSTALLED="$(brew list --formula)"
+  for formula in "${ZB_FORMULAS[@]}"; do
+    if ! printf '%s\n' "$BREW_INSTALLED" | /usr/bin/grep -Fxq "$formula"; then
+      continue
+    fi
+    dependents="$(brew uses --installed "$formula")"
+    if [ -n "$dependents" ]; then
+      echo "Cannot transfer $formula: still required by Homebrew: $dependents" >&2
+      exit 1
+    fi
+    brew uninstall "$formula"
+  done
+  export HOMEBREW_BUNDLE_BREW_SKIP="${HOMEBREW_BUNDLE_BREW_SKIP:-} ${ZB_FORMULAS[*]}"
+fi
+brew bundle install --no-upgrade --file="$DIR/Brewfile"

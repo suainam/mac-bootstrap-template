@@ -73,14 +73,36 @@ network. Keep network IDs, managed addresses, and host-specific SSH routing in
 the private parent, for example under `private/zerotier/` and
 `private/shell/ssh_config.d/`. Never copy those values into this template.
 
-A machine can opt out of individual `Brewfile` entries without forking the
-public file. `scripts/brew-bundle.sh` drops any `brew`/`cask`/`npm` token
-listed in `private/brew.skip` (one token per line, `#` comments allowed,
-resolved via `$MAC_BOOTSTRAP_PRIVATE_DIR`, then `../private/`) plus the
-space-separated `$MAC_BOOTSTRAP_BREW_SKIP` environment variable. Skipped
-entries are reported as `Skip <token>` and never reach `brew bundle`.
-`scripts/doctor-manifest.json` marks the same casks `optional` so
-`make doctor` reports `skip` instead of `missing`.
+Environment-specific additions belong in `private/profiles/<profile>/Brewfile`
+and its `Brewfile.experimental` symlink. The public Brewfile evaluates these
+once through Homebrew's Ruby DSL; legacy `brew.skip` files are not consumed.
+Temporary opt-outs use native `HOMEBREW_BUNDLE_BREW_SKIP` and
+`HOMEBREW_BUNDLE_CASK_SKIP` variables.
+
+`scripts/brew-bundle.sh` installs zerobrew through the official Homebrew tap.
+Eligible dependency-free core bottles without services or post-install steps
+transfer to zb. After installation and `zb doctor`, normal `brew uninstall`
+removes the corresponding Brew copy. Migration stops if Brew dependents remain;
+it never uses `--ignore-dependencies`. Other formulas, casks, taps and npm stay
+Homebrew-owned. Keep `brew` available; do not alias it to `zb`.
+Docker Compose/Buildx bottles are linked into `$DOCKER_CONFIG/cli-plugins`
+(default: `$HOME/.docker/cli-plugins`) so `docker compose` and `docker buildx`
+remain discoverable after the Brew copies are removed.
+
+Shell sources set `ZEROBREW_ROOT` and `ZEROBREW_PREFIX` (default:
+`/opt/zerobrew` for both home and work) and prefer its `bin`/`sbin`.
+The prefix must be at most 13 characters to fit macOS Mach-O relocation paths.
+On each machine, provision the directory once:
+
+```bash
+sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 755 /opt/zerobrew
+```
+
+Then run `scripts/brew-bundle.sh` from the template. Bootstrap invokes
+`zb init --no-modify-path`; `system-upgrade` updates both managers. Verify with
+`zb doctor`, a second bundle run, migrated command execution, and absence of
+transferred packages from `brew list --formula`. Old user-directory stores
+are not automatically deleted; remove them only after short-prefix verification.
 
 Parent `bootstrap.sh`:
 
