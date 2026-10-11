@@ -95,10 +95,22 @@ fi
 
 # Ensure installer PATH includes zerobrew bins, local bins, and Homebrew ahead of system tools
 # without sourcing dotfiles or shell_env (avoiding proxy/nvm side effects).
-for p in "/usr/local/bin" "/opt/homebrew/bin" "$HOME/.local/bin" "$ZEROBREW_PREFIX/sbin" "$ZEROBREW_PREFIX/bin"; do
-  if [[ ":$PATH:" != *":$p:"* ]]; then
-    PATH="$p:$PATH"
+# Moves them to the front even if already present later in PATH.
+prepend_installer_path() {
+  local dir="$1"
+  local cleaned=":$PATH:"
+  cleaned="${cleaned//:$dir:/:}"
+  cleaned="${cleaned#:}"
+  cleaned="${cleaned%:}"
+  if [ -n "$cleaned" ]; then
+    PATH="$dir:$cleaned"
+  else
+    PATH="$dir"
   fi
+}
+
+for p in "/usr/local/bin" "/opt/homebrew/bin" "$HOME/.local/bin" "$ZEROBREW_PREFIX/sbin" "$ZEROBREW_PREFIX/bin"; do
+  prepend_installer_path "$p"
 done
 export PATH
 
