@@ -78,6 +78,30 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
+# Prefix permission preflight: check short path before mutating package or workspace state
+export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
+export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
+
+if [ "${#ZEROBREW_PREFIX}" -gt 13 ]; then
+  echo "ZEROBREW_PREFIX must be at most 13 characters on macOS: $ZEROBREW_PREFIX" >&2
+  exit 2
+fi
+
+if [ ! -d "$ZEROBREW_ROOT" ] || [ ! -w "$ZEROBREW_ROOT" ]; then
+  echo "Create a user-owned zerobrew directory before bootstrap:" >&2
+  echo "sudo install -d -o \"\$(id -un)\" -g \"\$(id -gn)\" -m 755 \"$ZEROBREW_ROOT\"" >&2
+  exit 2
+fi
+
+# Ensure installer PATH includes zerobrew bins, local bins, and Homebrew ahead of system tools
+# without sourcing dotfiles or shell_env (avoiding proxy/nvm side effects).
+for p in "/usr/local/bin" "/opt/homebrew/bin" "$HOME/.local/bin" "$ZEROBREW_PREFIX/sbin" "$ZEROBREW_PREFIX/bin"; do
+  if [[ ":$PATH:" != *":$p:"* ]]; then
+    PATH="$p:$PATH"
+  fi
+done
+export PATH
+
 echo "=== Create work directories ==="
 mkdir -p ~/work/{projects,data,notebooks,scripts,config,tmp}
 
