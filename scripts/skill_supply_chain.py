@@ -145,6 +145,12 @@ def cmd_update_bundles(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
     )
     failures = [result for result in fetches if result.returncode != 0]
+    for result in failures:
+        print(f"bundle fetch failed: {result.destination.name} (exit {result.returncode})", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout, file=sys.stderr)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
     blocked = sum(len(result.blocked) for result in promotions)
     print(
         f"updated external bundles: fetched={len(fetches) - len(failures)} "

@@ -75,7 +75,7 @@ enabled bundle only when its catalog or source directories are missing, so a
 fresh checkout can self-bootstrap while ordinary refreshes remain local. Use
 `skill-update` to refresh an existing bundle from upstream.
 
-The fetch command uses `npx skills@latest add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent-skills/external/quarantine/<source>/<skill>/`.
+The fetch command uses `npx --yes skills@latest add <ref> --skill <skill> --agent universal --copy --yes` in an isolated temporary work directory, then moves the result into `agent-skills/external/quarantine/<source>/<skill>/`.
 
 For a bundle, use the bundle entry point instead:
 
@@ -83,7 +83,7 @@ For a bundle, use the bundle entry point instead:
 make skill-fetch-bundle SOURCE=mattpocock-skills
 ```
 
-This runs `npx skills@latest add https://github.com/mattpocock/skills --all
+This runs `npx --yes skills@latest add https://github.com/mattpocock/skills --all
 --agent universal --copy --yes` only inside a temporary work directory, then
 writes the candidate source and its catalog to
 `.agent-state/skill-candidates/mattpocock-skills/`. It never overwrites active
@@ -99,6 +99,15 @@ may use `gate.auto_update: true` to accept a changed upstream hash without a
 new manual approval. New or unregistered skills, scripts, missing approval
 baselines, higher-risk content, and gate/audit failures remain blocked in the
 candidate directory. The active catalog is rewritten only after promotion.
+The core `ponytail` entry opts into this policy; its disabled companion skills
+do not. `LOW` is the configured risk ceiling, not a fresh scan of every
+upstream revision. Text-only updates may still change agent behavior.
+Automatic promotion does not register new skills or enable disabled ones.
+
+Fetches pass `--yes` to both npx (package installation) and skills (skill
+installation). Without the npx flag, cold caches can stall on a hidden
+confirmation until the 120-second intake timeout. Failed bundle updates report
+the source, exit code and captured command output; they do not distribute.
 
 The daily update entry point is:
 
@@ -108,7 +117,7 @@ make system-upgrade
 
 It requires a real interactive terminal, updates Homebrew and then the
 manifest-managed global npm packages in that same terminal before refreshing
-the configured source (default: `mattpocock-skills`) and distributing approved
+all enabled bundles (or the source selected by `SKILL_SOURCE`) and distributing approved
 skills. Homebrew owns any sudo prompt; the wrapper does not capture, store, or
 supply passwords. Set `BREW_BIN`, `PYTHON_BIN`, or `SKILL_SOURCE` only when the
 local installation needs a non-default executable or bundle.

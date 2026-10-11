@@ -3,6 +3,7 @@ tap "rtk-ai/tap"
 tap "anomalyco/tap"
 tap "wangnov/tap"
 tap "can1357/tap"
+tap "zerobrewhq/zerobrew"
 
 # ========== CLI 核心 ==========
 brew "git"
@@ -12,6 +13,7 @@ brew "tree"
 brew "ripgrep"
 brew "fd"
 brew "ast-grep"
+brew "zerobrew"
 brew "neovim"
 brew "tree-sitter-cli"
 # ========== Shell 增强 ==========
@@ -85,8 +87,8 @@ npm "js-yaml"
 # 见 python/requirements-common.txt
 
 # ========== 动态加载环境与体验层 (Native Inclusion) ==========
-private_dir = ENV["MAC_BOOTSTRAP_PRIVATE_DIR"] || File.expand_path("../../private", __FILE__)
-profile = ENV["MAC_BOOTSTRAP_PROFILE"]
+private_dir = ENV["HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR"] || ENV["MAC_BOOTSTRAP_PRIVATE_DIR"] || File.expand_path("../../private", __FILE__)
+profile = ENV["HOMEBREW_MAC_BOOTSTRAP_PROFILE"] || ENV["MAC_BOOTSTRAP_PROFILE"]
 if profile.nil? || profile.empty?
   profile_script = File.expand_path("scripts/resolve-profile.sh", __dir__)
   if File.executable?(profile_script)

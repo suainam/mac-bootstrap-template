@@ -13,8 +13,9 @@ DISPATCH_SOURCE ?= $(HOME)/.local/src/Dispatch
 .PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent install-maintenance-agents unload-maintenance-agents system-patrol \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
-	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
-	omp-extensions dispatch-install dispatch-upgrade dispatch-status dispatch-doctor dispatch-uninstall \
+ 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	package-migrate \
+ 	omp-extensions dispatch-install dispatch-upgrade dispatch-status dispatch-doctor dispatch-uninstall \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
 	theme-switch theme-list proxy-on proxy-off cold-start obsidian-kit ghostty-font-repair \
 	external-tools devspace-check devspace-run devspace-doctor devspace-tunnel \
@@ -431,7 +432,10 @@ skill-snapshot:
 skill-refresh: skill-check skill-ensure-bundles skill-distribute
 
 system-upgrade:
-	./scripts/system-upgrade.sh
+	./scripts/system-upgrade.sh $(if $(UPGRADE_ONLY),--only $(UPGRADE_ONLY),)
+
+package-migrate:
+	./scripts/brew-bundle.sh migrate
 
 skill-check:
 	$(PYTHON) scripts/skill_supply_chain.py check

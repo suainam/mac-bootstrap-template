@@ -46,6 +46,7 @@ def build_skills_sh_fetch_command(skill: SkillRef) -> list[str]:
         raise RegistryError(f"external skill source missing ref: {skill.source_id}")
     return [
         "npx",
+        "--yes",
         "skills@latest",
         "add",
         skill.ref,
@@ -63,6 +64,7 @@ def build_skills_sh_bundle_fetch_command(bundle: SkillBundle) -> list[str]:
         raise RegistryError(f"unsupported external bundle fetcher for {bundle.source_id}: {bundle.fetcher}")
     return [
         "npx",
+        "--yes",
         "skills@latest",
         "add",
         bundle.ref,

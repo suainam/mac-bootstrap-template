@@ -26,68 +26,53 @@ def tokens_split(text: str) -> list[str]:
     return [token for token in text.split() if token]
 
 
-def declared_brew_formulas() -> set[str]:
-    """Return active formula declarations; commented Brewfile lines are optional."""
-    formulas: set[str] = set()
-    for raw in (Path(TEMPLATE) / "Brewfile").read_text().splitlines():
-        line = raw.strip()
-        if line.startswith('brew "') and line.endswith('"'):
-            name = line[len('brew "'):-1]
-            # brew list --formula outputs the short name for tapped formulae (e.g. opencode-v2)
-            formulas.add(name.split("/")[-1])
-    return formulas
+def brew_bundle_env() -> dict[str, str]:
+    env = os.environ.copy()
+    template_path = Path(TEMPLATE)
+    private_dir = env.get("HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR") or env.get("MAC_BOOTSTRAP_PRIVATE_DIR")
+    if not private_dir:
+        candidate = template_path.parent / "private"
+        if candidate.is_dir():
+            private_dir = str(candidate.resolve())
+    profile = env.get("HOMEBREW_MAC_BOOTSTRAP_PROFILE") or env.get("MAC_BOOTSTRAP_PROFILE")
+    if not profile:
+        resolver = template_path / "scripts" / "resolve-profile.sh"
+        if resolver.is_file() and os.access(resolver, os.X_OK):
+            probe_env = env.copy()
+            if private_dir:
+                probe_env["MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+            res = subprocess.run([str(resolver)], capture_output=True, text=True, check=False, env=probe_env)
+            if res.returncode == 0 and res.stdout.strip():
+                profile = res.stdout.strip()
+    if private_dir:
+        env["MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+        env["HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+    if profile:
+        env["MAC_BOOTSTRAP_PROFILE"] = profile
+        env["HOMEBREW_MAC_BOOTSTRAP_PROFILE"] = profile
+    return env
 
+
+def declared_brew_formulas() -> set[str]:
+    """Return active formula declarations evaluated by Homebrew Bundle."""
+    brewfile = Path(TEMPLATE) / "Brewfile"
+    res = subprocess.run(
+        ["brew", "bundle", "list", f"--file={brewfile}", "--formula"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=brew_bundle_env(),
+    )
+    if res.returncode != 0:
+        raise RuntimeError(f"brew bundle list failed: {(res.stderr or res.stdout).strip()}")
+    return {line.strip().split("/")[-1] for line in res.stdout.splitlines() if line.strip()}
 
 def brew_skip_tokens() -> set[str]:
-    """Return Brewfile tokens the machine opted out of.
-
-    Mirrors scripts/brew-bundle.sh: $MAC_BOOTSTRAP_BREW_SKIP plus
-    private/brew.skip resolved via $MAC_BOOTSTRAP_PRIVATE_DIR, then
-    ../private/, then template private/.
-    """
-    tokens: set[str] = set(tokens_split(os.environ.get("MAC_BOOTSTRAP_BREW_SKIP", "")))
-    private_dir_path = None
-    if os.environ.get("MAC_BOOTSTRAP_PRIVATE_DIR"):
-        p = Path(os.environ["MAC_BOOTSTRAP_PRIVATE_DIR"])
-        if p.is_dir():
-            private_dir_path = p
-    if not private_dir_path:
-        parent_p = Path(TEMPLATE, "..", "private")
-        if parent_p.is_dir():
-            private_dir_path = parent_p
-
-    if private_dir_path:
-        profile = os.environ.get("MAC_BOOTSTRAP_PROFILE", "")
-        if not profile:
-            script = Path(TEMPLATE, "scripts", "resolve-profile.sh")
-            if script.is_file() and os.access(script, os.X_OK):
-                res = subprocess.run(
-                    [str(script)],
-                    capture_output=True,
-                    text=True,
-                    env={**os.environ, "MAC_BOOTSTRAP_PRIVATE_DIR": str(private_dir_path)},
-                    check=False,
-                )
-                if res.returncode == 0 and res.stdout.strip():
-                    profile = res.stdout.strip()
-        if not profile:
-            for profile_file in [private_dir_path / "current_profile", private_dir_path / "profile"]:
-                if profile_file.is_file():
-                    profile = profile_file.read_text().strip()
-                    break
-        candidates = [private_dir_path / "brew.skip"]
-        if profile:
-            candidates.append(private_dir_path / "profiles" / profile / "brew.skip")
-            candidates.append(private_dir_path / f"brew.{profile}.skip")
-        for path in candidates:
-            try:
-                text = path.read_text()
-            except OSError:
-                continue
-            for raw in text.splitlines():
-                line = raw.split("#", 1)[0].strip()
-                tokens.update(tokens_split(line))
-    return tokens
+    """Return native Homebrew Bundle opt-outs."""
+    return set(tokens_split(
+        os.environ.get("HOMEBREW_BUNDLE_BREW_SKIP", "") + " "
+        + os.environ.get("HOMEBREW_BUNDLE_CASK_SKIP", "")
+    ))
 
 def require_tmux_live_socket() -> None:
     if "tmux" not in declared_brew_formulas():

@@ -78,6 +78,44 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
+# Prefix permission preflight: check short path before mutating package or workspace state
+export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
+export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
+
+if [ "${#ZEROBREW_PREFIX}" -gt 13 ]; then
+  echo "ZEROBREW_PREFIX must be at most 13 characters on macOS: $ZEROBREW_PREFIX" >&2
+  exit 2
+fi
+
+for path in "$ZEROBREW_ROOT" "$ZEROBREW_PREFIX"; do
+  if [ ! -d "$path" ] || [ ! -w "$path" ]; then
+    echo "Create a user-owned zerobrew directory before bootstrap:" >&2
+    echo "sudo install -d -o \"\$(id -un)\" -g \"\$(id -gn)\" -m 755 \"$path\"" >&2
+    exit 2
+  fi
+done
+
+# Ensure installer PATH includes zerobrew bins, local bins, and Homebrew ahead of system tools
+# without sourcing dotfiles or shell_env (avoiding proxy/nvm side effects).
+# Moves them to the front even if already present later in PATH.
+prepend_installer_path() {
+  local dir="$1"
+  local cleaned=":$PATH:"
+  cleaned="${cleaned//:$dir:/:}"
+  cleaned="${cleaned#:}"
+  cleaned="${cleaned%:}"
+  if [ -n "$cleaned" ]; then
+    PATH="$dir:$cleaned"
+  else
+    PATH="$dir"
+  fi
+}
+
+for p in "/usr/local/bin" "/opt/homebrew/bin" "$HOME/.local/bin" "$ZEROBREW_PREFIX/sbin" "$ZEROBREW_PREFIX/bin"; do
+  prepend_installer_path "$p"
+done
+export PATH
+
 echo "=== Create work directories ==="
 mkdir -p ~/work/{projects,data,notebooks,scripts,config,tmp}
 
