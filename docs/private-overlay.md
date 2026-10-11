@@ -79,15 +79,36 @@ once through Homebrew's Ruby DSL; legacy `brew.skip` files are not consumed.
 Temporary opt-outs use native `HOMEBREW_BUNDLE_BREW_SKIP` and
 `HOMEBREW_BUNDLE_CASK_SKIP` variables.
 
-`scripts/brew-bundle.sh` installs zerobrew through the official Homebrew tap.
-Eligible dependency-free core bottles without services or post-install steps
-transfer to zb. After installation and `zb doctor`, normal `brew uninstall`
-removes the corresponding Brew copy. Migration stops if Brew dependents remain;
-it never uses `--ignore-dependencies`. Other formulas, casks, taps and npm stay
-Homebrew-owned. Keep `brew` available; do not alias it to `zb`.
-Docker Compose/Buildx bottles are linked into `$DOCKER_CONFIG/cli-plugins`
-(default: `$HOME/.docker/cli-plugins`) so `docker compose` and `docker buildx`
-remain discoverable after the Brew copies are removed.
+Package manager ownership between Homebrew (`brew`) and Zerobrew (`zb`) is authoritative
+and declared in `scripts/package-ownership.json`. The 21 standalone core tools (including
+`uv`, `docker-compose`, `docker-buildx`, `ast-grep`, `gh`, `ripgrep`'s sibling `fd`, etc.)
+are assigned to Zerobrew; all other formulae default to Homebrew ownership.
+Upstream bottle metadata changes do not dynamically reroute formula ownership.
+
+Normal daily reconciliation (`scripts/brew-bundle.sh` or `scripts/brew-bundle.sh install`)
+never silently transfers or uninstalls existing Homebrew packages. If a package declared for
+Zerobrew is currently installed in Homebrew, reconciliation halts with a clear error
+directing the user to run explicit migration:
+
+```bash
+scripts/brew-bundle.sh migrate
+# or: make package-migrate
+```
+
+Explicit migration executes the following safe sequence:
+1. **Global Preflight**: Checks `brew uses --installed` for all candidate packages before
+   making any mutations. If any candidate is required by an installed Homebrew dependent
+   outside the migration set, migration halts immediately without uninstalling anything.
+   Migration never uses `--ignore-dependencies`.
+2. **Zerobrew Installation**: Initializes and installs candidate bottles in `ZEROBREW_ROOT`.
+3. **Runtime & Plugin Verification**: Runs `zb doctor`, verifies binary existence in `bin`/`sbin`,
+   and symlinks Docker plugins (`docker-compose`, `docker-buildx`) into
+   `$DOCKER_CONFIG/cli-plugins` (default: `$HOME/.docker/cli-plugins`).
+4. **Safe Removal**: Uninstalls old copies from Homebrew only after successful install and verification.
+
+For recovery, if a package needs to be restored to Homebrew, install it with `brew install <formula>`
+and, if desired, remove the zb copy with `zb uninstall <formula>`. Docker plugins remain discoverable
+via `$HOME/.docker/cli-plugins` across manager boundaries.
 
 Shell sources set `ZEROBREW_ROOT` and `ZEROBREW_PREFIX` (default:
 `/opt/zerobrew` for both home and work) and prefer its `bin`/`sbin`.
