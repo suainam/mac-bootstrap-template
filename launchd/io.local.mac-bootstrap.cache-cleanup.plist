@@ -13,12 +13,8 @@
   <false/>
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Weekday</key>
-    <integer>0</integer>
     <key>Hour</key>
-    <integer>4</integer>
-    <key>Minute</key>
-    <integer>15</integer>
+    <integer>21</integer>
   </dict>
   <key>StandardOutPath</key>
   <string>/tmp/mac-bootstrap-cache-cleanup.log</string>

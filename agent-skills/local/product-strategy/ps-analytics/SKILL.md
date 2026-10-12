@@ -1,6 +1,6 @@
 ---
 name: ps-analytics
-description: "Product Strategy 统一数据分析全流程规范：涵盖 ODPS SQL 性能优化（MAX_PT/防笛卡尔积）、多模型优先级掩盖排查、环形跨年时间区间解析、PyODPS 高效抽取以及高质量报表交付。"
+description: "Product Strategy 统一数据分析全流程规范：涵盖 ODPS SQL 性能优化（MAX_PT/防笛卡尔积/物理中间表去CTE）、多省区分批纳管与双日期基准、历史零漂移三段切片回归、多模型优先级掩盖排查、环形跨年时间区间解析、PyODPS 高效抽取以及高质量报表交付。"
 disable-model-invocation: true
 ---
 
@@ -29,16 +29,20 @@ disable-model-invocation: true
 ### 3. 原生性能 SQL 与防笛卡尔积聚合 (ODPS Performance)
 - **必须使用原生 `MAX_PT()`**：严禁书写 `WHERE stat_date = (SELECT MAX(stat_date) ...)` 嵌套子查询；所有表统一采用 `WHERE stat_date = MAX_PT('project.table_name')`。
 - **多版本店品并发去重**：针对月度组货、季度组货、新老店多版本并发导致的底层店品重复，关联合并层必须前置 `GROUP BY store_code, item_code` 并配合 `MAX(CASE WHEN ...)` 聚合收敛。
+- **物理中间表去 CTE 加速**：对涉及数千万行候选底表的多轮查询与走势分析，严禁在下游重复书写多层 Hash Join CTE；统一采用配置表（`analysis_*_config_df`）加自动物化物理中间表（`analysis_*_active_base_df`）架构，查询直连中间物理表，消除重复全表扫描。
 - **计算加速选择**：批量与复杂关联优先切换至 `os.environ['ODPS_PROJECT'] = 'dsl_ads'`，避免常规队列资源饥饿。
-- 详见 [ODPS 性能与防踩坑规约](references/ODPS_OPTIMIZATION_RULES.md)。
+- 详见 [ODPS 性能与防踩坑规约](references/ODPS_OPTIMIZATION_RULES.md) 及 [分批纳管与物理中间表规约](references/BATCH_ROLLOUT_REGRESSION_SOP.md)。
 
 ### 4. 交叉验证、同口径对比与抽样核查 (Adversarial Check)
 - **同口径对比**：先对齐结果表、实体粒度、筛选条件、指标定义及分区日期；优先比较同一业务日。日期无法对齐时，明确标出各自日期并说明时点差异，不把差异直接归因于省区或策略。
 - **分子与分母同时报告**：比例必须写明分子、分母、比例；行动建议类指标还需同时给出每店/每实体建议量和全量明细量，避免把全量明细行误读为建议执行量。区分候选字段与最终执行/建议字段（如 `return_amt_process > 0` 与最终 `return_amt > 0`）。
 - **汇总用加权比例**：合并多个省区时用 `SUM(分子) / SUM(分母)`，不可简单平均各省区比例；同时报告每店等实体标准化指标，检查分母构成是否不同。
 - **解释构成差异**：比例差异需拆解分子、分母及每实体数量；只有比例与标准化绝对量都支持时，才称构成“相近”。结论注明高低差值（百分点）与日期/范围限制。
+- **批次双日期基准 (Dual-Date Baseline)**：分批执行业务中，必须严格区分测算基准日 `rlt_stat_date`（关联策略底表与考核分母）与业务执行日 `launch_date`（库存走势行级截断门禁），防止考核分母归零或未启动数据提前渗透。
+- **历史零漂移三段切片回归 (Zero-Drift Three-Stage Slice)**：重构底层底表或扩展批次时，必须在全量真实数据上核验三个关键切片：T1 历史纯净切片（历史指标 100% 绝对一致、零漂移）、T2 渐进过渡切片（新批次平滑接入、未生效省区严格隔离）、T3 当前全量切片（总规模与降幅完整达标）。
 - **多维断言**：每次过滤、Join 或聚合后，强制断言行数变化与关键指标守恒。
 - **真实抽样反查**：从最终交付结果中按大区/品类随机抽取样本（如 10~20 条），返回 MaxCompute 底层明细表穿透复核，确保证据链 100% 闭环。
+- 详见 [分批纳管、中间物理表加速与历史零漂移回归规约](references/BATCH_ROLLOUT_REGRESSION_SOP.md)。
 
 ### 5. 本地轻量化呈现与保真导出 (Export & Delivery)
 - **环形跨年时间区间智能合并**：对具有连续跨年特征的月份列表（如 `[1, 2, 10, 11, 12]`），必须格式化为业务友好的 **`10月-次年2月`**，杜绝生硬割裂输出。算法见 [环形跨年解析手册](references/CIRCULAR_SEASON_PARSER.md)。
@@ -60,6 +64,7 @@ disable-model-invocation: true
   - `references/DATA_QUALITY_CHECKLIST.md` — 深度数据质量校验清单
   - `references/CIRCULAR_SEASON_PARSER.md` — 跨年环形时间段解析与呈现
   - `references/SQL_DIFF_DIAGNOSIS_GUIDE.md` — SQL 差异排查、MaxCompute 类型陷阱与门禁
+  - `references/BATCH_ROLLOUT_REGRESSION_SOP.md` — 多省区分批纳管、物理中间表加速与历史零漂移回归规约
 - **完整样例**:
   - `examples/01_pure_premature_seasonal_audit.sql` — 多表对齐、MAX_PT 优化与绝对纯季节性穿透 SQL
   - `examples/02_export_excel_with_dedup.py` — PyODPS 高效抽取并导出 15万+ 行格式化 Excel 模板

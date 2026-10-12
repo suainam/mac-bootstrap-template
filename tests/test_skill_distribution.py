@@ -311,12 +311,12 @@ def test_project_internal_skill_distributes_to_agents_and_claude_project_views()
 
     actions = build_distribution_actions(registry, targets, ROOT)
 
-    project_actions = [action for action in actions if action.skill_name == "ps-analytics"]
+    project_actions = [action for action in actions if action.skill_name == "odps-table-ingest"]
     assert len(project_actions) == 2
     assert all(action.target_agent is None for action in project_actions)
     assert {action.target_path.as_posix() for action in project_actions} == {
-        f"{Path.home()}/work/projects/product_strategy/.agents/skills/ps-analytics",
-        f"{Path.home()}/work/projects/product_strategy/.claude/skills/ps-analytics",
+        f"{Path.home()}/work/projects/product_strategy/.agents/skills/odps-table-ingest",
+        f"{Path.home()}/work/projects/product_strategy/.claude/skills/odps-table-ingest",
     }
     assert len({action.source for action in project_actions}) == 1
 
@@ -360,7 +360,7 @@ def test_project_views_link_to_the_same_canonical_skill_source(tmp_path: Path):
             load_targets(DEFAULT_TARGETS),
             ROOT,
         )
-        if action.skill_name == "ps-analytics"
+        if action.skill_name == "odps-table-ingest"
     ]
 
     apply_distribution_actions(actions)

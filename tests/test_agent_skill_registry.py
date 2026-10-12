@@ -49,9 +49,10 @@ def test_product_strategy_project_skills_are_registered():
     registry = load_sources()
     sources = registry["sources"]
     assert "franchise_store" not in registry.get("projects", {})
-    assert sources["local-product-strategy"]["skills"]["ps-analytics"]["projects"] == [
+    assert sources["local-product-strategy"]["skills"]["odps-table-ingest"]["projects"] == [
         "product_strategy"
     ]
+    assert sources["local-product-strategy"]["skills"]["ps-analytics"]["scope"] == "global"
     assert sources["local-product-strategy"]["skills"]["web-video-presentation-delivery"]["projects"] == [
         "product_strategy"
     ]

@@ -45,6 +45,9 @@ if ! command -v npm >/dev/null 2>&1; then
   echo "ERROR: npm not installed. Install Node first (for example: brew install node)." >&2
   exit 1
 fi
+if [ -z "${NODE_EXTRA_CA_CERTS:-}" ] && [ -f /etc/ssl/cert.pem ]; then
+  export NODE_EXTRA_CA_CERTS="/etc/ssl/cert.pem"
+fi
 
 if [ "$ASSUME_YES" -eq 0 ]; then
   if [ "$UPGRADE" -eq 1 ]; then
@@ -73,16 +76,39 @@ if [ -z "$installed_json" ]; then
 fi
 installed_names="$(printf '%s' "$installed_json" | node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(0,"utf8")||"{}"); for (const name of Object.keys(data.dependencies||{})) console.log(name);')"
 
+outdated_json="$(npm -g outdated --json 2>/dev/null || true)"
+is_outdated() {
+  local target="$1"
+  [ -n "$outdated_json" ] || return 1
+  printf '%s' "$outdated_json" | node -e "
+    const fs = require('fs');
+    try {
+      const data = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
+      process.exit(data['$target'] ? 0 : 1);
+    } catch { process.exit(1); }
+  "
+}
+
 for pkg in "${PACKAGES[@]}"; do
   pkg_name="$pkg"
-  if [ "$UPGRADE" -eq 1 ]; then
-    echo "  UPGRADE: $pkg"
-    npm install -g "$pkg"
-  elif printf '%s\n' "$installed_names" | grep -Fxq "$pkg_name"; then
-    echo "  SKIP: $pkg already installed"
+  if printf '%s\n' "$installed_names" | grep -Fxq "$pkg_name"; then
+    if [ "$UPGRADE" -eq 1 ]; then
+      if is_outdated "$pkg_name"; then
+        echo "  UPGRADE: $pkg (outdated)"
+        npm install -g "$pkg" || {
+          echo "  WARN: Failed to upgrade $pkg, continuing with remaining packages..." >&2
+        }
+      else
+        echo "  SKIP: $pkg already at latest version"
+      fi
+    else
+      echo "  SKIP: $pkg already installed"
+    fi
   else
     echo "  INSTALL: $pkg"
-    npm install -g "$pkg"
+    npm install -g "$pkg" || {
+      echo "  WARN: Failed to install $pkg, continuing with remaining packages..." >&2
+    }
   fi
 done
 
