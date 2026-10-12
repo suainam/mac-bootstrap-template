@@ -83,8 +83,13 @@ This installs Homebrew dependencies from `Brewfile` (filtered by machine profile
 shell, Git, Neovim, Ghostty, Herdr, and Hammerspoon configurations, configures Docker/npm proxy settings,
 and runs safe cache cleanup.
 It does not delete project virtual environments or files under `~/work`.
+Default bootstrap links Colima configuration without auto-starting Colima or registering a launch agent.
+When a local Docker runtime is needed, start it explicitly via `COLIMA_PROXY_PORT=<port> make colima-start`
+(with prerequisites and health checks documented in [`docs/colima-local.md`](docs/colima-local.md)).
 If Clash Verge already exists under `/Applications` from a manual install, bootstrap skips that cask.
 Manual app notes and `make doctor` cask overrides live in [`docs/manual-apps.md`](docs/manual-apps.md).
+Homebrew/zerobrew coexistence and profile migration follow
+[`docs/private-overlay.md`](docs/private-overlay.md); `brew` remains available.
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 Neovim / LazyVim notes live in `editors/neovim/README.md`.
@@ -187,24 +192,35 @@ and runtime state.
 
 ## 全生态统一升级 (System Upgrade)
 
-系统将声明式包管理器与工具链聚合至 `system-upgrade`（`scripts/system-upgrade.sh`），严格遵循单一真源原则：Homebrew 通过分层 `Brewfile` 声明对齐与升级，npm globals 经清单管理，Python 工具由 `uv` 托管，Agent 技能供应链分发及 Chrome Gemini 补丁全自动串联。
+`make system-upgrade` 聚合已有包与工具升级，按请求阶段输出结果。默认要求交互终端，可能出现升级确认或 sudo；不自动重试失败阶段。包归属以 `scripts/package-ownership.json` 为准。
 
 ```mermaid
 flowchart TD
-    All[统一生态升级入口: make system-upgrade] --> Brew[Homebrew 分层 Brewfile 对齐 + 升级 + 清理]
+    All[统一生态升级入口: make system-upgrade] --> Brew[Homebrew + zb 对齐、升级与清理]
     All --> Bun[Bun 全局 CLI: opencode2 等]
     All --> UV[uv tool: ansible 等 CLI 工具]
     All --> NPM[npm globals 清单驱动升级]
     All --> Skills[技能全生态: global skills + 供应链 external bundles]
     All --> Chrome[Chrome Gemini 补丁自动保持]
-    All --> Mihomo[Mihomo 守护进程订阅同步]
 ```
 
 - **编排与分工**:
-  - **`make system-upgrade`（日常唯一推荐入口）**: 权威入口，依序对齐分层 Brewfile 并升级 $\rightarrow$ 更新 Bun 全局包 $\rightarrow$ `uv tool upgrade` $\rightarrow$ manifest npm globals $\rightarrow$ global skills $\rightarrow$ `make patch-chrome-gemini`（Chrome Gemini 补丁） $\rightarrow$ Agent 技能供应链刷新与分发。
+  - **`make system-upgrade`（日常唯一推荐入口）**: 权威入口，依序执行声明式升级阶段：
+    1. `packages`: 对齐分层 Brewfile 并升级（若 `brew-bundle.sh install` 对齐发现所有权冲突则阻断后续升级，不盲目清理）、执行 `brew upgrade`、`zb update/upgrade/gc` 及 `brew cleanup`。
+    2. `bun`: 更新 Bun 全局 CLI 工具（未安装则明确跳过）。
+    3. `uv`: `uv tool upgrade --all` 升级独立 Python 工具（未安装则明确跳过）。
+    4. `claude`: 更新 Claude Code 插件市场（未安装则明确跳过）。
+    5. `npm`: 基于 `template/agent/npm-global-packages.txt` 清单驱动升级全局包。
+    6. `skills`: 刷新 global skills 与 Agent 技能供应链（上游更新失败则阻止分发，阶段标为失败）。
+    7. `chrome`: `make patch-chrome-gemini` 保持 Chrome Gemini 特性。
+  - **部分失败与结果摘要**: 独立阶段在前序阶段失败后继续执行；命令最后输出各阶段 `[ SUCCESS ]` / `[ FAILED ]` / `[ SKIPPED ]` 摘要及失败原因。任一阶段失败则整体退出非零，失败绝不伪装为成功。
+  - **定向重跑与恢复**: 支持通过 `--only` 参数或 Makefile 变量 `UPGRADE_ONLY` 指定单一或多个阶段进行恢复重试，避免重跑已成功的无关步骤。
 - **使用方式**:
   ```bash
-  make system-upgrade   # 全生态声明式升级 + Chrome 补丁 + 技能供应链分发
+  make system-upgrade                            # 默认全生态升级
+  ./scripts/system-upgrade.sh --only npm,skills  # 仅运行指定阶段
+  make system-upgrade UPGRADE_ONLY=npm,skills    # Make 入口参数传递
+  ./scripts/system-upgrade.sh --yes              # 仅绕过入口 TTY 检查；工具确认或 sudo 仍可能需要终端
   ```
 
 ## Public template + private overlay
@@ -502,7 +518,7 @@ Template subsystem boundaries:
 
 - `agent/`: agent runtime configuration, rules, prompts, extensions, and quality gates
 - `agent-skills/`: Skill source registry, local Skill sources, external quarantine, and distribution targets
-- `data-hub/`: knowledge persistence, SQLite state, lifecycle workflows, summaries, and projections
+- `data-hub/`: optional knowledge persistence, SQLite state, lifecycle workflows, summaries, and projections (instance configuration and credentials belong to the private overlay and are not pulled into default bootstrap)
 
 The global `knowledge-lifecycle-manager` Skill is the Data Hub control entrypoint; implementation and subsystem runbooks live under [`data-hub/`](data-hub/README.md).
 

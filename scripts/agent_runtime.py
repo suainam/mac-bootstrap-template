@@ -612,6 +612,15 @@ def _runtime_state_paths(
         return None
     return state.context.runtime_state_paths(event.session_id, registry.log_dir)
 
+def _profile_gates(
+    state: RepositoryState,
+    registry: RuntimeRegistry,
+) -> tuple[str, ...]:
+    assert state.profile is not None
+    if state.profile not in registry.profiles:
+        raise ConfigurationError(f"unknown profile: {state.profile}")
+    return registry.profiles[state.profile]
+
 
 def build_plan(
     event: StandardEvent,
@@ -637,14 +646,12 @@ def build_plan(
             "matched_gate_details": [],
             "skipped_gates": [],
         }
-    assert state.profile is not None
-    if state.profile not in registry.profiles:
-        raise ConfigurationError(f"unknown profile: {state.profile}")
+    profile_gates = _profile_gates(state, registry)
 
     matched: list[str] = []
     matched_details: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
-    for gate_id in registry.profiles[state.profile]:
+    for gate_id in profile_gates:
         gate = registry.gates[gate_id]
         if event.event_type not in gate.events:
             skipped.append({"gate_id": gate_id, "reason": "event-type"})
@@ -1076,6 +1083,39 @@ def doctor(registry_path: Path, cwd: Path | None = None) -> int:
     registry = load_registry(registry_path)
     resolved_cwd = (cwd or Path.cwd()).expanduser().resolve()
     state = resolve_repository_state(resolved_cwd)
+
+    effective_gates: list[str] = []
+    event_plans: dict[str, Any] = {}
+    if state.enabled:
+        profile_gates = _profile_gates(state, registry)
+        effective_gates = list(profile_gates)
+
+        event_types: list[str] = []
+        for gate_id in profile_gates:
+            gate = registry.gates[gate_id]
+            for event_type in gate.events:
+                if event_type not in event_types:
+                    event_types.append(event_type)
+
+        for event_type in event_types:
+            dummy_event = StandardEvent(
+                schema_version=EVENT_SCHEMA_VERSION,
+                event_type=event_type,
+                event_id="doctor-check",
+                source_adapter="doctor",
+                timestamp="1970-01-01T00:00:00Z",
+                cwd=resolved_cwd,
+                target_paths=(),
+                session_id="doctor-session",
+                metadata={},
+            )
+            plan = build_plan(dummy_event, state, registry)
+            event_plans[event_type] = {
+                "matched_gates": plan["matched_gates"],
+                "matched_gate_details": plan["matched_gate_details"],
+                "skipped_gates": plan["skipped_gates"],
+            }
+
     _print_json(
         {
             "registry_path": str(registry.path),
@@ -1087,6 +1127,8 @@ def doctor(registry_path: Path, cwd: Path | None = None) -> int:
             "git_context": state.context.to_dict() if state.context else None,
             "known_profiles": list(registry.profiles),
             "known_gates": list(registry.gates),
+            "effective_gates": effective_gates,
+            "planned_gates": event_plans,
             "diagnostic_limit": registry.diagnostic_limit,
             "diagnostic_bytes": registry.diagnostic_bytes,
             "log_dir": str(registry.log_dir),

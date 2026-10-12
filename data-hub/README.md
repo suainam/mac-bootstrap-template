@@ -1,5 +1,7 @@
 # Agent Data Hub
 
+> 说明：Data Hub 明确为可选能力；其实例配置（如 `data_hub.runtime.jsonc` 与存储路径）属于私有父仓（private overlay），不拉入默认 bootstrap 安装。
+
 把个人知识自动化拆成两个并列系统：
 
 - `llm_wiki`：理解 `daily` 与外部资料，提供 search / graph / review / API context

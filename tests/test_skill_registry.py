@@ -118,9 +118,13 @@ def test_registry_contains_external_and_internal_examples():
     )
     assert knowledge.source_path == Path("agent-skills/local/global/knowledge-lifecycle-manager")
 
-    python_skill = registry.skills[("local-product-strategy", "ps-analytics")]
+    python_skill = registry.skills[("local-product-strategy", "odps-table-ingest")]
     assert python_skill.scope == "project"
     assert python_skill.projects == ("product_strategy",)
+
+    ps_analytics = registry.skills[("local-product-strategy", "ps-analytics")]
+    assert ps_analytics.scope == "global"
+    assert "claude" in ps_analytics.agents
 
     baoyu = registry.skills[("baoyu-skills", "baoyu-diagram")]
     assert baoyu.source_type == "external"

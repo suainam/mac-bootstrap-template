@@ -657,6 +657,7 @@
           "gate": {
             "manual_approval": true,
             "approved": true,
+            "auto_update": true,
             "approved_by": "dsl",
             "approved_at": "2026-09-25",
             "approved_hash": "sha256:388ec42c9551f47d12555b1723b1af67b8fe18a8afbea0a8db96cfb870eb3803",

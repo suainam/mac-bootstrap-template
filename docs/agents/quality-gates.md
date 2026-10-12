@@ -44,7 +44,7 @@ CLI 提供五个公开动作：
 - `dry-run`：输出计划但不执行。
 - `explain`：输出 effective profile、Git context、命中 gate 和跳过原因，不执行 gate。
 - `explain-context`：不读取事件，只输出当前 Git context；可通过 `--session-id` 同时解释隔离后的运行状态路径。
-- `doctor`：输出 registry、schema、Git context、仓库 opt-in 和预算状态。
+- `doctor`：输出 registry、schema、Git context、仓库 opt-in、预算状态与生效的 gate 计划；若仓库启用但 profile 未知则返回非零错误。不执行任何 gate 或修改配置。
 
 独立 resolver 的 `resolve` 动作只校验 context，成功输出 0 字节；只有
 `explain-context` 才序列化 context：

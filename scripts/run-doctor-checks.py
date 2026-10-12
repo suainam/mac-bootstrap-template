@@ -11,9 +11,15 @@ import sys
 from pathlib import Path
 
 
-def run_stdout(*args: str) -> str:
-    result = subprocess.run(args, capture_output=True, text=True, check=False)
-    return result.stdout.strip()
+def run_checked(args: list[str], *, env: dict[str, str] | None = None) -> list[str]:
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, check=False, env=env)
+    except OSError as exc:
+        raise RuntimeError(f"command failed ({' '.join(args)}): {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"command failed ({' '.join(args)}): {detail}")
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
 def has_command(name: str) -> bool:
@@ -25,12 +31,15 @@ def has_app(name: str) -> bool:
 
 
 def has_npm(name: str) -> bool:
-    result = subprocess.run(
-        ["npm", "list", "-g", name, "--depth=0"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["npm", "list", "-g", name, "--depth=0"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except OSError:
+        return False
     return result.returncode == 0
 
 
@@ -41,21 +50,136 @@ def read_json(path: Path) -> dict:
         return {}
 
 
+def bundle_env(template_root: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    private_dir = env.get("HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR") or env.get("MAC_BOOTSTRAP_PRIVATE_DIR")
+    if not private_dir:
+        candidate = template_root.parent / "private"
+        if candidate.is_dir():
+            private_dir = str(candidate.resolve())
+
+    profile = env.get("HOMEBREW_MAC_BOOTSTRAP_PROFILE") or env.get("MAC_BOOTSTRAP_PROFILE")
+    if not profile:
+        for rel in ("scripts/resolve-profile.sh", "resolve-profile.sh"):
+            resolver = template_root / rel
+            if resolver.is_file() and os.access(resolver, os.X_OK):
+                probe_env = env.copy()
+                if private_dir:
+                    probe_env["MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+                res = subprocess.run(
+                    [str(resolver)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    env=probe_env,
+                )
+                if res.returncode == 0 and res.stdout.strip():
+                    profile = res.stdout.strip()
+                    break
+
+    if private_dir:
+        env["MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+        env["HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR"] = private_dir
+    if profile:
+        env["MAC_BOOTSTRAP_PROFILE"] = profile
+        env["HOMEBREW_MAC_BOOTSTRAP_PROFILE"] = profile
+    return env
+
+
+def evaluate_brewfile(brewfile: Path, env: dict[str, str] | None = None) -> dict[str, list[str]]:
+    active_env = env if env is not None else bundle_env(brewfile.parent)
+    flag_map = {
+        "brew": "--formula",
+        "cask": "--cask",
+        "npm": "--npm",
+    }
+    return {
+        key: run_checked(["brew", "bundle", "list", f"--file={brewfile}", flag], env=active_env)
+        for key, flag in flag_map.items()
+    }
+
+
 def brew_list(kind: str) -> set[str]:
-    return {line for line in run_stdout("brew", "list", kind).splitlines() if line}
+    args = ["brew", "list", kind]
+    if kind == "--formula":
+        args.append("--full-name")
+    return set(run_checked(args))
 
 
-def parse_brewfile(path: Path) -> dict[str, list[str]]:
-    buckets: dict[str, list[str]] = {"brew": [], "cask": [], "npm": []}
-    for raw in path.read_text().splitlines():
-        line = raw.strip()
-        for key in buckets:
-            prefix = f'{key} "'
-            if line.startswith(prefix) and line.endswith('"'):
-                buckets[key].append(line[len(prefix):-1])
-                break
-    return buckets
+def zb_list(root: str | None = None) -> set[str]:
+    zb_root = root or os.environ.get("ZEROBREW_ROOT", "/opt/zerobrew")
+    lines = run_checked(["zb", "--root", zb_root, "list"])
+    return {line.split()[0] for line in lines if line.split()}
 
+
+def load_zb_ownership(template_root: Path) -> set[str]:
+    manifest_override = os.environ.get("PACKAGE_OWNERSHIP_MANIFEST")
+    path = Path(manifest_override) if manifest_override else template_root / "scripts" / "package-ownership.json"
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"missing or invalid ownership manifest ({path}): {exc}") from exc
+    formulas = data.get("zerobrew_formulas")
+    if not isinstance(formulas, list) or not all(isinstance(item, str) and item for item in formulas):
+        raise RuntimeError(f"invalid zerobrew_formulas in ownership manifest ({path})")
+    return set(formulas)
+
+
+def expected_formula_owner(name: str, zb_manifest: set[str]) -> str:
+    normalized = name.removeprefix("homebrew/core/").removeprefix("core/")
+    if name in zb_manifest or normalized in zb_manifest:
+        return "zb"
+    return "brew"
+
+
+def check_formulae(
+    declared_formulas: list[str],
+    brew_installed: set[str],
+    zb_installed: set[str],
+    zb_manifest: set[str],
+    formula_cmd_overrides: dict[str, str],
+) -> bool:
+    missing = False
+    print("=== Formulae ===")
+    for name in declared_formulas:
+        expected = expected_formula_owner(name, zb_manifest)
+        short_name = name.split("/")[-1]
+        normalized = name.removeprefix("homebrew/core/").removeprefix("core/")
+        in_brew = normalized in brew_installed
+        if "/" not in name:
+            in_brew = in_brew or any(item.endswith("/" + name) for item in brew_installed)
+        in_zb = name in zb_installed or (
+            short_name in zb_installed and (expected == "zb" or short_name not in zb_manifest)
+        )
+
+        if in_brew and in_zb:
+            print(f"duplicate formula owner: {name} (installed in both brew and zb, expected {expected})")
+            missing = True
+            continue
+
+        if expected == "zb":
+            if in_zb:
+                alias = formula_cmd_overrides.get(name)
+                suffix = f" [cmd: {alias}]" if alias else ""
+                print(f"ok formula: {name} (zb){suffix}")
+            elif in_brew:
+                print(f"wrong formula owner: {name} (installed in brew, expected zb)")
+                missing = True
+            else:
+                print(f"missing formula: {name} (expected zb)")
+                missing = True
+        else:
+            if in_brew:
+                alias = formula_cmd_overrides.get(name)
+                suffix = f" [cmd: {alias}]" if alias else ""
+                print(f"ok formula: {name} (brew){suffix}")
+            elif in_zb:
+                print(f"wrong formula owner: {name} (installed in zb, expected brew)")
+                missing = True
+            else:
+                print(f"missing formula: {name} (expected brew)")
+                missing = True
+    return missing
 
 def expected_symlink_targets(template_root: Path, manifest: dict) -> dict[Path, Path]:
     managed = manifest.get("managed_symlinks", {})
@@ -138,39 +262,40 @@ def check_chrome_gemini(manifest: dict) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 3:
-        print("Usage: run-doctor-checks.py <Brewfile> <manifest.json> [profile_brewfiles...]", file=sys.stderr)
+    args = [arg for arg in argv[1:] if arg != "--strict"]
+    if len(args) != 2 or any(arg.startswith("-") for arg in args):
+        print("Usage: run-doctor-checks.py <Brewfile> <manifest.json> [--strict]", file=sys.stderr)
         return 2
 
-    brewfile = Path(argv[1])
+    brewfile = Path(args[0])
     template_root = brewfile.parent
-    manifest = json.loads(Path(argv[2]).read_text())
-    declared = parse_brewfile(brewfile)
-    for extra in argv[3:]:
-        extra_path = Path(extra)
-        if extra_path.is_file():
-            extra_declared = parse_brewfile(extra_path)
-            for k in declared:
-                declared[k].extend(extra_declared.get(k, []))
+    try:
+        manifest = json.loads(Path(args[1]).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Doctor error: invalid doctor manifest ({args[1]}): {exc}", file=sys.stderr)
+        print("Doctor failed.")
+        return 1
 
-    formulas = brew_list("--formula")
-    casks = brew_list("--cask")
+    try:
+        zb_manifest = load_zb_ownership(template_root)
+        declared = evaluate_brewfile(brewfile)
+        brew_formulas = brew_list("--formula")
+        zb_formulas = zb_list()
+        casks = brew_list("--cask")
+    except RuntimeError as exc:
+        print(f"Doctor error: {exc}", file=sys.stderr)
+        print("Doctor failed.")
+        return 1
+
     formula_cmd_overrides = manifest.get("formula_command_overrides", {})
     cask_overrides = manifest.get("cask_overrides", {})
-    missing = False
-
-    print("=== Formulae ===")
-    for name in declared["brew"]:
-        if name in formulas:
-            print(f"ok formula: {name}")
-            continue
-        cmd = formula_cmd_overrides.get(name, name)
-        if has_command(cmd):
-            print(f"ok command: {cmd} (formula: {name})")
-        else:
-            print(f"missing formula: {name}")
-            missing = True
-
+    missing = check_formulae(
+        declared["brew"],
+        brew_formulas,
+        zb_formulas,
+        zb_manifest,
+        formula_cmd_overrides,
+    )
     print("=== Standalone CLIs ===")
     for item in manifest.get("standalone_clis", []):
         commands = item.get("commands", [])
