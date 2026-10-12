@@ -193,3 +193,30 @@ def test_jev_browser_use_is_registered_in_external_tools_doctor_and_skills():
     skill_md = read_template("agent-skills", "local", "global", "jev-browser-use", "SKILL.md")
     assert "name: jev-browser-use" in skill_md
     assert "browser.open" in skill_md
+
+
+def test_herdr_qa_and_hpm_review_migrated_to_jev_browser_use_and_omp_browser():
+    verify_ui = read_template(
+        "agent-skills", "local", "global", "herdr-nvim-qa-workspace", "scripts", "verify-ui.py"
+    )
+    assert "jev-browser-use" in verify_ui
+    assert "playwriter" not in verify_ui.lower()
+
+    herdr_skill = read_template(
+        "agent-skills", "local", "global", "herdr-nvim-qa-workspace", "SKILL.md"
+    )
+    assert "jev-browser-use" in herdr_skill
+    assert "playwriter" not in herdr_skill.lower()
+
+    hpm_skill = read_template(
+        "agent-skills", "local", "product-strategy", "hpm-performance-review", "SKILL.md"
+    )
+    assert "jev-browser-use" in hpm_skill
+    assert "browser.open" in hpm_skill
+    assert "playwriter" not in hpm_skill.lower()
+
+    hpm_script = read_template(
+        "agent-skills", "local", "product-strategy", "hpm-performance-review", "scripts", "hpm_browser_sync.js"
+    )
+    assert "jev-browser-use" in hpm_script
+    assert "playwriter" not in hpm_script.lower()

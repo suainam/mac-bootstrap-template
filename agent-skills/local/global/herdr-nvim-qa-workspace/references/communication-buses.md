@@ -71,33 +71,35 @@ herdr pane run qa-runtime "npm test"
 herdr pane wait-output qa-runtime --match "PASS" --timeout 15000
 ```
 
-## Bus 3: `agent` <-> `Playwriter` (Deterministic Browser Testing)
+## Bus 3: `agent` <-> `jev-browser-use` (Deterministic Browser Testing)
 
 ```python
+from __future__ import annotations
 import subprocess
-import re
-import json
 from contextlib import contextmanager
 
 @contextmanager
-def playwriter_session(browser: str = "headless"):
-    """With-bound browser context: auto-deletes session on exit/error."""
-    out = subprocess.check_output(["playwriter", "session", "new", "--browser", browser], text=True)
-    match = re.search(r"Session (\d+)", out)
-    if not match:
-        raise RuntimeError(f"Session creation failed: {out}")
-    session_id = match.group(1)
+def jev_browser_session(connect_url: str | None = None):
+    """With-bound browser context: auto-stops headless daemon on exit/error."""
+    base_cmd = ["jev-browser-use"]
+    if connect_url:
+        base_cmd.extend(["--connect", connect_url])
+    else:
+        base_cmd.append("--headless")
     try:
-        yield session_id
+        yield base_cmd
     finally:
-        subprocess.run(["playwriter", "session", "delete", session_id], check=False, stdout=subprocess.DEVNULL)
+        if not connect_url:
+            subprocess.run(["jev-browser-use", "stop"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 ```
+
+> **OMP `eval` Fallback**: Inside OMP, `const tab = await browser.open({ name: "qa", url: "http://localhost:5173" }); const obs = await tab.observe(); await tab.close();` can be used in-process without spawning a CLI subprocess.
 
 ## Bus 4: `agent` -> `nvim` (Non-Intrusive Completion Toast)
 
 ```bash
 # Send non-intrusive bottom notification without altering buffer or cursor
 SOCK_PATH="/tmp/nvim-herdr-${PROJECT_NAME:-cloud-st}.sock"
-nvim --server "$SOCK_PATH" --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, Playwriter verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || \
-nvim --server /tmp/nvim-herdr.sock --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, Playwriter verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || true
+nvim --server "$SOCK_PATH" --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, jev-browser-use verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || \
+nvim --server /tmp/nvim-herdr.sock --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, jev-browser-use verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || true
 ```

@@ -19,7 +19,7 @@ Load this file when working with terminal-browser inside herdr panes, kitty grap
 Pick in this order:
 
 1. CDP attach to the daemon's `--remote-debugging-port` (screenshot/eval/ARIA, zero cost to the human).
-2. Playwriter headless via `scripts/verify-ui.py`.
+2. `jev-browser-use` headless via `scripts/verify-ui.py` (or OMP `eval` `browser.open` fallback).
 3. `pngpaste` for human clipboard annotations.
 
 `herdr pane read` returns text/ANSI only — it can NEVER show rendered pixels; do not try.

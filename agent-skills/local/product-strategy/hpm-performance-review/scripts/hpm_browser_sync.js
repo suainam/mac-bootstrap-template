@@ -1,19 +1,25 @@
 /**
- * HPM 季度绩效表单自动化录入脚本模板 (Playwriter Runner)
- * 
- * 用法:
- *   1. playwriter session new
- *   2. playwriter -s <SESSION_ID> -e "$(cat skills/hpm-performance-review/scripts/hpm_browser_sync.js)"
+ * HPM 季度绩效表单自动化录入脚本模板 (jev-browser-use / OMP eval browser Runner)
+ *
+ * 用法 (jev-browser-use Chrome 扩展 Relay 模式):
+ *   1. jev-browser-use relay
+ *   2. jev-browser-use --connect http://127.0.0.1:9222 -e "$(cat skills/hpm-performance-review/scripts/hpm_browser_sync.js)"
+ *
+ * 备选 (OMP eval browser 模式):
+ *   在 OMP eval(language="js") 中先通过 const page = (await browser.open({ name: "hpm", app: { relay: true, target: "/achievement" } })) 获取标签页并运行。
  */
 
 async function syncHpmReview() {
-  const pages = page.context().pages();
-  const hpmPage = pages.find(p => p.url().includes("/achievement"));
-  if (!hpmPage) {
-    console.error("未找到 HPM 责任书标签页，请先在 Chrome 中打开目标页面。");
+  const hpmPage = typeof browser !== "undefined" && typeof browser.getPage === "function"
+    ? await browser.getPage("main")
+    : page;
+  if (!hpmPage || !hpmPage.url().includes("/achievement")) {
+    console.error("未找到 HPM 责任书标签页，请先在 jev-browser-use 标签组或 Chrome 中打开目标 /achievement 页面。");
     return;
   }
-  await hpmPage.bringToFront();
+  if (typeof hpmPage.bringToFront === "function") {
+    await hpmPage.bringToFront();
+  }
   console.log("已激活标签页:", await hpmPage.title());
 
   // 1. 确保切换到“绩效责任书”Tab

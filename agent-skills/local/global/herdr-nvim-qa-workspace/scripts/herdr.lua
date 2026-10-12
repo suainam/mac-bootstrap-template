@@ -3,7 +3,7 @@
 --
 -- Provides:
 --   <leader>aa  (visual mode) - Dispatch selection to agent pane
---   :HerdrQA                - Run Playwriter ARIA verification on current project
+--   :HerdrQA                - Run jev-browser-use ARIA verification on current project
 
 local M = {}
 
@@ -30,7 +30,7 @@ end, { desc = "Dispatch Selection to Herdr Agent" })
 -- :HerdrQA - run verify-ui.py and show result in a floating notification
 vim.api.nvim_create_user_command("HerdrQA", function(opts)
 	local url = opts.args ~= "" and opts.args or "http://localhost:5173"
-	vim.notify("[herdr] running Playwriter verification on " .. url, vim.log.levels.INFO)
+	vim.notify("[herdr] running jev-browser-use verification on " .. url, vim.log.levels.INFO)
 
 	vim.fn.jobstart({ "python3", QA_SCRIPT, url }, {
 		on_exit = function(_, exit_code)
@@ -49,6 +49,6 @@ vim.api.nvim_create_user_command("HerdrQA", function(opts)
 			end
 		end,
 	})
-end, { nargs = "?", desc = "Run Herdr Playwriter QA verification" })
+end, { nargs = "?", desc = "Run Herdr jev-browser-use QA verification" })
 
 return M

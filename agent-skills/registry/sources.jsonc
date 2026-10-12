@@ -1210,7 +1210,7 @@
         "herdr-nvim-qa-workspace": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "基于 Herdr + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构"
+          "reason": "基于 Herdr + Neovim + jev-browser-use 的 3 窗格终端 IDE 与自动化 QA 联动架构"
         },
         "monid": {
           "scope": "global",
