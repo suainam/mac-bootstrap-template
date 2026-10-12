@@ -10,6 +10,5 @@ context-mode
 reasonix
 @monid-ai/cli
 @moonrepo/cli
-playwriter
 pnpm
 js-yaml

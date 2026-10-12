@@ -22,6 +22,8 @@ def test_npm_global_manifest_tracks_agent_clis_without_openwiki():
     ]:
         assert package in content
     assert "openwiki" not in content
+    assert "playwriter" not in content
+    assert "playwriter" not in read("Brewfile")
 
 
 def test_install_npm_global_packages_script_uses_manifest_and_upgrade_mode():

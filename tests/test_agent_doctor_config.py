@@ -220,3 +220,11 @@ def test_herdr_qa_and_hpm_review_migrated_to_jev_browser_use_and_omp_browser():
     )
     assert "jev-browser-use" in hpm_script
     assert "playwriter" not in hpm_script.lower()
+
+
+def test_playwriter_skill_is_retired_to_deprecated():
+    import json
+    sources = json.loads(read_template("agent-skills", "registry", "sources.jsonc"))
+    assert "playwriter" not in sources["sources"]["local-global"]["skills"]
+    deprecated = sources["sources"]["local-deprecated"]["skills"]["playwriter"]
+    assert deprecated["distribution_state"] == "disabled"

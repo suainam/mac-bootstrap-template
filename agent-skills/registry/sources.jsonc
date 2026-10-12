@@ -1192,11 +1192,6 @@
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "Vendored from nickbasile gist 61a425b0bd79b01649d1ce35c1ffaa47 (upstream author of the plan->implement->explain workflow); not on skills.sh so quarantine fetcher cannot ingest; content verbatim v1.0.0"
         },
-        "playwriter": {
-          "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "基于 Playwright 和 Chrome 扩展的实时浏览器自动化与无头网页交互技能"
-        },
         "jev-browser-use": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
@@ -1264,6 +1259,12 @@
           "distribution_state": "disabled",
           "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "User-confirmed drop"
+        },
+        "playwriter": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "retired in favor of jev-browser-use and OMP eval browser fallback"
         }
       }
     },
