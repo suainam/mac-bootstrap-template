@@ -24,8 +24,8 @@ local function get_config()
   local content = f:read("*a")
   f:close()
 
-  -- 去除 JSONC 可能包含的单行注释
-  content = content:gsub("//[^\r\n]*", "")
+  -- 去除 JSONC 可能包含的单行注释（只去除独立行注释，避免误伤 https://）
+  content = content:gsub("\n%s*//[^\r\n]*", "\n"):gsub("^%s*//[^\r\n]*", "")
 
   local ok, parsed = pcall(vim.json.decode, content)
   if not ok or type(parsed) ~= "table" then
@@ -108,6 +108,9 @@ vim.api.nvim_create_user_command("ImgBedPaste", upload_clipboard_image, {
   desc = "Upload clipboard image to ImgBed and insert Markdown",
 })
 
+vim.keymap.set("n", "<leader>ip", upload_clipboard_image, {
+  desc = "Paste clipboard image to ImgBed",
+})
 return {
   {
     "LazyVim/LazyVim",
