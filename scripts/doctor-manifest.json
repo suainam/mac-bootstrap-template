@@ -10,6 +10,12 @@
         "agy",
         "antigravity"
       ]
+    },
+    {
+      "name": "jev-browser-use",
+      "commands": [
+        "jev-browser-use"
+      ]
     }
   ],
   "chrome_gemini": {

@@ -1,52 +1,61 @@
 #!/usr/bin/env python3
-"""verify-ui.py: Playwriter ARIA snapshot verification with deterministic lifecycle.
+"""verify-ui.py: jev-browser-use ARIA snapshot verification with deterministic lifecycle.
 
 Usage:
-    verify-ui.py [url] [--browser headless|chromium]
+    verify-ui.py [url] [--connect http://127.0.0.1:9222]
 
-Defaults to http://localhost:5173 (Vite dev server).
+Defaults to http://localhost:5173 (Vite dev server) in isolated headless browser "herdr-qa".
+Inside OMP, `browser.open({ name: "qa", url })` + `tab.observe()` can also be used as an in-process fallback.
 """
+from __future__ import annotations
+
 import subprocess
-import re
-import json
 import sys
 from contextlib import contextmanager
 
 
 @contextmanager
-def playwriter_session(browser: str = "headless"):
-    """With-bound Playwriter session; guarantees deletion on exit/error."""
-    out = subprocess.check_output(
-        ["playwriter", "session", "new", "--browser", browser], text=True
-    )
-    match = re.search(r"Session (\d+)", out)
-    if not match:
-        raise RuntimeError(f"Failed to create session: {out}")
-    session_id = match.group(1)
+def jev_browser_session(connect_url: str | None = None, browser_name: str = "herdr-qa"):
+    """With-bound jev-browser-use session; stops only the named browser on exit/error."""
+    base_cmd = ["jev-browser-use"]
+    if connect_url:
+        base_cmd.extend(["--connect", connect_url])
+    else:
+        base_cmd.extend(["-b", browser_name, "--headless"])
     try:
-        yield session_id
+        yield base_cmd
     finally:
-        subprocess.run(
-            ["playwriter", "session", "delete", session_id],
-            check=False, stdout=subprocess.DEVNULL,
-        )
+        if not connect_url:
+            subprocess.run(
+                ["jev-browser-use", "stop", browser_name],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
 
 
 def main():
-    url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:5173"
-    browser = sys.argv[sys.argv.index("--browser") + 1] if "--browser" in sys.argv else "headless"
+    url = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "http://localhost:5173"
+    connect_url = (
+        sys.argv[sys.argv.index("--connect") + 1]
+        if "--connect" in sys.argv
+        else None
+    )
 
-    with playwriter_session(browser) as sid:
+    with jev_browser_session(connect_url) as base_cmd:
         cmd = f"""
-await page.goto("{url}", {{ timeout: 10000 }});
-console.log(JSON.stringify({{
-  tree: await snapshot({{ page }}),
-  logs: await getLatestLogs({{ page, sinceLastCall: true }}),
-}}));
+const qaPage = await browser.getPage("herdr-qa");
+const logs = [];
+qaPage.on("console", m => {{
+  if (m.type() === "error" || m.type() === "warning") logs.push(m.text());
+}});
+qaPage.on("pageerror", e => logs.push(String(e)));
+await qaPage.goto("{url}", {{ timeout: 10000 }});
+const tree = await qaPage.snapshot({{ interactive: true }});
+console.log(JSON.stringify({{ tree, logs }}));
 """
-        res = subprocess.check_output(["playwriter", "-s", sid, "-e", cmd], text=True)
-        # Print only last non-empty line (JSON payload)
-        lines = [l for l in res.strip().split("\n") if l.strip()]
+        res = subprocess.check_output([*base_cmd, "-e", cmd], text=True)
+        lines = [line for line in res.strip().split("\n") if line.strip()]
         print(lines[-1])
 
 

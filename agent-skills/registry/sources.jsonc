@@ -1192,10 +1192,10 @@
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "Vendored from nickbasile gist 61a425b0bd79b01649d1ce35c1ffaa47 (upstream author of the plan->implement->explain workflow); not on skills.sh so quarantine fetcher cannot ingest; content verbatim v1.0.0"
         },
-        "playwriter": {
+        "jev-browser-use": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "基于 Playwright 和 Chrome 扩展的实时浏览器自动化与无头网页交互技能"
+          "reason": "基于 AuroraPixel/jev-browser-use 常驻 daemon 与 TypeSafe Jev 决策循环的实时浏览器自动化技能（含 Chrome 扩展 relay 与 OMP eval browser 备选）"
         },
         "public-api-index": {
           "scope": "global",
@@ -1205,7 +1205,7 @@
         "herdr-nvim-qa-workspace": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "基于 Herdr + Neovim + Playwriter 的 3 窗格终端 IDE 与自动化 QA 联动架构"
+          "reason": "基于 Herdr + Neovim + jev-browser-use 的 3 窗格终端 IDE 与自动化 QA 联动架构"
         },
         "monid": {
           "scope": "global",
@@ -1259,6 +1259,12 @@
           "distribution_state": "disabled",
           "agents": ["claude", "codex", "opencode", "cross-agent"],
           "reason": "User-confirmed drop"
+        },
+        "playwriter": {
+          "scope": "global",
+          "distribution_state": "disabled",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "retired in favor of jev-browser-use and OMP eval browser fallback"
         }
       }
     },

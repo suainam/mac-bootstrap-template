@@ -25,6 +25,12 @@
       "name": "officecli",
       "target": "~/.local/bin/officecli",
       "description": "Office document analysis and reporting CLI"
+    },
+    {
+      "name": "jev-browser-use",
+      "target": "~/.local/bin/jev-browser-use",
+      "installer": "scripts/install-jev-browser-use.sh",
+      "description": "Jev-powered browser automation CLI, daemon, and Chrome extension relay (AuroraPixel/jev-browser-use)"
     }
   ],
   "external_apps": [

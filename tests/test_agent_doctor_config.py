@@ -176,3 +176,58 @@ def test_makefile_exposes_devspace_targets_and_checks_script():
     assert "./scripts/devspace-local.sh run" in content
     assert "./scripts/devspace-local.sh doctor" in content
     assert "./scripts/devspace-local.sh tunnel-run" in content
+
+
+def test_jev_browser_use_is_registered_in_external_tools_doctor_and_skills():
+    ext_tools = read_template("manifests", "external-tools.json")
+    assert '"name": "jev-browser-use"' in ext_tools
+    assert '"target": "~/.local/bin/jev-browser-use"' in ext_tools
+    assert '"installer": "scripts/install-jev-browser-use.sh"' in ext_tools
+
+    doctor_manifest = read_template("scripts", "doctor-manifest.json")
+    assert '"jev-browser-use"' in doctor_manifest
+
+    sources = read_template("agent-skills", "registry", "sources.jsonc")
+    assert '"jev-browser-use"' in sources
+
+    skill_md = read_template("agent-skills", "local", "global", "jev-browser-use", "SKILL.md")
+    assert "name: jev-browser-use" in skill_md
+    assert "browser.open" in skill_md
+
+
+def test_herdr_qa_and_hpm_review_migrated_to_jev_browser_use_and_omp_browser():
+    verify_ui = read_template(
+        "agent-skills", "local", "global", "herdr-nvim-qa-workspace", "scripts", "verify-ui.py"
+    )
+    assert "jev-browser-use" in verify_ui
+    assert '["jev-browser-use", "stop", browser_name]' in verify_ui
+    assert "playwriter" not in verify_ui.lower()
+
+    herdr_skill = read_template(
+        "agent-skills", "local", "global", "herdr-nvim-qa-workspace", "SKILL.md"
+    )
+    assert "jev-browser-use" in herdr_skill
+    assert "playwriter" not in herdr_skill.lower()
+
+    hpm_skill = read_template(
+        "agent-skills", "local", "product-strategy", "hpm-performance-review", "SKILL.md"
+    )
+    assert "jev-browser-use" in hpm_skill
+    assert "browser.open" in hpm_skill
+    assert "playwriter" not in hpm_skill.lower()
+
+    hpm_script = read_template(
+        "agent-skills", "local", "product-strategy", "hpm-performance-review", "scripts", "hpm_browser_sync.js"
+    )
+    assert "jev-browser-use" in hpm_script
+    assert "browser.listPages" in hpm_script
+    assert "waitForTimeout" not in hpm_script
+    assert "playwriter" not in hpm_script.lower()
+
+
+def test_playwriter_skill_is_retired_to_deprecated():
+    import json
+    sources = json.loads(read_template("agent-skills", "registry", "sources.jsonc"))
+    assert "playwriter" not in sources["sources"]["local-global"]["skills"]
+    deprecated = sources["sources"]["local-deprecated"]["skills"]["playwriter"]
+    assert deprecated["distribution_state"] == "disabled"
