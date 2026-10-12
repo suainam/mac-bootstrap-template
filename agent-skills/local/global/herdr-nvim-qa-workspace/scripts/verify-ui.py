@@ -4,7 +4,7 @@
 Usage:
     verify-ui.py [url] [--connect http://127.0.0.1:9222]
 
-Defaults to http://localhost:5173 (Vite dev server) in headless mode.
+Defaults to http://localhost:5173 (Vite dev server) in isolated headless browser "herdr-qa".
 Inside OMP, `browser.open({ name: "qa", url })` + `tab.observe()` can also be used as an in-process fallback.
 """
 from __future__ import annotations
@@ -15,19 +15,19 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def jev_browser_session(connect_url: str | None = None):
-    """With-bound jev-browser-use session; guarantees daemon cleanup when headless."""
+def jev_browser_session(connect_url: str | None = None, browser_name: str = "herdr-qa"):
+    """With-bound jev-browser-use session; stops only the named browser on exit/error."""
     base_cmd = ["jev-browser-use"]
     if connect_url:
         base_cmd.extend(["--connect", connect_url])
     else:
-        base_cmd.append("--headless")
+        base_cmd.extend(["-b", browser_name, "--headless"])
     try:
         yield base_cmd
     finally:
         if not connect_url:
             subprocess.run(
-                ["jev-browser-use", "stop"],
+                ["jev-browser-use", "stop", browser_name],
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -44,14 +44,14 @@ def main():
 
     with jev_browser_session(connect_url) as base_cmd:
         cmd = f"""
-const p = await browser.getPage("herdr-qa");
+const qaPage = await browser.getPage("herdr-qa");
 const logs = [];
-p.on("console", m => {{
+qaPage.on("console", m => {{
   if (m.type() === "error" || m.type() === "warning") logs.push(m.text());
 }});
-p.on("pageerror", e => logs.push(String(e)));
-await p.goto("{url}", {{ timeout: 10000 }});
-const tree = await p.snapshot({{ interactive: true }});
+qaPage.on("pageerror", e => logs.push(String(e)));
+await qaPage.goto("{url}", {{ timeout: 10000 }});
+const tree = await qaPage.snapshot({{ interactive: true }});
 console.log(JSON.stringify({{ tree, logs }}));
 """
         res = subprocess.check_output([*base_cmd, "-e", cmd], text=True)

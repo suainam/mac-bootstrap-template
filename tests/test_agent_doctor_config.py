@@ -200,6 +200,7 @@ def test_herdr_qa_and_hpm_review_migrated_to_jev_browser_use_and_omp_browser():
         "agent-skills", "local", "global", "herdr-nvim-qa-workspace", "scripts", "verify-ui.py"
     )
     assert "jev-browser-use" in verify_ui
+    assert '["jev-browser-use", "stop", browser_name]' in verify_ui
     assert "playwriter" not in verify_ui.lower()
 
     herdr_skill = read_template(
@@ -219,6 +220,8 @@ def test_herdr_qa_and_hpm_review_migrated_to_jev_browser_use_and_omp_browser():
         "agent-skills", "local", "product-strategy", "hpm-performance-review", "scripts", "hpm_browser_sync.js"
     )
     assert "jev-browser-use" in hpm_script
+    assert "browser.listPages" in hpm_script
+    assert "waitForTimeout" not in hpm_script
     assert "playwriter" not in hpm_script.lower()
 
 

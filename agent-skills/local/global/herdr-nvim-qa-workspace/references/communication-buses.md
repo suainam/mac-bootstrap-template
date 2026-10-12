@@ -73,24 +73,12 @@ herdr pane wait-output qa-runtime --match "PASS" --timeout 15000
 
 ## Bus 3: `agent` <-> `jev-browser-use` (Deterministic Browser Testing)
 
-```python
-from __future__ import annotations
-import subprocess
-from contextlib import contextmanager
+See [`../scripts/verify-ui.py`](../scripts/verify-ui.py) for the canonical `jev_browser_session` context manager (runs isolated `-b herdr-qa --headless` and stops only `herdr-qa` on exit):
 
-@contextmanager
-def jev_browser_session(connect_url: str | None = None):
-    """With-bound browser context: auto-stops headless daemon on exit/error."""
-    base_cmd = ["jev-browser-use"]
-    if connect_url:
-        base_cmd.extend(["--connect", connect_url])
-    else:
-        base_cmd.append("--headless")
-    try:
-        yield base_cmd
-    finally:
-        if not connect_url:
-            subprocess.run(["jev-browser-use", "stop"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+```bash
+# Run deterministic ARIA snapshot + console error check on default or custom URL:
+python3 scripts/verify-ui.py http://localhost:5173
+python3 scripts/verify-ui.py http://localhost:3000 --connect http://127.0.0.1:9222
 ```
 
 > **OMP `eval` Fallback**: Inside OMP, `const tab = await browser.open({ name: "qa", url: "http://localhost:5173" }); const obs = await tab.observe(); await tab.close();` can be used in-process without spawning a CLI subprocess.
