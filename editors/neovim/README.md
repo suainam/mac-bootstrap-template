@@ -111,6 +111,9 @@ Local startup also adds a yank fallback in `TextYankPost`, so normal yanks such
 as `yy` and `yG` still populate the macOS clipboard even if LazyVim temporarily
 defers the built-in clipboard option during startup.
 
+Mouse capture is explicitly disabled (`vim.opt.mouse = ""`) so terminal multiplexers
+(Herdr / tmux) and macOS handle pane clicking, resizing, and text selection natively.
+
 ## Daily usage
 
 Leader key: `Space`
@@ -130,8 +133,8 @@ Useful keys:
 - `Space g g`: open `lazygit`
 - `Option-h/j/k/l`: move between Neovim splits and `tmux` panes
 - `Space i p`: upload clipboard image to ImgBed (`:ImgBedPaste`, built-in SHA256 dedup & timer)
+- `Space i o`: preview image under cursor using macOS QuickLook (`:ImgBedPreview`)
 - `Space u m`: toggle in-buffer Markdown rich render (`:RenderMarkdown toggle`)
-
 ## Health checks
 
 Useful commands:
