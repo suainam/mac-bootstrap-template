@@ -204,8 +204,60 @@ local function upload_clipboard_image()
   end)
 end
 
+local function preview_image_under_cursor()
+  local line = vim.api.nvim_get_current_line()
+  local target = line:match("!%[.-%]%((https?://[^%)]+)%)")
+    or line:match("!%[.-%]%(([^%)]+)%)")
+    or line:match("(https?://%S+)")
+    or vim.fn.expand("<cfile>")
+
+  if not target or target == "" then
+    vim.notify("未在当前行找到图片链接或路径", vim.log.levels.WARN, { title = "QuickLook" })
+    return
+  end
+
+  if target:match("^https?://") then
+    local cache_dir = vim.fn.stdpath("cache") .. "/imgbed_images"
+    vim.fn.mkdir(cache_dir, "p")
+    local ext = target:match("%.([a-zA-Z0-9]+)$") or "png"
+    local cache_file = cache_dir .. "/" .. vim.fn.sha256(target) .. "." .. ext
+
+    if vim.fn.filereadable(cache_file) == 1 then
+      vim.system({ "qlmanage", "-p", cache_file })
+      return
+    end
+
+    vim.notify("正在拉取图片预览...", vim.log.levels.INFO, { id = "ql_preview", title = "QuickLook", icon = "󰋩" })
+    vim.system({ "curl", "-s", "-L", "-o", cache_file, target }, {}, function(out)
+      vim.schedule(function()
+        if out.code == 0 and vim.fn.filereadable(cache_file) == 1 then
+          vim.notify("已调起 QuickLook 预览", vim.log.levels.INFO, { id = "ql_preview", title = "QuickLook", icon = "󰋩" })
+          vim.system({ "qlmanage", "-p", cache_file })
+        else
+          vim.notify("拉取图片失败: " .. target, vim.log.levels.ERROR, { id = "ql_preview", title = "QuickLook" })
+        end
+      end)
+    end)
+  else
+    local path = vim.fn.expand(target)
+    if vim.fn.filereadable(path) == 1 then
+      vim.system({ "qlmanage", "-p", path })
+    else
+      vim.notify("找不到本地图片文件: " .. path, vim.log.levels.WARN, { title = "QuickLook" })
+    end
+  end
+end
+
 vim.api.nvim_create_user_command("ImgBedPaste", upload_clipboard_image, {
   desc = "Upload clipboard image to ImgBed and insert Markdown",
+})
+
+vim.api.nvim_create_user_command("ImgBedPreview", preview_image_under_cursor, {
+  desc = "Preview image under cursor with macOS QuickLook",
+})
+
+vim.keymap.set("n", "<leader>io", preview_image_under_cursor, {
+  desc = "Preview image under cursor (QuickLook)",
 })
 
 vim.keymap.set({ "n", "v" }, "<leader>ip", upload_clipboard_image, {
@@ -221,6 +273,12 @@ return {
         desc = "Paste clipboard image to ImgBed",
         mode = { "n", "v" },
       },
+      {
+        "<leader>io",
+        preview_image_under_cursor,
+        desc = "Preview image under cursor (QuickLook)",
+        mode = "n",
+  },
     },
   },
 }
