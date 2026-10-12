@@ -129,7 +129,8 @@ Useful keys:
 - `Space c r`: rename
 - `Space g g`: open `lazygit`
 - `Option-h/j/k/l`: move between Neovim splits and `tmux` panes
-- `Space i p`: upload clipboard image to ImgBed and insert Markdown (`:ImgBedPaste`)
+- `Space i p`: upload clipboard image to ImgBed (`:ImgBedPaste`, built-in SHA256 dedup & timer)
+- `Space u m`: toggle in-buffer Markdown rich render (`:RenderMarkdown toggle`)
 
 ## Health checks
 
@@ -159,4 +160,5 @@ Expected state:
 - `config/lua/plugins/core.lua`: core LazyVim overrides
 - `config/lua/plugins/tooling.lua`: tooling/healthcheck noise reduction overrides
 - `config/lua/plugins/imgbed.lua`: CloudFlare-ImgBed clipboard image uploader via `pngpaste` and async `curl`
+- `config/lua/plugins/markdown.lua`: In-buffer Markdown rich rendering via `render-markdown.nvim`
 - `config/lazyvim.json`: LazyVim metadata file

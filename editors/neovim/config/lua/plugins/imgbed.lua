@@ -34,17 +34,71 @@ local function get_config()
 
   return parsed, nil
 end
+local is_uploading = false
+
+local function get_cache_file()
+  return vim.fn.stdpath("cache") .. "/imgbed_hashes.json"
+end
+
+local function load_hash_cache()
+  local f = io.open(get_cache_file(), "r")
+  if not f then
+    return {}
+  end
+  local content = f:read("*a")
+  f:close()
+  local ok, data = pcall(vim.json.decode, content)
+  return (ok and type(data) == "table") and data or {}
+end
+
+local function save_hash_cache(cache)
+  local f = io.open(get_cache_file(), "w")
+  if f then
+    f:write(vim.json.encode(cache))
+    f:close()
+  end
+end
 
 local function upload_clipboard_image()
+  local notif_opts = { id = "imgbed_upload", title = "ImgBed", icon = "󰸭" }
+
+  if is_uploading then
+    vim.notify("已有图片正在上传中，请稍候...", vim.log.levels.WARN, notif_opts)
+    return
+  end
+
   if vim.fn.executable("pngpaste") == 0 then
-    vim.notify("未检测到 pngpaste，请先安装: brew install pngpaste", vim.log.levels.ERROR)
+    vim.notify("未检测到 pngpaste，请先安装: brew install pngpaste", vim.log.levels.ERROR, notif_opts)
     return
   end
 
   local tmp_file = vim.fn.tempname() .. ".png"
   local paste_res = vim.system({ "pngpaste", tmp_file }):wait()
   if paste_res.code ~= 0 then
-    vim.notify("剪切板中没有图片数据", vim.log.levels.WARN)
+    vim.notify("剪切板中没有图片数据", vim.log.levels.WARN, notif_opts)
+    return
+  end
+
+  -- 计算图片文件的 SHA-256 哈希值
+  local img_f = io.open(tmp_file, "rb")
+  local img_bytes = img_f and img_f:read("*a") or ""
+  if img_f then
+    img_f:close()
+  end
+  local img_hash = vim.fn.sha256(img_bytes)
+
+  -- 本地去重缓存检查（秒传）
+  local cache = load_hash_cache()
+  local cached_url = cache[img_hash]
+  if cached_url and cached_url ~= "" then
+    vim.uv.fs_unlink(tmp_file)
+    local md = string.format("![](%s)", cached_url)
+    vim.api.nvim_put({ md }, "c", true, true)
+    vim.notify(
+      string.format("⚡ 命中本地去重缓存 (秒传 0.0s): %s", cached_url),
+      vim.log.levels.INFO,
+      notif_opts
+    )
     return
   end
 
@@ -70,8 +124,28 @@ local function upload_clipboard_image()
   end
   local api_url = host .. "/upload?returnFormat=full"
 
-  vim.notify("正在上传剪切板图片到图床...", vim.log.levels.INFO)
+  local spinner_frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+  local frame_idx = 1
+  local start_time = vim.uv.now()
+  local timer = vim.uv.new_timer()
 
+
+  local function update_notify()
+    local elapsed = (vim.uv.now() - start_time) / 1000
+    local frame = spinner_frames[frame_idx]
+    frame_idx = (frame_idx % #spinner_frames) + 1
+    vim.notify(
+      string.format("%s 正在上传到图床... (%.1fs)", frame, elapsed),
+      vim.log.levels.INFO,
+      notif_opts
+    )
+  end
+
+  update_notify()
+  if timer then
+    timer:start(150, 150, vim.schedule_wrap(update_notify))
+  end
+  is_uploading = true
   vim.system({
     "curl",
     "-s",
@@ -86,19 +160,45 @@ local function upload_clipboard_image()
     vim.uv.fs_unlink(tmp_file)
 
     vim.schedule(function()
+      is_uploading = false
+
+      if timer and timer:is_active() then
+        timer:stop()
+        timer:close()
+      end
+
+      local total_time = (vim.uv.now() - start_time) / 1000
+
       if out.code ~= 0 then
-        vim.notify("图床上传失败: curl 退出码 " .. out.code, vim.log.levels.ERROR)
+        vim.notify(
+          string.format("❌ 图床上传失败: curl 退出码 %d (%.1fs)", out.code, total_time),
+          vim.log.levels.ERROR,
+          notif_opts
+        )
         return
       end
 
       local ok, res = pcall(vim.json.decode, out.stdout or "")
       if ok and type(res) == "table" and res[1] and res[1].src then
         local img_url = res[1].src
+
+        -- 写入本地去重缓存
+        cache[img_hash] = img_url
+        save_hash_cache(cache)
+
         local md = string.format("![](%s)", img_url)
         vim.api.nvim_put({ md }, "c", true, true)
-        vim.notify("图片上传成功并已插入: " .. img_url, vim.log.levels.INFO)
+        vim.notify(
+          string.format("✅ 图片上传成功并已插入 (%.1fs)", total_time),
+          vim.log.levels.INFO,
+          notif_opts
+        )
       else
-        vim.notify("图床响应解析失败: " .. (out.stdout or ""), vim.log.levels.ERROR)
+        vim.notify(
+          string.format("❌ 图床响应解析失败: %s (%.1fs)", out.stdout or "", total_time),
+          vim.log.levels.ERROR,
+          notif_opts
+        )
       end
     end)
   end)
@@ -108,7 +208,7 @@ vim.api.nvim_create_user_command("ImgBedPaste", upload_clipboard_image, {
   desc = "Upload clipboard image to ImgBed and insert Markdown",
 })
 
-vim.keymap.set("n", "<leader>ip", upload_clipboard_image, {
+vim.keymap.set({ "n", "v" }, "<leader>ip", upload_clipboard_image, {
   desc = "Paste clipboard image to ImgBed",
 })
 return {
@@ -119,7 +219,7 @@ return {
         "<leader>ip",
         upload_clipboard_image,
         desc = "Paste clipboard image to ImgBed",
-        mode = "n",
+        mode = { "n", "v" },
       },
     },
   },
