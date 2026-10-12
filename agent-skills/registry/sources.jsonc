@@ -1197,6 +1197,11 @@
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "基于 Playwright 和 Chrome 扩展的实时浏览器自动化与无头网页交互技能"
         },
+        "jev-browser-use": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "基于 AuroraPixel/jev-browser-use 常驻 daemon 与 TypeSafe Jev 决策循环的实时浏览器自动化技能（含 Chrome 扩展 relay 与 OMP eval browser 备选）"
+        },
         "public-api-index": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],

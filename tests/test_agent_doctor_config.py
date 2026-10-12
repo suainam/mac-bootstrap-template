@@ -176,3 +176,20 @@ def test_makefile_exposes_devspace_targets_and_checks_script():
     assert "./scripts/devspace-local.sh run" in content
     assert "./scripts/devspace-local.sh doctor" in content
     assert "./scripts/devspace-local.sh tunnel-run" in content
+
+
+def test_jev_browser_use_is_registered_in_external_tools_doctor_and_skills():
+    ext_tools = read_template("manifests", "external-tools.json")
+    assert '"name": "jev-browser-use"' in ext_tools
+    assert '"target": "~/.local/bin/jev-browser-use"' in ext_tools
+    assert '"installer": "scripts/install-jev-browser-use.sh"' in ext_tools
+
+    doctor_manifest = read_template("scripts", "doctor-manifest.json")
+    assert '"jev-browser-use"' in doctor_manifest
+
+    sources = read_template("agent-skills", "registry", "sources.jsonc")
+    assert '"jev-browser-use"' in sources
+
+    skill_md = read_template("agent-skills", "local", "global", "jev-browser-use", "SKILL.md")
+    assert "name: jev-browser-use" in skill_md
+    assert "browser.open" in skill_md
