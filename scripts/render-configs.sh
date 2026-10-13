@@ -184,7 +184,9 @@ sync_clash_verge_profile() {
     script_source="$DIR/private/clash/Script.js"
   fi
 
-  if [ -n "$script_source" ]; then
+  if [ -n "$script_source" ] && grep -q '__WIREGUARD_PRIVATE_KEY__' "$script_source"; then
+    echo "  Clash Verge Script.js: skipped (use the private WireGuard sync script)"
+  elif [ -n "$script_source" ]; then
     run cp "$script_source" "$profiles_dir/Script.js"
     echo "  Clash Verge Script.js <- $(label_path "$script_source")"
   fi
