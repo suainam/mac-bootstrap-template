@@ -7,10 +7,10 @@
 
 [core]
   autocrlf = input
+  quotepath = false
 
 [push]
   autoSetupRemote = true
-
 [alias]
   s = status
   l = log --oneline --graph --decorate --all

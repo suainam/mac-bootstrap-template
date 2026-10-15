@@ -110,6 +110,12 @@ def test_git_proxy_template_exists():
     assert "__HTTPS_PROXY__" in content
 
 
+
+def test_gitconfig_template_disables_quotepath():
+    with open(os.path.join(TEMPLATE, "shell", "gitconfig.template")) as f:
+        content = f.read()
+    assert "quotepath = false" in content
+
 def test_proxy_common_library_has_shared_functions():
     content = open(os.path.join(TEMPLATE, "scripts", "lib", "proxy-common.sh")).read()
     assert "load_proxy_env_from_shell_env()" in content
