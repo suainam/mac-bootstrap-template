@@ -110,6 +110,8 @@ When a company target fails, answer these in order:
 5. If yes, what final action was used?
 6. Is the target a browser-only site, a private IP, a WAF public IP, or an AI /
    cloud-desktop endpoint?
+7. If the target failed following a physical network or branch switch, did its
+   resolved IP drift to a new address outside TUN `route-exclude-address`?
 
 ## Known local truths
 
@@ -148,6 +150,19 @@ When a company target fails, answer these in order:
 - Core restart vs App reload: Restarting the Mihomo core regenerates `clash-verge.yaml`
   from Verge's in-memory GUI state. Disk modifications to `config.yaml` require an
   App restart (`Cmd+Q`) or re-saving via the GUI settings modal to take effect.
+- Network relocation target IP drift: Switching physical networks (e.g. branch office,
+  HQ, or off-site) often resolves enterprise WAF/gateway hostnames to different
+  public/BGP landing IPs. If a newly resolved IP falls outside existing `/32`
+  exclusions, it is swept into Clash TUN (e.g. `160.0.0.0/5 -> 198.19.0.0`) and
+  aborts during TLS handshake (`SSL_ERROR_SYSCALL`). Always re-check `dig` results
+  against active TUN exclusions upon network changes.
+- Browser socket pool & TLS cache invalidation: Chromium-based browsers maintain
+  persistent keep-alive socket pools and TLS session caches across standard page
+  reloads (`Cmd + R`). If a connection was aborted while TUN was intercepting,
+  the browser continues throwing `ERR_SSL_PROTOCOL_ERROR` ("此网站无法提供安全连接 /
+  不支持安全连接") even after TUN routing is repaired. Mandatory verification step
+  for web targets: flush stale sockets via hard reload (`Shift + Cmd + R`) or
+  `chrome://net-internals/#sockets` -> "Flush socket pools".
 
 ## Escalation hints
 

@@ -79,6 +79,10 @@ Apply the smallest fix that changes the bad path:
   fields are dropped by Clash Verge Rev (v2.5.5+)
 - rule-order exception before broad `GEOSITE,CN,DIRECT` rules when a CN target
   must still proxy
+- browser socket pool flush: require a hard reload (`Shift + Cmd + R`), private window,
+  or `chrome://net-internals/#sockets` ("Flush socket pools") after any TUN route or
+  proxy rule update; browsers cache dead sockets and aborted TLS handshakes
+  (`ERR_SSL_PROTOCOL_ERROR`), falsely making an already working route appear broken
 - runtime verification after any config change
 
 Completion criterion: the proposed fix names the exact file or GUI surface to
@@ -97,7 +101,8 @@ The final answer must include:
 7. verification proof or explicitly unverified live check
 
 Completion criterion: another agent can pick up your output and continue without
-re-deriving the path model.
+re-deriving the path model. For browser web targets, the verification proof must record
+whether the browser socket pool was flushed (`Shift + Cmd + R`).
 
 ## Rules
 
@@ -112,6 +117,8 @@ re-deriving the path model.
 7. In Clash Verge Rev (v2.5.5+), manage `route-exclude-address` via GUI Settings ->
    TUN Mode (⚙️), not extension scripts (`Script.js` writes to `tun.*` are dropped
    as app-owned fields).
+8. Browser web targets: never diagnose failure on `ERR_SSL_PROTOCOL_ERROR` without
+   first flushing browser socket pools (`Shift + Cmd + R`).
 
 ## Reference Routing
 
