@@ -75,6 +75,12 @@
         "claude": "${HOME}/work/projects/product_strategy/.claude/skills"
       }
     },
+    "projects": {
+      "skills_dir": "${HOME}/work/projects/.agents/skills",
+      "compatibility_skills_dirs": {
+        "claude": "${HOME}/work/projects/.claude/skills"
+      }
+    },
     "www": {
       "skills_dir": "${HOME}/work/projects/www/.agents/skills",
       "compatibility_skills_dirs": {
@@ -1305,13 +1311,15 @@
         },
         "ps-franchise-store-report": {
           "scope": "project",
+          "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "加盟店组货汇报（同比与环比）的大盘基准对齐、店品可比同比、桑基流转图与省区明细看板"
+          "reason": "已完整收敛至 analytics-data-solution 自包含专题蓝图库"
         },
         "o2o-store-benefit-report": {
           "scope": "project",
+          "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "O2O重点店/中心店效益评估与卡片导出(TOP500/TOP200/跨渠道TOP80/中心店蜂窝品，支持店均规模量化归因)"
+          "reason": "已完整收敛至 analytics-data-solution 自包含专题蓝图库"
         },
         "hpm-performance-review": {
           "scope": "project",
@@ -1320,7 +1328,9 @@
         },
         "ps-new-store-benefit-report": {
           "scope": "project",
-          "projects": ["product_strategy"]
+          "distribution_state": "disabled",
+          "projects": ["product_strategy"],
+          "reason": "已完整收敛至 analytics-data-solution 自包含专题蓝图库"
         },
         "ps-causal-evaluation": {
           "scope": "project",
@@ -1331,6 +1341,47 @@
           "scope": "project",
           "projects": ["product_strategy"],
           "reason": "非目录商品缩铺范围配置规则的编码核对、开发库验证、全量覆写与生产回读校验"
+        },
+        "odps-query-uv": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "MaxCompute 交互式探查、DMP 元数据检索与需求 RFC 技术方案设计"
+        },
+        "ps-portal-sync": {
+          "scope": "project",
+          "projects": ["product_strategy"],
+          "reason": "DevOps需求提取与工时、WBS推进表、HPM自评草稿、Wiki知识沉淀"
+        }
+      }
+    },
+    "local-analytics-lifecycle": {
+      "type": "internal",
+      "path": "agent-skills/local/analytics-lifecycle",
+      "skills": {
+        "analytics-demand-intake": {
+          "scope": "project",
+          "projects": ["projects"],
+          "reason": "通用数据分析阶段1：需求收集（DevOps提取与口头需求标准化归档）"
+        },
+        "analytics-demand-analysis": {
+          "scope": "project",
+          "projects": ["projects"],
+          "reason": "通用数据分析阶段2：需求分析（DMP元数据探查、知识库检索与实体粒度画像）"
+        },
+        "analytics-data-solution": {
+          "scope": "project",
+          "projects": ["projects"],
+          "reason": "通用数据分析阶段3：数据方案（RFC技术方案设计、Mermaid数据流与SQL原型）"
+        },
+        "analytics-data-execution": {
+          "scope": "project",
+          "projects": ["projects"],
+          "reason": "通用数据分析阶段4：数据分析（PyODPS交互、并发回刷、因果实证与专题建模）"
+        },
+        "analytics-result-delivery": {
+          "scope": "project",
+          "projects": ["projects"],
+          "reason": "通用数据分析阶段5：结果交付（Excel金字塔物化、Wiki沉淀、WBS与视频宣讲）"
         }
       }
     },
@@ -1456,6 +1507,33 @@
         "marimo-excel-report": {
           "scope": "project",
           "projects": ["www"]
+        }
+      }
+    },
+
+    "local-analytics-lifecycle": {
+      "type": "internal",
+      "path": "agent-skills/local/analytics-lifecycle",
+      "skills": {
+        "analytics-demand-intake": {
+          "scope": "project",
+          "projects": ["product_strategy", "projects"]
+        },
+        "analytics-demand-analysis": {
+          "scope": "project",
+          "projects": ["product_strategy", "projects"]
+        },
+        "analytics-data-solution": {
+          "scope": "project",
+          "projects": ["product_strategy", "projects"]
+        },
+        "analytics-data-execution": {
+          "scope": "project",
+          "projects": ["product_strategy", "projects"]
+        },
+        "analytics-result-delivery": {
+          "scope": "project",
+          "projects": ["product_strategy", "projects"]
         }
       }
     }
