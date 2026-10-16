@@ -1292,65 +1292,72 @@
       "skills": {
         "web-video-presentation-delivery": {
           "scope": "project",
-          "projects": ["product_strategy"]
+          "distribution_state": "disabled",
+          "projects": ["product_strategy"],
+          "reason": "已完整收敛至 analytics-result-delivery (阶段五多渠道交付)"
         },
         "ps-analytics": {
           "scope": "global",
+          "distribution_state": "disabled",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "Product Strategy 统一数据分析全流程规范：MAX_PT/防笛卡尔积/物理中间表去CTE/分批双日期基准/历史零漂移三段切片回归/多模型掩盖排查/环形跨年时间解析"
+          "reason": "已完整收敛至 analytics-data-execution (阶段四执行与对账门禁)"
         },
         "dataworks-yoy-backfill": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "reason": "DataWorks 生产工作流快照拉取、表级血缘追踪、MaxCompute SDK 多分区回刷与 YoY 可比店修复"
+          "reason": "DataWorks 生产工作流快照拉取与多分区回刷 (保留为底层支撑工具)"
         },
         "odps-table-ingest": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "reason": "MaxCompute/ODPS 表上传、字段对齐、分区写入与双向聚合 SQL 举证"
+          "reason": "MaxCompute/ODPS 本地文件入仓与对齐 (保留为底层支撑工具)"
         },
         "ps-franchise-store-report": {
           "scope": "project",
           "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution 自包含专题蓝图库"
+          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图) 与 analytics-result-delivery (阶段五桑基图)"
         },
         "o2o-store-benefit-report": {
           "scope": "project",
           "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution 自包含专题蓝图库"
+          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图)"
         },
         "hpm-performance-review": {
           "scope": "project",
+          "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "HPM 季度绩效自评：基线复盘、指标证据核验、文本撰写与仅保存草稿"
+          "reason": "已完整收敛至 analytics-result-delivery (阶段五成果沉淀与绩效自评)"
         },
         "ps-new-store-benefit-report": {
           "scope": "project",
           "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution 自包含专题蓝图库"
+          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图)"
         },
         "ps-causal-evaluation": {
           "scope": "project",
+          "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "零售营运政策与布局调优因果推断：CONSORT 1:N 分层漏斗、SCM 凸组合克隆、品类 JS 散度与对抗性审查"
+          "reason": "已完整收敛至 analytics-data-solution (阶段三因果蓝图) 与阶段四算法运行"
         },
         "ps-reduction-scope-config-maintenance": {
           "scope": "project",
+          "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "非目录商品缩铺范围配置规则的编码核对、开发库验证、全量覆写与生产回读校验"
+          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图) 与阶段四安全覆写"
         },
         "odps-query-uv": {
           "scope": "project",
+          "distribution_state": "disabled",
           "projects": ["product_strategy"],
-          "reason": "MaxCompute 交互式探查、DMP 元数据检索与需求 RFC 技术方案设计"
+          "reason": "已完整收敛至 analytics-data-execution (阶段四 Branch A 免Docker直跑)"
         },
         "ps-portal-sync": {
           "scope": "project",
           "projects": ["product_strategy"],
-          "reason": "DevOps需求提取与工时、WBS推进表、HPM自评草稿、Wiki知识沉淀"
+          "reason": "DevOps工时与WBS推进表同步 (保留为底层支撑工具)"
         }
       }
     },
