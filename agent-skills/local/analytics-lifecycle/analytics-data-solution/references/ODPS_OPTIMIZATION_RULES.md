@@ -68,3 +68,47 @@ dedup_list AS (
    - 分析探索与数据拉取一律采用只读 SELECT，严禁使用 CTAS 或无谓创建临时表污染生产库。
 3. **安全行数限制**：
    - 单次明细下载严禁突破 1,000,000 行限制；若数据量过大，必须先在 SQL 侧按维度 `GROUP BY` 聚合。
+---
+
+## 4. Grouping Sets 多级向上汇聚语法健壮性规约
+
+在 MaxCompute (ODPS) 中使用 `GROUPING SETS` 进行多级汇聚（如公司级、大区级、营运区级、单店级）时，必须遵守以下编译器语法约束：
+
+### 常见编译异常 (ODPS-0130071)
+```text
+ODPS-0130071: Semantic analysis exception - Argument 'col_c' of Function 'grouping' is illegal, should be a group by keys and not a constant.
+ODPS-0130071: Semantic analysis exception - column reference col_c should appear in GROUP BY key
+```
+
+### 语法规约与正确写法
+1. **全集声明原则**：所有出现在 `GROUPING(col)` 函数中以及 `SELECT` 投影列中的维度字段，必须在主 `GROUP BY` 列清单中完整声明；
+2. **标准模板**：
+   ```sql
+   SELECT
+       CASE 
+           WHEN GROUPING(store_code) = 0 THEN '门店级'
+           WHEN GROUPING(region_man_name) = 0 THEN '营运区级'
+           WHEN GROUPING(area_man_name) = 0 THEN '大区级'
+           ELSE '全国公司级'
+       END AS tier_level,
+       COALESCE(area_man_name, '【全国合计】') AS area_man_name,
+       COALESCE(region_man_name, '【大区合计】') AS region_man_name,
+       COALESCE(CAST(store_code AS STRING), '【营运区合计】') AS store_code,
+       COUNT(DISTINCT store_code) AS store_cnt,
+       ROUND(SUM(amt), 2) AS agg_amt
+   FROM my_metrics_table
+   -- 必须声明全集分组键
+   GROUP BY area_man_name, region_man_name, store_code
+   -- 然后声明汇聚层级组合
+   GROUPING SETS (
+       (),                                          -- 全国公司级
+       (area_man_name),                             -- 大区级
+       (area_man_name, region_man_name),            -- 营运区级
+       (area_man_name, region_man_name, store_code) -- 门店级
+   )
+   ORDER BY 
+       GROUPING(area_man_name) DESC,
+       GROUPING(region_man_name) DESC,
+       GROUPING(store_code) DESC,
+       agg_amt DESC;
+   ```

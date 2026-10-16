@@ -11,7 +11,7 @@
 | **主键唯一性断言** | `SELECT COUNT(1) - COUNT(DISTINCT keys) FROM table WHERE pt=MAX_PT('table')` | 严格等于 `0` |
 | **多版本并发去重** | 检查表是否存在 `version_id` / `version_num` / `batch_id` | 关联前通过 CTE `GROUP BY` 或窗口函数收敛为单版本 |
 | **维表放大防卫** | `dim_store` / `dim_item_master` 关联键唯一性验证 | 关联键在最新分区内重复数为 `0` |
-
+| **物理单体vs型号规格防卫** | `SELECT COUNT(DISTINCT code), COUNT(1) FROM tbl` | 若全国/全局仅几百个离散值，判定为规格型号码，严禁作为去重主键，必须使用物理排面节位/单体码（如 `display_code`） |
 ---
 
 ## 2. 6 项基准画像指标 (6 Baseline Metrics)

@@ -13,7 +13,7 @@ description: Deliver polished analytics assets across executive Excel workbooks,
 - **`【设计品味 / design-taste-html】`**：利用 HTML/现代前端规范呈现分析报告，遵循“总-分-总”结构，背景、结论、过程数据证据链完备，排版考究、层次分明、拒绝模板化。
 - **`【知识增量 / wiki-sync】`**：Wiki 文档发布遵循增量版本追加原则，保持历史版本与附件完整。
 - **`【工时与协同 / timesheet-audit】`**：工时填报与需求结单基于真实 Git 提交与需求编号交叉比对，整周工时严格守恒。
-
+- **`【双模交付与用语净化 / dual-delivery-clean】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格执行业务用语净化，全面替换技术黑话（如“延米”改用“陈列架长度”）。
 ---
 
 ## 内部资产引用 (Internal Assets)
@@ -63,11 +63,10 @@ flowchart TD
    - 自动生成 8 大标准流向（稳定目录内/外、流转转入/出、新增、汰换）；
    - 自动执行 Ledger 守恒闭环校验（源端流出总额 == 终端流入总额）；
    - 生成高保真矢量 SVG 与交互式 HTML 流图，嵌入报告。
-3. **设计品味规范 (`design-taste-frontend`)**：
-   - 建立严谨的字体层级与排版呼吸感；
-   - 保持一致的中性调色盘（Zinc/Slate/Paper）；
-   - 拒绝多重嵌套卡片，运用轻量边框增强数据密度。
-
+- 建立严谨的字体层级与排版呼吸感，保持一致的中性调色盘（Zinc/Slate/Paper）；
+- 交互看板采用原生 SVG ViewBox 矢量缩放（平移缩放无损锐利，告别光栅化模糊）；
+- 侧边栏内建双向拖拽分栏（`#resizer`，支持 300px~950px 自由拉伸），图例按核心品类色系收敛合并；
+- 图元点击与清单表格实现双向互锁联动定位。
 ### Channel C: Confluence Wiki 增量沉淀 (Wiki Publishing)
 提取方案与结论，在正文末尾追加修订记录，增量更新知识库页面。
 
@@ -82,9 +81,9 @@ flowchart TD
 ## 交付步骤与完成标准 (Steps & Completion Criteria)
 
 1. **Step 1：物化结构化交付报告**：
-   在 `<project>/05_delivery/demand-<ID>-05-delivery.md` 生成符合模板的完备报告。
+   在 `<project>/05_delivery/md/demand-<ID>-05-delivery.md` 生成符合模板的完备报告，严格执行业务用语净化（去黑话）。
 2. **Step 2：物化交互式 HTML 诊断看板**：
-   在 `<project>/04_outputs/` 输出交互式 HTML 看板文件，支持在浏览器中直接打开检视。
+   在 `<project>/05_delivery/demand-<ID>-05-delivery.html`（或 `04_outputs/`）输出基于 `am render` 的交互式 HTML 看板文件，支持在浏览器中直接打开检视。
 3. **Step 3：外部数据湖与边界核验**：
    确认全量数据已接入数据湖，运行数据边界检查确保通过。
 

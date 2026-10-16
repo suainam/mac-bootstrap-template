@@ -24,6 +24,7 @@ description: Analyze demand calibers, retrieve domain knowledge, introspect data
 - 分析口径假设日志：[references/analysis_assumptions_log.md](references/analysis_assumptions_log.md)
 - 口径锁定模板：[templates/caliber_lock_template.md](templates/caliber_lock_template.md)
 - 黄金基准范例：[examples/golden_profiling_and_caliber_lock.md](examples/golden_profiling_and_caliber_lock.md)
+- 维表治理与语义保真：[references/DIM_DICTIONARY_GOVERNANCE.md](references/DIM_DICTIONARY_GOVERNANCE.md)
 ---
 
 ## 执行步骤与完成标准 (Steps)
@@ -54,6 +55,8 @@ flowchart TD
    ```bash
    python3 scripts/dmp_mcp_client.py detail <表名> --filter <字段关键词>
    ```
+3. **用户推测表名实测先验原则 (Table Existence Verification Rule)**：
+   业务或口头沟通中提出的表名（如 `_mi` 月表、`_sum` 宽表），严禁直接假设存在或直接代入代码；必须第一时间在数仓执行 `SELECT MAX_PT('table')` 或元数据探查。若不存在，优先推荐经过验证的高层聚合宽表（如门店级 `dsl_ads.ads_sale_store_metrics_sum_di`），避免盲目全表扫描单品级底表。
 **完成标准**：锁定本次分析依赖的 1~3 张核心事实表与维表物理全称，并记录其有效业务分区。
 
 ### Step 3: 血缘依赖与优先级短路审查 (Lineage & Masking Audit)
@@ -69,11 +72,15 @@ flowchart TD
 ### Step 4: 数据画像与实体粒度锁定 (Profiling & Grain Lock)
 1. **阶段一业务说辞复现与去伪存真 (Fact Verification)**：
    严格使用数仓只读底表复现业务方提出的核心口头数字或业务假设，验证其真实性。若前提失真（如数字低估数倍、周期错位），优先指出口径偏差，防止后续分析建立在错误假设之上。
-2. **明确核心指标算法与业务理由 (Metrics Rationales)**：
+2. **物理单体 vs 规格型号编码混淆排查防线 (Spec Code vs. Physical Instance Trap ★)**：
+   凡涉及物理资产、货架、设备、硬件等指标汇总与去重时，必须探查编码字段的基数（Cardinality）：
+   - **排查断言**：`SELECT COUNT(DISTINCT code_col), COUNT(1) FROM table`；
+   - **判定门禁**：若全国/全量数据中该编码取值极少（如全司仅两百个），**此编码为“型号规格代码”（Spec/Model Code），绝非物理资产单体号**；严禁直接按其去重，否则同型号多节/多台实体将被暴力折叠导致严重漏算！必须寻找真正的物理排面节位编码（如 `display_code`、`bay_id`）进行去重。
+3. **明确核心指标算法与业务理由 (Metrics Rationales)**：
    明确各分析指标（如时间窗口切分、执行率、动销率、全额真实流水、近90天默认聚合口径）的算式，并陈述业务与统计学理由，确保指标自洽。
-3. **纵向生命周期画像 (Longitudinal Profile)**：
+4. **纵向生命周期画像 (Longitudinal Profile)**：
    拆解目标实体在开业活动大促期、正式考核期及后续日常期的销售、毛利、客流与客单价演变，识别经营阶段特征。
-4. **横向严格相同周期大盘基准对比 (Cross-Sectional Benchmark)**：
+5. **横向严格相同周期大盘基准对比 (Cross-Sectional Benchmark)**：
    所有对比对象（目标新店、同期开业新店大盘均线、区域成熟老店均线）必须**严格对齐在完全一致的日期闭区间**内，消除时间差异，真实衡量其实际经营能力。
 
 ### Step 5: 核心口径假设双向审讯对齐 (Human Alignment Gate ★ 关键防线)

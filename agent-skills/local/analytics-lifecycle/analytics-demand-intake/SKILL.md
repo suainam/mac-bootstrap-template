@@ -15,7 +15,7 @@ description: Intake and standardize data analysis demands from enterprise portal
 - **`【接口直抓 / xhr-api-first】`**：微前端环境直调后台接口提取原始详情，确保全量字段与附件链接保真。
 - **`【标准归档 / standard-archive】`**：统一落盘至对应专题的 `topics/<topic_id>/01_source_data/` 目录。
 - **`【可选排期 / optional-wbs】`**：正式立项需求登记团队排期表；临时答疑与即时调研直接进入分析。
-
+- **`【业务去黑话 / business-language-first】`**：需求阶段全面净化工程黑话（如以“陈列架总长度”取代“延米”，以“门店编码”取代“实体主键”），使用业务可感知的通用术语。
 ---
 
 ## 迷雾探路机制 (Heavy Fog Routing)
@@ -58,6 +58,10 @@ flowchart TD
 2. **反事实基准**：衡量的对比基期（去年同期 H / 上线前 L / 合成控制 SCM / 纯净对照区）；
 3. **样本边界 (Non-Goals)**：明确本次覆盖及主动排除的范围（如仅限成熟直营店、排除特定试点省区）。
 
+> **轻量摸底诉求快速通道 (Status Probing Fast-Path)**：  
+> 若业务明确诉求“仅为大盘摸底/看个数/查基线”，且无后续考核奖惩或策略反转决策：  
+> - **免除**：复杂的因果推断（DID/SCM）与人工合成对照组构建；  
+> - **聚焦**：实体粒度、空间覆盖范围、多级汇总层级（如使用 Grouping Sets 向上聚合成门店/营运区/大区/全国）与异常店过滤门禁。
 ---
 
 ### Step 1: 原始信息捕获 (Capture)

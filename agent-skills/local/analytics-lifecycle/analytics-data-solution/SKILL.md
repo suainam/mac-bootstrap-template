@@ -23,8 +23,9 @@ description: Author and review technical RFC data solutions, system architecture
 - **性能扫描工具**：`scripts/odps_sql_linter.py`
 - **规约手册**：
   - ODPS 性能优化规约：[references/ODPS_OPTIMIZATION_RULES.md](references/ODPS_OPTIMIZATION_RULES.md)
-  - 零漂移三段回归 SOP：[references/BATCH_ROLLOUT_REGRESSION_SOP.md](references/BATCH_ROLLOUT_REGRESSION_SOP.md)
-- **模板与示例**：
+- 零漂移三段回归 SOP：[references/BATCH_ROLLOUT_REGRESSION_SOP.md](references/BATCH_ROLLOUT_REGRESSION_SOP.md)
+- 陈列编码业务解构规约：[references/BUSINESS_DISPLAY_CODE_GRAMMAR.md](references/BUSINESS_DISPLAY_CODE_GRAMMAR.md)
+- 空间组团吸附架构规范：[references/CLUSTER_SNAPPING_ARCHITECTURE.md](references/CLUSTER_SNAPPING_ARCHITECTURE.md)
   - RFC 技术方案模板：[templates/rfc_technical_design_template.md](templates/rfc_technical_design_template.md)
   - 标准对账 SQL 模板：[templates/sql_solution_template.sql](templates/sql_solution_template.sql)
   - 黄金技术方案范例：[examples/golden_rfc_technical_design.md](examples/golden_rfc_technical_design.md)
@@ -52,8 +53,9 @@ flowchart TD
 2. **双轨范围界定**：
    - 考核归因轨：跑完周期的成熟实体，输出执行率、动销率、全额流水与达成比；
    - 静态备货轨：筹备/试营业实体，重点输出目录铺货数、手工备货数与品类宽度，保持指标有效性。
-3. **Non-Goals**：明确本次方案不覆盖的边界与保护约束（如：不修改生产底表结构、不影响既有生产流水线）。
-
+3. **Non-Goals 与边界隔离**：明确本次方案不覆盖的边界与保护约束（如：不修改生产底表结构、不影响既有生产流水线）。
+   - **试点特批台账 vs 全国系统底表边界隔离原则 (Pilot Ledger vs. System Master Boundary)**：
+     当分析范围从试点区域扩展到全国大盘时，**明确隔离“局部实验特批台账”与“企业级系统档案”**。严禁将局部覆盖（如仅几十家试点店）的人工盘点表强行作为全国分母，必须以中台主档为唯一源头，并清晰披露口径差异。
 ### Step 2: 绘制端到端架构与数据流图 (Mermaid Data Flow)
 使用 `flowchart TD` 呈现清晰的数据流动与计算层级：
 - 输入层：基础事实表与维表全称，注明分区过滤规则；
@@ -73,6 +75,7 @@ flowchart TD
    - 优先建议使用考核结束日当天快照截面（契约对齐原生 `lt90_*_sum`），大幅精简跨日计算；
    - 强制使用原生宏或显式分区；
    - 关联前置聚合压平多版本；
+   - **MaxCompute Grouping Sets 语法规约**：使用 `GROUPING SETS` 进行多级汇聚（公司/大区/营运区/门店）时，`GROUPING(col)` 及 `SELECT` 中出现的所有分组键，必须在主 `GROUP BY` 列清单中完整声明（如 `GROUP BY col_a, col_b, col_c GROUPING SETS ((), (col_a), (col_a, col_b), (col_a, col_b, col_c))`），避免报 `Argument should be a group by key` 语义异常；
    - 所有除法算式强制嵌套 `NULLIF(col, 0)` 实施除零防卫。
 2. 运行本地扫描工具核验 SQL 原型：
    ```bash
