@@ -13,8 +13,8 @@ description: Deliver polished analytics assets across executive Excel workbooks,
 - **`【设计品味 / design-taste-html】`**：利用 HTML/现代前端规范呈现分析报告，遵循“总-分-总”结构，背景、结论、过程数据证据链完备，排版考究、层次分明、拒绝模板化。
 - **`【知识增量 / wiki-sync】`**：Wiki 文档发布遵循增量版本追加原则，保持历史版本与附件完整。
 - **`【工时与协同 / timesheet-audit】`**：工时填报与需求结单基于真实 Git 提交与需求编号交叉比对，整周工时严格守恒。
-- **`【双模交付与用语净化 / dual-delivery-clean】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格执行业务用语净化，全面替换技术黑话（如“延米”改用“陈列架长度”）。
----
+- **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话（如以“陈列架总长度”取代“延米”），写出自然、直接、有立场的业务决策语言。
+- **`【命名空间契约 / scoped-delivery-naming】`**：阶段五交付文件严格采用 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 与同名 `.html` 命名。
 
 ## 内部资产引用 (Internal Assets)
 
@@ -81,9 +81,9 @@ flowchart TD
 ## 交付步骤与完成标准 (Steps & Completion Criteria)
 
 1. **Step 1：物化结构化交付报告**：
-   在 `<project>/05_delivery/md/demand-<ID>-05-delivery.md` 生成符合模板的完备报告，严格执行业务用语净化（去黑话）。
+   在 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 生成符合模板的完备报告，严格执行 `/skill:humanizer-zh` 人性化润色。
 2. **Step 2：物化交互式 HTML 诊断看板**：
-   在 `<project>/05_delivery/demand-<ID>-05-delivery.html`（或 `04_outputs/`）输出基于 `am render` 的交互式 HTML 看板文件，支持在浏览器中直接打开检视。
+   在 `topics/<topic_id>/05_delivery/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.html` 输出调用 `am render`（`answer-me-with-html`）编译的标准交互式看板，严禁手工拼凑粗糙 HTML，保证统一 Blueprint 暗黑蓝图或高质感现代前端品味。
 3. **Step 3：外部数据湖与边界核验**：
    确认全量数据已接入数据湖，运行数据边界检查确保通过。
 

@@ -15,7 +15,9 @@ description: Intake and standardize data analysis demands from enterprise portal
 - **`【接口直抓 / xhr-api-first】`**：微前端环境直调后台接口提取原始详情，确保全量字段与附件链接保真。
 - **`【标准归档 / standard-archive】`**：统一落盘至对应专题的 `topics/<topic_id>/01_source_data/` 目录。
 - **`【可选排期 / optional-wbs】`**：正式立项需求登记团队排期表；临时答疑与即时调研直接进入分析。
-- **`【业务去黑话 / business-language-first】`**：需求阶段全面净化工程黑话（如以“陈列架总长度”取代“延米”，以“门店编码”取代“实体主键”），使用业务可感知的通用术语。
+- **`【业务去黑话 / humanized-language】`**：需求阶段全面接入 `/skill:humanizer-zh`，使用业务现场大白话（如以“陈列架总长度”取代“延米”，以“门店编码”取代“实体主键”），杜绝 AI 腔调与工程黑话。
+- **`【指标孪生 / twin-metrics】`**：零售决策中销售与毛利紧密绑定，提销售指标时必须强制伴随问询含税合计毛利额 (`total_profit_amt`)、毛利米效与销售毛利率，防止冲量低毛利排面误导。
+- **`【命名空间契约 / scoped-demand-naming】`**：需求归档及后续所有阶段文档，强制采用 `demand-<adhoc|id>-<topic_id>-<datehour>-xxx.md` 命名，防多专题冲突。
 ---
 
 ## 迷雾探路机制 (Heavy Fog Routing)
@@ -84,7 +86,11 @@ flowchart TD
 2. 登记里程碑、需求编号、责任人与计划完成日，严格保持已有合并单元格结构与汇总公式。
 
 ### Step 4: 规范归档落盘与阶段移交 (Archive & Handoff)
-1. **归档落盘**：写入 `topics/<topic_id>/01_source_data/demand-<ID>-01-demand.md`（或含中文简述 `demand-<ID>-01-demand-<简述slug>.md`）。
+1. **全链路命名契约**：
+   需求归档及后续 01~05 阶段文件必须遵循统一的带专题与时间切片命名：
+   `topics/<topic_id>/01_source_data/demand-<adhoc|id>-<topic_id>-<datehour>-01-demand.md`
+   - 临时需求：`demand-adhoc-<topic_id>-<datehour>-01-demand.md`（如 `demand-adhoc-auto_display-2026101614-01-demand.md`）
+   - 正式需求：`demand-<id>-<topic_id>-<datehour>-01-demand.md`（如 `demand-31935-auto_display-2026101614-01-demand.md`）
 2. **标准元数据 Frontmatter**：包含 `id`, `title`, `requester`, `priority`, `created_at`, `target_date`, `deliverables` 7 项。
 3. **输出【口径交接卡片】**，作为阶段二（`analytics-demand-analysis`）直通输入：
    - **分析主题与实体粒度 (Grain)**：明确核心主键；

@@ -14,6 +14,8 @@ description: Analyze demand calibers, retrieve domain knowledge, introspect data
 - **`【元数探查 / dmp-lookup】`**：中台物理表探查通过 DMP MCP 关键词检索与字段注释反查，以客观数据字典为准。
 - **`【掩盖排查 / masking-audit】`**：涉及打标字段（如 `reason_fl`、`scope_type`）时，反查生成 SQL 的 `CASE WHEN` 顺位，保护兼具多重正当属性的业务记录。
 - **`【基准画像 / baseline-grounded】`**：源数据提取 6 项基准指标（行数、门店数、商品数、主键数、数量总和、金额总和），建立全流程守恒对照线。
+- **`【业务大白话 / humanized-profile】`**：遵循 `/skill:humanizer-zh`，画像与口径锁定卡摒弃“笛卡尔积”等工程黑话，用“一架多类混陈双计”、“空架”等现场语言。
+- **`【命名空间契约 / scoped-caliber-naming】`**：阶段二输出锁定卡严格采用 `topics/<topic_id>/02_working_data/demand-<adhoc|id>-<topic_id>-<datehour>-02-caliber.md` 命名。
 ---
 
 ## 内部资产引用 (Internal Assets)

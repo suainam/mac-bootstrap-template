@@ -73,8 +73,8 @@ flowchart TD
 严格从家目录 `~/.env` 读取凭据，复用 `product_strategy/shared` 设施，避免硬编码。
 
 ### Step 2: 执行数据提取与生成物理中间明细 (Data Extraction & Staging)
-- 提取店品粒度明细数据集，保存为 `04_outputs/demand-<ID>-04-item-detail.parquet`；
-- 提取门店汇总宽表数据集，保存为 `04_outputs/demand-<ID>-04-dataset.parquet` 与高管 Excel。
+- 提取店品粒度明细数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-item-detail.parquet`；
+- 提取门店汇总宽表数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-dataset.parquet` 与高管 Excel。
 
 ### Step 3: 执行对抗性质量门禁核验 (Adversarial Verification Gate ★)
 运行 `scripts/audit_execution_sanity.py` 或内嵌门禁断言，严格核验 4 大指标：
@@ -86,5 +86,5 @@ flowchart TD
 ### Step 4: 物化交付物与质检报告输出 (Materialization & Report)
 - 数据实体自动沉淀入外部数据湖并建立软链接；
 - 运行数据湖边界检查命令断言合规；
-- 输出现场质检监控 Markdown 报告：`04_outputs/demand-<ID>-04-sanity-report.md`，直接留存在仓库原位。
+- 输出现场质检监控 Markdown 报告：`04_outputs/reports/demand-<adhoc|id>-<topic_id>-<datehour>-04-sanity-report.md`，直接留存在仓库原位；文风严格按照 `/skill:humanizer-zh` 规范，不含糊其辞，直接呈现清晰核验事实。
 **完成标准**：数据文件通过全部门禁断言，外部数据湖软链接建立完毕，生成客观的质检监控 Markdown 报告。

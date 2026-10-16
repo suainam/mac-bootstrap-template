@@ -9,7 +9,8 @@ description: Author and review technical RFC data solutions, system architecture
 
 ## 核心主导词 (Leading Words)
 
-- **`【方案规范 / rfc-spec】`**：技术方案采用结构化 RFC 格式，落盘在 `<project>/03_analysis/demand-<ID>-03-rfc.md` 与 SQL `<project>/03_analysis/sql/demand-<ID>-03-query.sql`。
+- **`【方案规范 / rfc-spec】`**：技术方案采用结构化 RFC 格式，按命名空间规范落盘在 `topics/<topic_id>/03_analysis/demand-<adhoc|id>-<topic_id>-<datehour>-03-rfc.md` 与 SQL `topics/<topic_id>/03_analysis/sql/demand-<adhoc|id>-<topic_id>-<datehour>-03-query.sql`。
+- **`【业务文风 / humanized-rfc】`**：根据 `/skill:humanizer-zh` 规范编写 RFC 背景与业务目标，用清晰干脆的指令型语言，不堆砌“赋能”、“至关重要”等虚幻修辞。
 - **`【专题方案库 / domain-blueprints】`**：按业务专题复用存量成熟设计规范（新店考核、O2O重点店Cohort、加盟店桑基指标、因果评估特征匹配），保持设计自洽。
 - **`【双轨解耦 / cohort-decouple】`**：区分考核成熟样本与筹备期静态备货样本，独立适用评估模型，保护指标统计意义。
 - **`【拓扑可视 / mermaid-first】`**：复杂多表关联、数据流转与淘汰逻辑使用 Mermaid 拓扑图完整呈现。
@@ -90,4 +91,4 @@ flowchart TD
 2. **单调性与区间断言**：制定比率指标在 $[0, 100\%]$ 区间内的约束，无目录门店严格保留 NULL 语义。
 3. **隔离与回滚机制**：分析方案以只读形式运行，若出现对账异常阻断下游物化，保护数据资产安全。
 
-**完成标准**：在 `<project>/03_analysis/` 生成符合规范的 RFC 设计文档（`demand-<ID>-03-rfc.md`）与通过静态扫描的 SQL 方案文件（`sql/demand-<ID>-03-query.sql`）。
+**完成标准**：在 `topics/<topic_id>/03_analysis/` 生成符合规范的 RFC 设计文档（`demand-<adhoc|id>-<topic_id>-<datehour>-03-rfc.md`）与通过静态扫描的 SQL 方案文件（`sql/demand-<adhoc|id>-<topic_id>-<datehour>-03-query.sql`）。
