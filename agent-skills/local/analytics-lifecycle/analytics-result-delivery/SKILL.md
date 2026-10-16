@@ -86,7 +86,8 @@ flowchart TD
    在 `topics/<topic_id>/05_delivery/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.html` 输出调用 `am render`（`answer-me-with-html`）编译的标准交互式看板，严禁手工拼凑粗糙 HTML，保证统一 Blueprint 暗黑蓝图或高质感现代前端品味。
 3. **Step 3：外部数据湖与边界核验**：
    确认全量数据已接入数据湖，运行数据边界检查确保通过。
-4. **Step 4：阶段六决策复盘卡沉淀与索引挂载 (Post-Mortem & Decision Archive)**：
-   在 `topics/<topic_id>/06_decisions/decision-<adhoc|id>-<topic_id>-<date>-<slug>.md` 依据模板输出三段式复盘卡（决策结论、复用代码资产、避坑经验），并在专题 `README.md` 挂载索引，供后续分析师与 Agent 秒级检索复用。
+4. **Step 4：[交互询问] 决策复盘卡沉淀与索引挂载 (Optional Post-Mortem Card)**：
+   交付结单时，**默认先产出 HTML 看板与 Markdown 交付报告**；在交付回复末尾**主动提醒并询问用户是否需要在 `06_decisions/` 沉淀永久决策复盘卡**。
+   若用户同意，依据模板 `templates/decision_postmortem_template.md` 输出三段式复盘卡（业务决策、复用代码资产、避坑经验），并在专题 `README.md` 挂载索引。
 
-**完成标准**：交付文档规范落盘，数据湖边界校验通过，完成协同系统状态回写与 06 决策复盘卡归档。
+**完成标准**：交付文档（MD + HTML）规范落盘，数据湖边界校验通过，完成协同系统状态回写，并完成复盘卡交互提醒。
