@@ -15,7 +15,7 @@ description: Deliver polished analytics assets across executive Excel workbooks,
 - **`【工时与协同 / timesheet-audit】`**：工时填报与需求结单基于真实 Git 提交与需求编号交叉比对，整周工时严格守恒。
 - **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话（如以“陈列架总长度”取代“延米”），写出自然、直接、有立场的业务决策语言。
 - **`【命名空间契约 / scoped-delivery-naming】`**：阶段五交付文件严格采用 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 与同名 `.html` 命名。
-
+- **`【阶段六复盘沉淀 / decision-postmortem】`**：成果交付结单后，必须在 `topics/<topic_id>/06_decisions/` 物化三段式决策复盘卡，并沉淀生产底表、复用 SQL 与踩坑防线。
 ## 内部资产引用 (Internal Assets)
 
 - **交付方案融合与规范手册**：[references/DELIVERY_SYNTHESIS_REFERENCE.md](references/DELIVERY_SYNTHESIS_REFERENCE.md)
@@ -24,7 +24,7 @@ description: Deliver polished analytics assets across executive Excel workbooks,
 - **桑基图标准文案模板**：[references/sankey_wording_templates.md](references/sankey_wording_templates.md)
 - **交付报告通用模板**：[templates/delivery_report_template.md](templates/delivery_report_template.md)
 - **黄金交付范例**：[examples/golden_delivery_report.md](examples/golden_delivery_report.md)
-- **企业表格驱动脚本**：`scripts/wecom_sheet_driver.js`
+- **决策复盘卡规范模板**：[templates/decision_postmortem_template.md](templates/decision_postmortem_template.md)
 - **统一门户驱动脚本**：`scripts/portal_browser_sync.js`
 - **表格协同操作规约**：[references/wecom_sheet_patterns.md](references/wecom_sheet_patterns.md)
 - **绩效自评标准规约**：[references/hpm_criteria.md](references/hpm_criteria.md)
@@ -86,5 +86,7 @@ flowchart TD
    在 `topics/<topic_id>/05_delivery/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.html` 输出调用 `am render`（`answer-me-with-html`）编译的标准交互式看板，严禁手工拼凑粗糙 HTML，保证统一 Blueprint 暗黑蓝图或高质感现代前端品味。
 3. **Step 3：外部数据湖与边界核验**：
    确认全量数据已接入数据湖，运行数据边界检查确保通过。
+4. **Step 4：阶段六决策复盘卡沉淀与索引挂载 (Post-Mortem & Decision Archive)**：
+   在 `topics/<topic_id>/06_decisions/decision-<adhoc|id>-<topic_id>-<date>-<slug>.md` 依据模板输出三段式复盘卡（决策结论、复用代码资产、避坑经验），并在专题 `README.md` 挂载索引，供后续分析师与 Agent 秒级检索复用。
 
-**完成标准**：交付文档规范落盘，数据湖边界校验通过，完成协同系统状态回写。
+**完成标准**：交付文档规范落盘，数据湖边界校验通过，完成协同系统状态回写与 06 决策复盘卡归档。
