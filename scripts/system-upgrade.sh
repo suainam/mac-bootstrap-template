@@ -137,14 +137,31 @@ stage_packages() {
   fi
 
   echo "Updating Homebrew and reconciling packages from Brewfile..."
-  "${BREW_BIN}" update && \
+  # Retry brew update up to 3 times to handle transient CDN/network connection drops
+  local update_success=0
+  for attempt in 1 2 3; do
+    if "${BREW_BIN}" update; then
+      update_success=1
+      break
+    fi
+    if [[ ${attempt} -lt 3 ]]; then
+      echo "Warning: 'brew update' failed on attempt ${attempt}/3. Retrying in 3 seconds..." >&2
+      sleep 3
+    fi
+  done
+  
+  if [[ ${update_success} -ne 1 ]]; then
+    echo "Error: 'brew update' failed after 3 attempts." >&2
+    record_stage "packages" "failed" "brew update failed after retries"
+    return 1
+  fi
+
   "${bundle_script}" install && \
   "${BREW_BIN}" upgrade || {
     echo "Error: Homebrew update/reconciliation/upgrade failed. Subsequent package steps skipped." >&2
     record_stage "packages" "failed" "package update/bundle/upgrade failed"
     return 1
   }
-
   if command -v zb >/dev/null 2>&1; then
     export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
     export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"

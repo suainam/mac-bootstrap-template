@@ -88,12 +88,18 @@ template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle
   run --workflow build_daily_summary --date YYYY-MM-DD --retry-failed <run_id>
 ```
 
-## 8. 自动审核结果不符合预期
+## 8. 自动审核结果不符合预期（独立/手动脚本）
+
+说明：`auto_review.py` 是独立脚本，`run-full-cycle.sh` 不调用它。它会按阈值将候选状态改为 `accepted`，不是只读检查；确认本次候选允许自动接受后才执行：
+
+```bash
+template/.venv/bin/python template/data-hub/scripts/auto_review.py YYYY-MM-DD
+```
 
 检查顺序：
 1. 查看候选置信度：`sqlite3 $AGENT_DB_PATH "SELECT id, candidate_type, confidence, status FROM knowledge_candidates WHERE candidate_date = 'YYYY-MM-DD'"`
-2. 确认阈值：daily 0.8, card 0.8, adr 0.85
-3. 查看执行日志：`sqlite3 $AGENT_DB_PATH "SELECT * FROM execution_log WHERE step_name = 'auto_review' AND execution_date = 'YYYY-MM-DD'"`
+2. 确认阈值：以 `auto_review.py` 的 `THRESHOLDS` 常量为准
+3. 查看独立执行日志（若已手动执行）：`sqlite3 $AGENT_DB_PATH "SELECT * FROM execution_log WHERE step_name = 'auto_review' AND execution_date = 'YYYY-MM-DD'"`
 4. 若阈值需调整，编辑 `auto_review.py` 的 `THRESHOLDS` 常量
 
 ## 9. 执行日志查询失败
@@ -107,9 +113,9 @@ template/.venv/bin/python template/agent-skills/local/global/knowledge-lifecycle
 ## 10. materialize_candidates.py 未找到 auto-accepted 候选
 
 检查顺序：
-1. auto_review 是否在 materialize 之前运行
+1. 检查候选是否已完成审核。若使用独立的 `auto_review.py`，按第 8 节确认其执行结果；它不属于 `run-full-cycle.sh` 的步骤。
 2. 候选状态：`SELECT status, COUNT(*) FROM knowledge_candidates WHERE candidate_date = 'YYYY-MM-DD' GROUP BY status`
-3. 执行日志确认步骤顺序：`SELECT step_name, started_at, status FROM execution_log WHERE execution_date = 'YYYY-MM-DD' ORDER BY started_at`
+3. 若执行过 `auto_review.py`，确认执行日志：`SELECT step_name, started_at, status FROM execution_log WHERE execution_date = 'YYYY-MM-DD' ORDER BY started_at`
 
 ## 11. durable run 卡在 running
 

@@ -16,16 +16,17 @@ mac-bootstrap/                  (private parent)
 
 ## File Inventory
 
-### Parent repo (private) — only these files are tracked
+### Parent repo (private) — tracked files
 
-| File | Purpose |
-|------|---------|
-| `.gitignore` | 屏蔽 private/、.env、*.pem、*.key 等敏感文件 |
-| `.gitmodules` | 指向 public template submodule |
-| `Makefile` | make check / privacy-audit / update-template |
-| `README.md` | 使用说明 |
-| `bootstrap.sh` | 入口 wrapper，exec template/install.sh |
-| `install.sh` | 入口 wrapper，exec template/install.sh |
+Parent tracks ~142 files across root configuration, documentation, scripts, tests, and audit artifacts. Run `git ls-files | grep -v '^template/'` for the authoritative live inventory.
+
+Key categories:
+- **Root & wrappers**: `.gitignore`, `.gitmodules`, `Makefile`, `README.md`, `bootstrap.sh`, `install.sh`
+- **Agent context & guides**: `AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`
+- **Documentation**: `docs/` (architecture, guides, runbooks)
+- **Automation & tooling**: `scripts/`, `diag/`
+- **Quality & verification**: `tests/`
+- **Audit records**: `audit_*.json` (state snapshots and privacy audits)
 
 ### Template repo (public) — all config files live here
 
