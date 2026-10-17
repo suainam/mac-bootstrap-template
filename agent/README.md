@@ -11,7 +11,6 @@ runtime configuration only.
 make bootstrap   # Brewfile deps + shell/vim/neovim/tmux config
 make agent-sync  # Validate/distribute registry-enabled skills + sync prompt libraries
 make agent-tools # Configure RTK, caveman, CBM, context7 + wire skills for all agents
-make agent-refresh # Full sync + full agent reconfigure
 make skill-refresh # Validate and distribute landed registry sources only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
 make prompt-mcp  # Run the optional local prompt-library MCP server
@@ -19,6 +18,7 @@ make doctor-agent # Verify all configs
 make agent-rules-audit # Scan all global & workspace AGENTS.md / CLAUDE.md for prompt drift
 make security-scan  # AgentShield security audit
 ```
+For full agent sync and reconfiguration (`make agent-refresh`), see the canonical workflow in [`../README.md`](../README.md#full-setup-including-agent-tools).
 
 Agent paths and targets are driven from
 [`agent-manifest.json`](agent-manifest.json); Codex MCP startup defaults and

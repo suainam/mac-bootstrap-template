@@ -183,11 +183,7 @@ make export-public DEST=/path/to/mac-bootstrap-public
 
 Then create the public GitHub repository from that exported directory.
 
-Or publish directly:
-
-```bash
-PUBLIC_REPO=<you>/mac-bootstrap-template make publish-public
-```
+Or publish directly; see [Public template + private overlay](../README.md#public-template--private-overlay) for the canonical `publish-public` workflow.
 
 `publish-public` exports into a temporary directory, runs the public-view audit,
 creates the GitHub repository as public if needed, commits the exported tree, and
