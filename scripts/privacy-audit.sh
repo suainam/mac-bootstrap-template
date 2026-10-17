@@ -163,6 +163,9 @@ def is_placeholder(value: str) -> bool:
         "line%",
         "user>:<pass",
     )
+    # Env-var name references (TYPESAFE_API_KEY) need an underscore; bare uppercase tokens (AKIA...) stay flagged
+    if re.fullmatch(r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+", value):
+        return True
     return (
         not value
         or any(bit in lowered for bit in placeholder_bits)
