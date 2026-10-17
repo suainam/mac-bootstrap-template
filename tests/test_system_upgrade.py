@@ -16,6 +16,132 @@ def make_executable(path: Path, content: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def run_package_stage(tmp_path: Path, brew_script: str) -> subprocess.CompletedProcess[str]:
+    fake_bin = tmp_path / "package-bin"
+    fake_bin.mkdir()
+    make_executable(fake_bin / "brew", brew_script)
+
+    fake_root = tmp_path / "package-repo"
+    fake_scripts = fake_root / "scripts"
+    fake_scripts.mkdir(parents=True)
+    make_executable(fake_scripts / "brew-bundle.sh", "#!/usr/bin/env bash\nexit 0\n")
+    fake_script = fake_scripts / "system-upgrade.sh"
+    fake_script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    fake_script.chmod(0o755)
+
+    env = {
+        "PATH": f"{fake_bin}:/usr/bin:/bin",
+        "BREW_BIN": str(fake_bin / "brew"),
+        "MAC_BOOTSTRAP_YES": "1",
+    }
+    return subprocess.run(
+        [str(fake_script), "--only", "packages"],
+        cwd=fake_root,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+
+def test_system_upgrade_package_update_retries_transient_failure(tmp_path: Path) -> None:
+    """A transient brew update failure is retried and later package steps run."""
+    brew_log = tmp_path / "brew.log"
+    result = run_package_stage(
+        tmp_path,
+        f'''#!/usr/bin/env bash
+echo "$*" >> "{brew_log}"
+if [[ "$1" == "update" && $(grep -c '^update$' "{brew_log}") -lt 2 ]]; then
+  exit 1
+fi
+exit 0
+''',
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert brew_log.read_text().splitlines() == ["update", "update", "upgrade", "cleanup"]
+    assert "Retrying in 3 seconds" in result.stderr
+
+
+def test_system_upgrade_package_update_exhaustion_does_not_sleep_or_retry_again(tmp_path: Path) -> None:
+    """Exhausted brew update attempts fail without an inaccurate retry message."""
+    brew_log = tmp_path / "brew.log"
+    sleep_log = tmp_path / "sleep.log"
+    fake_bin = tmp_path / "retry-bin"
+    fake_bin.mkdir()
+    make_executable(
+        fake_bin / "brew",
+        f'''#!/usr/bin/env bash
+echo "$*" >> "{brew_log}"
+exit 1
+''',
+    )
+    make_executable(fake_bin / "sleep", f'echo "$*" >> "{sleep_log}"\nexit 0\n')
+
+    fake_root = tmp_path / "retry-repo"
+    fake_scripts = fake_root / "scripts"
+    fake_scripts.mkdir(parents=True)
+    make_executable(fake_scripts / "brew-bundle.sh", "#!/usr/bin/env bash\nexit 0\n")
+    fake_script = fake_scripts / "system-upgrade.sh"
+    fake_script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    fake_script.chmod(0o755)
+    result = subprocess.run(
+        [str(fake_script), "--only", "packages"],
+        cwd=fake_root,
+        text=True,
+        capture_output=True,
+        env={
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "BREW_BIN": str(fake_bin / "brew"),
+            "MAC_BOOTSTRAP_YES": "1",
+        },
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert brew_log.read_text().splitlines() == ["update", "update", "update"]
+    assert sleep_log.read_text().splitlines() == ["3", "3"]
+    assert "attempt 2/3. Retrying" in result.stderr
+    assert "attempt 3/3" not in result.stderr
+    assert "failed after 3 attempts" in result.stderr
+
+
+def test_system_upgrade_does_not_attempt_lock_or_network_mutations(tmp_path: Path) -> None:
+    """Package upgrades never delete Homebrew locks or change network settings."""
+    fake_bin = tmp_path / "mutation-bin"
+    fake_bin.mkdir()
+    mutation_log = tmp_path / "mutations.log"
+    for command in ("rm", "networksetup"):
+        make_executable(
+            fake_bin / command,
+            f'printf "%s\\n" "{command} $*" >> "{mutation_log}"; exit 0\n',
+        )
+    make_executable(fake_bin / "brew", "#!/usr/bin/env bash\nexit 0\n")
+
+    fake_root = tmp_path / "mutation-repo"
+    fake_scripts = fake_root / "scripts"
+    fake_scripts.mkdir(parents=True)
+    make_executable(fake_scripts / "brew-bundle.sh", "exit 0\n")
+    fake_script = fake_scripts / "system-upgrade.sh"
+    fake_script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    fake_script.chmod(0o755)
+    result = subprocess.run(
+        [str(fake_script), "--only", "packages"],
+        cwd=fake_root,
+        text=True,
+        capture_output=True,
+        env={
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "BREW_BIN": str(fake_bin / "brew"),
+            "MAC_BOOTSTRAP_YES": "1",
+        },
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert not mutation_log.exists()
+
+
 def test_system_upgrade_refuses_non_tty_execution_without_yes() -> None:
     """Non-interactive execution without --yes / MAC_BOOTSTRAP_YES exits 2."""
     env = dict(os.environ)
