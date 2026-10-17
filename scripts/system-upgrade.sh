@@ -186,6 +186,33 @@ stage_optional_cli() {
   fi
 }
 
+stage_bun() {
+  local bin
+  bin="$(command -v bun 2>/dev/null || echo '')"
+  if [[ -z "$bin" || ! -x "$bin" ]]; then
+    echo "bun executable not found; skipping"
+    record_stage "bun" "skipped" "bun not installed"
+    return 0
+  fi
+  local out
+  local status=0
+  out="$("$bin" update -g 2>&1)" || status=$?
+  if [[ $status -eq 0 ]]; then
+    [[ -n "$out" ]] && echo "$out"
+    record_stage "bun" "success"
+    return 0
+  elif [[ "$out" == *"No package.json"* ]]; then
+    echo "No bun global packages installed; skipping"
+    record_stage "bun" "skipped" "no global packages installed"
+    return 0
+  else
+    [[ -n "$out" ]] && echo "$out" >&2
+    echo "Error: bun update -g failed" >&2
+    record_stage "bun" "failed" "bun update -g failed"
+    return 1
+  fi
+}
+
 stage_npm() {
   if ! command -v npm >/dev/null 2>&1; then
     echo "Error: npm executable not found in PATH" >&2
@@ -269,7 +296,7 @@ stage_chrome() {
 for stage in "${SELECTED_STAGES[@]}"; do
   case "$stage" in
     packages) stage_packages || true ;;
-    bun)      stage_optional_cli "bun" "bun" update -g || true ;;
+    bun)      stage_bun || true ;;
     uv)       stage_optional_cli "uv" "uv" tool upgrade --all || true ;;
     claude)   stage_optional_cli "claude" "claude" plugin marketplace update || true ;;
     npm)      stage_npm || true ;;

@@ -135,6 +135,69 @@ def test_system_upgrade_missing_optional_tools_explicitly_skipped(tmp_path: Path
     assert "claude       [ SKIPPED ]" in result.stdout
 
 
+def test_system_upgrade_bun_no_global_packages_reported_skipped(tmp_path: Path) -> None:
+    """When bun update -g reports 'No package.json', bun stage is skipped with reason."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+
+    make_executable(
+        fake_bin / "bun",
+        """#!/usr/bin/env bash
+echo "No package.json, so nothing to update" >&2
+exit 1
+""",
+    )
+
+    env = {
+        "PATH": f"{fake_bin}:/usr/bin:/bin",
+        "MAC_BOOTSTRAP_YES": "1",
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT), "--only", "bun"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "bun          [ SKIPPED ]" in result.stdout
+    assert "no global packages installed" in result.stdout
+
+
+def test_system_upgrade_bun_real_failure_reported_as_failed(tmp_path: Path) -> None:
+    """When bun update -g fails with a real error, bun stage is reported as failed."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+
+    make_executable(
+        fake_bin / "bun",
+        """#!/usr/bin/env bash
+echo "error: Network request timed out" >&2
+exit 1
+""",
+    )
+
+    env = {
+        "PATH": f"{fake_bin}:/usr/bin:/bin",
+        "MAC_BOOTSTRAP_YES": "1",
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT), "--only", "bun"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "bun          [ FAILED  ]" in result.stdout
+    assert "bun update -g failed" in result.stdout
+
 def test_system_upgrade_package_reconciliation_failure_halts_upgrade_and_reports_failed(tmp_path: Path) -> None:
     """When brew-bundle install fails (e.g. ownership error), subsequent package upgrades are skipped, stage fails."""
     fake_bin = tmp_path / "bin"
