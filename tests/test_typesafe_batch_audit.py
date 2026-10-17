@@ -156,8 +156,9 @@ def test_evidence_hash_determinism():
 
 def test_code_contract_packets_contain_valid_typesafe_questions():
     """Verify that extracted code contract packets conform to TypeSafe primitive contracts."""
-    template_dir = Path("template")
-    parent_dir = Path(".")
+    # Anchor to this file so the test passes from either repo root (pre-push runs inside template/)
+    template_dir = Path(__file__).resolve().parents[1]
+    parent_dir = template_dir.parent
 
     packets = extract_code_contract_packets(template_dir, parent_dir)
     assert len(packets) >= 4
