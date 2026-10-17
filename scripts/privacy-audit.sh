@@ -163,6 +163,9 @@ def is_placeholder(value: str) -> bool:
         "line%",
         "user>:<pass",
     )
+    # Pure uppercase + underscore strings are env-var name references, not secret values
+    if re.fullmatch(r"[A-Z][A-Z0-9_]*", value):
+        return True
     return (
         not value
         or any(bit in lowered for bit in placeholder_bits)

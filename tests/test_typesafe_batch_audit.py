@@ -75,9 +75,9 @@ providers:
     catalog_file.write_text(catalog_content, encoding="utf-8")
 
     env_content = """
-TYPESAFE_API_KEY=key_for_account_1
-TYPESAFE_API_KEY1=key_for_account_2
-OPENROUTER_API_KEY=key_for_openrouter_forbidden
+TYPESAFE_API_KEY=test-placeholder-key-1
+TYPESAFE_API_KEY1=test-placeholder-key-2
+OPENROUTER_API_KEY=test-placeholder-openrouter
 """
     env_file = tmp_path / ".env"
     env_file.write_text(env_content, encoding="utf-8")
@@ -87,9 +87,9 @@ OPENROUTER_API_KEY=key_for_openrouter_forbidden
     # Must contain exactly the two TypeSafe accounts, NEVER OpenRouter
     assert len(accounts) == 2
     assert accounts[0].alias == "account_1"
-    assert accounts[0].api_key == "key_for_account_1"
+    assert accounts[0].api_key == "test-placeholder-key-1"
     assert accounts[1].alias == "account_2"
-    assert accounts[1].api_key == "key_for_account_2"
+    assert accounts[1].api_key == "test-placeholder-key-2"
 
     for acc in accounts:
         assert "openrouter" not in acc.api_key.lower()
@@ -131,8 +131,8 @@ providers:
     catalog_file.write_text(catalog_content, encoding="utf-8")
 
     env_content = """
-TYPESAFE_API_KEY=identical_shared_key
-TYPESAFE_API_KEY1=identical_shared_key
+TYPESAFE_API_KEY=test-dedup-shared-key
+TYPESAFE_API_KEY1=test-dedup-shared-key
 """
     env_file = tmp_path / ".env"
     env_file.write_text(env_content, encoding="utf-8")
@@ -140,7 +140,7 @@ TYPESAFE_API_KEY1=identical_shared_key
     accounts = load_typesafe_accounts(catalog_file, env_file)
     assert len(accounts) == 1
     assert accounts[0].alias == "account_1"
-    assert accounts[0].api_key == "identical_shared_key"
+    assert accounts[0].api_key == "test-dedup-shared-key"
 
 
 def test_evidence_hash_determinism():
