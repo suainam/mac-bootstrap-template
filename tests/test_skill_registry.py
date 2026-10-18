@@ -411,3 +411,4 @@ def test_find_unmanaged_skill_dirs_reports_nested_unregistered_source(tmp_path: 
     registry = load_registry(registry_path)
 
     assert find_unmanaged_skill_dirs(registry, tmp_path) == [orphan]
+

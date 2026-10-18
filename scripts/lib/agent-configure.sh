@@ -405,12 +405,16 @@ Canonical RTK reference: \`$rtk_source\`
 
 Prefer \`codebase-memory-mcp\` / \`context7\` before grep for code discovery.
 Use grep only for literals, configs, or when MCP coverage is insufficient.
-
+AGENTSMD
+    printf '\n' >> "$OPENCODE_AGENTS"
+    # Single source of truth: copy the canonical section verbatim, no restatement.
+    awk 'f && /^@RTK\.md$/{exit} /^## Reply Routing$/{f=1} f' "$RULES_FILE" >> "$OPENCODE_AGENTS"
+    cat >> "$OPENCODE_AGENTS" <<AGENTSOURCES
 Canonical sources:
 - \`$RULES_FILE\`
 - \`$ADVERSARIAL_REVIEW_SRC\`
 - \`$rtk_source\`
-AGENTSMD
+AGENTSOURCES
   fi
   echo "  OpenCode AGENTS.md generated"
 }
