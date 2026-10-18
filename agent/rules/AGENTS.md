@@ -71,4 +71,20 @@ If you genuinely think a convention is harmful, surface it. Don't fork silently.
 "Tests pass" is wrong if any were skipped.
 Default to surfacing uncertainty, not hiding it.
 
+
+## Mandatory Codebase-Memory (CBM) & Memory Routing Protocol
+
+### 1. Structural Code Discovery (CBM via `xd://`)
+- CBM MCP tools are mounted as `xd://` devices (e.g. `xd://mcp__codebase_memory_mcp_search_graph`, `xd://mcp__codebase_memory_mcp_trace_path`). Execute via `write(path="xd://...", content='{...}')`.
+- **Mandatory Routing**: MUST use CBM first for symbols, functions, classes, methods, routes, callers/callees, blast radius, and architecture overview.
+- **Prohibition**: Do NOT use `glob` or `read` on multiple code files to discover symbols or trace dependencies before running `search_graph` or `trace_path`.
+- **Threshold**: If a search or glob would return >20 code files, abort and use CBM graph queries.
+- **Coverage**: Call `check_index_coverage` before stating absence or dead code.
+
+### 2. Multi-Tier Agent Memory & Hy-Memory PRO Hierarchy
+- **SSOT Layers**:
+  1. **Codebase-Memory (CBM)**: Deterministic code architecture (`xd://mcp__codebase_memory_mcp_*`).
+  2. **Hy-Memory PRO**: Long-term semantic decisions, architectural trade-offs, and operational pitfalls (`remember` / `recall`).
+  3. **Local Runtime (`agent.db`)**: Ephemeral turn context and session compaction.
+- **Practice**: Query `recall` before complex refactors/troubleshooting; record durable non-obvious traps via `remember`. Code in the repository is the ultimate ground truth.
 @RTK.md
