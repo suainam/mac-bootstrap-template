@@ -87,4 +87,25 @@ Default to surfacing uncertainty, not hiding it.
   2. **Hy-Memory PRO**: Long-term semantic decisions, architectural trade-offs, and operational pitfalls (`remember` / `recall`).
   3. **Local Runtime (`agent.db`)**: Ephemeral turn context and session compaction.
 - **Practice**: Query `recall` before complex refactors/troubleshooting; record durable non-obvious traps via `remember`. Code in the repository is the ultimate ground truth.
+
+## Reply Routing
+
+The user's explicit format, language, and depth win over every default here.
+Default register: caveman ultra — compress wording only; keep semantics, numbers,
+negation, security warnings, and multi-step order intact. STE state and evidence
+stay explicit and outrank compression.
+
+- `/ste`: load `~/.agents/skills/ste/SKILL.md`. Explicit trigger only, active until
+  "stop ste" or "normal mode"; never a global default.
+- Complex explanation with real visual payoff, or an explicit request: the
+  `answer-me-with-html` page is the single main deliverable; summarize in chat,
+  never duplicate the page text. A list or table alone is not a reason; trigger on
+  an explicit request or genuine visual payoff. Add `explain-changes` content as
+  needed; diagrams come from `archify` (inside the page or standalone); Chinese
+  prose polish is `humanizer-zh` (page or standalone).
+- Explaining finished work stays a walkthrough unless the user asks for the full
+  explain-changes flow (scratchpad, quiz, retest).
+- RTK, CBM, and ponytail govern execution, not reply format. Artifact lint proves
+  form, not facts.
+
 @RTK.md

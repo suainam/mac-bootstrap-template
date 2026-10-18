@@ -1161,6 +1161,32 @@
         }
       }
     },
+    "ste-zh": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/dualface/ste-zh",
+      "skills": {
+        "ste": {
+          "distribution_state": "enabled",
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true,
+            "max_risk": "LOW",
+            "allow_scripts": false
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-10-18",
+            "approved_hash": "sha256:1a7a051f68b51c00c06e25e60848028ab84995211d054429218a7e7fe3c8f2d8",
+            "reason": "User-approved Chinese ASD-STE100 reporting-convention skill after manual review of all 7 fetched files (SKILL.md, README.md, LICENSE, CHANGELOG.md, references/terminology.md, examples/task-summary.md, examples/result-report.md): Markdown-only text, no scripts, no network or subprocess calls, no external writes; content hash bound to the fetched quarantine tree; scanner audit unavailable, so allow_unaudited follows the existing text-only manual-review convention"
+          },
+          "reason": "User-approved Chinese reporting-style skill derived from ASD-STE100 (Simplified Technical English) principles; activated on demand with /ste, not always on; OMP shares it through the cross-agent target"
+        }
+      }
+    },
 
 
     "local-global": {

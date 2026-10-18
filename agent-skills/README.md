@@ -98,6 +98,39 @@ To prevent prompt context bloat and slash-command routing noise, only the core
 distribution (`"distribution_state": "disabled"`). Upstream bundle updates are
 tracked via `make system-upgrade`.
 
+## Reply routing and explanation skills
+
+Runtime rule lives in the canonical `agent/rules/AGENTS.md` section
+`## Reply Routing`; it stays short and self-contained. This section holds the
+detail and is read on demand, not every turn.
+
+- **Register**: caveman ultra is the default wording style. Compression never
+  removes meaning: keep negation, numbers, units, exact identifiers, security
+  warnings, and multi-step order. The user's explicit format, language, and
+  depth win over the default.
+- **`ste`**: opt-in only, triggered by explicit `/ste`, and active until
+  `stop ste` or `normal mode`. Never a global or per-session default. Installed
+  views resolve through `~/.agents/skills/ste/SKILL.md` (plus the Claude,
+  Codex, and OpenCode compatibility views); point rules at installed paths, not
+  at this checkout.
+- **STE vs generated artifacts**: upstream `ste` excludes generated files, so
+  HTML artifact wording follows the HTML CLI's own lint. A user request can put
+  an explicit page under STE, but STE is not a default constraint on project
+  artifacts.
+- **Complex explanation**: `answer-me-with-html` is the main deliverable when
+  the user asks for it or when visuals genuinely carry the content; a
+  list/table alone is not enough reason. Chat carries a short orientation, not
+  a copy of the page. `explain-changes` supplies the walkthrough content,
+  `archify` supplies diagrams (embedded in the page or standalone), and
+  `humanizer-zh` polishes Chinese prose (in the page or standalone). Compose
+  only what the task needs; no skill is force-loaded as a bundle.
+- **Full explain-changes flow**: scratchpad, quiz, and retest run only when the
+  user asks for that teaching flow. A plain "explain what you did" stays a
+  walkthrough.
+- **Execution tools**: RTK, CBM, and `ponytail` govern how work is done, not how
+  replies are formatted. Lint passing on an artifact proves form, not factual
+  correctness.
+
 ## Operations
 
 ```bash
