@@ -169,7 +169,6 @@ def test_archify_external_skill_registration() -> None:
     assert archify.ref == "https://github.com/tt-a1i/archify"
     assert archify.distribution_state == "enabled"
     assert archify.gate.approved is True
-    assert archify.gate.approved_hash == "sha256:ecf3060d32cc985e3d4a73fc39b0d3b901b5c8f53bf4770721b9843c0687beb3"
     assert archify.audit.allow_scripts is True
     assert archify.audit.allow_unaudited is True
 

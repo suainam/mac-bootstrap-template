@@ -38,7 +38,7 @@
    - Edits component styles
    - Verifies hot reload without altering human Neovim cursor.
 
-## 3. jev-browser-use QA Verification SOP
+## 3. agent-browser QA Verification SOP
 
 Agent executes `scripts/verify-ui.py` to validate page health:
 

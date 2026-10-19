@@ -1,9 +1,14 @@
 /**
- * ps-portal-sync: 企业四大门户统一自动化脚本 (jev-browser-use Runner)
- * 
- * 用法:
- *   jev-browser-use --connect http://127.0.0.1:9222 run scripts/portal_browser_sync.js [hpm|timesheet|wiki|assortment]
- * 或通过 -e 直接执行
+ * ps-portal-sync: 企业四大门户统一自动化脚本 (OMP eval browser Runner)
+ *
+ * 运行方式 (OMP eval, language="js"):
+ *   const script = await read("scripts/portal_browser_sync.js");
+ *   const tab = await browser.open({ name: "hpm", url: "https://hpm.example.com/achievement", app: { relay: true } });
+ *   await tab.run(`const mode = "hpm"; ${script}`);
+ *   await tab.close();
+ *
+ * mode: hpm | timesheet | wiki | assortment
+ * 说明: page 由 tab.run 注入 (Puppeteer Page)，不再通过 browser.getPage 解析。
  */
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -157,32 +162,27 @@ async function runAssortmentInspection(page) {
   console.log("运营看板指标卡片数:", metrics.length);
 }
 
-// 主入口分发
+// 主入口分发: page 已由 tab.run 注入
 async function main() {
-  const mode = process.argv[2] || "hpm";
-  const pages = typeof browser !== "undefined" && typeof browser.listPages === "function" ? await browser.listPages() : [];
-  console.log("当前活跃标签页:", pages.map(p => ({ id: p.id, url: p.url, title: p.title })));
+  const mode = typeof targetMode !== "undefined" ? targetMode : "hpm";
+  const currentUrl = page.url();
+  console.log("当前标签页:", currentUrl);
 
-  let targetPage = null;
   if (mode === "hpm") {
-    const target = pages.find(p => p.url && p.url.includes("/achievement"));
-    targetPage = target ? await browser.getPage(target.name || target.id) : await browser.getPage("hpm");
-    await runHpmSync(targetPage);
+    if (!currentUrl.includes("/achievement")) throw new Error("当前页不是 /achievement，请先用 browser.open 打开目标页");
+    await runHpmSync(page);
   } else if (mode === "timesheet") {
-    const target = pages.find(p => p.url && (p.url.includes("timeSheet") || p.url.includes("devops")));
-    targetPage = target ? await browser.getPage(target.name || target.id) : await browser.getPage("devops");
-    await runDevopsTimesheet(targetPage);
+    if (!(currentUrl.includes("timeSheet") || currentUrl.includes("devops"))) throw new Error("当前页不是 DevOps 工时页");
+    await runDevopsTimesheet(page);
   } else if (mode === "wiki") {
-    const target = pages.find(p => p.url && p.url.includes("wiki.dslbuy.com"));
-    targetPage = target ? await browser.getPage(target.name || target.id) : await browser.getPage("wiki");
-    await runWikiInspection(targetPage);
+    if (!currentUrl.includes("wiki.dslbuy.com")) throw new Error("当前页不是 wiki.dslbuy.com");
+    await runWikiInspection(page);
   } else if (mode === "assortment") {
-    const target = pages.find(p => p.url && p.url.includes("assortment"));
-    targetPage = target ? await browser.getPage(target.name || target.id) : await browser.getPage("assortment");
-    await runAssortmentInspection(targetPage);
+    if (!currentUrl.includes("assortment")) throw new Error("当前页不是 assortment 看板");
+    await runAssortmentInspection(page);
+  } else {
+    throw new Error(`未知 mode: ${mode}`);
   }
 }
 
-if (typeof browser !== "undefined") {
-  await main();
-}
+return await main();

@@ -5,17 +5,21 @@
  * 企业微信 / 腾讯文档共享表格 (doc.weixin.qq.com/sheet) 自动化全功能驱动脚本
  * 
  * 核心设计:
- *   1. 遵循 wy-coliney/jev-browser-use & browser-use/jev-ultrafast 官方稳定性规范:
- *      - 严禁在跨源页面跳转时盲目调用 Puppeteer 的 page.goto()，规避 LifecycleWatcher disposed 异常。
+ *   1. 稳定性规范 (沿用自 wy-coliney/jev-browser-use & browser-use/jev-ultrafast 的实践):
+ *      - 严禁在跨源页面跳转时盲目调用 page.goto()，规避 LifecycleWatcher disposed 异常。
  *      - 单自闭环原子脚本: 状态探测 -> 平滑过渡 -> SpreadsheetApp.behaviorApi.cellApi.setRangeValue -> OT 回读。
  *      - 杜绝全局 OS 模拟按键 (keystroke "v") 抢焦泄漏。
  *   2. 支持行插入与结构维护 (SpreadsheetApp.behaviorApi.dimensionApi)。
  *   3. 结合 SpreadsheetApp.e2eTools.getCellEditValue 实现结构与公式审计。
  * 
  * 用法:
- *   node .claude/skills/ps-portal-sync/scripts/wecom_sheet_driver.js --doc <e3_ID> --audit
- *   node .claude/skills/ps-portal-sync/scripts/wecom_sheet_driver.js --doc <e3_ID> --write-tsv <file.tsv> --start-cell C21
- *   node .claude/skills/ps-portal-sync/scripts/wecom_sheet_driver.js --doc <e3_ID> --clear-range P21:P41
+ *   node scripts/wecom_sheet_driver.js --doc <e3_ID> --audit [--session wbs]
+ *   node scripts/wecom_sheet_driver.js --doc <e3_ID> --write-tsv <file.tsv> --start-cell C21 [--session wbs]
+ *
+ * 运行器: agent-browser CLI (--session 复用命名会话，需先打开目标文档标签页)
+ *   agent-browser --session wbs --profile Default \
+ *     --executable-path '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+ *     open https://doc.weixin.qq.com/sheet/<e3_ID>
  */
 
 import { execSync } from "child_process";
@@ -32,7 +36,7 @@ const isAudit = args.includes("--audit");
 const writeTsvFile = getArg("--write-tsv");
 const startCell = getArg("--start-cell") || "C21";
 const clearRange = getArg("--clear-range");
-const relayPort = getArg("--port") || "9222";
+const sessionName = getArg("--session") || "wbs_worker";
 
 // 目标文档标识（必填，防止误写）
 const DOC_ID = getArg("--doc");
@@ -60,51 +64,43 @@ function parseCellCoord(coordStr) {
 }
 
 /**
- * 执行 jev-browser-use 运行自闭环内联 Puppeteer/CDP 脚本
+ * 通过 agent-browser eval --stdin 执行页面内自闭环脚本 (async IIFE)
  */
-function runBrowserScript(scriptBody, timeoutSeconds = 45) {
-  const tmpScript = path.join("/tmp", `wecom_atomic_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.js`);
-  fs.writeFileSync(tmpScript, scriptBody, "utf8");
-  try {
-    const out = execSync(`jev-browser-use --connect http://127.0.0.1:${relayPort} -t ${timeoutSeconds} < "${tmpScript}"`, {
-      encoding: "utf8",
-      maxBuffer: 10 * 1024 * 1024
-    });
-    return out;
-  } finally {
-    if (fs.existsSync(tmpScript)) fs.unlinkSync(tmpScript);
-  }
+function runBrowserScript(scriptBody, timeoutMs = 45000) {
+  return execSync(
+    `agent-browser --session ${JSON.stringify(sessionName)} eval --stdin`,
+    { input: scriptBody, encoding: "utf8", maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs }
+  );
 }
 
 /**
- * 生成原子自闭环执行头代码 (平滑导航与引擎就绪探测)
+ * 在 CLI 层平滑导航到目标文档，避免 eval 期间 CDP target 被导航打断
  */
-function makeAtomicHeader(docId) {
-  return `
-const p = await browser.getPage("wbs_worker");
-const targetDocId = "${docId}";
-
-// 官方规范: 若已在目标文档页，绝不重复导航
-if (!p.url().includes(targetDocId)) {
-  console.log("[Atomic] 正在平滑定向至目标文档:", targetDocId);
-  await p.evaluate((doc) => {
-    window.location.href = "https://doc.weixin.qq.com/sheet/" + doc;
-  }, targetDocId).catch(() => {});
+function navigateToDoc(docId) {
+  const currentUrl = execSync(
+    `agent-browser --session ${JSON.stringify(sessionName)} get url`,
+    { encoding: "utf8", timeout: 15000 }
+  ).trim();
+  if (currentUrl.includes(docId)) return;
+  console.log("[Atomic] 正在平滑定向至目标文档:", docId);
+  execSync(
+    `agent-browser --session ${JSON.stringify(sessionName)} open ${JSON.stringify("https://doc.weixin.qq.com/sheet/" + docId)}`,
+    { encoding: "utf8", timeout: 60000 }
+  );
 }
 
+/**
+ * 生成原子自闭环就绪探测代码 (导航已在 CLI 层完成)
+ */
+function makeAtomicHeader() {
+  return `
 // 轮询等待腾讯文档协同引擎与底层行为 API 完全就绪
 let ready = false;
-let activePage = p;
 for (let i = 0; i < 30; i++) {
   await new Promise(r => setTimeout(r, 1000));
-  try {
-    activePage = await browser.getPage("wbs_worker");
-    ready = await activePage.evaluate(() => {
-      const app = window.SpreadsheetApp;
-      return !!(app && app.workbook && app.workbook.activeSheet && app.behaviorApi?.cellApi && app.e2eTools);
-    });
-    if (ready) break;
-  } catch (err) {}
+  const app = window.SpreadsheetApp;
+  ready = !!(app && app.workbook && app.workbook.activeSheet && app.behaviorApi?.cellApi && app.e2eTools);
+  if (ready) break;
 }
 if (!ready) throw new Error("[Atomic] 腾讯文档协同引擎超时未就绪 (30s)");
 `;
@@ -125,65 +121,56 @@ async function writeTsv(filePath, startCoordStr) {
   const payloadJson = JSON.stringify(lines);
   const startJson = JSON.stringify(start);
 
-  const script = `
-${makeAtomicHeader(DOC_ID)}
+  const script = `(async () => {
+${makeAtomicHeader()}
 
 const rowsData = ${payloadJson};
 const startPos = ${startJson};
 
-const writeResult = await activePage.evaluate(async (rows, start) => {
-  const app = window.SpreadsheetApp;
-  const b = app.behaviorApi;
-  const sheet = app.workbook.activeSheet;
-  const sheetId = sheet.getSheetId();
-  
-  const rangeValues = [];
-  for (let rIdx = 0; rIdx < rows.length; rIdx++) {
-    const rowNum = start.rowIndex + rIdx;
-    const cols = rows[rIdx];
-    for (let cIdx = 0; cIdx < cols.length; cIdx++) {
-      rangeValues.push({
-        rowIndex: rowNum,
-        colIndex: start.colIndex + cIdx,
-        userEnterValue: cols[cIdx] !== undefined ? cols[cIdx] : ""
-      });
-    }
-  }
-  
-  const rev = await b.cellApi.setRangeValue({
-    sheetId,
-    rangeValues
-  });
-  
-  return { ok: true, count: rangeValues.length, revision: rev };
-}, rowsData, startPos);
+const app = window.SpreadsheetApp;
+const b = app.behaviorApi;
+const sheet = app.workbook.activeSheet;
+const sheetId = sheet.getSheetId();
 
-console.log("[Driver] 原子写入响应:", JSON.stringify(writeResult));
+const rangeValues = [];
+for (let rIdx = 0; rIdx < rowsData.length; rIdx++) {
+  const rowNum = startPos.rowIndex + rIdx;
+  const cols = rowsData[rIdx];
+  for (let cIdx = 0; cIdx < cols.length; cIdx++) {
+    rangeValues.push({
+      rowIndex: rowNum,
+      colIndex: startPos.colIndex + cIdx,
+      userEnterValue: cols[cIdx] !== undefined ? cols[cIdx] : ""
+    });
+  }
+}
+
+const rev = await b.cellApi.setRangeValue({ sheetId, rangeValues });
+console.log("[Driver] 原子写入响应:", JSON.stringify({ ok: true, count: rangeValues.length, revision: rev }));
 
 // 等待 WebSocket OT 协同版本完成提交
 await new Promise(r => setTimeout(r, 1200));
 
 // 回读前 5 行进行校验断言
-const readback = await activePage.evaluate((start) => {
-  const wb = window.SpreadsheetApp.workbook;
-  const e2e = window.SpreadsheetApp.e2eTools;
-  const res = [];
-  for (let r = 0; r < 5; r++) {
-    const rowNum = start.rowIndex + r;
-    res.push({
-      row: rowNum + 1,
-      colC: e2e.getCellEditValue(wb, rowNum, 2),
-      colD: (e2e.getCellEditValue(wb, rowNum, 3) || "").slice(0, 25),
-      colE: e2e.getCellEditValue(wb, rowNum, 4),
-      colO: e2e.getCellEditValue(wb, rowNum, 14)
-    });
-  }
-  return res;
-}, startPos);
+const wb = app.workbook;
+const e2e = app.e2eTools;
+const readback = [];
+for (let r = 0; r < 5; r++) {
+  const rowNum = startPos.rowIndex + r;
+  readback.push({
+    row: rowNum + 1,
+    colC: e2e.getCellEditValue(wb, rowNum, 2),
+    colD: (e2e.getCellEditValue(wb, rowNum, 3) || "").slice(0, 25),
+    colE: e2e.getCellEditValue(wb, rowNum, 4),
+    colO: e2e.getCellEditValue(wb, rowNum, 14)
+  });
+}
 
 console.log("[Driver] 现场断言回读样例:\\n" + JSON.stringify(readback, null, 2));
-`;
+return readback;
+})()`;
 
+  navigateToDoc(DOC_ID);
   const out = runBrowserScript(script);
   console.log(out.trim());
 }
@@ -193,33 +180,29 @@ console.log("[Driver] 现场断言回读样例:\\n" + JSON.stringify(readback, n
  */
 async function auditSheet() {
   console.log(`[Driver] 正在对目标文档 ${DOC_ID} 进行结构与公式审计...`);
-  const script = `
-${makeAtomicHeader(DOC_ID)}
+  const script = `(async () => {
+${makeAtomicHeader()}
 
-const auditResult = await activePage.evaluate(() => {
-  const wb = window.SpreadsheetApp.workbook;
-  const sheet = wb.activeSheet;
-  const e2e = window.SpreadsheetApp.e2eTools;
-  const rows = [];
-  for (let r = 20; r <= 41; r++) {
-    rows.push({
-      row: r + 1,
-      C: e2e.getCellEditValue(wb, r, 2),
-      D: (e2e.getCellEditValue(wb, r, 3) || "").slice(0, 30),
-      E: e2e.getCellEditValue(wb, r, 4),
-      O: e2e.getCellEditValue(wb, r, 14),
-      P: e2e.getCellEditValue(wb, r, 15)
-    });
-  }
-  return {
-    sheetName: sheet.getSheetName(),
-    rowCount: sheet.getRowCount(),
-    sampleRows: rows
-  };
-});
-
+const app = window.SpreadsheetApp;
+const wb = app.workbook;
+const sheet = wb.activeSheet;
+const e2e = app.e2eTools;
+const rows = [];
+for (let r = 20; r <= 41; r++) {
+  rows.push({
+    row: r + 1,
+    C: e2e.getCellEditValue(wb, r, 2),
+    D: (e2e.getCellEditValue(wb, r, 3) || "").slice(0, 30),
+    E: e2e.getCellEditValue(wb, r, 4),
+    O: e2e.getCellEditValue(wb, r, 14),
+    P: e2e.getCellEditValue(wb, r, 15)
+  });
+}
+const auditResult = { sheetName: sheet.getSheetName(), rowCount: sheet.getRowCount(), sampleRows: rows };
 console.log(JSON.stringify(auditResult, null, 2));
-`;
+return auditResult;
+})()`;
+  navigateToDoc(DOC_ID);
   const out = runBrowserScript(script);
   console.log(out.trim());
 }

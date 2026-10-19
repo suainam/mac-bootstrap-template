@@ -80,7 +80,7 @@
 ## 2. 自动化执行脚本片段
 
 ```javascript
-// 执行命令: jev-browser-use --connect http://127.0.0.1:9222 -e "<script>"
+// 执行方式: OMP eval browser.open + tab.run("<script>")
 const p = await browser.getPage("hpm");
 await p.bringToFront();
 

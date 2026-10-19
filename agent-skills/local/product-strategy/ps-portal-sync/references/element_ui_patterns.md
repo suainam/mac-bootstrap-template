@@ -104,7 +104,7 @@ function setVueInputValue(el, value) {
      return h;
    });
    ```
-   *注：`jev-browser-use -e` 的沙箱不支持 `require("fs")` 且单行 `console.log` 超过 4KB 会截断，可将 `authHeader` 以 Base64 打印到宿主环境后，用 `curl -s --noproxy '*' -H "Authorization: $AUTH" "https://devops-order.dslbuy.com/demand/manager/detail?demandId=<ID>"` 高速并发拉取完整 JSON。*
+   *注：OMP `tab.run` 的 eval 沙箱不支持 `require("fs")` 且单行 `console.log` 超过 4KB 会截断，可将 `authHeader` 以 Base64 打印到宿主环境后，用 `curl -s --noproxy '*' -H "Authorization: $AUTH" "https://devops-order.dslbuy.com/demand/manager/detail?demandId=<ID>"` 高速并发拉取完整 JSON。*
 3. **核心接口与枚举字典映射**：
    - **详情接口**：`GET https://devops-order.dslbuy.com/demand/manager/detail?demandId=<ID>`
    - **保存视图接口**：`GET https://devops-order.dslbuy.com/userQueryFilter?userId=10093621&namespaceId=10093621&namespace=demand&kind=demand&view=8`

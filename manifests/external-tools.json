@@ -27,10 +27,10 @@
       "description": "Office document analysis and reporting CLI"
     },
     {
-      "name": "jev-browser-use",
-      "target": "~/.local/bin/jev-browser-use",
-      "installer": "scripts/install-jev-browser-use.sh",
-      "description": "Jev-powered browser automation CLI, daemon, and Chrome extension relay (AuroraPixel/jev-browser-use)"
+      "name": "agent-browser",
+      "target": "~/.agent-browser/browsers",
+      "installer": "scripts/install-agent-browser.sh",
+      "description": "Vercel Labs browser automation CLI for AI agents (vercel-labs/agent-browser)"
     }
   ],
   "external_apps": [

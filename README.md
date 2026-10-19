@@ -170,10 +170,10 @@ OpenCode V2 is installed from the `anomalyco/tap` Homebrew tap; its managed RTK
 plugin is provisioned by `scripts/install-agent-tooling.sh`. Context Mode's
 OpenCode V1 plugin is not enabled by this template because the upstream package
 does not currently expose a V2 plugin entrypoint. Antigravity CLI follows the
-official Google installer instead of Homebrew cask packaging. `jev-browser-use`
-(AuroraPixel/jev-browser-use) is installed as a checksum-verified standalone binary
-into `~/.local/bin/jev-browser-use` (with its Chrome MV3 extension extracted to
-`~/.jev-browser-use/v1/extension`) via `scripts/install-jev-browser-use.sh` (`make external-tools`).
+official Google installer instead of Homebrew cask packaging. `agent-browser`
+(Vercel Labs / agent-browser-rs, 44.2k★) is installed via Homebrew (`make external-tools`) and provides
+CLI-driven browser automation with profile reuse, daemon sessions, and MCP integration. For enterprise scripts
+requiring cross-origin iframe access, OMP eval `browser` with `tab.run` and Puppeteer `page` API is used.
 OMP is the current default Agent CLI; Pi runtime wiring remains a compatibility layer and does not imply Pi remains installed on this machine.
 Machine-level npm globals are tracked in `template/agent/npm-global-packages.txt`.
 Use `make npm-packages` to install missing entries, or `make system-upgrade` for
