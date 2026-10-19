@@ -145,7 +145,7 @@ if [ "$MODE" = "install" ]; then
   fi
 
   # Keep manually installed GUI apps outside Homebrew ownership.
-  for entry in 'microsoft-edge:Microsoft Edge.app' 'zed:Zed.app' 'clash-verge-rev:Clash Verge.app'; do
+  for entry in 'microsoft-edge:Microsoft Edge.app' 'zed:Zed.app' 'clash-verge-rev:Clash Verge.app' 'grok-bot:Grok Bot.app'; do
     token="${entry%%:*}"
     app="${entry#*:}"
     if ! brew list --cask "$token" >/dev/null 2>&1 && { [ -d "/Applications/$app" ] || [ -d "$HOME/Applications/$app" ]; }; then
