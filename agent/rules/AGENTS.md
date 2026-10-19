@@ -71,4 +71,41 @@ If you genuinely think a convention is harmful, surface it. Don't fork silently.
 "Tests pass" is wrong if any were skipped.
 Default to surfacing uncertainty, not hiding it.
 
+
+## Mandatory Codebase-Memory (CBM) & Memory Routing Protocol
+
+### 1. Structural Code Discovery (CBM via `xd://`)
+- CBM MCP tools are mounted as `xd://` devices (e.g. `xd://mcp__codebase_memory_mcp_search_graph`, `xd://mcp__codebase_memory_mcp_trace_path`). Execute via `write(path="xd://...", content='{...}')`.
+- **Mandatory Routing**: MUST use CBM first for symbols, functions, classes, methods, routes, callers/callees, blast radius, and architecture overview.
+- **Prohibition**: Do NOT use `glob` or `read` on multiple code files to discover symbols or trace dependencies before running `search_graph` or `trace_path`.
+- **Threshold**: If a search or glob would return >20 code files, abort and use CBM graph queries.
+- **Coverage**: Call `check_index_coverage` before stating absence or dead code.
+
+### 2. Multi-Tier Agent Memory & Hy-Memory PRO Hierarchy
+- **SSOT Layers**:
+  1. **Codebase-Memory (CBM)**: Deterministic code architecture (`xd://mcp__codebase_memory_mcp_*`).
+  2. **Hy-Memory PRO**: Long-term semantic decisions, architectural trade-offs, and operational pitfalls (`remember` / `recall`).
+  3. **Local Runtime (`agent.db`)**: Ephemeral turn context and session compaction.
+- **Practice**: Query `recall` before complex refactors/troubleshooting; record durable non-obvious traps via `remember`. Code in the repository is the ultimate ground truth.
+
+## Reply Routing
+
+The user's explicit format, language, and depth win over every default here.
+Default register: caveman ultra — compress wording only; keep semantics, numbers,
+negation, security warnings, and multi-step order intact. STE state and evidence
+stay explicit and outrank compression.
+
+- `/ste`: load `~/.agents/skills/ste/SKILL.md`. Explicit trigger only, active until
+  "stop ste" or "normal mode"; never a global default.
+- Complex explanation with real visual payoff, or an explicit request: the
+  `answer-me-with-html` page is the single main deliverable; summarize in chat,
+  never duplicate the page text. A list or table alone is not a reason; trigger on
+  an explicit request or genuine visual payoff. Add `explain-changes` content as
+  needed; diagrams come from `archify` (inside the page or standalone); Chinese
+  prose polish is `humanizer-zh` (page or standalone).
+- Explaining finished work stays a walkthrough unless the user asks for the full
+  explain-changes flow (scratchpad, quiz, retest).
+- RTK, CBM, and ponytail govern execution, not reply format. Artifact lint proves
+  form, not facts.
+
 @RTK.md

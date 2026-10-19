@@ -112,17 +112,6 @@ def _pkill_ok(bin_dir: Path) -> None:
     _write_fake(bin_dir, "pkill", "exit 0\n")
 
 
-def _networksetup_off(bin_dir: Path) -> None:
-    """Fake networksetup: IPv6 already off, no mutation."""
-    _write_fake(
-        bin_dir,
-        "networksetup",
-        """\
-if [ "${1:-}" = "-listallnetworkservices" ]; then exit 1; fi
-exit 0
-""",
-    )
-
 
 def _run(
     tmp_path: Path,
@@ -189,7 +178,6 @@ class TestAccountValidation:
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
         _pgrep_no_chrome(bin_dir)
-        _networksetup_off(bin_dir)
         # No username positional arg — script should use $USER
         result = _run(tmp_path, bin_dir, user)
         assert result.returncode == 0, result.stderr + result.stdout
@@ -204,7 +192,6 @@ class TestAccountValidation:
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
         _pgrep_no_chrome(bin_dir)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, "currentuser", user)
         assert result.returncode == 0, result.stderr + result.stdout
         assert "applied successfully" in result.stdout
@@ -226,7 +213,6 @@ class TestChromeStateAccess:
         lib_dir.mkdir(parents=True)
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, user, user)
         assert result.returncode == 0
         assert "Skipping patch" in result.stdout
@@ -239,10 +225,31 @@ class TestChromeStateAccess:
         home.mkdir(parents=True)
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, user, user)
         assert result.returncode == 1
         assert "Permission denied" in result.stdout or "Permission denied" in result.stderr
+
+    def test_patch_does_not_attempt_unrelated_system_mutations(self, tmp_path):
+        """Patching Chrome never invokes rm or networksetup system mutations."""
+        user = "testuser"
+        home = tmp_path / "home" / user
+        state_file = _write_state(home, _LOCAL_STATE_NEEDS_PATCH)
+        bin_dir = _fake_bin(tmp_path)
+        _dscl_ok(bin_dir, user, home)
+        _pgrep_no_chrome(bin_dir)
+        mutation_log = tmp_path / "mutations.log"
+        for command in ("rm", "networksetup"):
+            _write_fake(
+                bin_dir,
+                command,
+                f'printf "%s\\n" "{command} $*" >> "{mutation_log}"; exit 0\n',
+            )
+
+        result = _run(tmp_path, bin_dir, user, user)
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert '"is_glic_eligible":true' in state_file.read_text()
+        assert not mutation_log.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +267,6 @@ class TestPatchLogic:
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
         _pgrep_no_chrome(bin_dir)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, user, user)
         assert result.returncode == 0
         assert "No changes needed" in result.stdout
@@ -278,7 +284,6 @@ class TestPatchLogic:
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
         _pgrep_no_chrome(bin_dir)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, user, user)
         assert result.returncode == 0
         assert '"is_glic_eligible":true' in state_file.read_text()
@@ -295,7 +300,6 @@ class TestPatchLogic:
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
         _pgrep_no_chrome(bin_dir)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, user, user)
         assert result.returncode == 0
         assert '"variations_country":"us"' in state_file.read_text()
@@ -312,7 +316,6 @@ class TestPatchLogic:
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
         _pgrep_no_chrome(bin_dir)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, user, user)
         assert result.returncode == 0
         content = state_file.read_text()
@@ -333,7 +336,6 @@ class TestChromKill:
         original = state_file.read_text()
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
-        _networksetup_off(bin_dir)
         # pgrep always reports Chrome running
         _pgrep_chrome_running(bin_dir)
         _pkill_ok(bin_dir)
@@ -350,7 +352,6 @@ class TestChromKill:
         state_file = _write_state(home, _LOCAL_STATE_NEEDS_PATCH)
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
-        _networksetup_off(bin_dir)
         _pkill_ok(bin_dir)
         # pgrep: Chrome running on first call, gone after pkill (simulate via call count file)
         call_count = tmp_path / ".pgrep_calls"
@@ -383,7 +384,6 @@ exit 1
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
         _pgrep_chrome_running(bin_dir)
-        _networksetup_off(bin_dir)
         result = _run(tmp_path, bin_dir, user, user)
         assert result.returncode == 0, result.stderr + result.stdout
         assert "WARNING" in result.stdout
@@ -397,7 +397,6 @@ exit 1
         original = state_file.read_text()
         bin_dir = _fake_bin(tmp_path)
         _dscl_ok(bin_dir, user, home)
-        _networksetup_off(bin_dir)
         _pgrep_chrome_running(bin_dir)
         _pkill_ok(bin_dir)
         result = _run(tmp_path, bin_dir, user, user, env_extra={"KILL_CHROME": "1"})

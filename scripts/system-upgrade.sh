@@ -137,14 +137,31 @@ stage_packages() {
   fi
 
   echo "Updating Homebrew and reconciling packages from Brewfile..."
-  "${BREW_BIN}" update && \
+  # Retry brew update up to 3 times to handle transient CDN/network connection drops
+  local update_success=0
+  for attempt in 1 2 3; do
+    if "${BREW_BIN}" update; then
+      update_success=1
+      break
+    fi
+    if [[ ${attempt} -lt 3 ]]; then
+      echo "Warning: 'brew update' failed on attempt ${attempt}/3. Retrying in 3 seconds..." >&2
+      sleep 3
+    fi
+  done
+  
+  if [[ ${update_success} -ne 1 ]]; then
+    echo "Error: 'brew update' failed after 3 attempts." >&2
+    record_stage "packages" "failed" "brew update failed after retries"
+    return 1
+  fi
+
   "${bundle_script}" install && \
   "${BREW_BIN}" upgrade || {
     echo "Error: Homebrew update/reconciliation/upgrade failed. Subsequent package steps skipped." >&2
     record_stage "packages" "failed" "package update/bundle/upgrade failed"
     return 1
   }
-
   if command -v zb >/dev/null 2>&1; then
     export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
     export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
@@ -182,6 +199,33 @@ stage_optional_cli() {
   else
     echo "Error: ${bin_name} $* failed" >&2
     record_stage "$stage" "failed" "${bin_name} $* failed"
+    return 1
+  fi
+}
+
+stage_bun() {
+  local bin
+  bin="$(command -v bun 2>/dev/null || echo '')"
+  if [[ -z "$bin" || ! -x "$bin" ]]; then
+    echo "bun executable not found; skipping"
+    record_stage "bun" "skipped" "bun not installed"
+    return 0
+  fi
+  local out
+  local status=0
+  out="$("$bin" update -g 2>&1)" || status=$?
+  if [[ $status -eq 0 ]]; then
+    [[ -n "$out" ]] && echo "$out"
+    record_stage "bun" "success"
+    return 0
+  elif [[ "$out" == *"No package.json"* ]]; then
+    echo "No bun global packages installed; skipping"
+    record_stage "bun" "skipped" "no global packages installed"
+    return 0
+  else
+    [[ -n "$out" ]] && echo "$out" >&2
+    echo "Error: bun update -g failed" >&2
+    record_stage "bun" "failed" "bun update -g failed"
     return 1
   fi
 }
@@ -269,7 +313,7 @@ stage_chrome() {
 for stage in "${SELECTED_STAGES[@]}"; do
   case "$stage" in
     packages) stage_packages || true ;;
-    bun)      stage_optional_cli "bun" "bun" update -g || true ;;
+    bun)      stage_bun || true ;;
     uv)       stage_optional_cli "uv" "uv" tool upgrade --all || true ;;
     claude)   stage_optional_cli "claude" "claude" plugin marketplace update || true ;;
     npm)      stage_npm || true ;;
