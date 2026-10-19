@@ -432,7 +432,7 @@ skill-snapshot:
 skill-refresh: skill-check skill-ensure-bundles skill-distribute
 
 system-upgrade:
-	./scripts/system-upgrade.sh $(if $(UPGRADE_ONLY),--only $(UPGRADE_ONLY),)
+	./scripts/system-upgrade.sh $(if $(UPGRADE_ONLY),--only $(UPGRADE_ONLY),) $(ARGS)
 
 package-migrate:
 	./scripts/brew-bundle.sh migrate

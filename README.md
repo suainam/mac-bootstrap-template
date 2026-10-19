@@ -222,6 +222,7 @@ flowchart TD
   make system-upgrade                            # 默认全生态升级
   ./scripts/system-upgrade.sh --only npm,skills  # 仅运行指定阶段
   make system-upgrade UPGRADE_ONLY=npm,skills    # Make 入口参数传递
+  make system-upgrade ARGS=--yes                 # 透传脚本参数（--yes / --help 等）
   ./scripts/system-upgrade.sh --yes              # 仅绕过入口 TTY 检查；工具确认或 sudo 仍可能需要终端
   ```
 
