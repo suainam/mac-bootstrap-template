@@ -400,6 +400,7 @@ def test_default_registry_doctor_is_available_through_wrapper(tmp_path: Path):
     assert payload["known_gates"] == [
         "python-syntax-smoke",
         "template-staged-python-syntax",
+        "staged-file-size-budget",
         "parent-submodule-pointer-reachable",
         "repository-check",
         "parent-machine-check",

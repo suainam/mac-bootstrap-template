@@ -9,7 +9,7 @@ Symlinked to `~/.claude/rules/common/` — Claude Code loads these as always-on 
 - `git-workflow.md` — Commit format, PR process
 - `rtk-diagnostics.md` — RTK command execution, artifact mechanism, diagnostic patterns
 - `memory-hierarchy.md` — Agent memory hierarchy, CBM vs Hy-Memory routing, and anti-drift contracts
-- `testing.md` — TDD, coverage requirements
+- `testing.md` — TDD, coverage requirements, verify-the-verification fault injection
 - `hooks.md` — Hook architecture, lifecycle events
 - `security.md` — Security-first development patterns
 ## Rule Application

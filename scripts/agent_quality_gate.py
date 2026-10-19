@@ -184,6 +184,23 @@ def _default_manifest_path() -> Path:
 
 
 def _repo_root() -> Path:
+    """Repository the hook runs in, not the repository containing this file.
+
+    The script lives in the template checkout, which is a submodule of the
+    parent management checkout, so deriving the root from ``__file__`` measures
+    the parent index from inside the child. Hooks cd to the repository root
+    before calling this runner; fall back to the script location only when Git
+    cannot answer.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=Path.cwd(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return Path(result.stdout.strip()).resolve()
     return Path(__file__).resolve().parents[2]
 
 
@@ -393,7 +410,6 @@ def build_push_knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> st
 
 
 def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_run: bool = False) -> int:
-    del manifest
     repo_root = _repo_root()
     template_root = _template_root()
     context = resolve_git_context(repo_root)
@@ -406,7 +422,14 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
     for gate in gates:
         if gate == "classify":
             continue
-        if gate == "docs-precheck":
+        if gate == "file-size":
+            rc = _run_command(
+                [str(template_root / "scripts" / "agent_file_size_gate.py")],
+                cwd=repo_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
+        elif gate == "docs-precheck":
             rc = _run_command(
                 [str(template_root / "scripts" / "neat-freak-gate.sh"), "check", *paths],
                 cwd=repo_root,

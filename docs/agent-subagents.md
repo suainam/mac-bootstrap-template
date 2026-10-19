@@ -14,18 +14,34 @@ publish order.
 
 ## Model Defaults
 
-Use the smallest model that matches risk:
+The delegation contract allows only the main tier or the fast tier; pick the
+smallest role that still matches risk and never escalate to a costlier tier
+without a stated reason. Role names and their tier mapping belong to the host
+catalog, not to this document.
 
-| Role | Default model | Why |
-|------|---------------|-----|
-| Deploy | `gpt-5.4 medium` | mostly deterministic git/status/publish checks |
-| Test | `gpt-5.4 medium` or mini | runs fixed commands and reports exact output |
-| Troubleshoot | `gpt-5.5 medium` | needs stronger root-cause reasoning across machine state |
+| Role | Default tier | Why |
+|------|--------------|-----|
+| Deploy | fast tier | mostly deterministic git/status/publish checks |
+| Test | fast tier | runs fixed commands and reports exact output |
+| Troubleshoot | main tier, or fast tier when the evidence is narrow | needs root-cause reasoning across machine state |
 
 Escalate deploy/test only when their findings require design judgment, not just
 command execution.
 
 ## When To Spawn
+
+The authoritative contract lives in `agent/rules/AGENTS.md` under
+`## Subagent Delegation Contract`; this document only adds role detail.
+
+Every task text carries the contract fields, including the reporting duty: one
+line per milestone and at least every ~60 s, or the parent treats silence as a
+defect and intervenes. The examples below are the role-specific body; wrap them
+with Outcome, Boundaries, Verification and Stop/Pause from the contract.
+
+The caps (5 concurrent children, 5 minutes wall clock each) are a contract the
+host must configure: OMP defaults to 32 concurrent children with no wall clock,
+so an unconfigured host lets a silent child run for minutes. The machine-local
+values live in the private overlay, not in this template.
 
 Spawn subagents when at least two lanes can run independently:
 
@@ -34,8 +50,8 @@ Spawn subagents when at least two lanes can run independently:
 - a fix touches both public `template/` and private parent wrapper
 - one agent can do read-only review while another runs live commands
 
-Do not spawn them for tiny single-file edits or when all work depends on the
-same mutable file set.
+Do not spawn them for tiny single-file edits, when all work depends on the
+same mutable file set, or when one agent can finish in about half a day.
 
 ## Prompt Contracts
 
@@ -72,5 +88,7 @@ private-parent/public-template layout:
 2. update and commit the parent submodule pointer second
 3. keep private overlay changes out of the public template
 
-This preserves privacy review and avoids publishing a parent pointer to a child
-commit that is not on the remote.
+Do not yield while a child still runs: each one must end as consumed, killed,
+or reported lost, and its claims must be verified before they count. The
+parent-first ordering above preserves privacy review and avoids publishing a
+pointer to a child commit that is not on the remote.

@@ -8,6 +8,25 @@ Every confirmed review finding or defect resolves through paired implementation 
 
 ---
 
+# Opposing Stances
+
+When work is split, Delivery and Verify hold different mandates:
+
+- **Delivery** pushes the change toward done and MUST supply evidence for each
+  claim: what was tried, what was chosen, what proved it.
+- **Verify** looks for the defect and MUST NOT accept "tests pass" as proof;
+  it reproduces the failure or names the missing evidence.
+
+Disagreement resolves in this order, and only escalates when the lower level
+does not converge:
+
+1. Delivery and Verify exchange evidence directly.
+2. The coordinator decides and records the rationale.
+3. The human decides at the next human gate.
+
+Neither side may close a finding by agreeing to skip it. A converged review
+still needs artifacts (command output, screenshots, logs), not just assent.
+
 # Review & Solidification Lifecycle
 
 ## 1. Assert First (Reproduce Before Fix)

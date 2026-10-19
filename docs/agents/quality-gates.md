@@ -350,6 +350,36 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 自动改写现有 `core.hooksPath`。template 始终是 repo-only；完整 machine checks 只属于显式
 标记的父仓管理 checkout。
 
+### 单文件体积预算 `staged-file-size-budget`
+
+`staged-file-size-budget` 是 `before.commit` 的通用门禁，防止 agent 把单个文件写成
+无法维护的巨物。它随 dispatcher bundle 发布，由 registry 提供 staged entries，
+由 `agent/quality-gates/manifest.jsonc` 的 `file-size` gate 在 repo-self hook
+路径复用同一个 `scripts/agent_file_size_gate.py`。
+repo-self 路径的 `agent_quality_gate.py` 从 hook 的当前目录解析 Git toplevel 来确定被测仓库，
+不从脚本位置推导：脚本位于 template checkout，而 template 常是父仓 submodule，按脚本路径
+会测量父仓 index，导致子仓暂存的大文件漏检。仅在 Git 无法回答时回退到脚本位置。
+
+预算为粗略估计，不调用 tokenizer：拉丁文本约 4 字节/token，CJK 字符按码点计约 1 token/字符。
+因此纯英文文件 20000 字节即 5000 tokens 到达上限，纯中文文件约 6000 字符（18000 字节）
+才到达同一预算；中文不会因 UTF-8 3 字节编码被提前拦截。上限用
+`QUALITY_GATES_MAX_FILE_TOKENS` 覆盖，默认 5000。
+
+判定规则：
+
+- 只衡量 `before.commit` 物化的 staged 内容，不读工作区未暂存内容；
+- 二进制文件按内容嗅探跳过（前 8192 字节含 NUL），不按扩展名枚举；
+- 锁文件、生成目录、minified 产物与 `agent-skills/local/shadows/**` 等非 agent 原创
+  内容按 glob 跳过，目录 glob（如 `dist/**`）在任意深度生效；
+- gitlink 与删除条目不参与测量；
+- rename/copy 只按目标路径判定：源路径的忽略 glob 不会豁免目标文件；
+- 已超过预算的存量文件只 WARN 不阻塞，否则历史大文件永远无法编辑；只有新引入或
+  突破预算的文件阻塞提交。ratchet 比较用同一个估算器判定 HEAD 内容，避免中文文件
+  被英文尺子误判为“存量超限”。
+
+阻塞信息必须给出具体拆分动作（拆分到同级文件、按职责拆分模块、长示例移到
+`references/`、生成内容移出仓库），而不是只报"太大"。
+
 ### 普通仓库与 Python profiles
 
 `repository` 是语言无关的最小完整仓库 profile。它只验证 push ref/OID 完整性，并在
