@@ -54,6 +54,11 @@ and OpenCode views, de-duplicates identical files by realpath, then resolves
 same-name collisions by provider priority. Do not add another OMP copy of the
 same source.
 
+Project discovery walks up from the working directory but stops at the nearest
+Git repository root. A `projects` target pointing at a parent directory such as
+`~/work/projects` therefore reaches no nested repository; every real project
+needs its own entry in `projects` (or the Skill must be global).
+
 Managed Skills follow the open Agent Skills format: a one-level
 `<name>/SKILL.md` directory, a 1-64 character lowercase hyphenated `name`, and a
 non-empty `description` of at most 1024 characters. Supporting `scripts/`,

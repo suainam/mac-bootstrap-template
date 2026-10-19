@@ -40,7 +40,8 @@ def test_all_five_lifecycle_skills_exist_and_pass_supply_chain_validation() -> N
         assert key in registry.skills, f"Skill {skill_name} not registered in sources.jsonc"
         ref = registry.skills[key]
         assert ref.source_type == "internal"
-        assert "projects" in ref.projects
+        assert ref.scope == "global", f"Skill {skill_name} must be globally distributed"
+        assert ref.agents, f"Skill {skill_name} must declare agent targets"
 
     for skill_name, title_keyword in EXPECTED_STAGES:
         skill_dir = LIFECYCLE_ROOT / skill_name

@@ -75,12 +75,6 @@
         "claude": "${HOME}/work/projects/product_strategy/.claude/skills"
       }
     },
-    "projects": {
-      "skills_dir": "${HOME}/work/projects/.agents/skills",
-      "compatibility_skills_dirs": {
-        "claude": "${HOME}/work/projects/.claude/skills"
-      }
-    },
     "www": {
       "skills_dir": "${HOME}/work/projects/www/.agents/skills",
       "compatibility_skills_dirs": {
@@ -1094,8 +1088,7 @@
             "approved_at": "2026-07-10",
             "approved_hash": "sha256:0c140b3e01a984ea1a3d2b79b83406b137847597eaa9a740f6a71a94bccafda4",
             "reason": "User-confirmed global distribution; approved current quarantined version after clean redistribution"
-          },
-          "reason": "User-confirmed global distribution"
+          }
         },
         "requesting-code-review": {
           "distribution_state": "disabled",
@@ -1111,8 +1104,7 @@
             "approved_at": "2026-07-10",
             "approved_hash": "sha256:65cad7b7959ddd26423d94d72a8e8ce669d49be5d3ce9309dd151a999ecf54e1",
             "reason": "User-confirmed global distribution; approved current quarantined version after clean redistribution"
-          },
-          "reason": "User-confirmed global distribution"
+          }
         },
         "test-driven-development": {
           "distribution_state": "merged",
@@ -1392,28 +1384,28 @@
       "path": "agent-skills/local/analytics-lifecycle",
       "skills": {
         "analytics-demand-intake": {
-          "scope": "project",
-          "projects": ["projects"],
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "通用数据分析阶段1：需求收集（DevOps提取与口头需求标准化归档）"
         },
         "analytics-demand-analysis": {
-          "scope": "project",
-          "projects": ["projects"],
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "通用数据分析阶段2：需求分析（DMP元数据探查、知识库检索与实体粒度画像）"
         },
         "analytics-data-solution": {
-          "scope": "project",
-          "projects": ["projects"],
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "通用数据分析阶段3：数据方案（RFC技术方案设计、Mermaid数据流与SQL原型）"
         },
         "analytics-data-execution": {
-          "scope": "project",
-          "projects": ["projects"],
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "通用数据分析阶段4：数据分析（PyODPS交互、并发回刷、因果实证与专题建模）"
         },
         "analytics-result-delivery": {
-          "scope": "project",
-          "projects": ["projects"],
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "通用数据分析阶段5：结果交付（Excel金字塔物化、Wiki沉淀、WBS与视频宣讲）"
         }
       }
@@ -1540,33 +1532,6 @@
         "marimo-excel-report": {
           "scope": "project",
           "projects": ["www"]
-        }
-      }
-    },
-
-    "local-analytics-lifecycle": {
-      "type": "internal",
-      "path": "agent-skills/local/analytics-lifecycle",
-      "skills": {
-        "analytics-demand-intake": {
-          "scope": "project",
-          "projects": ["product_strategy", "projects"]
-        },
-        "analytics-demand-analysis": {
-          "scope": "project",
-          "projects": ["product_strategy", "projects"]
-        },
-        "analytics-data-solution": {
-          "scope": "project",
-          "projects": ["product_strategy", "projects"]
-        },
-        "analytics-data-execution": {
-          "scope": "project",
-          "projects": ["product_strategy", "projects"]
-        },
-        "analytics-result-delivery": {
-          "scope": "project",
-          "projects": ["product_strategy", "projects"]
         }
       }
     }
