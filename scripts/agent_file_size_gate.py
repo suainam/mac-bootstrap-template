@@ -291,21 +291,31 @@ def render_report(
     *,
     limit: int,
 ) -> str:
-    lines = [
-        f"file-size gate: staged agent-authored files exceed the {limit}-token budget "
-        f"(rough estimate: {BYTES_PER_TOKEN} bytes per token for Latin text, "
-        f"{BYTES_PER_CJK_TOKEN} bytes per CJK character)."
-    ]
-    for entry in blocking[:MAX_REPORTED_FILES]:
-        lines.append(f"  BLOCK {entry.path}: ~{entry.tokens} tokens")
-    if len(blocking) > MAX_REPORTED_FILES:
-        lines.append(f"  ... and {len(blocking) - MAX_REPORTED_FILES} more")
-    lines.append("Split before committing:")
-    lines.append("  1. Move independent sections into sibling files and keep an index that links them.")
-    lines.append("  2. Split code by responsibility into cohesive modules instead of one large file.")
-    lines.append("  3. Extract long examples into references/ and keep short representative snippets.")
-    lines.append("  4. Move generated or vendored content out of the repo; regenerate it from its source.")
-    lines.append("Then stage the split files and commit again.")
+    estimate = (
+        f"rough estimate: {BYTES_PER_TOKEN} bytes per token for Latin text, "
+        f"{BYTES_PER_CJK_TOKEN} bytes per CJK character"
+    )
+    lines: list[str] = []
+    if blocking:
+        lines.append(
+            f"file-size gate: staged agent-authored files exceed the {limit}-token budget "
+            f"({estimate})."
+        )
+        for entry in blocking[:MAX_REPORTED_FILES]:
+            lines.append(f"  BLOCK {entry.path}: ~{entry.tokens} tokens")
+        if len(blocking) > MAX_REPORTED_FILES:
+            lines.append(f"  ... and {len(blocking) - MAX_REPORTED_FILES} more")
+        lines.append("Split before committing:")
+        lines.append("  1. Move independent sections into sibling files and keep an index that links them.")
+        lines.append("  2. Split code by responsibility into cohesive modules instead of one large file.")
+        lines.append("  3. Extract long examples into references/ and keep short representative snippets.")
+        lines.append("  4. Move generated or vendored content out of the repo; regenerate it from its source.")
+        lines.append("Then stage the split files and commit again.")
+    if warned:
+        lines.append(
+            f"file-size gate: {len(warned)} staged file(s) already exceeded the "
+            f"{limit}-token budget at HEAD; not blocking ({estimate})."
+        )
     for entry in warned[:MAX_REPORTED_FILES]:
         lines.append(
             f"  WARN {entry.path}: ~{entry.tokens} tokens (already over budget at HEAD; not blocking)"

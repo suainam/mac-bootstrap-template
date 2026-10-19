@@ -356,6 +356,9 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 无法维护的巨物。它随 dispatcher bundle 发布，由 registry 提供 staged entries，
 由 `agent/quality-gates/manifest.jsonc` 的 `file-size` gate 在 repo-self hook
 路径复用同一个 `scripts/agent_file_size_gate.py`。
+repo-self 路径的 `agent_quality_gate.py` 从 hook 的当前目录解析 Git toplevel 来确定被测仓库，
+不从脚本位置推导：脚本位于 template checkout，而 template 常是父仓 submodule，按脚本路径
+会测量父仓 index，导致子仓暂存的大文件漏检。仅在 Git 无法回答时回退到脚本位置。
 
 预算为粗略估计，不调用 tokenizer：拉丁文本约 4 字节/token，CJK 字符按码点计约 1 token/字符。
 因此纯英文文件 20000 字节即 5000 tokens 到达上限，纯中文文件约 6000 字符（18000 字节）

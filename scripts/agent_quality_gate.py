@@ -184,6 +184,23 @@ def _default_manifest_path() -> Path:
 
 
 def _repo_root() -> Path:
+    """Repository the hook runs in, not the repository containing this file.
+
+    The script lives in the template checkout, which is a submodule of the
+    parent management checkout, so deriving the root from ``__file__`` measures
+    the parent index from inside the child. Hooks cd to the repository root
+    before calling this runner; fall back to the script location only when Git
+    cannot answer.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=Path.cwd(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return Path(result.stdout.strip()).resolve()
     return Path(__file__).resolve().parents[2]
 
 

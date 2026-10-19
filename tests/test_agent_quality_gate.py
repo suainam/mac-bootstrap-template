@@ -55,6 +55,22 @@ def test_load_quality_gate_manifest_reads_jsonc(tmp_path):
     assert data["events"]["pre-commit"]["gates"] == ["classify", "python-fast"]
 
 
+def test_repo_root_follows_the_hook_cwd_not_the_script_location(tmp_path, monkeypatch):
+    """The script lives in the template submodule; the hook runs in some repo.
+
+    Deriving the root from `__file__` measured the parent index from inside the
+    child checkout, so a staged oversized file in the child passed unseen.
+    """
+    parent = tmp_path / "parent"
+    init_repo(parent)
+    child = parent / "template"
+    init_repo(child)
+
+    monkeypatch.chdir(child)
+
+    assert quality_gate._repo_root() == child.resolve()
+
+
 def test_classify_paths_returns_docs_and_python_classes():
     manifest = {
         "classes": {
