@@ -108,7 +108,7 @@ flowchart TD
 
 #### 2B. 周度工时日历填报 (`timesheet-audit`)
 1. **凭据核对**：
-   - 执行 `git log --author=suai --since="7 days ago" --oneline` 提取当周真实交付分支与关联需求号（如 `Story-279258`）。
+   - 执行 `git log --author="$(git config user.name)" --since="7 days ago" --oneline` 提取当周真实交付分支与关联需求号（如 `Story-279258`）。
 2. **工时日历填报**：
    - 导航至 `https://devops.dslbuy.com/#/timeWise/timeSheet`，匹配目标需求编号所在行。
    - 遵循 `v-model-sync`：对当周 5 个工作日单元格分别填入标准工时（单日 8.0h），派发 `input` 与 `change` 事件。
