@@ -88,6 +88,24 @@ Default to surfacing uncertainty, not hiding it.
   3. **Local Runtime (`agent.db`)**: Ephemeral turn context and session compaction.
 - **Practice**: Query `recall` before complex refactors/troubleshooting; record durable non-obvious traps via `remember`. Code in the repository is the ultimate ground truth.
 
+## Subagent Delegation Contract
+
+Spawn only for ≥2 independent slices or read-only scouting that saves main context. Otherwise work inline (Occam Gate wins). Task size gate: work a single agent can finish in about half a day stays inline; only week-scale work with shifting conditions earns orchestration.
+
+- **Caps**: ≤5 concurrent subagents; ≤5 min wall-clock each. The host must enforce both (`task.maxConcurrency`, `task.maxRuntimeMs` in OMP; defaults are 32 and unlimited). Models: main tier or fast tier only; never a costlier tier.
+- **Coordinator**: the parent owns scope, slice design, staging, and the final report; it does not implement slices itself. Keep its context on goals and evidence, not implementation detail.
+- **Preflight before spawn**: write the slice list, each slice's files, the verification command, and the human gates the work will cross. Surface missing access, credentials, or decisions now; do not discover them mid-run.
+- **Task contract** (the `task` text MUST carry all of it, goal-style; use `qiaomu-goal-meta-skill` when the slice is unclear):
+  - Outcome: one concrete result, not an activity.
+  - Boundaries: exact files/dirs it may read or write; read-only unless a single named writer.
+  - Verification: command or artifact that proves done.
+  - Stop when: proof of completion. Pause if: credential, destructive step, or product decision needed.
+  - Rationale: for non-obvious choices, report options considered, the choice, and the evidence behind it.
+  - Time: 5 min cap. Report one-line progress to the parent at each milestone and at least every ~60 s; silence is a defect.
+- **Non-blocking questions are recorded, not asked**: keep working on the parts that are already clear, batch the decisions for the next human gate, and stop only for genuinely blocking gates (merge, credentials, destructive actions).
+- **Parent supervision**: run subagents as async jobs and stay quiet while they work. Patrol every child once at ~3 min via `history://<id>`: on track → leave; drifting → steer with `write agent://<id>`; stuck, silent, or off-scope → `write proc://<id>/kill`, keep its partial output, and take over or respawn narrower.
+- **Closeout**: never yield with a running child. Each child ends as consumed, killed, or reported lost. Verify its claims before relying on them. If the session spanned ≥3 verification rounds or produced a wrong call, run `retro` and write at least one lesson back to `rules/` or `docs/`.
+
 ## Reply Routing
 
 The user's explicit format, language, and depth win over every default here.

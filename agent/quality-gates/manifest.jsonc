@@ -36,6 +36,7 @@
   "events": {
     "pre-commit": {
       "default_gates": [
+        "file-size",
         "classify",
         "docs-precheck"
       ],

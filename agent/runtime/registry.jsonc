@@ -33,6 +33,7 @@
       "gates": [
         "python-syntax-smoke",
         "template-staged-python-syntax",
+        "staged-file-size-budget",
         "template-push-ref-integrity",
         "repository-check"
       ]
@@ -62,6 +63,7 @@
       "gates": [
         "python-syntax-smoke",
         "template-staged-python-syntax",
+        "staged-file-size-budget",
         "parent-submodule-pointer-reachable",
         "template-push-ref-integrity",
         "repository-check",
@@ -106,6 +108,25 @@
       "cwd": "repo",
       "mode": "sync",
       "timeout_seconds": 10,
+      "failure_policy": "block",
+      "output_policy": "diagnostic",
+      "capabilities": ["read-only", "staged-snapshot"],
+      "stage": "generic",
+      "action": "check",
+      "severity": "error",
+      "rule_revision": "1"
+    },
+    "staged-file-size-budget": {
+      "events": ["before.commit"],
+      "path_globs": [],
+      "command": [
+        "/usr/bin/python3",
+        "-c",
+        "import os,runpy; runpy.run_path(os.path.join(os.environ['AGENT_RUNTIME_LIB_DIR'],'agent_file_size_gate.py'),run_name='__main__')"
+      ],
+      "cwd": "repo",
+      "mode": "sync",
+      "timeout_seconds": 30,
       "failure_policy": "block",
       "output_policy": "diagnostic",
       "capabilities": ["read-only", "staged-snapshot"],

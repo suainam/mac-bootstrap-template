@@ -42,6 +42,7 @@ HOOK_EVENTS: dict[str, tuple[str, bool]] = {
 }
 BUNDLE_FILES = (
     "agent_check_scope_gate.py",
+    "agent_file_size_gate.py",
     "agent_git_hook_dispatcher.py",
     "agent_git_push.py",
     "agent_git_context.py",

@@ -393,7 +393,6 @@ def build_push_knowledge_payload(plan: Mapping[str, Any], repo_root: Path) -> st
 
 
 def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_run: bool = False) -> int:
-    del manifest
     repo_root = _repo_root()
     template_root = _template_root()
     context = resolve_git_context(repo_root)
@@ -406,7 +405,14 @@ def execute_plan(plan: Mapping[str, Any], manifest: Mapping[str, Any], *, dry_ru
     for gate in gates:
         if gate == "classify":
             continue
-        if gate == "docs-precheck":
+        if gate == "file-size":
+            rc = _run_command(
+                [str(template_root / "scripts" / "agent_file_size_gate.py")],
+                cwd=repo_root,
+                env=command_env,
+                dry_run=dry_run,
+            )
+        elif gate == "docs-precheck":
             rc = _run_command(
                 [str(template_root / "scripts" / "neat-freak-gate.sh"), "check", *paths],
                 cwd=repo_root,
