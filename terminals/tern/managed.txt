@@ -1,0 +1,13 @@
+# Files this template owns for Tern, relative to Tern's config directory.
+# One path per line; '#' starts a comment.
+#
+# Private overlay files override public defaults as whole files.
+# Optional private-only configuration is captured when present.
+#
+# Never list app-written runtime state here: carly/MEMORY.md, carly/memory/,
+# files.json, daemon.state and the omp/ runtime are Tern's, not ours.
+settings.json
+carly/SOUL.md
+carly/HEARTBEAT.md
+carly/USER.md
+carly/snippets/tools.lua

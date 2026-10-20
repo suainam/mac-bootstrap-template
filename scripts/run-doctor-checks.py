@@ -323,6 +323,8 @@ def main(argv: list[str]) -> int:
         if matched:
             suffix = f" ({matched})" if matched != item["name"] else ""
             print(f"ok cli: {item['name']}{suffix}")
+        elif item.get("optional"):
+            print(f"skip optional cli: {item['name']}")
         else:
             print(f"missing cli: {item['name']}")
             missing = True
