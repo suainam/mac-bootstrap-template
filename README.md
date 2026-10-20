@@ -168,6 +168,10 @@ AI coding CLIs are managed from this Brewfile where possible: `claude-code`,
 global npm package through Homebrew Bundle's `npm` support. Token/context
 helpers are split the same way: RTK and `codex-threadripper` are installed from
 Homebrew taps, and `context-mode` is installed as a global npm package.
+`context-mode` is Elastic-2.0 licensed, not MIT: self-use is fine, but do not
+offer it to third parties as a hosted service. Its per-session SQLite caches
+under each agent's `context-mode/sessions/` grow without an automatic cap
+(660 MB observed on one machine), so prune that directory when it grows.
 OpenCode V2 is installed from the `anomalyco/tap` Homebrew tap; its managed RTK
 plugin is provisioned by `scripts/install-agent-tooling.sh`. Context Mode's
 OpenCode V1 plugin is not enabled by this template because the upstream package
