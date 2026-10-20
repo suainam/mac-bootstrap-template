@@ -161,9 +161,14 @@ configure_security_scan_step
 
 print_step_header "Step 12b — Repo Git Hooks"
 if git -C "$BOOTSTRAP/.." rev-parse --git-dir >/dev/null 2>&1; then
-  run chmod +x "$BOOTSTRAP/agent/quality-gates/hooks/pre-commit" "$BOOTSTRAP/agent/quality-gates/hooks/pre-push"
-  run git -C "$BOOTSTRAP/.." config core.hooksPath template/agent/quality-gates/hooks
-  echo "  core.hooksPath -> template/agent/quality-gates/hooks"
+  current_hooks_path="$(git -C "$BOOTSTRAP/.." config --get core.hooksPath 2>/dev/null || true)"
+  if [ -z "$current_hooks_path" ] || [ "$current_hooks_path" = "template/agent/quality-gates/hooks" ]; then
+    run chmod +x "$BOOTSTRAP/agent/quality-gates/hooks/pre-commit" "$BOOTSTRAP/agent/quality-gates/hooks/pre-push"
+    run git -C "$BOOTSTRAP/.." config core.hooksPath template/agent/quality-gates/hooks
+    echo "  core.hooksPath -> template/agent/quality-gates/hooks (legacy; run make quality-gate-hook-install to activate dispatcher)"
+  else
+    echo "  core.hooksPath kept: $current_hooks_path"
+  fi
 else
   echo "  SKIP: current checkout is not a git worktree"
 fi

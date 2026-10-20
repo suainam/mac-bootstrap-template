@@ -280,6 +280,37 @@ def test_pre_push_gate_failure_does_not_contact_remote_or_write_receipt(tmp_path
     assert missing.returncode == 2
 
 
+def test_unreachable_transport_fails_before_gates_run(tmp_path: Path):
+    runtime = setup_runtime_repo(tmp_path)
+    marker = tmp_path / "gate-ran"
+    (runtime.repo / "Makefile").write_text(
+        f"repo-check:\n\t@touch {marker}\n",
+        encoding="utf-8",
+    )
+    git(runtime.repo, runtime.env, "add", "Makefile")
+    git(runtime.repo, runtime.env, "commit", "-qm", "add gate marker")
+    git(runtime.repo, runtime.env, "config", "agent.runtime.profile", "repository")
+    git(
+        runtime.repo,
+        runtime.env,
+        "remote",
+        "set-url",
+        "origin",
+        str(tmp_path / "absent.git"),
+    )
+
+    blocked = wrapper_push(runtime, "op-unreachable", "origin", "main", check=False)
+
+    assert blocked.returncode != 0
+    assert "is unreachable" in blocked.stderr
+    assert not marker.exists()
+
+    dry_run = wrapper_push(
+        runtime, "op-unreachable-dry", "--dry-run", "origin", "main", check=False
+    )
+    assert "is unreachable" not in dry_run.stderr
+
+
 def test_remote_success_with_receipt_failure_reports_irreversible_state(tmp_path: Path):
     runtime = setup_runtime_repo(tmp_path)
     env = dict(runtime.env)

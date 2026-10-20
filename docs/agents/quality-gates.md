@@ -325,6 +325,12 @@ hooksPath、bundle release、runtime、registry、7 个 hook shim、`agent-git-p
 - `before.commit` 只编译 dispatcher 物化的 staged Python snapshot，不读取未暂存 working tree；
 - `before.push` 验证 dispatcher 提供的 ref 列表与 40 位十六进制 OID 元数据完整性；
 - `before.push` 通过通用 `repository-check` gate 固定执行 `make repo-check`。
+- 当 dispatcher 提供的 `target_paths` 非空且全部为文档路径（`*.md`、`docs/` 下、
+  `README.md`/`CLAUDE.md`/`AGENTS.md`/`CONTEXT.md`）时，`repository-check` 与
+  `parent-machine-check` 直接跳过并写出 `skip ... documentation only` 诊断。
+  空 `target_paths`（tag push、仅删除 ref、stdin 未解析）不构成证据，仍完整执行。
+  代价：只改文档的 push 不再跑测试套件；若改动触及测试断言的文档内容，需手动执行
+  `make check`。
 
 该 profile 不运行 machine checks、父仓 pointer gate 或额外的 Public CI 模拟。公开验收在
 独立临时仓库安装 dispatcher：坏的 staged Python 提交被阻止；已暂存有效代码而 working
@@ -349,6 +355,10 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 不得同时保留旧 repo-managed hook 与新 dispatcher 作为竞争入口，也不得由通用 bootstrap
 自动改写现有 `core.hooksPath`。template 始终是 repo-only；完整 machine checks 只属于显式
 标记的父仓管理 checkout。
+
+`scripts/install-agent-tooling.sh` Step 12b follows this: it only writes the
+legacy relative `template/agent/quality-gates/hooks` when `core.hooksPath` is
+unset or already legacy, and prints `core.hooksPath kept: …` otherwise.
 
 ### 单文件体积预算 `staged-file-size-budget`
 
@@ -394,7 +404,10 @@ fail-closed 边界。项目依赖准备应在显式 bootstrap 或 CI 的 sync/in
 的最小闭环。
 
 `python-repository` 在上述 Python 机械 gate 之外同样复用 `repository-check`；适用于希望在
-commit 前额外阻断 Python 语法错误的仓库。
+commit 前额外阻断 Python 语法错误的仓库。该 profile 还在 `before.commit` 启用
+`staged-file-size-budget`（单文件 token 上限，默认 5000；HEAD 已超限的存量文件只告警，
+新文件或从限额内增长至超限的文件阻断）和 `repository-stage-naming`（运行仓库内
+`scripts/check_stage_naming.py --staged`，仅检查暂存区；仓库没有该脚本时跳过）。
 
 这些 profile 都要求显式 opt-in、inventory、install 和 doctor。smoke 通过不代表完整仓库
 迁移完成；完整 profile 还必须经过失败注入、真实临时分支 push、hosted CI 和 uninstall

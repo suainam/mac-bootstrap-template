@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -9,6 +10,10 @@ import sys
 
 MANAGEMENT_CONFIG = "agent.runtime.managementCheckout"
 MAKE = "/usr/bin/make"
+# Documentation paths never affect repository or machine checks. Mirrors the
+# docs classification in scripts/neat-freak-gate.sh.
+DOC_BASENAMES = {"README.md", "CLAUDE.md", "AGENTS.md", "CONTEXT.md"}
+DOC_SUFFIXES = (".md", ".mdx")
 
 
 class CheckScopeError(RuntimeError):
@@ -29,6 +34,34 @@ def _required_path(
     if directory and not path.is_dir():
         raise CheckScopeError(f"{name} is not a directory: {path}")
     return path
+
+
+def _is_doc_path(raw: str) -> bool:
+    path = Path(raw)
+    if path.name in DOC_BASENAMES or path.suffix in DOC_SUFFIXES:
+        return True
+    return "docs" in path.parts
+
+
+def _docs_only_push() -> bool:
+    """True only when the pushed diff is non-empty and entirely documentation.
+
+    An empty ``target_paths`` (tag push, deleted-only ref, unparsed stdin) proves
+    nothing, so it never skips the checks.
+    """
+    raw = os.environ.get("AGENT_RUNTIME_EVENT_JSON", "")
+    if not raw:
+        return False
+    try:
+        event = json.loads(raw)
+    except json.JSONDecodeError:
+        return False
+    targets = event.get("target_paths")
+    if not isinstance(targets, list) or not targets:
+        return False
+    if not all(isinstance(item, str) and item for item in targets):
+        return False
+    return all(_is_doc_path(item) for item in targets)
 
 
 def _management_enabled(policy_config: Path) -> bool:
@@ -95,6 +128,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         repo_root = _required_path("AGENT_RUNTIME_REPO_ROOT", directory=True)
+        if _docs_only_push():
+            print(
+                f"skip {args[0]} check: pushed paths are documentation only",
+                file=sys.stderr,
+            )
+            return 0
         if args[0] == "repository":
             return _run_make(repo_root, "repo-check")
         policy_config = _required_path("AGENT_RUNTIME_POLICY_CONFIG")

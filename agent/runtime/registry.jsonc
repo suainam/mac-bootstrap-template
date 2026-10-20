@@ -53,6 +53,8 @@
       "gates": [
         "python-syntax-smoke",
         "template-staged-python-syntax",
+        "staged-file-size-budget",
+        "repository-stage-naming",
         "template-push-ref-integrity",
         "repository-check"
       ]
@@ -206,6 +208,25 @@
       "failure_policy": "block",
       "output_policy": "diagnostic",
       "capabilities": ["read-only", "push-ref-metadata"],
+      "stage": "generic",
+      "action": "check",
+      "severity": "error",
+      "rule_revision": "1"
+    },
+    "repository-stage-naming": {
+      "events": ["before.commit"],
+      "path_globs": [],
+      "command": [
+        "/usr/bin/python3",
+        "-c",
+        "import os,subprocess,sys; p='scripts/check_stage_naming.py'; sys.exit(subprocess.call([sys.executable,p,'--staged']) if os.path.isfile(p) else 0)"
+      ],
+      "cwd": "repo",
+      "mode": "sync",
+      "timeout_seconds": 30,
+      "failure_policy": "block",
+      "output_policy": "diagnostic",
+      "capabilities": ["read-only", "staged-snapshot"],
       "stage": "generic",
       "action": "check",
       "severity": "error",

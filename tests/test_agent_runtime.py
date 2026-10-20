@@ -426,6 +426,7 @@ def test_default_registry_doctor_is_available_through_wrapper(tmp_path: Path):
         "repository-check",
         "parent-machine-check",
         "template-push-ref-integrity",
+        "repository-stage-naming",
     ]
     assert payload["enabled"] is False
     assert payload["effective_gates"] == []

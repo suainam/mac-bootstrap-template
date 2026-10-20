@@ -168,6 +168,10 @@ AI coding CLIs are managed from this Brewfile where possible: `claude-code`,
 global npm package through Homebrew Bundle's `npm` support. Token/context
 helpers are split the same way: RTK and `codex-threadripper` are installed from
 Homebrew taps, and `context-mode` is installed as a global npm package.
+`context-mode` is Elastic-2.0 licensed, not MIT: self-use is fine, but do not
+offer it to third parties as a hosted service. Its per-session SQLite caches
+under each agent's `context-mode/sessions/` grow without an automatic cap
+(660 MB observed on one machine), so prune that directory when it grows.
 OpenCode V2 is installed from the `anomalyco/tap` Homebrew tap; its managed RTK
 plugin is provisioned by `scripts/install-agent-tooling.sh`. Context Mode's
 OpenCode V1 plugin is not enabled by this template because the upstream package
@@ -183,6 +187,11 @@ the daily manifest-driven upgrade (the explicit step is also available as
 `make npm-packages-upgrade`). `make doctor-agent` verifies the current machine
 against that manifest. The manifest intentionally stores bare package names, and
 `make doctor-agent` reports a missing prerequisite if `node`/`npm` is absent.
+Npm globals resolve from a single prefix (`npm prefix -g`, Homebrew on this
+machine). `make doctor-agent` reports `MISS npm bin shadowed` when a PATH entry
+outside that prefix wins for a manifest package, which is the symptom of a
+stale second copy.
+
 
 DevSpace is a local web-facing MCP service for browser integrations; it is not
 distributed into agent MCP configurations. Use
@@ -321,7 +330,11 @@ source.
 
 Common SSH flows:
 - Deploy or refresh SSH assets: `make ssh-install`
-- Verify deploy + permissions + `ssh -G`: `make ssh-verify`
+- Verify deploy + permissions + effective `ssh -G` values: `make ssh-verify`
+  (fails when a snippet is deployed but not in effect, e.g. the main config no
+  longer includes `~/.ssh/config.d/*`; `make doctor` runs the same check)
+- Prove the proxy path actually authenticates: `make ssh-smoke`
+  (live probe, default `HOST=github.com`; not part of `make check`)
 - Generate a new key directly into `private/shell/ssh_keys/`:
   `make ssh-key-generate NAME=id_ed25519_github TYPE=ed25519`
 - Import an existing key:
