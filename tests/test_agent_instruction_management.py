@@ -120,11 +120,10 @@ def test_instruction_verifier_rejects_tampered_managed_content(tmp_path: Path):
 
     assert subprocess.run(command, check=False).returncode == 1
 
-def test_common_rules_have_exactly_twelve_general_rules():
-    content = (Path(TEMPLATE) / "agent" / "rules" / "AGENTS.md").read_text()
-    headings = [line for line in content.splitlines() if line.startswith("### Rule ")]
 
-    assert len(headings) == 12
+def test_common_rules_stay_free_of_stale_references():
+    content = (Path(TEMPLATE) / "agent" / "rules" / "AGENTS.md").read_text()
+
     assert "Occam Gate" in content
     assert "context-mode" not in content
     assert "Hammerspoon" not in content

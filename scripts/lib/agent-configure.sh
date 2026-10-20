@@ -386,7 +386,7 @@ generate_opencode_agents_doc() {
 
 # OpenCode Runtime Rules
 
-## 12 Rules Summary
+## Core Rules Summary
 
 Think before coding. Prefer the simplest working change. Read before write.
 Touch only what is necessary. Match local conventions. Verify with tests.

@@ -1,6 +1,6 @@
 # Adversarial Review & Solidification Patterns
 
-These patterns guide multi-agent collaboration, advisory findings, skepticism, and code review. Priority: supplementary to the 12 Core Operating Rules.
+These patterns guide multi-agent collaboration, advisory findings, skepticism, and code review. Priority: supplementary to the Core Operating Rules.
 
 ## Core Principle
 
