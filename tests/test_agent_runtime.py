@@ -349,6 +349,27 @@ def test_event_rejects_more_than_4096_target_paths(tmp_path: Path):
     assert "target_paths exceeds 4096 entries" in result.stderr
 
 
+def test_event_accepts_max_target_paths_beyond_legacy_64k_envelope(tmp_path: Path):
+    """A 4096-path push event exceeds 64 KiB of JSON but is a valid event.
+
+    Pushing a branch whose remote ref does not exist yet diffs against the empty
+    tree, so target_paths holds every file in the repository. The event envelope
+    must accommodate the path cap instead of failing closed on byte size.
+    """
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    opt_in(repo)
+    registry = write_registry(tmp_path / "registry.json")
+    target_paths = [f"p/{index:04x}/{index:04x}-{'x' * 40}.py" for index in range(4096)]
+
+    payload = event(repo, event_type="before.push", target_paths=target_paths)
+    assert len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 65536
+
+    result = run_runtime(repo, registry, "dispatch", payload)
+
+    assert "standard event exceeds" not in result.stderr
+
+
 def test_sync_gate_timeout_fails_closed(tmp_path: Path):
     repo = tmp_path / "repo"
     init_repo(repo)
