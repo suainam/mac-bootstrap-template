@@ -10,6 +10,11 @@
 - Uses a dedicated `uv`-managed Python host for Neovim providers:
   - `~/.local/share/neovim-python/bin/python`
 - Disables unused `node` / `ruby` / `perl` providers to reduce healthcheck noise
+- Suppresses spell checking for prose filetypes (`markdown`, `text`, `typst`,
+  `gitcommit`, ...) so Chinese text, code identifiers and proper nouns are not
+  flagged. The `NoSpellForDocs` augroup lives in `config/autocmds.lua`: LazyVim's
+  `wrap_spell` group re-enables spell after user config runs, so `options.lua`
+  alone is not enough.
 
 ## Install / refresh
 
