@@ -16,6 +16,10 @@
   `wrap_spell` group re-enables spell after user config runs, so `options.lua`
   alone is not enough.
 
+`tests/test_neovim_config.py::test_neovim_disables_spell_for_markdown` guards
+this: it asserts the autocmd is present in `autocmds.lua` and absent from
+`options.lua`, so moving it back fails the machine suite.
+
 ## Install / refresh
 
 From the repo root:
