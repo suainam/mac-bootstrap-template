@@ -50,13 +50,3 @@ vim.opt.sidescrolloff = 15
 -- Disable Neovim mouse capture so terminal multiplexers (Herdr/tmux) and macOS
 -- handle mouse clicks, panel switches, resizing, and text selection natively.
 vim.opt.mouse = ""
--- LazyVim enables spell for markdown by default; turn it off so Chinese,
--- code identifiers and proper nouns are not flagged as misspellings.
-vim.api.nvim_create_augroup("NoSpellForDocs", { clear = true })
-vim.api.nvim_create_autocmd("FileType", {
-  group = "NoSpellForDocs",
-  pattern = { "markdown", "markdown.mdx", "text", "plaintex", "tex", "rst", "asciidoc" },
-  callback = function()
-    vim.opt_local.spell = false
-  end,
-})

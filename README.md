@@ -95,8 +95,10 @@ VS Code is installed through Homebrew, and extensions are installed when the
 Neovim / LazyVim notes live in `editors/neovim/README.md`.
 Legacy Vim notes live in `editors/vim/README.md`.
 Ghostty uses `Liga SFMono Nerd Font` as the primary font and pins CJK glyphs to
-`PingFang SC` through codepoint maps. If macOS stops exposing the Homebrew font
-to Ghostty, repair the existing install without adding a new font:
+`PingFang SC` through codepoint maps. `font-thicken` is off: macOS font
+smoothing already thickens strokes, and enabling it makes Nerd Font glyphs
+blurry at the configured size. If macOS stops exposing the Homebrew font to
+Ghostty, repair the existing install without adding a new font:
 
 ```bash
 make ghostty-font-repair
