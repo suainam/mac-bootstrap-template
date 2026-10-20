@@ -464,6 +464,16 @@ obsidian-kit:
 ghostty-font-repair:
 	./terminals/ghostty/repair-fonts.sh
 
+.PHONY: tern-sync tern-capture tern-status
+tern-sync:
+	./terminals/tern/install.sh sync $(if $(filter 1,$(FORCE)),--force,)
+
+tern-capture:
+	./terminals/tern/install.sh capture
+
+tern-status:
+	./terminals/tern/install.sh status
+
 render-configs:
 	./scripts/render-configs.sh
 

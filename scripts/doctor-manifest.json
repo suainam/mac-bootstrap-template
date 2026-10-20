@@ -16,6 +16,13 @@
       "commands": [
         "agent-browser"
       ]
+    },
+    {
+      "name": "tern",
+      "commands": [
+        "tern"
+      ],
+      "optional": true
     }
   ],
   "chrome_gemini": {

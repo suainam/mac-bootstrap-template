@@ -188,6 +188,7 @@ def test_cold_installer_reaches_downstream_tooling_with_zb_path(tmp_path: Path):
         "desktop/hammerspoon",
         "terminals/ghostty",
         "multiplexer/herder",
+        "terminals/tern",
         "editors/vscode",
         "infra/docker",
     ]:

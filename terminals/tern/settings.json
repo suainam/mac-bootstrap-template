@@ -1,0 +1,40 @@
+{
+  "theme": "Dark",
+  "theme_dark": "dark-dracula",
+  "font_size": 14,
+  "opacity": 70,
+  "prompt_style": "tern",
+  "copy_on_select": true,
+  "carly": {
+    "heartbeat": 10
+  },
+  "keymap": "tmux",
+  "keymap_prefix": "ctrl+a",
+  "keybinds": {
+    "ctrl+a>v": "split_right",
+    "ctrl+a>\\": "split_right",
+    "ctrl+a>-": "split_down",
+    "ctrl+a>h": "focus_pane:left",
+    "ctrl+a>j": "focus_pane:down",
+    "ctrl+a>k": "focus_pane:up",
+    "ctrl+a>l": "focus_pane:right",
+    "ctrl+a>shift+h": "resize_split:left",
+    "ctrl+a>shift+j": "resize_split:down",
+    "ctrl+a>shift+k": "resize_split:up",
+    "ctrl+a>shift+l": "resize_split:right",
+    "ctrl+a>shift+n": "new_session",
+    "ctrl+a>shift+w": "rename_session",
+    "ctrl+a>shift+d": "close_session",
+    "ctrl+a>shift+t": "rename_tab",
+    "ctrl+a>shift+x": "close_tab",
+    "ctrl+a>b": "toggle_sidebar",
+    "ctrl+a>w": "mission_control",
+    "ctrl+a>g": "switch_session",
+    "ctrl+a>s": "preferences",
+    "ctrl+a>?": "show_commands",
+    "ctrl+a>r": "reload_config",
+    "ctrl+a>e": "open_scrollback",
+    "ctrl+a>o": "inbox",
+    "ctrl+a>q": "unbind"
+  }
+}

@@ -229,6 +229,9 @@ echo "=== Install Hammerspoon config ==="
 echo "=== Configure Ghostty ==="
 "$DIR/terminals/ghostty/install.sh"
 
+echo "=== Configure Tern ==="
+"$DIR/terminals/tern/install.sh"
+
 echo "=== Configure Herdr (Terminal Multiplexer) ==="
 "$DIR/multiplexer/herder/install.sh"
 
