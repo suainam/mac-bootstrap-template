@@ -20,4 +20,9 @@ Install or unload one task from the template checkout:
 ./scripts/install-maintenance-agents.sh unload cache-cleanup
 ```
 
-Legacy `make install-cache-agent`, `make install-downloads-agent`, and `make claude-daemon-install` targets use the same placeholder renderer and reload logic.
+The installer renders and validates each plist, backs up any previous plist,
+boots out the prior job, atomically replaces the installed plist, enables it,
+and bootstraps it in the current user's `gui` launchd domain. If activation
+fails, it restores a previous plist and attempts to bootstrap it. On a failed
+first install, it removes the new plist and attempts to disable the label. The
+single-agent Make targets use the same installer.
