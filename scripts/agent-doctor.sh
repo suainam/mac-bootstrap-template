@@ -307,10 +307,13 @@ check_contains "quality gate manifest" "$BOOTSTRAP/agent/quality-gates/manifest.
 check_contains "quality gate runner" "$BOOTSTRAP/scripts/agent-quality-gate.sh" 'agent_quality_gate.py'
 check_contains "neat-freak adapter" "$BOOTSTRAP/scripts/neat-freak-gate.sh" 'check|apply'
 check_contains "knowledge record adapter" "$BOOTSTRAP/scripts/knowledge-record-gate.sh" 'record-push'
-if [ "$(git -C "$BOOTSTRAP/.." config --get core.hooksPath 2>/dev/null || true)" = "template/agent/quality-gates/hooks" ]; then
-  echo "  OK   core.hooksPath -> template/agent/quality-gates/hooks"
+HOOKS_PATH="$(git -C "$BOOTSTRAP/.." config --get core.hooksPath 2>/dev/null || true)"
+if [ "$HOOKS_PATH" = "template/agent/quality-gates/hooks" ]; then
+  echo "  WARN core.hooksPath is legacy self-hook (run: make quality-gate-hook-install)"
+elif [ -n "$HOOKS_PATH" ] && [ -x "$HOOKS_PATH/pre-commit" ]; then
+  echo "  OK   core.hooksPath -> dispatcher ($HOOKS_PATH)"
 else
-  echo "  MISS core.hooksPath quality gate hooks"
+  echo "  MISS core.hooksPath quality gate hooks (run: make quality-gate-hook-install)"
 fi
 if grep -q 'QUALITY GATE PRE-' "$CODEX_HOOKS" 2>/dev/null; then
   echo "  WARN legacy Codex quality gate prompt hooks still present"
@@ -449,6 +452,8 @@ if [ -f "$npm_packages_file" ] && command -v npm &>/dev/null && command -v node 
   if [ -z "$installed_json" ]; then
     installed_json='{}'
   fi
+  npm_bin_dir="$(npm prefix -g)/bin"
+  npm_root_dir="$(npm root -g)"
   while IFS= read -r package; do
     [ -n "$package" ] || continue
     if printf '%s' "$installed_json" | node -e 'const fs=require("fs"); const pkg=process.argv[1]; const data=JSON.parse(fs.readFileSync(0,"utf8")||"{}"); process.exit((data.dependencies||{})[pkg] ? 0 : 1);' "$package"; then
@@ -456,6 +461,14 @@ if [ -f "$npm_packages_file" ] && command -v npm &>/dev/null && command -v node 
     else
       echo "  MISS npm global $package (run: make npm-packages)"
     fi
+    # Drift guard: each package bin must resolve under the npm prefix, not a stale copy.
+    while IFS= read -r bin_name; do
+      [ -n "$bin_name" ] || continue
+      resolved_bin="$(command -v "$bin_name" 2>/dev/null || true)"
+      if [ -n "$resolved_bin" ] && [ "$resolved_bin" != "$npm_bin_dir/$bin_name" ]; then
+        echo "  MISS npm bin shadowed: $bin_name -> $resolved_bin (expected $npm_bin_dir/$bin_name)"
+      fi
+    done < <(node -e 'const p=require(process.argv[1]+"/"+process.argv[2]+"/package.json"); const b=p.bin; if(typeof b==="string") console.log(p.name.split("/").pop()); else if(b) Object.keys(b).forEach(k=>console.log(k));' "$npm_root_dir" "$package" 2>/dev/null)
   done < <(grep -vE '^\s*(#|$)' "$npm_packages_file")
 elif [ -f "$npm_packages_file" ]; then
   echo "  MISS npm globals prerequisite (install Node/npm before make npm-packages)"
@@ -477,9 +490,11 @@ find_data_hub_runtime_config() {
 }
 
 
-# Verify CBM indexed
-if codebase-memory-mcp cli list_projects '{}' 2>/dev/null | grep -q '"name"'; then
-  echo "  OK   CBM graph (indexed projects found)"
+# Verify CBM indexed. `cli list_projects` prints a human tree ("projects: N"),
+# never JSON, so match that header instead of a JSON key.
+CBM_PROJECT_COUNT="$(codebase-memory-mcp cli list_projects '{}' 2>/dev/null | awk '/^projects: /{print $2; exit}')"
+if [ -n "$CBM_PROJECT_COUNT" ] && [ "$CBM_PROJECT_COUNT" -gt 0 ]; then
+  echo "  OK   CBM graph ($CBM_PROJECT_COUNT indexed projects)"
 else
   echo "  MISS CBM graph (run: codebase-memory-mcp cli index_repository '{\"repo_path\": \"'\"$PWD\"'\"}')"
 fi

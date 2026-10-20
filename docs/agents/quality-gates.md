@@ -356,6 +356,10 @@ make quality-gate-hook-doctor GIT_HOOK_REPO=/path/to/template
 自动改写现有 `core.hooksPath`。template 始终是 repo-only；完整 machine checks 只属于显式
 标记的父仓管理 checkout。
 
+`scripts/install-agent-tooling.sh` Step 12b follows this: it only writes the
+legacy relative `template/agent/quality-gates/hooks` when `core.hooksPath` is
+unset or already legacy, and prints `core.hooksPath kept: …` otherwise.
+
 ### 单文件体积预算 `staged-file-size-budget`
 
 `staged-file-size-budget` 是 `before.commit` 的通用门禁，防止 agent 把单个文件写成

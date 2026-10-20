@@ -183,6 +183,11 @@ the daily manifest-driven upgrade (the explicit step is also available as
 `make npm-packages-upgrade`). `make doctor-agent` verifies the current machine
 against that manifest. The manifest intentionally stores bare package names, and
 `make doctor-agent` reports a missing prerequisite if `node`/`npm` is absent.
+Npm globals resolve from a single prefix (`npm prefix -g`, Homebrew on this
+machine). `make doctor-agent` reports `MISS npm bin shadowed` when a PATH entry
+outside that prefix wins for a manifest package, which is the symptom of a
+stale second copy.
+
 
 DevSpace is a local web-facing MCP service for browser integrations; it is not
 distributed into agent MCP configurations. Use
