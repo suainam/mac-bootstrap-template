@@ -120,7 +120,7 @@ herdr pane run "$PANE_NVIM" "rm -f '$SOCK_PATH' /tmp/nvim-herdr.sock; ln -sfn '$
 if [ "$WATCH" = true ]; then
   herdr pane run "$PANE_QA" "$SKILL_DIR/scripts/qa-watch.sh"
 else
-  herdr pane run "$PANE_QA" "echo '=== [qa-runtime] jev-browser-use & Dev Runtime Ready ==='"
+  herdr pane run "$PANE_QA" "echo '=== [qa-runtime] agent-browser & Dev Runtime Ready ==='"
 fi
 
 echo "✨ 终端 IDE 初始化就绪："

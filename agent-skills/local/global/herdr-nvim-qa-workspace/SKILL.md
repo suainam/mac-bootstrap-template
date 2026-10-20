@@ -1,11 +1,11 @@
 ---
 name: herdr-nvim-qa-workspace
-description: Bootstrap and operate a 3-pane Herdr terminal IDE (agent, nvim, qa-runtime) with Neovim silent sovereign editing, jev-browser-use with-managed browser testing (or OMP eval browser fallback), and inter-panel communication buses. Use when setting up Herdr IDE, linking Neovim with agent, or automating browser QA in terminal.
+description: Bootstrap and operate a 3-pane Herdr terminal IDE (agent, nvim, qa-runtime) with Neovim silent sovereign editing, agent-browser with-managed CLI testing (or OMP eval browser fallback), and inter-panel communication buses. Use when setting up Herdr IDE, linking Neovim with agent, or automating browser QA in terminal.
 ---
 
 # Herdr Neovim QA Workspace
 
-Organizes terminals into a 3-pane sovereign AI IDE combining coding agent control, silent Neovim human editing, and with-bound `jev-browser-use` browser testing.
+Organizes terminals into a 3-pane sovereign AI IDE combining coding agent control, silent Neovim human editing, and with-bound `agent-browser` CLI testing.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -15,22 +15,22 @@ Organizes terminals into a 3-pane sovereign AI IDE combining coding agent contro
 │ - OMP / Claude Code          │ - 人类主权区（绝对静默，防刷屏/防夺焦点）    │
 │ - 核心规划、编码、测试       │ - 依赖磁盘 autoread 与 gitsigns 呈现 Diff    │
 │ - 接收人类视觉标注图片       ├──────────────────────────────────────────────┤
-│ - 执行 jev-browser-use 验证  │ [Pane: qa-runtime] (高: 40%)                 │
+│ - 执行 agent-browser 验证    │ [Pane: qa-runtime] (高: 40%)                 │
 │                              │ - 本地 Dev Server (Vite / Next.js)           │
-│                              │ - 基于 with 管理器的 jev-browser-use 会话    │
+│                              │ - 基于 with 管理器的 agent-browser 会话      │
 └──────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
 ## Core Invariants
 
 1. **Sovereign editing (Zero-focus-stealing)**: Agent writes files to disk silently; Neovim detects changes via `autoread` and `gitsigns`. Agent MUST NOT issue intrusive remote commands (`:e`, `:checktime`, forced splits) that disrupt human mode or cursor.
-2. **With-bound browser lifecycle**: `jev-browser-use` sessions MUST run inside context managers guaranteeing deterministic daemon cleanup on exit or error (or use OMP's `eval` `browser` helper with `await tab.close()`).
+2. **With-bound browser lifecycle**: `agent-browser` sessions MUST run inside context managers guaranteeing deterministic session cleanup (`agent-browser close <name>`) on exit or error (or use OMP's `eval` `browser` helper with `await tab.close()`).
 3. **Named-bus topology**: Panes are strictly addressed by semantic labels (`agent`, `nvim`, `qa-runtime`) rather than transient PTY/pane IDs.
 4. **Snapshot-first inspection**: Automated web validation defaults to ARIA accessibility tree (`snapshot`) taking ~50-100 tokens; multimodal images are reserved for human-annotated crops.
 5. **No-inline-image protocol (anti-flicker)**: NEVER inline images into the chat transcript (`read` on an image file renders it as a Unicode pixel block that OMP re-renders on every scroll → flicker). Instead:
    - Verification screenshots: save to a file, report the path (human opens via Quick Look); agent confirms content via `file`/dimensions only.
    - Human annotation intake: human captures with Shottr → clipboard; agent runs `pngpaste /tmp/shot.png` and reads it for analysis WITHOUT re-displaying it in the reply.
-   - Agent-side page inspection: attach to the live browser via CDP (`terminal-browser` daemon exposes a debugging port), `jev-browser-use` headless/relay, or OMP `eval` `browser` — never ask the human to paste screenshots of what CDP can capture directly.
+   - Agent-side page inspection: attach to the live browser via CDP (`terminal-browser` daemon exposes a debugging port), `agent-browser` CLI, or OMP `eval` `browser` — never ask the human to paste screenshots of what CDP can capture directly.
    - Inline an image in the reply ONLY when the human explicitly asks to see it in chat.
 
 ## Visual feedback loop (human ⇄ agent)
@@ -53,7 +53,7 @@ Organizes terminals into a 3-pane sovereign AI IDE combining coding agent contro
 3. **Dispatch & Collaboration**:
    - Human delegates code blocks in Neovim via `<leader>aa`.
    - QA failure watcher automatically prompts `agent` on test regressions.
-   - Browser UI verification runs deterministically via `scripts/verify-ui.py` (`jev-browser-use`).
+   - Browser UI verification runs deterministically via `scripts/verify-ui.py` (`agent-browser`).
 
 
 

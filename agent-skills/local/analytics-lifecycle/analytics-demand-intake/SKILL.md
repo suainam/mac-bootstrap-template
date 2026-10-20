@@ -48,10 +48,14 @@ flowchart TD
 
 ### Branch A: 正式 DevOps 单据提取 (DevOps Scrape)
 输入包含 Story ID、Demand ID 或页面 URL 时触发：
-1. **直调微前端 API 抓取**：
-   ```bash
-   node scripts/extract_devops_demand.js --demand <ID> --out <target_dir>
+1. **在浏览器上下文直调微前端 API 抓取** (OMP eval browser, relay 模式复用已登录 Chrome)：
+   ```javascript
+   const script = await read("scripts/extract_devops_demand.js");
+   const tab = await browser.open({ name: "devops", url: "https://devops.dslbuy.com/#/story/list", app: { relay: true } });
+   const result = await tab.run(`const targetIds = [${ID}]; ${script}`);
+   await tab.close();
    ```
+   返回 `{ authB64, count, rows, details }`；批量拉取时用 `authB64` 在宿主环境并发调用 detail 接口。
 2. **提取完整字段**：需求编号、标题、创建人、量化目标描述 (`valueDescribe`)、需求正文 (`contentDescribe`)、关联工作项 (`jiras[]`) 及 OSS 附件。
 
 ### Branch B: 临时口头需求澄清 (Ad-hoc Socratic Probing)
@@ -81,7 +85,11 @@ flowchart TD
 > **说明**：**非必选（Opt-in）**。临时探索与轻量排查直接跳过；仅正式立项需求执行：
 1. 调用驱动工具在团队推进表中增行：
    ```bash
-   node scripts/wecom_sheet_driver.js --doc <WBS_URL> --action insert-rows
+   # 先在该命名会话中打开目标文档，驱动脚本通过 agent-browser 复用会话
+   agent-browser --session wbs --profile Default \
+     --executable-path '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+     open "https://doc.weixin.qq.com/sheet/<e3_ID>"
+   node scripts/wecom_sheet_driver.js --doc <e3_ID> --session wbs --write-tsv rows.tsv --start-cell C21
    ```
 2. 登记里程碑、需求编号、责任人与计划完成日，严格保持已有合并单元格结构与汇总公式。
 

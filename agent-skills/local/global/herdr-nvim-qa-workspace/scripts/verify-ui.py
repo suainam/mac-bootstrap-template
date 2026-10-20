@@ -1,63 +1,69 @@
 #!/usr/bin/env python3
-"""verify-ui.py: jev-browser-use ARIA snapshot verification with deterministic lifecycle.
+"""verify-ui.py: agent-browser snapshot + console/error verification.
 
 Usage:
-    verify-ui.py [url] [--connect http://127.0.0.1:9222]
+    verify-ui.py [url] [--profile Default] [--session herdr-qa]
 
-Defaults to http://localhost:5173 (Vite dev server) in isolated headless browser "herdr-qa".
-Inside OMP, `browser.open({ name: "qa", url })` + `tab.observe()` can also be used as an in-process fallback.
+Defaults to http://localhost:5173 (Vite dev server) in an isolated agent-browser
+session named "herdr-qa". The session is closed on exit or error.
+
+Inside OMP, `browser.open({ name: "qa", url })` + `tab.observe()` is the
+in-process alternative. For cross-origin iframe JavaScript, use OMP
+`tab.run` with `page.frames()` — agent-browser `eval` stays in the main frame.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from contextlib import contextmanager
 
+DEFAULT_URL = "http://localhost:5173"
+DEFAULT_SESSION = "herdr-qa"
+CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+
+def _run(args: list[str], *, check: bool = True) -> str:
+    proc = subprocess.run(args, text=True, capture_output=True, check=False)
+    if check and proc.returncode != 0:
+        raise RuntimeError(f"{' '.join(args)} failed: {proc.stderr.strip()}")
+    return proc.stdout
+
 
 @contextmanager
-def jev_browser_session(connect_url: str | None = None, browser_name: str = "herdr-qa"):
-    """With-bound jev-browser-use session; stops only the named browser on exit/error."""
-    base_cmd = ["jev-browser-use"]
-    if connect_url:
-        base_cmd.extend(["--connect", connect_url])
-    else:
-        base_cmd.extend(["-b", browser_name, "--headless"])
+def agent_browser_session(profile: str | None, session_name: str):
+    """Yield the base command for a named session; always close it afterwards."""
+    base_cmd = ["agent-browser", "--session", session_name]
+    if profile:
+        base_cmd.extend(["--profile", profile, "--executable-path", CHROME_PATH])
     try:
         yield base_cmd
     finally:
-        if not connect_url:
-            subprocess.run(
-                ["jev-browser-use", "stop", browser_name],
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        _ = subprocess.run(
+            ["agent-browser", "--session", session_name, "close"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
-def main():
-    url = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "http://localhost:5173"
-    connect_url = (
-        sys.argv[sys.argv.index("--connect") + 1]
-        if "--connect" in sys.argv
-        else None
+def main() -> int:
+    positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+    url = positional[0] if positional else DEFAULT_URL
+    profile = sys.argv[sys.argv.index("--profile") + 1] if "--profile" in sys.argv else None
+    session_name = (
+        sys.argv[sys.argv.index("--session") + 1] if "--session" in sys.argv else DEFAULT_SESSION
     )
 
-    with jev_browser_session(connect_url) as base_cmd:
-        cmd = f"""
-const qaPage = await browser.getPage("herdr-qa");
-const logs = [];
-qaPage.on("console", m => {{
-  if (m.type() === "error" || m.type() === "warning") logs.push(m.text());
-}});
-qaPage.on("pageerror", e => logs.push(String(e)));
-await qaPage.goto("{url}", {{ timeout: 10000 }});
-const tree = await qaPage.snapshot({{ interactive: true }});
-console.log(JSON.stringify({{ tree, logs }}));
-"""
-        res = subprocess.check_output([*base_cmd, "-e", cmd], text=True)
-        lines = [line for line in res.strip().split("\n") if line.strip()]
-        print(lines[-1])
+    with agent_browser_session(profile, session_name) as base_cmd:
+        _ = _run([*base_cmd, "open", url])
+        snapshot = _run([*base_cmd, "snapshot", "-i"]).strip()
+        console = _run([*base_cmd, "console"], check=False).strip()
+        errors = _run([*base_cmd, "errors"], check=False).strip()
+
+    print(json.dumps({"url": url, "snapshot": snapshot, "console": console, "errors": errors}))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

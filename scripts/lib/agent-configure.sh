@@ -50,7 +50,7 @@ link_canonical_symlinks() {
 
 ensure_agent_dirs() {
   run mkdir -p "$(dirname "$CLAUDE_SETTINGS")" "$(dirname "$CODEX_TOML")" \
-    "$(dirname "$OPENCODE_CONFIG")" "$(dirname "$PI_SETTINGS")" \
+    "$(dirname "$OPENCODE_CONFIG")" \
     "$(dirname "$REASONIX_CONFIG")" "$(dirname "$ANTIGRAVITY_SETTINGS")" \
     "$OPENCODE_PLUGINS_DIR" \
     "$HOME/.agent/instincts/active" "$HOME/.agent/instincts/archived" \

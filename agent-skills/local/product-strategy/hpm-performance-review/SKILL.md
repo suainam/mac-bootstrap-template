@@ -1,11 +1,11 @@
 ---
 name: hpm-performance-review
-description: Quarterly performance self-review (HPM) automation: audits historical baselines, verifies quantitative metrics against repo/ODPS evidence, strips AI buzzwords and tier prefixes, and fills/saves review forms via jev-browser-use (or OMP eval browser fallback).
+description: Quarterly performance self-review (HPM) automation: audits historical baselines, verifies quantitative metrics against repo/ODPS evidence, strips AI buzzwords and tier prefixes, and fills/saves review forms via OMP eval browser (relay to logged-in Chrome).
 ---
 
 # HPM 季度绩效自评
 
-用于大参林绩效管理系统（HPM）季度自评全流程：从历史基线与主管评价复盘出发，核验专题代码与数仓客观证据，撰写无 AI 腔调的务实文本，并通过 `jev-browser-use`（或 OMP `eval` `browser` 备选）自动化录入表单草稿。
+用于大参林绩效管理系统（HPM）季度自评全流程：从历史基线与主管评价复盘出发，核验专题代码与数仓客观证据，撰写无 AI 腔调的务实文本，并通过 OMP `eval` 的 `browser`（relay 复用已登录 Chrome）自动化录入表单草稿。
 
 ## 核心主导词 (Leading Words)
 
@@ -30,7 +30,7 @@ skills/hpm-performance-review/
 │   ├── q3_showcase.md                # Q3 终审标准范文（责任书关键任务 + 6个通用力 + 四新复盘）
 │   └── anti_patterns.md              # 常见写作反模式对比（AI 假大空、重复前缀、数据无凭据）
 └── scripts/
-    └── hpm_browser_sync.js           # jev-browser-use 自动化巡检、弹窗录入与保存脚本模板
+    └── hpm_browser_sync.js           # OMP tab.run 自动化巡检、弹窗录入与保存脚本模板
 ```
 
 ---
@@ -41,7 +41,7 @@ skills/hpm-performance-review/
 flowchart TD
     S1["1. 基线复盘 (Baseline Audit)"] --> S2["2. 指标核验 (Metric Grounding)"]
     S2 --> S3["3. 文本拟定与去AI味 (Humanized Drafting)"]
-    S3 --> S4["4. 浏览器自动化录入与保存 (jev-browser-use / OMP Browser Sync)"]
+    S3 --> S4["4. 浏览器自动化录入与保存 (OMP Browser Sync)"]
 ```
 
 ### 第 1 步：基线复盘 (Baseline Audit)
@@ -86,17 +86,20 @@ flowchart TD
 5. **完成标准**：
    - 责任书定性文本各 150~250 字；复盘和总结 600~800 字；待提升点 200~350 字；字数严格控制在 1000 字符限制内，无 Markdown 加粗标记。
 
-### 第 4 步：浏览器自动化录入与保存 (`jev-browser-use` / OMP Browser Sync)
+### 第 4 步：浏览器自动化录入与保存 (OMP Browser Sync)
 
 1. **连接与定位**：
-   - **首选（`jev-browser-use` Chrome 扩展 Relay 模式）**：
-     - 确保 `jev-browser-use relay` 运行且 Chrome 扩展处于 `Connected to relay` 状态，连接至已登录的 HPM 标签页：
-       `jev-browser-use --connect http://127.0.0.1:9222 -e "$(cat skills/hpm-performance-review/scripts/hpm_browser_sync.js)"`
-   - **备选（OMP `eval` 原生 `browser` 模式）**：
-     - 在 OMP `eval` (`language="js"`) 中通过 `await browser.open({ name: "hpm", app: { relay: true, target: "/achievement" } })` 直接挂载用户已打开的 HPM 标签页并在进程内执行录入。
+   - **推荐（OMP `eval` 原生 `browser`，relay 复用已登录 Chrome）**：
+     ```javascript
+     const script = await read("scripts/hpm_browser_sync.js");
+     const tab = await browser.open({ name: "hpm", app: { relay: true, target: "/achievement" } });
+     await tab.run(script);
+     await tab.close();
+     ```
+   - **纯 CLI 只读核查**：`agent-browser --session hpm snapshot -i` 可用于确认页面结构与按钮 ref（不支持跨域 iframe JS）。
    - 核对当前页面是否处于目标季度的责任书编辑页面（确认含有【保存】按钮）。
 2. **批量录入与弹窗处理**：
-   - 可使用 `jev-browser-use` 的确定性脚本/`plan` 流水线或 `page.jev()` 目标循环：
+   - 脚本内使用 Puppeteer `page` 的确定性选择器操作：
    - 下拉框选择：点击 `.el-select` 并选取目标档位（如 `1档(系数：1)`）。
    - 只读文本域录入（定性指标）：
      - 点击只读 `textarea` 唤出 `.el-popover`。

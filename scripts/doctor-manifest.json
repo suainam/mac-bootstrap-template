@@ -12,9 +12,9 @@
       ]
     },
     {
-      "name": "jev-browser-use",
+      "name": "agent-browser",
       "commands": [
-        "jev-browser-use"
+        "agent-browser"
       ]
     }
   ],

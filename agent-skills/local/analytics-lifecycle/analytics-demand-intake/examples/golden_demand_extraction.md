@@ -1,6 +1,6 @@
 # DevOps 原始需求标准化导出范例 (Golden Example: Demand Extraction)
 
-本范例展示如何使用 `jev-browser-use` 从 DevOps 效能平台自动化提取需求及其关联工作项（Story），并输出为客观、克制的 `01_source_data/demand-<ID>-<所属板块>-<中文简称>.md` 原始底稿。
+本范例展示如何使用 OMP eval `browser` 从 DevOps 效能平台自动化提取需求及其关联工作项（Story），并输出为客观、克制的 `01_source_data/demand-<ID>-<所属板块>-<中文简称>.md` 原始底稿。
 
 ---
 
@@ -21,7 +21,7 @@
 1. **执行 `scripts/extract_devops_demand.js` 捕获令牌与列表**：
    - 在 `pmp.dslbuy.com` 微前端内自动读取当前默认视图全部行 `demandId` 并通过 XHR 拦截输出 `AUTH_B64`。
 2. **宿主环境直连 API 拉取完整详情**：
-   - 使用 `curl -s --noproxy '*' -H "Authorization: $AUTH" "https://devops-order.dslbuy.com/demand/manager/detail?demandId=<ID>"` 逐条或并发获取完整 JSON（避免浏览器 `jev-browser-use -e` 的 4KB stdout 截断和 `require` 限制）。
+   - 使用 `curl -s --noproxy '*' -H "Authorization: $AUTH" "https://devops-order.dslbuy.com/demand/manager/detail?demandId=<ID>"` 逐条或并发获取完整 JSON（避免浏览器 eval 沙箱的 4KB stdout 截断和 `require` 限制）。
 3. **HTML 富文本清洗与底稿渲染**：
    - 将 `contentDescribe` 中的 `<p>`、`<ol>/<li>`、`<h3>`、`<a href>` 转换为纯净 Markdown，附上 `files[]` 中的 OSS 附件签名链接，按下方标准模板生成 `demand-<ID>-<所属板块>-<中文简称>.md`（`<所属板块>` 提炼自 `businessLineVo.lineName` 去除 `商品决策平台-` 前缀，如 `智能组货`、`智能选品`、`策略分析`；`<中文简称>` 剔除括号、斜杠与空格）与汇总索引 `demand-index-*.md`。
 ---
