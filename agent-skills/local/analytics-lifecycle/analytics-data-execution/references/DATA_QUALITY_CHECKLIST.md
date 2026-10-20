@@ -34,7 +34,7 @@
 - **CSV 规范**：统一带 UTF-8 BOM（Python 中为 `encoding='utf-8-sig'`），确保 Windows/Mac Excel 打开均不乱码。
 - **Excel 规范**：使用 `openpyxl` 引擎，必须包含表头冻结与标准中文列名。
 - **行数红线**：严禁直接向 Git 提交超过 1,000,000 行的明细数据；大体积数据存放在外部数据湖，并在 Git 专题仅保留样例与汇总指标。
-
+- **脚本列名解耦契约**：数据聚合与中间字典严禁直接使用包含空格或括号的长中文表头作为字典 Key；统一采用清晰的 `snake_case` 英文标识（如 `cancel_lines`、`store_code`），仅在最终 `write_excel` 或渲染映射阶段通过 `COLUMN_MAPPING` 统一转换为中英双语表头，防止表头微调引发 `KeyError`。
 ---
 
 ## 5. 空间与图元尺度有界性断言 (Spatial & Scale Invariants)

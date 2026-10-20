@@ -15,4 +15,4 @@ Symlinked to `~/.claude/rules/common/` — Claude Code loads these as always-on 
 ## Rule Application
 
 Rules in this directory are loaded automatically by Claude Code.
-They supplement the 12 core operating rules in `~/.claude/CLAUDE.md`.
+They supplement the Core Operating Rules in `~/.claude/CLAUDE.md`.
