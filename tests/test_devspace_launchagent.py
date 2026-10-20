@@ -1,11 +1,22 @@
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
+
+
+# The installer renders plists with /usr/libexec/PlistBuddy, which only exists on
+# macOS. Guard on the binary rather than sys.platform so the reason names the
+# actual missing dependency, matching tests/test_install_omp_extensions_local.py.
+requires_launchd_plist_tooling = pytest.mark.skipif(
+    not Path("/usr/libexec/PlistBuddy").exists(),
+    reason="/usr/libexec/PlistBuddy is macOS-only",
+)
 
 
 def test_devspace_launchd_templates_define_two_user_agents():
@@ -140,6 +151,7 @@ def _maintenance_agent_fixture(tmp_path):
     return scripts, launch_agents, fake_bin
 
 
+@requires_launchd_plist_tooling
 def test_maintenance_agent_renderer_expands_paths_for_every_task(tmp_path):
     import os
     import subprocess
@@ -187,3 +199,150 @@ def test_maintenance_agent_renderer_expands_paths_for_every_task(tmp_path):
     calls_text = calls.read_text(encoding="utf-8")
     assert calls_text.count("bootout gui/") == 4
     assert calls_text.count("bootstrap gui/") == 4
+
+
+@requires_launchd_plist_tooling
+def test_maintenance_agent_renderer_cleans_temp_plist_on_validation_failure(tmp_path):
+    import os
+    import subprocess
+
+    scripts, launch_agents, fake_bin = _maintenance_agent_fixture(tmp_path)
+    (fake_bin / "plutil").write_text("#!/bin/sh\nexit 9\n", encoding="utf-8")
+    (fake_bin / "plutil").chmod(0o755)
+    calls = fake_bin / "launchctl-calls"
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$LAUNCHCTL_CALLS\"\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "HOME": str(tmp_path / "home"),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "LAUNCHCTL_CALLS": str(calls),
+    }
+    result = subprocess.run(
+        [str(scripts / "install-maintenance-agents.sh"), "install", "cache-cleanup"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 9
+    assert list(launch_agents.iterdir()) == []
+    assert not calls.exists()
+
+
+@requires_launchd_plist_tooling
+def test_maintenance_agent_renderer_restores_previous_plist_on_bootstrap_failure(
+    tmp_path,
+):
+    import os
+    import shutil
+    import subprocess
+
+    scripts, launch_agents, fake_bin = _maintenance_agent_fixture(tmp_path)
+    target = launch_agents / "io.local.mac-bootstrap.cache-cleanup.plist"
+    shutil.copy2(ROOT / "launchd" / target.name, target)
+    previous_script = "/previous/bootstrap/scripts/clean-cache.sh"
+    subprocess.run(
+        [
+            "/usr/libexec/PlistBuddy",
+            "-c",
+            f"Set :ProgramArguments:1 '{previous_script}'",
+            str(target),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    calls = fake_bin / "launchctl-calls"
+    failed_once = fake_bin / "failed-bootstrap"
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' \"$*\" >> \"$LAUNCHCTL_CALLS\"\n"
+        "if [ \"$1\" = bootstrap ] && [ ! -f \"$FAILED_ONCE\" ]; then\n"
+        "  : > \"$FAILED_ONCE\"\n"
+        "  exit 17\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "HOME": str(tmp_path / "home"),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "LAUNCHCTL_CALLS": str(calls),
+        "FAILED_ONCE": str(failed_once),
+    }
+    result = subprocess.run(
+        [str(scripts / "install-maintenance-agents.sh"), "install", "cache-cleanup"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 17
+    restored = subprocess.run(
+        ["/usr/libexec/PlistBuddy", "-c", "Print :ProgramArguments:1", str(target)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert restored.stdout.strip() == previous_script
+    calls_text = calls.read_text(encoding="utf-8")
+    assert calls_text.count("bootout gui/") == 2
+    assert calls_text.count("bootstrap gui/") == 2
+    assert list(launch_agents.iterdir()) == [target]
+
+
+@requires_launchd_plist_tooling
+def test_maintenance_agent_renderer_removes_new_plist_on_bootstrap_failure(tmp_path):
+    import os
+    import subprocess
+
+    scripts, launch_agents, fake_bin = _maintenance_agent_fixture(tmp_path)
+    target = launch_agents / "io.local.mac-bootstrap.cache-cleanup.plist"
+    calls = fake_bin / "launchctl-calls"
+    failed_once = fake_bin / "failed-bootstrap"
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' \"$*\" >> \"$LAUNCHCTL_CALLS\"\n"
+        "if [ \"$1\" = bootstrap ] && [ ! -f \"$FAILED_ONCE\" ]; then\n"
+        "  : > \"$FAILED_ONCE\"\n"
+        "  exit 17\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    launchctl.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "HOME": str(tmp_path / "home"),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "LAUNCHCTL_CALLS": str(calls),
+        "FAILED_ONCE": str(failed_once),
+    }
+    result = subprocess.run(
+        [str(scripts / "install-maintenance-agents.sh"), "install", "cache-cleanup"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 17
+    assert not target.exists()
+    calls_text = calls.read_text(encoding="utf-8")
+    assert calls_text.count("bootout gui/") == 2
+    assert calls_text.count("bootstrap gui/") == 1
+    assert calls_text.count("disable gui/") == 1
+    assert list(launch_agents.iterdir()) == []
