@@ -236,7 +236,9 @@ verify_source_mode() {
 verify_identity_paths() {
   local host="$1"
   local out
-  if ! out="$(ssh -G "$host" 2>&1)"; then
+  # `ssh -G` reads the passwd home unless -F is explicit; verification must
+  # inspect the deployed config, not whatever the invoking user resolves to.
+  if ! out="$(ssh -G -F "$HOME/.ssh/config" "$host" 2>&1)"; then
     printf '%s\n' "$out" >&2
     die "ssh -G $host failed"
   fi
@@ -246,6 +248,55 @@ verify_identity_paths() {
       log "  WARN: ssh -G $host resolved missing IdentityFile $identity (key not present on this machine, skipping)"
     fi
   done < <(printf '%s\n' "$out" | awk '$1 == "identityfile" { print $2 }')
+}
+
+verify_effective_values() {
+  local file="$1" host directive declared actual
+  local -a hosts
+  hosts=()
+  while IFS= read -r host; do
+    [ -n "$host" ] && hosts+=("$host")
+  done < <(awk '
+    /^[[:space:]]*Host[[:space:]]+/ {
+      for (i = 2; i <= NF; i++) if ($i !~ /[*?!]/) print $i
+    }
+  ' "$file")
+  [ "${#hosts[@]}" -gt 0 ] || return 0
+  for host in "${hosts[@]}"; do
+    for directive in hostname user port proxycommand; do
+      # Only the directives inside this host's own block apply to it; a later
+      # Host or Match block ends the scope. Last declaration wins, as in ssh.
+      declared="$(awk -v want="$host" -v key="$directive" '
+        /^[[:space:]]*(Host|Match)([[:space:]]|$)/ {
+          block = 0
+          if (tolower($1) == "host") {
+            for (i = 2; i <= NF; i++) if ($i == want) block = 1
+          }
+          next
+        }
+        block && tolower($1) == key {
+          value = $2
+          for (i = 3; i <= NF; i++) value = value " " $i
+        }
+        END { if (block || value != "") print value }
+      ' "$file")"
+      [ -n "$declared" ] || continue
+      actual="$(ssh -G -F "$HOME/.ssh/config" "$host" 2>/dev/null | awk -v key="$directive" 'tolower($1) == key { value = $2; for (i = 3; i <= NF; i++) value = value " " $i } END { print value }')"
+      [ -n "$actual" ] || die "ssh -G $host has no $directive although $(basename "$file") declares it"
+      case "$directive" in
+        hostname|user)
+          [ "${actual,,}" = "${declared,,}" ] || die "ssh -G $host $directive is '$actual', $(basename "$file") declares '$declared'"
+          ;;
+        port)
+          [ "$actual" = "$declared" ] || die "ssh -G $host port is '$actual', $(basename "$file") declares '$declared'"
+          ;;
+        proxycommand)
+          # `~` is expanded by ssh itself, so the resolved line matches verbatim.
+          [ "$actual" = "$declared" ] || die "ssh -G $host ProxyCommand is '$actual', $(basename "$file") declares '$declared'"
+          ;;
+      esac
+    done
+  done
 }
 
 verify_runtime_layout() {
@@ -341,11 +392,32 @@ cmd_verify() {
     verify_identity_paths "$host"
   done < <(managed_host_aliases "$config_dir")
 
+  local f
+  for f in "$config_dir"/*; do
+    [ -f "$f" ] || continue
+    [[ "$(basename "$f")" == *.template ]] && continue
+    verify_effective_values "$f"
+  done
+
   for name in connect-proxy.py config; do
     verify_symlink_target "$HOME/.ssh/$name"
   done
   verify_runtime_layout
   log "SSH verify ok"
+}
+
+cmd_smoke() {
+  ensure_ssh_root
+  local host="${1:-github.com}"
+  local out rc=0
+  out="$(ssh -T -o BatchMode=yes -o ConnectTimeout=10 "$host" 2>&1)" || rc=$?
+  # GitHub returns 1 with a greeting when authentication succeeds.
+  if [ "$rc" -eq 0 ] || printf '%s' "$out" | grep -q 'successfully authenticated'; then
+    log "SSH smoke ok: $host"
+    return 0
+  fi
+  printf '%s\n' "$out" >&2
+  die "SSH smoke failed for $host (exit $rc)"
 }
 
 write_host_snippet() {
@@ -427,6 +499,10 @@ main() {
     verify)
       shift
       cmd_verify "$@"
+      ;;
+    smoke)
+      shift
+      cmd_smoke "$@"
       ;;
     add-key)
       shift

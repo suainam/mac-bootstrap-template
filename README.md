@@ -321,7 +321,11 @@ source.
 
 Common SSH flows:
 - Deploy or refresh SSH assets: `make ssh-install`
-- Verify deploy + permissions + `ssh -G`: `make ssh-verify`
+- Verify deploy + permissions + effective `ssh -G` values: `make ssh-verify`
+  (fails when a snippet is deployed but not in effect, e.g. the main config no
+  longer includes `~/.ssh/config.d/*`; `make doctor` runs the same check)
+- Prove the proxy path actually authenticates: `make ssh-smoke`
+  (live probe, default `HOST=github.com`; not part of `make check`)
 - Generate a new key directly into `private/shell/ssh_keys/`:
   `make ssh-key-generate NAME=id_ed25519_github TYPE=ed25519`
 - Import an existing key:

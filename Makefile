@@ -27,7 +27,8 @@ DISPATCH_SOURCE ?= $(HOME)/.local/src/Dispatch
 	colima-start colima-stop colima-status colima-doctor \
 	claude-daemon-install claude-daemon-status claude-daemon-logs claude-daemon-unload \
 	maxfiles-limit-install maxfiles-limit-status maxfiles-limit-uninstall cleanup-services \
-	net-tune net-tune-apply net-tune-save net-tune-auto net-tune-list net-tune-status net-tune-restore
+	net-tune net-tune-apply net-tune-save net-tune-auto net-tune-list net-tune-status net-tune-restore \
+	ssh-install ssh-verify ssh-smoke
 
 help:
 	@echo "Usage: make <target>"
@@ -56,6 +57,7 @@ help:
 	@echo "  ssh-key-generate       Create private/shell/ssh_keys/NAME and optional host snippet"
 	@echo "  ssh-key-import         Import existing key into private/shell/ssh_keys/NAME"
 	@echo "  ssh-key-import-stdin   Read pasted key from stdin into private/shell/ssh_keys/NAME"
+	@echo "  ssh-smoke              Live SSH auth probe (HOST=github.com) for proxy wiring"
 	@echo "  external-tools         Install/verify standalone CLI and external tools from manifest"
 	@echo "  obsidian-kit           Install reusable Obsidian vault kit: VAULT=/path/to/vault"
 	@echo "  ghostty-font-repair    Re-register existing Liga SFMono Nerd Font files"
@@ -314,6 +316,9 @@ ssh-install:
 
 ssh-verify:
 	./scripts/ssh-manage.sh verify
+
+ssh-smoke:
+	./scripts/ssh-manage.sh smoke $(or $(HOST),github.com)
 
 ssh-key-generate:
 	@test -n "$(NAME)" || (echo "Usage: make ssh-key-generate NAME=id_ed25519_example TYPE=ed25519 [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)

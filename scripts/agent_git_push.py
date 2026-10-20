@@ -36,6 +36,8 @@ from agent_git_hook_dispatcher import (
     _validate_push_operation_id,
 )
 
+TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS = 20
+
 
 def _default_state_root() -> Path:
     base = Path(os.environ.get("XDG_STATE_HOME", "~/.local/state")).expanduser()
@@ -359,6 +361,73 @@ def _report_receipt_failure(log_path: Path, error: BaseException) -> int:
     return 2
 
 
+PUSH_OPTIONS_WITH_VALUE = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+
+
+def _push_remote(context: GitContext, git_args: Sequence[str]) -> str | None:
+    """Resolve the remote ``git push`` will contact.
+
+    An explicit repository argument wins; otherwise follow the branch upstream,
+    then fall back to the only configured remote. Anything else is ambiguous and
+    skips the preflight rather than guessing.
+    """
+    index = 0
+    while index < len(git_args):
+        arg = git_args[index]
+        if arg in PUSH_OPTIONS_WITH_VALUE:
+            index += 2
+            continue
+        if not arg.startswith("-"):
+            return arg
+        index += 1
+    for upstream in ("@{push}", "@{u}"):
+        result = _run(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream],
+            cwd=context.cwd,
+        )
+        if result.returncode != 0:
+            continue
+        name = result.stdout.decode("utf-8", "replace").strip().split("/", 1)[0]
+        if name and not name.startswith("@{"):
+            return name
+    remotes = _run(["git", "remote"], cwd=context.cwd)
+    if remotes.returncode == 0:
+        names = remotes.stdout.decode("utf-8", "replace").split()
+        if "origin" in names:
+            return "origin"
+    return None
+
+
+def _preflight_transport(context: GitContext, git_args: Sequence[str]) -> None:
+    """Fail fast when the remote transport is unreachable.
+
+    The pre-push gates can take minutes; running them before discovering that
+    SSH KEX hangs wastes the whole run. ``git ls-remote`` exercises the same
+    transport without transferring objects.
+    """
+    remote = _push_remote(context, git_args)
+    if remote is None:
+        return
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--heads", remote],
+            cwd=context.cwd,
+            env=clean_git_local_environment(context.repo_root, os.environ),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HookDispatcherError(
+            f"remote {remote} is unreachable within "
+            f"{TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS}s; fix transport before pushing"
+        ) from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "no transport detail"
+        raise HookDispatcherError(f"remote {remote} is unreachable: {detail}")
+
+
 def push(
     context: GitContext,
     *,
@@ -447,6 +516,7 @@ def push(
         environment["GIT_TRACE2_EVENT"] = str(git_trace_path)
     dry_run = "--dry-run" in git_args or "-n" in git_args
     if not dry_run:
+        _preflight_transport(context, git_args)
         environment["AGENT_RUNTIME_PUSH_OPERATION_ID"] = operation_id
         environment["AGENT_RUNTIME_SESSION_ID"] = session_id
         environment["AGENT_RUNTIME_PUSH_ARGV_JSON"] = json.dumps(

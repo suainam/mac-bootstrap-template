@@ -152,6 +152,63 @@ def test_verify_rejects_unmanaged_top_level_ssh_files(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("ssh") is None, reason="ssh not installed")
+def test_verify_detects_host_snippets_that_are_not_in_effect(tmp_path: Path) -> None:
+    """A snippet on disk proves nothing if ssh never reads it."""
+    home = tmp_path / "home"
+    private = tmp_path / "private"
+    shell_dir = private / "shell"
+    config_dir = shell_dir / "ssh_config.d"
+    keys_dir = shell_dir / "ssh_keys"
+    home.mkdir()
+    config_dir.mkdir(parents=True)
+    keys_dir.mkdir(parents=True)
+
+    # The Include line is what makes config.d effective; without it the snippet
+    # below is deployed and symlinked but never applied.
+    (shell_dir / "ssh_config").write_text("Host *\n  ServerAliveInterval 15\n")
+    (config_dir / "probe").write_text(
+        "Host probe\n"
+        "  HostName example.invalid\n"
+        "  User root\n"
+        "  ProxyCommand ~/.ssh/connect-proxy.py %h %p\n"
+    )
+
+    install = run_ssh_manage(home, private, "install")
+    assert install.returncode == 0, install.stderr
+
+    verify = run_ssh_manage(home, private, "verify")
+    assert verify.returncode != 0
+    assert "ssh -G probe" in verify.stderr
+
+
+@pytest.mark.skipif(shutil.which("ssh") is None, reason="ssh not installed")
+def test_verify_accepts_effective_host_snippets(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    private = tmp_path / "private"
+    shell_dir = private / "shell"
+    config_dir = shell_dir / "ssh_config.d"
+    keys_dir = shell_dir / "ssh_keys"
+    home.mkdir()
+    config_dir.mkdir(parents=True)
+    keys_dir.mkdir(parents=True)
+
+    (shell_dir / "ssh_config").write_text("Include ~/.ssh/config.d/*\n")
+    (config_dir / "probe").write_text(
+        "Host probe\n"
+        "  HostName example.invalid\n"
+        "  User root\n"
+        "  ProxyCommand ~/.ssh/connect-proxy.py %h %p\n"
+    )
+
+    install = run_ssh_manage(home, private, "install")
+    assert install.returncode == 0, install.stderr
+
+    verify = run_ssh_manage(home, private, "verify")
+    assert verify.returncode == 0, verify.stderr
+    assert "SSH verify ok" in verify.stdout
+
+
+@pytest.mark.skipif(shutil.which("ssh") is None, reason="ssh not installed")
 def test_dsliam_legacy_host_overrides_survive_global_defaults(tmp_path: Path) -> None:
     home = tmp_path / "home"
     private = tmp_path / "private"

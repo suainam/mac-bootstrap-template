@@ -325,6 +325,12 @@ hooksPath、bundle release、runtime、registry、7 个 hook shim、`agent-git-p
 - `before.commit` 只编译 dispatcher 物化的 staged Python snapshot，不读取未暂存 working tree；
 - `before.push` 验证 dispatcher 提供的 ref 列表与 40 位十六进制 OID 元数据完整性；
 - `before.push` 通过通用 `repository-check` gate 固定执行 `make repo-check`。
+- 当 dispatcher 提供的 `target_paths` 非空且全部为文档路径（`*.md`、`docs/` 下、
+  `README.md`/`CLAUDE.md`/`AGENTS.md`/`CONTEXT.md`）时，`repository-check` 与
+  `parent-machine-check` 直接跳过并写出 `skip ... documentation only` 诊断。
+  空 `target_paths`（tag push、仅删除 ref、stdin 未解析）不构成证据，仍完整执行。
+  代价：只改文档的 push 不再跑测试套件；若改动触及测试断言的文档内容，需手动执行
+  `make check`。
 
 该 profile 不运行 machine checks、父仓 pointer gate 或额外的 Public CI 模拟。公开验收在
 独立临时仓库安装 dispatcher：坏的 staged Python 提交被阻止；已暂存有效代码而 working

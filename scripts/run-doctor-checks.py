@@ -215,6 +215,26 @@ def check_managed_symlinks(template_root: Path, manifest: dict) -> bool:
 
     return missing
 
+def check_ssh_config(template_root: Path) -> bool:
+    script = template_root / "scripts" / "ssh-manage.sh"
+    print("=== SSH config ===")
+    if not script.is_file():
+        print(f"skip ssh config: {script} not found")
+        return False
+    result = subprocess.run(
+        [str(script), "verify"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        print("ok ssh config: deploy, permissions, and ssh -G resolution")
+        return False
+    detail = (result.stderr or result.stdout).strip() or "no detail"
+    for line in detail.splitlines()[-5:]:
+        print(f"missing ssh config: {line}")
+    return True
+
 
 def check_chrome_gemini(manifest: dict) -> bool:
     config = manifest.get("chrome_gemini", {})
@@ -331,7 +351,7 @@ def main(argv: list[str]) -> int:
     if check_managed_symlinks(template_root, manifest):
         missing = True
 
-    if check_chrome_gemini(manifest):
+    if check_ssh_config(template_root):
         missing = True
 
     print("=== npm CLIs ===")
