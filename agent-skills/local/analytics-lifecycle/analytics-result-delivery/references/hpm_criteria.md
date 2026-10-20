@@ -66,3 +66,72 @@ HPM 系统对定量指标与定性指标采用统一档位换算机制：
 3. **字符容量上限**：
    - 所有文本域均有 `0 / 1000` 字符硬门禁。
    - 建议篇幅控制在 150 ~ 750 字区间，避免过短显单薄或过长被浏览器或后端截断。
+
+---
+
+## 4. 责任书读取路径 (Read Path)
+
+`source-first`：动笔前先读出在线责任书的全部字段。三条路径按可用性依次尝试。
+
+### 4.1 relay 复用已登录 Chrome（首选）
+
+```javascript
+const tab = await browser.open({ name: "hpm", app: { relay: true, target: "/achievement" } });
+const rows = await tab.run("return await tab.evaluate(() => document.body.innerText);");
+```
+
+relay 扩展未连接时报 `omp browser relay is serving at http://127.0.0.1:9224 but its extension never connected`。此时不要重试同一路径，改用 4.2。
+
+### 4.2 剪贴板读取已渲染页面（无需扩展、无需 DevTools 协议）
+
+适用于用户在 Chrome 中已打开并登录该页面的情况。读取的是页面渲染后的可见文本，与人工查看一致。
+
+```bash
+osascript <<'EOF'
+tell application "Google Chrome"
+  repeat with w in windows
+    repeat with t in tabs of w
+      if (URL of t) contains "hpmEventId=104018" then
+        set active tab index of w to (index of t)
+        set index of w to 1
+      end if
+    end repeat
+  end repeat
+  activate
+end tell
+EOF
+osascript -e 'tell application "System Events" to keystroke "a" using command down' \
+         -e 'tell application "System Events" to keystroke "c" using command down'
+pbpaste
+```
+
+前提与边界：
+
+- 该 Chrome 窗口须能切到前台；全屏或另一应用抢占焦点时，`activate` 后确认 `frontmost` 是本应用再发送按键。
+- 复制的是整页可见文本，指标按“序号 / 名称 / 指标类型 / 档位选项 / 指标说明 / 计划时间 / 权重”逐块出现，可直接解析。
+- 只读操作，不改动页面状态。
+- AppleScript 直接执行 JS（`execute t javascript …`）在“显示 > 开发者 > 允许 Apple 事件中的 JavaScript”关闭时不可用，且该菜单项可能因企业策略置灰；剪贴板路径不依赖它。
+
+### 4.3 agent-browser 只读快照（备用）
+
+```bash
+agent-browser --session hpm snapshot -i
+```
+
+仅用于确认页面结构与按钮 ref，不解析跨域 iframe 内的业务字段。
+
+### 4.4 内网直连不可行的判定
+
+`xzapp.dslbuy.com` 为内网域名。`curl` 与代理直连可返回 200，但浏览器自动化进程常报 `ERR_NETWORK_ACCESS_DENIED` 或 `ERR_CONNECTION_CLOSED`；遇到这两个错误即改用 4.2，不在代理参数上反复尝试。
+
+### 4.5 责任书字段样例（2026 Q4）
+
+| 区块 | 指标 | 类型 | 权重 | 档位选项 |
+|---|---|---|---|---|
+| 1 商品决策平台二期（82%） | 1.1 门店智能组货：组货策略优化 | OKR / 突破 / 自建指标 | 30% | 1.25 至 0 |
+| | 1.2 空间陈列智能化-布局策略 | OKR / 自建指标 | 20% | 1 至 0 |
+| | 1.3 门店智能组货：缩铺推广及线上化 | OKR / 自建指标 | 20% | 1 至 0 |
+| | 1.4 空间陈列智能化：陈列策略和数据分析 | OKR / 自建指标 | 12% | 1 至 0 |
+| 2 通用力（18%） | 2.1 至 2.6（专业知识、计划执行、沟通协作、学习发展、创新、专业影响力） | 定性 / 模板指标 | 各 3% | 1 至 0 |
+
+权重合计 100%，突破类合计 30%。指标名称、权重、档位以当期页面为准，此表仅示字段形状。

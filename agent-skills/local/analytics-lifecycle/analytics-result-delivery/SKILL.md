@@ -1,6 +1,6 @@
 ---
 name: analytics-result-delivery
-description: Deliver polished analytics assets across executive Excel workbooks, interactive diagnostic HTML dashboards, Confluence Wiki knowledge docs, and WBS project sheets. Use when exporting formatted Excel tables, rendering visual HTML reports, publishing Wiki updates, or logging timesheets.
+description: Deliver analytics assets across executive Excel workbooks, interactive HTML dashboards, Confluence Wiki docs, WBS project sheets, and HPM quarterly performance reviews. Use when exporting formatted Excel, rendering report HTML, publishing Wiki updates, logging timesheets, or reading and drafting HPM OKR and self-review fields.
 ---
 
 # 阶段五：结果交付与协同闭环 (Analytics Result Delivery)
@@ -16,6 +16,8 @@ description: Deliver polished analytics assets across executive Excel workbooks,
 - **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话（如以“陈列架总长度”取代“延米”），写出自然、直接、有立场的业务决策语言。
 - **`【命名空间契约 / scoped-delivery-naming】`**：阶段五交付文件严格采用 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 与同名 `.html` 命名。
 - **`【阶段六复盘沉淀 / decision-postmortem】`**：成果交付结单后，必须在 `topics/<topic_id>/06_decisions/` 物化三段式决策复盘卡，并沉淀生产底表、复用 SQL 与踩坑防线。
+- **`【先读责任书 / source-first】`**：HPM 的指标名称、指标类型、权重、档位选项与目标值以在线责任书为唯一真源；动笔前先读出并逐项照录。
+
 ## 内部资产引用 (Internal Assets)
 
 - **交付方案融合与规范手册**：[references/DELIVERY_SYNTHESIS_REFERENCE.md](references/DELIVERY_SYNTHESIS_REFERENCE.md)
@@ -74,7 +76,13 @@ flowchart TD
 通过驱动工具将需求流转为已完成，并核验工时守恒记录至工时系统。
 
 ### Channel E: HPM 绩效成果沉淀 (Performance Self-Review)
-从专题交付中提取客观成果证据，编写务实工程自评草稿。
+1. **读出责任书**：按 [references/hpm_criteria.md](references/hpm_criteria.md) 第 4 节的读取路径，取出全部指标的序号、名称、指标类型、权重、档位选项、指标说明、计划时间与目标值。权重合计 100%，突破类合计不超过 30%。
+2. **照录口径**：指标名称、权重、指标类型、档位选项逐项照录责任书；目标值写责任书原文，不换成自拟指标。
+3. **挂接证据**：每项指标映射到 `topics/*` 的交付文档、需求底稿或数仓结果，作为完成值来源。
+4. **留空未定项**：完成值、自评档位与偏差说明在季度结束后据实填写，草稿阶段留空。
+5. **完成标准**：责任书指标全部读出并逐项对齐，权重合计 100%，每个数字可在仓库或数仓溯源。
+
+完整自评流程（基线复盘、指标核验、去 AI 味、弹窗录入与保存）见 [hpm-performance-review](../../product-strategy/hpm-performance-review/SKILL.md)。
 
 ---
 
