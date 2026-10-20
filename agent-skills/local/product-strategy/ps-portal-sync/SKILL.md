@@ -1,6 +1,6 @@
 ---
 name: ps-portal-sync
-description: Automate enterprise portal workflows for product strategy via jev-browser-use: DevOps original demand extraction & timesheet logging, Confluence Wiki doc publishing, HPM review draft sync, Assortment board inspection, and WeCom/Tencent Sheet WBS project tracker maintenance. Use when scraping DevOps demands/stories, logging timesheets, updating Wiki, syncing HPM reviews, inspecting Assortment boards, or auditing WeCom sheets.
+description: Automate enterprise portal workflows for product strategy via OMP eval browser (tab.run + Puppeteer page) and agent-browser CLI: DevOps original demand extraction & timesheet logging, Confluence Wiki doc publishing, HPM review draft sync, Assortment board inspection, and WeCom/Tencent Sheet WBS project tracker maintenance. Use when scraping DevOps demands/stories, logging timesheets, updating Wiki, syncing HPM reviews, inspecting Assortment boards, or auditing WeCom sheets.
 ---
 
 # 商品策略中台门户协同 (ps-portal-sync)
@@ -36,7 +36,7 @@ skills/ps-portal-sync/
 │   ├── metrics_lineage.md            # 商品策略业务专题到责任书指标血缘映射
 │   └── hpm_criteria.md               # HPM 考核标准、通用力六大要点与字数限制
 │   ├── wecom_sheet_patterns.md       # 企业微信/腾讯文档表格 Canvas 模型、合并格与 WBS 规范
-│   └── jev_extension_lifecycle.md    # Jev 扩展生命周期、靶标隔离、跨域防脱钩与清理 SOP
+│   └── browser_session_lifecycle.md  # 浏览器会话生命周期、靶标隔离、跨域防脱钩与清理 SOP
 ├── examples/
 │   ├── golden_demand_extraction.md   # DevOps 原始需求底稿批量提取与转换黄金范例
 │   ├── golden_hpm_sync.md            # HPM 绩效指标与四新复盘录入黄金范例

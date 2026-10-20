@@ -71,7 +71,7 @@ herdr pane run qa-runtime "npm test"
 herdr pane wait-output qa-runtime --match "PASS" --timeout 15000
 ```
 
-## Bus 3: `agent` <-> `jev-browser-use` (Deterministic Browser Testing)
+## Bus 3: `agent` <-> `agent-browser` (Deterministic Browser Testing)
 
 See [`../scripts/verify-ui.py`](../scripts/verify-ui.py) for the canonical `jev_browser_session` context manager (runs isolated `-b herdr-qa --headless` and stops only `herdr-qa` on exit):
 
@@ -88,6 +88,6 @@ python3 scripts/verify-ui.py http://localhost:3000 --connect http://127.0.0.1:92
 ```bash
 # Send non-intrusive bottom notification without altering buffer or cursor
 SOCK_PATH="/tmp/nvim-herdr-${PROJECT_NAME:-cloud-st}.sock"
-nvim --server "$SOCK_PATH" --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, jev-browser-use verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || \
-nvim --server /tmp/nvim-herdr.sock --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, jev-browser-use verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || true
+nvim --server "$SOCK_PATH" --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, agent-browser verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || \
+nvim --server /tmp/nvim-herdr.sock --remote-expr 'luaeval("vim.notify(\"Agent: Refactor complete, agent-browser verification PASS\", vim.log.levels.INFO)")' 2>/dev/null || true
 ```

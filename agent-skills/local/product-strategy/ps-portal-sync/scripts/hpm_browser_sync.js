@@ -1,28 +1,18 @@
 /**
- * HPM 季度绩效表单自动化录入脚本模板 (jev-browser-use / OMP eval browser Runner)
+ * HPM 季度绩效表单自动化录入脚本模板 (OMP eval browser Runner)
  *
- * 用法 (jev-browser-use Chrome 扩展 Relay 模式):
- *   1. jev-browser-use relay
- *   2. jev-browser-use --connect http://127.0.0.1:9222 -e "$(cat skills/hpm-performance-review/scripts/hpm_browser_sync.js)"
+ * 用法 (OMP eval, language="js"):
+ *   const script = await read("scripts/hpm_browser_sync.js");
+ *   const tab = await browser.open({ name: "hpm", url: "https://hpm.dslbuy.com/achievement", app: { relay: true } });
+ *   await tab.run(script);
+ *   await tab.close();
  *
- * 备选 (OMP eval browser 模式):
- *   在 OMP eval(language="js") 中先通过 const { page } = await browser.open({ name: "hpm", app: { relay: true, target: "/achievement" } }) 获取标签页并运行。
+ * page 由 tab.run 注入 (Puppeteer Page)，无需 browser.getPage 解析。
  */
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function resolveHpmPage() {
-  if (typeof browser !== "undefined" && typeof browser.listPages === "function") {
-    const pages = await browser.listPages();
-    const target = pages.find((p) => p.url && p.url.includes("/achievement"));
-    if (target) {
-      return await browser.getPage(target.name || target.id);
-    }
-    const mainPage = await browser.getPage("main");
-    if (mainPage.url().includes("/achievement")) {
-      return mainPage;
-    }
-  }
   if (typeof page !== "undefined" && page && typeof page.url === "function" && page.url().includes("/achievement")) {
     return page;
   }
@@ -32,7 +22,7 @@ async function resolveHpmPage() {
 async function syncHpmReview() {
   const hpmPage = await resolveHpmPage();
   if (!hpmPage) {
-    console.error("未找到 HPM 责任书标签页，请先在 jev-browser-use 标签组或 Chrome 中打开目标 /achievement 页面。");
+    console.error("未找到 HPM 责任书标签页，请先用 browser.open 打开目标 /achievement 页面。");
     return;
   }
   if (typeof hpmPage.bringToFront === "function") {

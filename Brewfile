@@ -47,6 +47,7 @@ brew "colima"
 
 # ========== 浏览器 ==========
 cask "google-chrome"
+brew "agent-browser"
 # Optional fallback editor; no longer installed by default.
 # cask "visual-studio-code"
 # cask "zed"

@@ -274,10 +274,15 @@ def build_reconcile_actions(
             if not (child.is_dir() or child.is_symlink()):
                 continue
             skill_name = child.name
-            if ("global", agent, skill_name) in desired:
+            dangling = child.is_symlink() and not child.exists()
+            if ("global", agent, skill_name) in desired and not dangling:
                 continue
             action = "remove-symlink" if child.is_symlink() else "skip-real-path"
-            reason = "not enabled for this agent in skills-sources.jsonc"
+            reason = (
+                "dangling managed symlink"
+                if dangling
+                else "not enabled for this agent in skills-sources.jsonc"
+            )
             if action == "skip-real-path":
                 reason += "; real directory is left untouched"
             actions.append(
@@ -301,10 +306,15 @@ def build_reconcile_actions(
                 if not (child.is_dir() or child.is_symlink()):
                     continue
                 skill_name = child.name
-                if ("project", target_name, skill_name) in desired:
+                dangling = child.is_symlink() and not child.exists()
+                if ("project", target_name, skill_name) in desired and not dangling:
                     continue
                 action = "remove-symlink" if child.is_symlink() else "skip-real-path"
-                reason = "not enabled for this project view in skills-sources.jsonc"
+                reason = (
+                    "dangling managed symlink"
+                    if dangling
+                    else "not enabled for this project view in skills-sources.jsonc"
+                )
                 if action == "skip-real-path":
                     reason += "; real directory is left untouched"
                 actions.append(

@@ -19,7 +19,7 @@
 ## 2. 自动化执行脚本
 
 ```javascript
-// 执行命令: jev-browser-use --connect http://127.0.0.1:9222 -e "<script>"
+// 执行方式: OMP eval browser.open + tab.run("<script>")
 const p = await browser.getPage("wiki");
 await p.bringToFront();
 
@@ -79,7 +79,7 @@ console.log("Wiki 更新发布完成。");
 在同级目录下将现有页面完整复制，并升级为新版本（如 V7.0 -> V8.0）：
 
 ```javascript
-// 执行命令: jev-browser-use --connect http://127.0.0.1:9222 -e "<script>"
+// 执行方式: OMP eval browser.open + tab.run("<script>")
 const p = await browser.getPage("wiki");
 const f = p.frames()[0];
 

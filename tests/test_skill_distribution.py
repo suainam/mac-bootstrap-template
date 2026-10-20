@@ -373,7 +373,7 @@ def test_project_views_link_to_the_same_canonical_skill_source(tmp_path: Path):
 def test_reconcile_covers_project_compatibility_views(tmp_path: Path):
     registry = load_registry(DEFAULT_REGISTRY)
     product_skills = {
-        key: skill
+        key: replace(skill, projects=("product_strategy",))
         for key, skill in registry.skills.items()
         if "product_strategy" in skill.projects
     }
@@ -478,6 +478,36 @@ def test_reconcile_skips_real_directories(tmp_path: Path):
         action.skill_name == "stale-real-dir" and action.action == "skip-real-path" for action in actions
     )
 
+
+
+def test_reconcile_removes_dangling_symlink_for_enabled_skill(tmp_path: Path):
+    """A dangling link to an enabled skill must be removed, not treated as desired."""
+    registry = load_registry(DEFAULT_REGISTRY)
+    targets = load_targets(DEFAULT_TARGETS)
+
+    codex_root = tmp_path / "codex-skills"
+    codex_root.mkdir()
+    (codex_root / "knowledge-lifecycle-manager").symlink_to(
+        tmp_path / "missing-payload"
+    )
+    targets = {
+        **targets,
+        "codex": type(targets["codex"])(
+            agent="codex",
+            path=codex_root,
+            format="directory",
+            strategy="symlink",
+        ),
+    }
+
+    actions = build_reconcile_actions(registry, targets, ROOT)
+
+    dangling = [
+        action
+        for action in actions
+        if action.skill_name == "knowledge-lifecycle-manager"
+    ]
+    assert [action.action for action in dangling] == ["remove-symlink"]
 
 def test_reconcile_removes_managed_legacy_flat_md_after_target_migration(tmp_path: Path):
     registry = load_registry(DEFAULT_REGISTRY)

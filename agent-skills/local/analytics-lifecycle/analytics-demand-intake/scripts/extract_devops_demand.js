@@ -1,30 +1,35 @@
 /**
- * extract_devops_demand.js: 从 DevOps 需求管理微前端提取原始需求列表与详情 JSON (xhr-api-first)
+ * extract_devops_demand.js: 从 DevOps 需求管理微前端提取原始需求列表与详情 JSON
  *
- * 支持两种模式:
- *   1. 提取当前筛选视图下全部需求 ID 列表 + 活跃 Authorization Token:
- *      jev-browser-use --connect http://127.0.0.1:9222 -e "$(cat scripts/extract_devops_demand.js)"
- *   2. 指定单个或多个 demandId 直接在浏览器上下文内通过 API 拉取结构化详情:
- *      jev-browser-use --connect http://127.0.0.1:9222 -e "const targetIds = [28706, 31924]; $(cat scripts/extract_devops_demand.js)"
+ * 运行方式 (OMP eval browser with Chromium mode):
+ *   在 OMP eval (language="js") 中调用，使用 tab.run 的 Puppeteer page API:
+ *
+ *   const script = await read("scripts/extract_devops_demand.js");
+ *   const tab = await browser.open({ name: "devops", url: "https://devops.dslbuy.com/#/story/list", app: { relay: true } });
+ *   const result = await tab.run(script);
+ *   console.log(JSON.stringify(result, null, 2));
+ *   await tab.close();
+ *
+ * 或者指定目标需求 ID:
+ *   const result = await tab.run(`const targetIds = [28706, 31924]; ${script}`);
  *
  * 注意:
- *   - jev-browser-use -e 环境不支持 require("fs") 且单行 stdout > 4KB 会截断。
- *   - 批量拉取几十条需求时，先获取 AUTH_B64 与行列表，再在宿主环境用:
- *     curl -s --noproxy '*' -H "Authorization: $AUTH" "https://devops-order.dslbuy.com/demand/manager/detail?demandId=<ID>"
+ *   - 需要 OMP relay 扩展加载到真实 Chrome (带登录 cookies)
+ *   - tab.run 代码在 Node 环境运行，page 是 Puppeteer Page 对象
+ *   - 批量拉取几十条需求时，先获取 AUTH_B64 与行列表，再在宿主环境用 curl
  */
 
 async function captureDevopsAuthAndRows(targetIdsOpt) {
-  const p = await browser.getPage("devops");
-  const f0 = p.frames()[0];
+  const f0 = page.frames()[0];
 
   // 1. 穿透导航至原始需求路由 (避免跨进程直接 goto 导致 RenderFrameHost 崩溃)
-  if (!(await p.url()).includes("/story/list")) {
+  if (!(await page.url()).includes("/story/list")) {
     await f0.evaluate((url) => { window.location.href = url; }, "https://devops.dslbuy.com/#/story/list");
     await new Promise((r) => setTimeout(r, 5000));
   }
 
   // 2. 定位微前端 iframe (https://pmp.dslbuy.com/...)
-  const f1 = p.frames().find((f) => f.url().includes("pmp.dslbuy.com"));
+  const f1 = page.frames().find((f) => f.url().includes("pmp.dslbuy.com"));
   if (!f1) throw new Error("未找到 PMP 需求管理微前端 iframe (pmp.dslbuy.com)");
 
   // 3. 拦截 XHR 请求头获取活跃 Authorization Token，同时读取当前表格行摘要
@@ -82,11 +87,14 @@ async function captureDevopsAuthAndRows(targetIdsOpt) {
     return { authHeader, count: details.length, details };
   }, typeof targetIds !== "undefined" ? targetIds : null);
 
-  console.log("AUTH_B64:" + Buffer.from(payload.authHeader || "").toString("base64") + ":END");
-  console.log(JSON.stringify({ count: payload.count, rows: payload.tableRows, details: payload.details }, null, 2));
-  return payload;
+  return {
+    authB64: Buffer.from(payload.authHeader || "").toString("base64"),
+    count: payload.count,
+    rows: payload.tableRows,
+    details: payload.details
+  };
 }
 
-if (typeof browser !== "undefined") {
-  await captureDevopsAuthAndRows(typeof targetIds !== "undefined" ? targetIds : null);
-}
+// tab.run entry: page is available in scope
+return await captureDevopsAuthAndRows(typeof targetIds !== "undefined" ? targetIds : null);
+

@@ -1,21 +1,16 @@
 /**
  * wecom_sheet_audit.js: 企微/腾讯文档在线表格 (doc.weixin.qq.com/sheet) 结构与合并格审计脚本
  * 
- * 用法:
- *   jev-browser-use --connect http://127.0.0.1:9222 -e "$(cat scripts/wecom_sheet_audit.js)"
+ * 运行方式 (OMP eval browser):
+ *   const script = await read("scripts/wecom_sheet_audit.js");
+ *   const tab = await browser.open({ name: "wecom", url: "https://doc.weixin.qq.com/sheet/...", app: { relay: true } });
+ *   const result = await tab.run(script);
+ *   console.log(JSON.stringify(result, null, 2));
+ *   await tab.close();
  */
 
 async function auditWecomSheet() {
-  const pages = await browser.listPages();
-  if (pages.length === 0) {
-    throw new Error("当前未检测到活动的受控页面靶标，请先使用 browser.newPage() 打开目标文档");
-  }
-  
-  // 匹配第一个活动 sheet 页面
-  const target = pages.find(p => p.url.includes("doc.weixin.qq.com/sheet")) || pages[0];
-  const p = await browser.getPage(target.id);
-  
-  const auditData = await p.evaluate(() => {
+  const auditData = await page.evaluate(() => {
     const app = window.SpreadsheetApp;
     if (!app || !app.workbook || !app.workbook.activeSheet) {
       return { ready: false, message: "页面未完成 SpreadsheetApp 初始化" };
@@ -68,10 +63,9 @@ async function auditWecomSheet() {
     };
   });
   
-  console.log(JSON.stringify(auditData, null, 2));
   return auditData;
 }
 
-if (typeof browser !== "undefined") {
-  await auditWecomSheet();
-}
+// tab.run entry: page is available in scope
+return await auditWecomSheet();
+
