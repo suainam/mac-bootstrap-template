@@ -67,8 +67,14 @@ def test_neovim_yazi_nvim_plugin_integrated():
 
 
 def test_neovim_disables_spell_for_markdown():
-    options_file = os.path.expanduser("~/.config/nvim/lua/config/options.lua")
-    content = open(options_file).read()
-    assert 'NoSpellForDocs' in content
+    # Spell suppression lives in autocmds.lua, not options.lua: LazyVim's
+    # wrap_spell group re-enables spell after user config runs, so an autocmd is
+    # the only placement that holds. Assert on behavior, not on the augroup name.
+    autocmds_file = os.path.expanduser("~/.config/nvim/lua/config/autocmds.lua")
+    content = open(autocmds_file).read()
     assert '"markdown"' in content
     assert "vim.opt_local.spell = false" in content
+
+    options_file = os.path.expanduser("~/.config/nvim/lua/config/options.lua")
+    options_content = open(options_file).read()
+    assert "vim.opt_local.spell = false" not in options_content
