@@ -83,6 +83,7 @@ flowchart TD
 3. **金额全额流水自洽守恒**：`目录内销售额 + 目录外手工销售额 == 全店总销售额`（浮点误差 < 0.05元）；
 4. **比率有界性与空值防卫**：所有执行率、动销率指标严格在 $[0, 100\%]$ 区间；未开考/无目录门店动销率严格保留为 NULL；
 5. **物理空间密度常识对抗断言 (Physical Density Sanity Gate)**：涉及货架、面积、排面等实体空间数据时，增加空间物理密度断言（如 $\text{陈列密度} = \frac{\text{门店陈列架总长度 (米)}}{\text{门店营业面积 (m²)}} \in [0.4, 1.8]\text{ m/m²}$）。密度低于 0.3 提示中台漏登或错误折叠，高于 2.0 提示混陈重复累计，触发预警排查。
+6. **回溯五问 (Cohort Backtrace Five Questions ★)**：用本期名单回溯上期的指标（同品池、同店池），交付前必须附一次拆解，详见 [references/cohort_backtrace_five_questions.md](references/cohort_backtrace_five_questions.md)。五问为：匹配粒度、商品有效性、门店数、覆盖×强度、新老品分组。
 ### Step 4: 物化交付物与质检报告输出 (Materialization & Report)
 - 数据实体自动沉淀入外部数据湖并建立软链接；
 - 运行数据湖边界检查命令断言合规；

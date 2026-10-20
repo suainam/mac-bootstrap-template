@@ -102,6 +102,7 @@ python3 scripts/materialize.py <source> [--output-dir DIR] [--date-tag YYYYMMDD]
 **先判定原始磁盘字节（必须）**：
 - macOS/Linux 用 `dd` 或 `xxd` 读取前 16 字节；不要用 Python `open()` / `Path.read_bytes()` 判断是否加密。
 - TSD 透明层可能让 Python 直接看到明文 PNG/SQLite，而原始磁盘仍以 `%TSD-Header-###%` 开头。
+- 判断源文件「是否被改写」用 `shasum -a 256 <file>` 与 `xxd -l 16 <file>`，物化前后各跑一次比对。Python `hashlib` 读到的是透明解密后的明文，其哈希与系统哈希必然不同，不得与系统哈希混比。
 
 **二进制文件（PNG、ZIP 等）保真解密**：
 1. 用非 Python 工具确认原始头；源文件保持不动。

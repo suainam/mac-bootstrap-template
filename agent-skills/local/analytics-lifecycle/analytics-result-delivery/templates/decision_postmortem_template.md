@@ -1,7 +1,7 @@
 # 决策复盘卡规范模板 (Decision Post-Mortem Card)
 
 > **用途**：成果交付结单后，将本专题的**业务决策、复用代码资产、避坑经验**三段式沉淀为永久复盘卡。
-> **落盘位置**：`topics/<topic_id>/06_decisions/<datehour>-decision-postmortem.md`
+> **落盘位置**：`topics/<topic_id>/06_decisions/demand-<adhoc|id>-<topic_id>-<datehour>-06-decision-postmortem.md`
 > **索引挂载**：在专题 `README.md` 的"决策沉淀"段落追加一行链接。
 > **触发方式**：交付回复末尾主动询问用户；用户同意后才物化，不默认生成。
 
