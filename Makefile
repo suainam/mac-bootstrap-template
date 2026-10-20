@@ -347,13 +347,13 @@ cache-report:
 	./scripts/cache-report.sh
 
 install-cache-agent:
-	./scripts/install-cache-cleanup-agent.sh
+	./scripts/install-maintenance-agents.sh install cache-cleanup
 
 organize-downloads:
 	./scripts/organize-downloads.sh
 
 install-downloads-agent:
-	./scripts/install-downloads-organizer-agent.sh
+	./scripts/install-maintenance-agents.sh install downloads-organizer
 
 install-antigravity-cli:
 	./scripts/install-antigravity-cli.sh
@@ -509,10 +509,9 @@ unload-maintenance-agents:
 system-patrol:
 	./scripts/system-patrol.sh
 
-
+# ── Claude Code Daemon ─────────────────────────────────────
 claude-daemon-install:
 	./scripts/install-maintenance-agents.sh install claude-daemon
-
 
 claude-daemon-status:
 	@echo "=== claude-daemon ==="

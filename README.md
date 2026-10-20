@@ -482,6 +482,7 @@ make install-maintenance-agents
 ```
 
 Per-agent install/unload and lifecycle details: [Maintenance LaunchAgents](docs/maintenance-agents.md).
+
 ## Claude daemon
 
 `launchd/io.local.mac-bootstrap.claude-daemon.plist` runs
