@@ -33,6 +33,16 @@ echo "=== Homebrew Cutover Migration ==="
 echo "Homebrew prefix: $HOMEBREW_PREFIX"
 echo "Zerobrew root:   $ZEROBREW_ROOT"
 
+# BSD sed needs `-i ''`, GNU sed rejects it. Rewrite through a temp file and
+# copy back so the original inode, mode, and ownership survive on both.
+rewrite_in_place() {
+  local expr="$1" file="$2" tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/migrate-rewrite.XXXXXX")"
+  sed "$expr" "$file" > "$tmp"
+  cat "$tmp" > "$file"
+  rm -f "$tmp"
+}
+
 # --- Step 1: Discover migration candidates ----------------------------------
 echo "--- Step 1: Discovering installed Zerobrew kegs and active profile formulas ---"
 
@@ -263,7 +273,7 @@ if is_verified_tool rclone && [ -f "$RCLONE_PLIST" ] && /usr/bin/grep -q '/opt/z
   if command -v launchctl >/dev/null 2>&1; then
     launchctl bootout "gui/$(id -u)/com.auroraops.rclone-webdav" 2>/dev/null || true
   fi
-  sed -i '' "s|/opt/zerobrew/bin/rclone|$HOMEBREW_PREFIX/bin/rclone|g" "$RCLONE_PLIST"
+  rewrite_in_place "s|/opt/zerobrew/bin/rclone|$HOMEBREW_PREFIX/bin/rclone|g" "$RCLONE_PLIST"
   if command -v launchctl >/dev/null 2>&1; then
     launchctl bootstrap "gui/$(id -u)" "$RCLONE_PLIST" 2>/dev/null || true
     echo "  Reloaded com.auroraops.rclone-webdav"
@@ -279,9 +289,9 @@ if is_verified_tool rustic; then
       if command -v launchctl >/dev/null 2>&1; then
         launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
       fi
-      sed -i '' "s|/opt/zerobrew/bin/rustic|$HOMEBREW_PREFIX/bin/rustic|g" "$rustic_plist"
-      sed -i '' "s|/opt/zerobrew/bin:/opt/zerobrew/sbin:||g" "$rustic_plist"
-      sed -i '' "s|:/opt/zerobrew/bin:/opt/zerobrew/sbin||g" "$rustic_plist"
+      rewrite_in_place "s|/opt/zerobrew/bin/rustic|$HOMEBREW_PREFIX/bin/rustic|g" "$rustic_plist"
+      rewrite_in_place "s|/opt/zerobrew/bin:/opt/zerobrew/sbin:||g" "$rustic_plist"
+      rewrite_in_place "s|:/opt/zerobrew/bin:/opt/zerobrew/sbin||g" "$rustic_plist"
       if command -v launchctl >/dev/null 2>&1; then
         launchctl bootstrap "gui/$(id -u)" "$rustic_plist" 2>/dev/null || true
       fi
