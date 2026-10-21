@@ -5,6 +5,11 @@
       "package": "@narumitw/pi-typesafe",
       "version": "0.1.1",
       "settings": "pi-typesafe.json"
+    },
+    {
+      "kind": "local",
+      "package": "agent/omp/extensions/subagent-timeout-bound.ts",
+      "target": "subagent-timeout-bound.ts"
     }
   ]
 }

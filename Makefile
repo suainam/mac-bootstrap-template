@@ -2,6 +2,9 @@ SHELL := /usr/bin/env bash
 UV_CACHE_DIR ?= $(HOME)/.cache/uv
 PYTHON ?= .venv/bin/python
 PYTEST_PARALLEL_WORKERS ?= 4
+# Incremental docs-check scope: uncommitted docs by default; DOCS_BASE=origin/main
+# widens it to a branch diff.
+DOCS_BASE ?= HEAD
 PYTEST_PARALLEL_ARGS ?= -n $(PYTEST_PARALLEL_WORKERS) --dist loadfile
 LUAC ?= luac
 GIT_HOOK_REPO ?= .
@@ -171,7 +174,15 @@ bootstrap install:
 	./scripts/install-omp-extensions.sh
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
-repo-check:
+docs-check:
+	@files="$${DOCS_PATHS:-$$(git diff --name-only --diff-filter=ACMR $(DOCS_BASE) -- '*.md' '*.mdx' 2>/dev/null)}"; \
+	if [ -z "$$files" ]; then echo "docs-check: no changed docs"; exit 0; fi; \
+	"$(PYTHON)" scripts/check_docs.py $$files
+
+docs-check-all:
+	@"$(PYTHON)" scripts/check_docs.py .
+
+repo-check: docs-check
 	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
 
 repo-check-serial:

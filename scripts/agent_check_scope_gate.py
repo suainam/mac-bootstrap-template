@@ -121,6 +121,31 @@ def _run_make(repo_root: Path, target: str) -> int:
     return result.returncode
 
 
+def _run_docs_check(repo_root: Path, targets: list[str]) -> int | None:
+    """Run the docs content check; None means this repo has no checker."""
+    checker = repo_root / "scripts" / "check_docs.py"
+    if not checker.is_file():
+        return None
+    runtime_python = _required_path("AGENT_RUNTIME_PYTHON", preserve_entrypoint=True)
+    result = subprocess.run(
+        [str(runtime_python), str(checker), *targets],
+        cwd=repo_root,
+        check=False,
+    )
+    return result.returncode
+
+
+def _event_targets() -> list[str]:
+    try:
+        event = json.loads(os.environ.get("AGENT_RUNTIME_EVENT_JSON", ""))
+    except json.JSONDecodeError:
+        return []
+    targets = event.get("target_paths") if isinstance(event, dict) else None
+    if not isinstance(targets, list):
+        return []
+    return [item for item in targets if isinstance(item, str) and item]
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) != 1 or args[0] not in {"repository", "machine"}:
@@ -129,6 +154,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         repo_root = _required_path("AGENT_RUNTIME_REPO_ROOT", directory=True)
         if _docs_only_push():
+            # Docs-only pushes still get content checks (links, shell fences, argv
+            # secrets); the machine check stays skipped.
+            code = _run_docs_check(repo_root, _event_targets())
+            if code is not None:
+                return code
             print(
                 f"skip {args[0]} check: pushed paths are documentation only",
                 file=sys.stderr,

@@ -215,6 +215,44 @@ def check_managed_symlinks(template_root: Path, manifest: dict) -> bool:
 
     return missing
 
+
+def resolves_command(command: str) -> bool:
+    expanded = os.path.expanduser(command)
+    if os.sep in expanded:
+        return os.path.isfile(expanded) and os.access(expanded, os.X_OK)
+    return shutil.which(expanded) is not None
+
+
+def check_mcp_commands(manifest: dict) -> bool:
+    """An enabled stdio server whose command does not resolve fails at session start."""
+    configs = manifest.get("mcp_configs", [])
+    if not configs:
+        return False
+    print("=== MCP stdio commands ===")
+    missing = False
+    for config in configs:
+        path = Path(os.path.expanduser(config))
+        servers = read_json(path).get("mcpServers")
+        if not isinstance(servers, dict):
+            print(f"skip mcp config: {path} has no mcpServers")
+            continue
+        for name, entry in servers.items():
+            if not isinstance(entry, dict) or entry.get("enabled") is False:
+                continue
+            if entry.get("type", "stdio") != "stdio":
+                continue
+            command = entry.get("command")
+            if not isinstance(command, str) or not command:
+                print(f"missing mcp command: {name} ({path})")
+                missing = True
+            elif resolves_command(command):
+                print(f"ok mcp command: {name} ({command})")
+            else:
+                print(f"missing mcp command: {name} ({command})")
+                missing = True
+    return missing
+
+
 def check_ssh_config(template_root: Path) -> bool:
     script = template_root / "scripts" / "ssh-manage.sh"
     print("=== SSH config ===")
@@ -355,6 +393,10 @@ def main(argv: list[str]) -> int:
 
     if check_ssh_config(template_root):
         missing = True
+
+    if check_mcp_commands(manifest):
+        missing = True
+
 
     print("=== npm CLIs ===")
     for name in declared["npm"]:
