@@ -1,27 +1,5 @@
 {
   "version": 1,
-  "description": "Authoritative formula ownership between Zerobrew (zb) and Homebrew (brew). Default manager for unlisted formulae is brew.",
-  "zerobrew_formulas": [
-    "age",
-    "ast-grep",
-    "docker",
-    "docker-buildx",
-    "docker-compose",
-    "fd",
-    "fzf",
-    "gh",
-    "gitleaks",
-    "herdr",
-    "lazygit",
-    "pngpaste",
-    "rclone",
-    "rtk",
-    "rustic",
-    "sops",
-    "tree",
-    "tree-sitter-cli",
-    "uv",
-    "yazi",
-    "zoxide"
-  ]
+  "description": "Authoritative formula ownership between Zerobrew (zb) and Homebrew (brew). Default manager for all formulae is Homebrew.",
+  "zerobrew_formulas": []
 }

@@ -191,23 +191,6 @@ unset __conda_setup
 export DIRENV_LOG_FORMAT=""
 eval "$(direnv hook zsh)"
 
-# Zerobrew PATH Invariant Guard: prevent direnv from stripping Zerobrew on directory reverts
-_ensure_zerobrew_path() {
-    local zb
-    for zb in /opt/zerobrew/sbin /opt/zerobrew/bin; do
-        if [[ -d "$zb" && ":$PATH:" != *":$zb:"* ]]; then
-            export PATH="$zb:$PATH"
-        fi
-    done
-}
-if (( $+functions[_direnv_hook] )); then
-    functions[_orig_direnv_hook]="$functions[_direnv_hook]"
-    _direnv_hook() {
-        _orig_direnv_hook "$@"
-        _ensure_zerobrew_path
-    }
-fi
-_ensure_zerobrew_path
 
 # Terminal auto-attach
 # - iTerm2 provides the window shell

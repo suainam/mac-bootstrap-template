@@ -79,59 +79,22 @@ once through Homebrew's Ruby DSL; legacy `brew.skip` files are not consumed.
 Temporary opt-outs use native `HOMEBREW_BUNDLE_BREW_SKIP` and
 `HOMEBREW_BUNDLE_CASK_SKIP` variables.
 
-Package manager ownership between Homebrew (`brew`) and Zerobrew (`zb`) is authoritative
-and declared in [`scripts/package-ownership.json`](../scripts/package-ownership.json).
-The 21 standalone core bottles are assigned to Zerobrew; all other formulae default to Homebrew ownership.
-Upstream bottle metadata changes do not dynamically reroute formula ownership.
+All software packages and CLI tools are managed unifiedly by Homebrew (`brew`).
+Machine-specific tools are cleanly isolated through profile Brewfiles (`private/profiles/<profile>/Brewfile`).
 
-Normal daily reconciliation (`scripts/brew-bundle.sh` or `scripts/brew-bundle.sh install`)
-never silently transfers or uninstalls existing Homebrew packages. If a package declared for
-Zerobrew is currently installed in Homebrew, reconciliation halts with a clear error
-directing the user to run explicit migration:
+To cut over legacy environments previously using Zerobrew (zb), run:
 
 ```bash
-scripts/brew-bundle.sh migrate
-# or: make package-migrate
+make package-migrate
+# or: scripts/brew-bundle.sh migrate
 ```
 
-Explicit migration executes the following safe sequence:
-1. **Global Preflight**: Runs before any mutation or prerequisite installation. Queries
-   `brew uses --installed` for every candidate package. If any candidate is required by ANY
-   installed Homebrew package, migration halts immediately without uninstalling anything.
-   Migration never uses `--ignore-dependencies`.
-2. **Zerobrew Installation & Verification**: Initializes and installs candidate bottles in
-   `ZEROBREW_ROOT`, executes `zb doctor` and version probes before removal
-   (`pngpaste -v` avoids clipboard access). Tool aliases such as `ast-grep`/`sg`
-   and `tree-sitter-cli`/`tree-sitter` are handled explicitly,
-   and verifies Docker CLI plugins (`docker-compose`, `docker-buildx`) via version checks and
-   links in `$DOCKER_CONFIG/cli-plugins` (default: `$HOME/.docker/cli-plugins`).
-3. **Safe Removal**: Uninstalls old copies from Homebrew only after successful install and runtime verification.
-Normal fresh installation provisions `jq` before reading the ownership manifest;
-explicit migration requires it already installed so preflight remains non-mutating.
-
-
-For recovery, if a package needs to be restored to Homebrew ownership:
-1. Update `scripts/package-ownership.json` so the package is no longer listed under `zerobrew_formulas`.
-2. Install the package in Homebrew (`brew install <formula>`). For Docker plugins, relink the
-   plugin in `$DOCKER_CONFIG/cli-plugins` to the Homebrew path so it does not point to a dangling zb prefix.
-3. Once verified, remove the Zerobrew copy with `zb uninstall <formula>`.
-Reconciliation will enforce this updated declaration without conflict.
-
-Shell sources set `ZEROBREW_ROOT` and `ZEROBREW_PREFIX` (default:
-`/opt/zerobrew` for both home and work) and prefer its `bin`/`sbin`.
-The prefix must be at most 13 characters to fit macOS Mach-O relocation paths.
-On each machine, provision the directory once:
-
-```bash
-sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 755 /opt/zerobrew
-```
-
-Then run `scripts/brew-bundle.sh` from the template. Bootstrap invokes
-`zb init --no-modify-path`; `system-upgrade` updates both managers. Verify with
-`zb doctor`, a second bundle run, migrated command execution, and absence of
-transferred packages from `brew list --formula`. Old user-directory stores
-are not automatically deleted; remove them only after short-prefix verification.
-
+This performs a safe, idempotent cutover:
+1. **Inventory Discovery**: Detects installed Zerobrew kegs and active profile declarations.
+2. **Homebrew Installation**: Provisions replacement bottles via Homebrew.
+3. **Verification**: Probes replacement binaries via absolute Homebrew paths before any removal.
+4. **Service & Plugin Repointing**: Updates Docker CLI plugin symlinks and LaunchAgents (`rclone-webdav`, `rustic`) to Homebrew paths and reloads them.
+5. **Safe Cleanup**: Uninstalls verified tools from Zerobrew without deleting unknown directory state.
 Parent `bootstrap.sh`:
 
 ```bash

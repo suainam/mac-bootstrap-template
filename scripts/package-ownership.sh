@@ -20,7 +20,7 @@ list_zb() {
     echo "Error: jq is required to parse $MANIFEST" >&2
     exit 1
   fi
-  jq -er '.zerobrew_formulas[]' "$MANIFEST"
+  jq -r '.zerobrew_formulas[]?' "$MANIFEST" 2>/dev/null || true
 }
 
 owner() {

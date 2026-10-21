@@ -312,7 +312,7 @@ verify_runtime_layout() {
       config.d|keys)
         [ "$kind" = "Directory" ] || die "$path must be a directory"
         ;;
-      known_hosts)
+      known_hosts|authorized_keys)
         [ "$kind" = "Regular File" ] || die "$path must be a regular file"
         ;;
       agent)

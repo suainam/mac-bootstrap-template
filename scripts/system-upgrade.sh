@@ -250,17 +250,6 @@ stage_packages() {
     record_stage "packages" "failed" "package update/bundle/upgrade failed"
     return 1
   }
-  if command -v zb >/dev/null 2>&1; then
-    export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
-    export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
-    run_with_heartbeat "zb update" zb update && \
-    run_with_heartbeat "zb upgrade" zb upgrade && \
-    run_with_heartbeat "zb gc" zb gc || {
-      echo "Error: Zerobrew update/upgrade/gc failed" >&2
-      record_stage "packages" "failed" "zerobrew operations failed"
-      return 1
-    }
-  fi
 
   "${BREW_BIN}" cleanup || {
     echo "Error: brew cleanup failed" >&2
