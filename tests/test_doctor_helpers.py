@@ -422,3 +422,32 @@ def test_doctor_sh_validates_flags():
     bad_res = subprocess.run([str(doctor_sh), "--unknown-flag"], capture_output=True, text=True, check=False)
     assert bad_res.returncode == 2
     assert "Usage: scripts/doctor.sh [--strict]" in bad_res.stderr
+
+
+def test_check_mcp_commands_reports_ok_and_missing(tmp_path, capsys):
+    good_script = tmp_path / "good.sh"
+    good_script.write_text("#!/bin/sh\nexit 0\n")
+    good_script.chmod(0o755)
+
+    mcp_json = tmp_path / "mcp.json"
+    mcp_json.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "srv_good": {"type": "stdio", "command": str(good_script), "enabled": True},
+                    "srv_bad": {"type": "stdio", "command": str(tmp_path / "missing.sh"), "enabled": True},
+                    "srv_disabled": {"type": "stdio", "command": str(tmp_path / "ignore.sh"), "enabled": False},
+                    "srv_sse": {"type": "sse", "url": "http://localhost:8000", "enabled": True},
+                }
+            }
+        )
+    )
+    manifest = {"mcp_configs": [str(mcp_json)]}
+    has_missing = run_doctor_checks.check_mcp_commands(manifest)
+    out = capsys.readouterr().out
+
+    assert has_missing is True
+    assert f"ok mcp command: srv_good ({good_script})" in out
+    assert "missing mcp command: srv_bad" in out
+    assert "srv_disabled" not in out
+    assert "srv_sse" not in out

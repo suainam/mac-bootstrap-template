@@ -34,7 +34,7 @@
 ### 2️⃣ 生成分享包 ✅
 
 **打包结果**：
-```bash
+```text
 位置: ~/Downloads/dataworks-yoy-backfill-skill.tar.gz
 大小: 47.2 KB
 包含: 

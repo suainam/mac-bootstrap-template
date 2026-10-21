@@ -121,7 +121,7 @@ with open("private/secrets.yaml") as f:
 
 ```bash
 # Read 工具显示乱码
-Read("private/database.yaml")  # → 乱码
+# Read("private/database.yaml")  # → 乱码
 
 # 直接读取磁盘文件
 cat private/database.yaml

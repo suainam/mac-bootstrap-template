@@ -3,6 +3,9 @@
     "ripgrep": "rg",
     "anomalyco/tap/opencode-v2": "opencode"
   },
+  "mcp_configs": [
+    "~/.omp/agent/mcp.json"
+  ],
   "standalone_clis": [
     {
       "name": "antigravity",

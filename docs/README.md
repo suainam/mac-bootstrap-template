@@ -18,6 +18,7 @@
 - `docker-cache-hygiene.md`：Docker 构建缓存、overlay2 膨胀排查与自动化治理 runbook。
 - `clash-profile-flow.md`：Clash 源配置、profile 与运行态边界。
 - `agent-prompt-mcp.md`、`agent-subagents.md`：agent 协作与可选本地 prompt MCP。
+- `agent-runtime-guardrails.md`：记忆桥作用域注入与 fail-closed、docs 内容检查、MCP 命令健康、子代理超时收敛。
 - `agents/quality-gates.md`：Agent Runtime、Git context、profile、门禁和回滚机制。
 - `agents/runtime-rollout.md`：逐仓推广经验、风险阶梯、验收 checklist 与停止条件。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。

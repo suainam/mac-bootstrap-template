@@ -96,3 +96,30 @@ def test_empty_or_malformed_event_never_skips(tmp_path: Path) -> None:
         result = run_gate("repository", tmp_path, event)
         assert result.returncode == 0, result.stderr
         assert marker.exists(), event
+
+
+def test_documentation_only_runs_docs_checker_when_present(tmp_path: Path) -> None:
+    marker = tmp_path / "ran"
+    write_makefile(tmp_path, marker)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    checker = scripts / "check_docs.py"
+    # Script that checks if argv contains bad.md, and fails if so
+    checker.write_text(
+        "import sys\n"
+        "if any('bad.md' in a for a in sys.argv):\n"
+        "    sys.exit(1)\n"
+        "sys.exit(0)\n",
+        encoding="utf-8",
+    )
+    checker.chmod(0o755)
+
+    # 1. Clean doc: returns 0, does not run full repo-check makefile
+    res_ok = run_gate("repository", tmp_path, {"target_paths": ["docs/good.md"]})
+    assert res_ok.returncode == 0
+    assert not marker.exists()
+
+    # 2. Bad doc: returns 1 (checker return code)
+    res_bad = run_gate("repository", tmp_path, {"target_paths": ["docs/bad.md"]})
+    assert res_bad.returncode == 1
+    assert not marker.exists()

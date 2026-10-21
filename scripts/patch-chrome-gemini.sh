@@ -67,13 +67,11 @@ mode, path = sys.argv[1], sys.argv[2]
 raw = open(path, encoding="utf-8").read()
 d = json.loads(raw)
 b = d.setdefault("browser", {})
-g = d.setdefault("glic", {})
 want = [
     (d, "variations_country", "us"),
     (d, "variations_permanent_consistency_country", ["us"]),
     (d, "variations_permanent_overridden_country", "us"),
     (b, "variations_country", "us"),
-    (g, "multi_instance_enabled_by_tier", True),
 ]
 changed = False
 for obj, k, v in want:
