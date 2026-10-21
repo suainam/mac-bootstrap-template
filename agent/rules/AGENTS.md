@@ -70,12 +70,12 @@ Default to surfacing uncertainty, not hiding it.
 - **Threshold**: If a search or glob would return >20 code files, abort and use CBM graph queries.
 - **Coverage**: Call `check_index_coverage` before stating absence or dead code.
 
-### 2. Multi-Tier Agent Memory & Hy-Memory PRO Hierarchy
+### 2. Multi-Tier Agent Memory
 - **SSOT Layers**:
   1. **Codebase-Memory (CBM)**: Deterministic code architecture (`xd://mcp__codebase_memory_mcp_*`).
-  2. **Hy-Memory PRO**: Long-term semantic decisions, architectural trade-offs, and operational pitfalls (`remember` / `recall`).
+  2. **Shared memory MCP**: Long-term semantic decisions, architectural trade-offs, and operational pitfalls. Use the tools the host actually mounts (on OMP: `memory_query`, `memory_read_page`, `memory_recent`, `memory_write_page`); there is no `remember`/`recall`.
   3. **Local Runtime (`agent.db`)**: Ephemeral turn context and session compaction.
-- **Practice**: Query `recall` before complex refactors/troubleshooting; record durable non-obvious traps via `remember`. Code in the repository is the ultimate ground truth.
+- **Practice**: Query shared memory before a non-trivial refactor or debug in a subsystem with history, and read the full page on a hit. Record a durable trap only after live verification. A missing memory tool is a defect, not permission to invent history. Code in the repository is the ultimate ground truth.
 
 ## Subagent Delegation Contract
 
