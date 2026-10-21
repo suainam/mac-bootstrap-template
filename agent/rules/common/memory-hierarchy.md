@@ -7,7 +7,7 @@ Agents operating across this workstation utilize a three-tier memory and intelli
 | Intelligence Tier | Backing Engine & Protocol | Scope & Responsibilities | Persistence Target |
 | :--- | :--- | :--- | :--- |
 | **Codebase Memory (CBM)** | Knowledge Graph + BM25 + AST (`xd://mcp__codebase_memory_mcp_*`) | **Deterministic code architecture**: functions, classes, call graphs, callers/callees, blast radius, symbol definitions. | Repository index (`.codebase-memory/` / service index) |
-| **Hy-Memory PRO** | FastMCP + SQLite + Vector Embeddings (`http://10.144.10.11/mcp`) | **Long-term semantic & cross-session memory**: project architectural decisions, operational traps, domain preferences, lessons learned. | Production cluster (`qqg1299`: `/opt/dockers/hy_memory/data/`) |
+| **Shared memory MCP** | MCP server mounted by the host (OMP: `memory_*` tools over the `ai-memory` bridge) | **Long-term semantic & cross-session memory**: project architectural decisions, operational traps, domain preferences, lessons learned. | Remote shared primary, reached through the host's MCP entry |
 | **Local Runtime Memory** | SQLite runtime database (`agent.db`) | **Transient session state**: active conversation compaction, OAuth state, ephemeral tool execution context. | Host workstation (`~/.omp/agent/agent.db` / `~/.claude/`) |
 
 ---
@@ -19,21 +19,22 @@ Agents operating across this workstation utilize a three-tier memory and intelli
 - **Strict Prohibition**: Never use `glob` or broad text search across repository directories before consulting CBM. If a naive file search would match >20 files, abort and use CBM.
 - **Refactoring & Symbol Moves**: Cross-file references and renames must be resolved via LSP (`xd://lsp`), never manual text replacement.
 
-#### 2. Cross-Session Decisions & Operational Pitfalls ➡️ Hy-Memory PRO
-- **Write Path (`remember`)**:
+#### 2. Cross-Session Decisions & Operational Pitfalls ➡️ Shared memory MCP
+- **Write Path** (`memory_write_page` on OMP):
   - Store non-obvious operational lessons (e.g. virtualization lock quirks, network egress throttling, reverse proxy headers).
   - Store architectural trade-offs approved by the operator.
   - Tag memory with clear repository and domain keys (e.g., `repo:auroraops-control`, `role:docker_apps`).
-- **Read Path (`recall`)**:
-  - When starting a task involving complex infrastructure or previously refactored services, query Hy-Memory for past traps and design decisions before proposing breaking changes.
+- **Read Path** (`memory_query` then `memory_read_page` on OMP):
+  - When starting a task involving complex infrastructure or previously refactored services, query shared memory for past traps and design decisions before proposing breaking changes.
+  - Use whatever tool names the host actually mounts; do not assume `remember`/`recall` exist.
 
 #### 3. Ephemeral Workflow & Compaction ➡️ Local Runtime
 - Context compression, temporary checkpoints, and conversational turn tokens belong in the local session.
-- Do not serialize transient debug traces into Hy-Memory.
+- Do not serialize transient debug traces into shared memory.
 
 ---
 
 ### Truth Boundary & Anti-Drift Rule
-1. **Code Is the Ultimate SSOT**: Memory tools assist discovery, but committed repository files (`git`, `catalog/`, `CONTEXT.md`, `ports.yml`) remain the binding contract. If Hy-Memory or CBM diverges from verified file content, the live repository wins.
+1. **Code Is the Ultimate SSOT**: Memory tools assist discovery, but committed repository files (`git`, `catalog/`, `CONTEXT.md`, `ports.yml`) remain the binding contract. If shared memory or CBM diverges from verified file content, the live repository wins.
 2. **Double Graduation**:
-   - Discovered operational trap ➡️ Validate on live system ➡️ Store in Hy-Memory (`remember`) ➡️ Codify into repository documentation or Ansible task assertions.
+   - Discovered operational trap ➡️ Validate on live system ➡️ Store in shared memory ➡️ Codify into repository documentation or Ansible task assertions.
