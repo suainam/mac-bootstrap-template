@@ -58,19 +58,52 @@ if [ ! -r "$CHROME_STATE" ] || [ ! -w "$CHROME_STATE" ]; then
 fi
 
 
-# Check if patching is even needed
-NEEDS_PATCH=0
-if grep -q '"is_glic_eligible":[[:space:]]*false' "$CHROME_STATE"; then
-    NEEDS_PATCH=1
-fi
-if grep -q '"variations_country":[[:space:]]*"[^"]*"' "$CHROME_STATE" && ! grep -q '"variations_country":[[:space:]]*"us"' "$CHROME_STATE"; then
-    NEEDS_PATCH=1
-fi
-if grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[^]]*\]' "$CHROME_STATE" && ! grep -q '"variations_permanent_consistency_country":[[:space:]]*\[[[:space:]]*"us"[[:space:]]*\]' "$CHROME_STATE"; then
-    NEEDS_PATCH=1
-fi
+# JSON-aware patch. Chrome re-derives variations_country from the live seed on every
+# launch; variations_permanent_overridden_country is the pref that actually pins the
+# session country, so it (and browser.variations_country) must be written too.
+PATCH_PY='
+import json, os, sys, tempfile
+mode, path = sys.argv[1], sys.argv[2]
+raw = open(path, encoding="utf-8").read()
+d = json.loads(raw)
+b = d.setdefault("browser", {})
+g = d.setdefault("glic", {})
+want = [
+    (d, "variations_country", "us"),
+    (d, "variations_permanent_consistency_country", ["us"]),
+    (d, "variations_permanent_overridden_country", "us"),
+    (b, "variations_country", "us"),
+    (g, "multi_instance_enabled_by_tier", True),
+]
+changed = False
+for obj, k, v in want:
+    if obj.get(k) != v:
+        obj[k] = v
+        changed = True
+def walk(o):
+    global changed
+    if isinstance(o, dict):
+        if o.get("is_glic_eligible") is False:
+            o["is_glic_eligible"] = True
+            changed = True
+        for v in o.values():
+            walk(v)
+    elif isinstance(o, list):
+        for v in o:
+            walk(v)
+walk(d)
+if mode == "check":
+    sys.exit(1 if changed else 0)
+if changed:
+    out = json.dumps(d, separators=(",", ":"), ensure_ascii=False)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(out)
+    os.chmod(tmp, os.stat(path).st_mode & 0o777)
+    os.replace(tmp, path)
+'
 
-if [ $NEEDS_PATCH -eq 0 ]; then
+if python3 -c "$PATCH_PY" check "$CHROME_STATE"; then
     echo "✨ Gemini patch is already active. No changes needed."
     exit 0
 fi
@@ -102,17 +135,6 @@ if pgrep -u "$TARGET_USER" -x "Google Chrome" > /dev/null 2>&1; then
     fi
 fi
 
-# Apply the patch using sed directly on the file (portable across macOS BSD sed and Linux GNU sed)
-if sed --version > /dev/null 2>&1; then
-    sed -i -e 's/"is_glic_eligible":[[:space:]]*false/"is_glic_eligible":true/g' \
-           -e 's/"variations_country":[[:space:]]*"[^"]*"/"variations_country":"us"/g' \
-           -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[\)[^]]*\]/\1"us"]/g' \
-           "$CHROME_STATE"
-else
-    sed -i '' -e 's/"is_glic_eligible":[[:space:]]*false/"is_glic_eligible":true/g' \
-              -e 's/"variations_country":[[:space:]]*"[^"]*"/"variations_country":"us"/g' \
-              -e 's/\("variations_permanent_consistency_country":[[:space:]]*\[\)[^]]*\]/\1"us"]/g' \
-              "$CHROME_STATE"
-fi
+python3 -c "$PATCH_PY" apply "$CHROME_STATE" || { echo "❌ Patch failed." >&2; exit 1; }
 
 echo "✅ Chrome Gemini patch applied successfully."

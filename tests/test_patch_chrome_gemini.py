@@ -43,7 +43,9 @@ _LOCAL_STATE_NEEDS_PATCH = textwrap.dedent(
 _LOCAL_STATE_ALREADY_PATCHED = textwrap.dedent(
     """\
     {
-        "glic": {"is_glic_eligible": true},
+        "glic": {"is_glic_eligible": true, "multi_instance_enabled_by_tier": true},
+        "browser": {"variations_country": "us"},
+        "variations_permanent_overridden_country": "us",
         "variations_country": "us",
         "variations_permanent_consistency_country": ["us"]
     }
