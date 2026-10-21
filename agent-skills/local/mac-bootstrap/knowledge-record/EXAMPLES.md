@@ -41,11 +41,9 @@ Homebrew 的 Python 和 pyenv 的 Python 并存时，`pip install` 默认
 安装到 Homebrew 的 site-packages，但 `python` 命令指向 pyenv。
 
 ## 解决
-```
-$ pyenv which pip     # 确认当前 pip 属于哪个 Python
-$ pip install pkg     # 现在 install 到正确的 Python
-```
-或使用 `pip install --python /path/to/target/python`。",
+pyenv which pip     # 确认当前 pip 属于哪个 Python
+pip install pkg     # 现在 install 到正确的 Python
+或使用 pip install --python /path/to/target/python。",
   --background "用户说 'pip install 了 but 找不到模块'" \
   --tags "踩坑,Homebrew,Python,macOS" \
   --impact medium

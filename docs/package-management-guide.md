@@ -184,10 +184,19 @@ brew install --cask --adopt grok-bot
 
 **选项 2**：保持手动管理
 
-将 cask 添加到 `scripts/brew-bundle.sh` 的跳过列表（第 148 行）：
+在 `scripts/brew-bundle.sh` 的跳过列表（当前第 148 行）中追加
+`<token>:<App Name>.app` 一项：
 
 ```bash
-for entry in 'microsoft-edge:Microsoft Edge.app' 'zed:Zed.app' 'grok-bot:Grok Bot.app'; do
+for entry in 'microsoft-edge:Microsoft Edge.app' 'zed:Zed.app' \
+  'clash-verge-rev:Clash Verge.app' 'grok-bot:Grok Bot.app'; do
+  token="${entry%%:*}"
+  app="${entry#*:}"
+  if ! brew list --cask "$token" >/dev/null 2>&1 \
+    && { [ -d "/Applications/$app" ] || [ -d "$HOME/Applications/$app" ]; }; then
+    export HOMEBREW_BUNDLE_CASK_SKIP="${HOMEBREW_BUNDLE_CASK_SKIP:-} $token"
+  fi
+done
 ```
 
 ### 同名包在两个管理器都存在

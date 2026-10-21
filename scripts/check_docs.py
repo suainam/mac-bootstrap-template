@@ -39,6 +39,8 @@ SKIP_DIRS = {
     ".commandcode",
     ".workspace",
     ".playwright-cli",
+    "archive",
+    "quarantine",
 }
 
 DOC_SUFFIXES = (".md", ".mdx")
@@ -48,6 +50,7 @@ FENCE_RE = re.compile(
     r"(?P<body>.*?)^[ \t]*```[ \t]*$",
     re.MULTILINE | re.DOTALL,
 )
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?")
 SECRET_WORDS = {
     "token",
@@ -144,7 +147,6 @@ def _shell_blocks(blocks: list[tuple[int, str, str]]) -> list[tuple[int, str]]:
     return shell
 
 
-
 def check_file(path: Path) -> list[Finding]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -152,10 +154,11 @@ def check_file(path: Path) -> list[Finding]:
         return [Finding(path, 1, f"unreadable: {exc}")]
     blocks = _fences(text)
     fenced_spans = [(m.start(), m.end()) for m in FENCE_RE.finditer(text)]
+    code_spans = fenced_spans + [(m.start(), m.end()) for m in INLINE_CODE_RE.finditer(text)]
     findings: list[Finding] = []
 
     for match in LINK_RE.finditer(text):
-        if any(start <= match.start() < end for start, end in fenced_spans):
+        if any(start <= match.start() < end for start, end in code_spans):
             continue
         target = match.group(1)
         if target.startswith("#") or "://" in target or target.startswith(

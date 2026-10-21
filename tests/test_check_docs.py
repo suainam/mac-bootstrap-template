@@ -111,3 +111,19 @@ def test_redirection_is_not_treated_as_placeholder(tmp_path: Path):
     )
     findings = check_docs.check_file(doc)
     assert findings == []
+
+
+def test_inline_code_is_not_scanned_as_a_link(tmp_path: Path):
+    doc = tmp_path / "test.md"
+    doc.write_text("Paste `![](url)` into the note after the upload.\n")
+    assert check_docs.check_file(doc) == []
+
+
+def test_archive_and_quarantine_directories_are_skipped(tmp_path: Path):
+    for name in ("archive", "quarantine"):
+        directory = tmp_path / name
+        directory.mkdir()
+        (directory / "broken.md").write_text("[gone](missing.md)\n")
+    kept = tmp_path / "kept.md"
+    kept.write_text("[gone](missing.md)\n")
+    assert [path.name for path in check_docs.iter_docs([tmp_path])] == ["kept.md"]
