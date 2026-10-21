@@ -112,6 +112,94 @@ BREW_BIN="${BREW_BIN:-$(command -v brew 2>/dev/null || echo '')}"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/.venv/bin/python}"
 SKILL_SOURCE="${SKILL_SOURCE:-}"
 
+# --- single-instance guard -------------------------------------------------
+# Two concurrent runs fight over Homebrew's own locks and download the same
+# bottles twice, halving throughput. Refuse to start when the lock exists.
+# No automatic stale reclaim: a run that read a dead pid could delete the lock
+# a third run just created, so a leftover lock needs one manual removal.
+# Lock primitives use absolute paths: tests put a fake `rm` on PATH to prove
+# Homebrew locks are never deleted, and our own cleanup must not trip that.
+UPGRADE_LOCK_DIR=""
+UPGRADE_HEARTBEAT_PID=""
+
+acquire_upgrade_lock() {
+  local lock_dir="$1"
+  local holder=""
+  if /bin/mkdir "$lock_dir" 2>/dev/null; then
+    UPGRADE_LOCK_DIR="$lock_dir"
+    printf '%s\n' "$$" > "$lock_dir/pid"
+    # A signal must stop the run too, otherwise the lock is freed while this
+    # process keeps upgrading.
+    trap 'stop_heartbeat; release_upgrade_lock' EXIT
+    trap 'stop_heartbeat; release_upgrade_lock; exit 130' INT
+    trap 'stop_heartbeat; release_upgrade_lock; exit 143' TERM
+    return 0
+  fi
+  holder="$(/bin/cat "$lock_dir/pid" 2>/dev/null || true)"
+  if [[ -n "$holder" ]]; then
+    echo "Error: another system-upgrade is already running (pid ${holder})." >&2
+    echo "Wait for it to finish, or stop it with: kill ${holder}" >&2
+  else
+    echo "Error: upgrade lock ${lock_dir} exists without a pid file." >&2
+    echo "If no upgrade is running, remove it: /bin/rm -rf '${lock_dir}'" >&2
+  fi
+  exit 3
+}
+
+release_upgrade_lock() {
+  [[ -n "${UPGRADE_LOCK_DIR:-}" ]] || return 0
+  /bin/rm -rf "$UPGRADE_LOCK_DIR"
+  UPGRADE_LOCK_DIR=""
+}
+
+upgrade_lock_dir() {
+  local key
+  key="$(printf '%s' "$1" | /usr/bin/cksum | /usr/bin/awk '{print $1}')"
+  echo "${TMPDIR:-/tmp}/mac-bootstrap-system-upgrade-${key}.lock"
+}
+
+# Homebrew hides its progress bar when stdout is not a terminal, so a long
+# download looks like a hang in redirected output. A detached ticker reports
+# liveness; it uses /bin/sleep so PATH test doubles never drive the loop.
+run_with_heartbeat() {
+  local label="$1"
+  shift
+  if [[ -t 1 ]]; then
+    "$@"
+    return $?
+  fi
+  local interval="${UPGRADE_HEARTBEAT_SECONDS:-30}"
+  local status=0
+  (
+    # No `local` here: this is a subshell, not a function, and macOS bash 3.2
+    # rejects `local` outside one. The trap kills the in-flight sleep, so a
+    # finished stage never leaves an orphan holding the output pipe.
+    trap 'kill "$sleeper" 2>/dev/null; exit 0' TERM
+    elapsed=0
+    sleeper=""
+    while :; do
+      /bin/sleep "$interval" &
+      sleeper=$!
+      wait "$sleeper"
+      elapsed=$((elapsed + interval))
+      printf '  ... %s still running (%ss)\n' "$label" "$elapsed"
+    done
+  ) &
+  UPGRADE_HEARTBEAT_PID=$!
+  "$@" || status=$?
+  stop_heartbeat
+  return "$status"
+}
+
+stop_heartbeat() {
+  [[ -n "${UPGRADE_HEARTBEAT_PID:-}" ]] || return 0
+  kill "$UPGRADE_HEARTBEAT_PID" 2>/dev/null || true
+  wait "$UPGRADE_HEARTBEAT_PID" 2>/dev/null || true
+  UPGRADE_HEARTBEAT_PID=""
+}
+
+acquire_upgrade_lock "$(upgrade_lock_dir "$ROOT_DIR")"
+
 # Parallel indexed arrays for Bash 3.2 compatibility
 STAGE_NAMES=()
 STAGE_STATUSES=()
@@ -156,8 +244,8 @@ stage_packages() {
     return 1
   fi
 
-  "${bundle_script}" install && \
-  "${BREW_BIN}" upgrade || {
+  run_with_heartbeat "brew bundle install" "${bundle_script}" install && \
+  run_with_heartbeat "brew upgrade" "${BREW_BIN}" upgrade || {
     echo "Error: Homebrew update/reconciliation/upgrade failed. Subsequent package steps skipped." >&2
     record_stage "packages" "failed" "package update/bundle/upgrade failed"
     return 1
@@ -165,7 +253,9 @@ stage_packages() {
   if command -v zb >/dev/null 2>&1; then
     export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
     export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
-    zb update && zb upgrade && zb gc || {
+    run_with_heartbeat "zb update" zb update && \
+    run_with_heartbeat "zb upgrade" zb upgrade && \
+    run_with_heartbeat "zb gc" zb gc || {
       echo "Error: Zerobrew update/upgrade/gc failed" >&2
       record_stage "packages" "failed" "zerobrew operations failed"
       return 1

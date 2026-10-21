@@ -11,7 +11,6 @@
   "keymap": "tmux",
   "keymap_prefix": "ctrl+a",
   "keybinds": {
-    "ctrl+a>v": "split_right",
     "ctrl+a>\\": "split_right",
     "ctrl+a>-": "split_down",
     "ctrl+a>h": "focus_pane:left",

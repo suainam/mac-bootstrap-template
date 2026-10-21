@@ -448,6 +448,7 @@ skill-snapshot:
 skill-refresh: skill-check skill-ensure-bundles skill-distribute
 
 system-upgrade:
+	@test -z "$(args)" || { echo "Error: 'args' is ignored by make; use uppercase ARGS, e.g. make system-upgrade ARGS=--yes" >&2; exit 2; }
 	./scripts/system-upgrade.sh $(if $(UPGRADE_ONLY),--only $(UPGRADE_ONLY),) $(ARGS)
 
 package-migrate:
