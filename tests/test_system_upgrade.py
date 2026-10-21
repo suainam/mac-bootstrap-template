@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -565,3 +566,136 @@ exit 0
     assert "npm" not in recovery_result.stdout
     assert "chrome" not in recovery_result.stdout
     assert "bun          [" not in recovery_result.stdout
+
+
+def test_system_upgrade_refuses_second_concurrent_run(tmp_path: Path) -> None:
+    """A second run exits 3 while a live run holds the lock, and the lock is freed afterwards."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    make_executable(
+        fake_bin / "bun",
+        f"""#!/usr/bin/env bash
+touch "{tmp_path}/started"
+/bin/sleep 3
+exit 0
+""",
+    )
+
+    fake_root = tmp_path / "repo"
+    fake_scripts = fake_root / "scripts"
+    fake_scripts.mkdir(parents=True)
+    fake_script = fake_scripts / "system-upgrade.sh"
+    fake_script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    fake_script.chmod(0o755)
+
+    env = {
+        "PATH": f"{fake_bin}:/usr/bin:/bin",
+        "MAC_BOOTSTRAP_YES": "1",
+        "TMPDIR": str(tmp_path),
+    }
+    first = subprocess.Popen(
+        [str(fake_script), "--only", "bun"],
+        cwd=fake_root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not (tmp_path / "started").exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert (tmp_path / "started").exists(), "first run never reached the bun stage"
+
+        second = subprocess.run(
+            [str(fake_script), "--only", "bun"],
+            cwd=fake_root,
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        assert second.returncode == 3
+        assert "another system-upgrade is already running" in second.stderr
+    finally:
+        first.communicate(timeout=30)
+
+    assert first.returncode == 0
+    assert not list(tmp_path.glob("mac-bootstrap-system-upgrade-*.lock")), (
+        "lock directory must be released on exit"
+    )
+
+
+def test_system_upgrade_refuses_leftover_lock_instead_of_reclaiming_it(tmp_path: Path) -> None:
+    """A lock left by a crashed run is never deleted automatically; the operator removes it."""
+    fake_root = tmp_path / "repo"
+    fake_scripts = fake_root / "scripts"
+    fake_scripts.mkdir(parents=True)
+    fake_script = fake_scripts / "system-upgrade.sh"
+    fake_script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    fake_script.chmod(0o755)
+
+    result = subprocess.run(
+        ["/usr/bin/cksum"],
+        input=str(fake_root),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    key = result.stdout.split()[0]
+    lock_dir = tmp_path / f"mac-bootstrap-system-upgrade-{key}.lock"
+    lock_dir.mkdir()
+    (lock_dir / "pid").write_text("999999\n")
+
+    run = subprocess.run(
+        [str(fake_script), "--only", "bun"],
+        cwd=fake_root,
+        text=True,
+        capture_output=True,
+        env={"PATH": "/usr/bin:/bin", "MAC_BOOTSTRAP_YES": "1", "TMPDIR": str(tmp_path)},
+        check=False,
+    )
+
+    assert run.returncode == 3
+    assert "another system-upgrade is already running (pid 999999)" in run.stderr
+    assert lock_dir.is_dir(), "stale lock must not be auto-reclaimed"
+
+
+def test_system_upgrade_heartbeat_reports_progress_when_output_is_redirected(tmp_path: Path) -> None:
+    """A long non-tty package stage prints periodic liveness lines instead of appearing hung."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    make_executable(
+        fake_bin / "brew",
+        """#!/usr/bin/env bash
+if [[ "$1" == "upgrade" ]]; then /bin/sleep 3; fi
+exit 0
+""",
+    )
+
+    fake_root = tmp_path / "repo"
+    fake_scripts = fake_root / "scripts"
+    fake_scripts.mkdir(parents=True)
+    make_executable(fake_scripts / "brew-bundle.sh", "#!/usr/bin/env bash\nexit 0\n")
+    fake_script = fake_scripts / "system-upgrade.sh"
+    fake_script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    fake_script.chmod(0o755)
+
+    result = subprocess.run(
+        [str(fake_script), "--only", "packages"],
+        cwd=fake_root,
+        text=True,
+        capture_output=True,
+        env={
+            "PATH": f"{fake_bin}:/usr/bin:/bin",
+            "BREW_BIN": str(fake_bin / "brew"),
+            "MAC_BOOTSTRAP_YES": "1",
+            "TMPDIR": str(tmp_path),
+            "UPGRADE_HEARTBEAT_SECONDS": "1",
+        },
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "brew upgrade still running (1s)" in result.stdout
+    assert "packages     [ SUCCESS ]" in result.stdout

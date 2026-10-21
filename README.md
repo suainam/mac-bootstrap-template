@@ -88,8 +88,8 @@ When a local Docker runtime is needed, start it explicitly via `COLIMA_PROXY_POR
 (with prerequisites and health checks documented in [`docs/colima-local.md`](docs/colima-local.md)).
 If Clash Verge already exists under `/Applications` from a manual install, bootstrap skips that cask.
 Manual app notes and `make doctor` cask overrides live in [`docs/manual-apps.md`](docs/manual-apps.md).
-Homebrew/zerobrew coexistence and profile migration follow
-[`docs/private-overlay.md`](docs/private-overlay.md); `brew` remains available.
+Package management and profile migration follow
+[`docs/package-management-guide.md`](docs/package-management-guide.md) and [`docs/private-overlay.md`](docs/private-overlay.md).
 VS Code is installed through Homebrew, and extensions are installed when the
 `code` CLI is available.
 Neovim / LazyVim notes live in `editors/neovim/README.md`.
@@ -205,11 +205,11 @@ and runtime state.
 
 ## 全生态统一升级 (System Upgrade)
 
-`make system-upgrade` 聚合已有包与工具升级，按请求阶段输出结果。默认要求交互终端，可能出现升级确认或 sudo；不自动重试失败阶段。包归属以 `scripts/package-ownership.json` 为准。
+`make system-upgrade` 聚合已有包与工具升级，按请求阶段输出结果。默认要求交互终端，可能出现升级确认或 sudo；不自动重试失败阶段。所有软件包统一由 Homebrew 管理。
 
 ```mermaid
 flowchart TD
-    All[统一生态升级入口: make system-upgrade] --> Brew[Homebrew + zb 对齐、升级与清理]
+    All[统一生态升级入口: make system-upgrade] --> Brew[Homebrew 对齐、升级与清理]
     All --> Bun[Bun 全局 CLI: opencode2 等]
     All --> UV[uv tool: ansible 等 CLI 工具]
     All --> NPM[npm globals 清单驱动升级]
@@ -219,7 +219,7 @@ flowchart TD
 
 - **编排与分工**:
   - **`make system-upgrade`（日常唯一推荐入口）**: 权威入口，依序执行声明式升级阶段：
-    1. `packages`: 对齐分层 Brewfile 并升级（若 `brew-bundle.sh install` 对齐发现所有权冲突则阻断后续升级，不盲目清理）、执行 `brew upgrade`、`zb update/upgrade/gc` 及 `brew cleanup`。
+    1. `packages`: 对齐分层 Brewfile 并升级、执行 `brew upgrade` 及 `brew cleanup`。
     2. `bun`: 更新 Bun 全局 CLI 工具（未安装则明确跳过）。
     3. `uv`: `uv tool upgrade --all` 升级独立 Python 工具（未安装则明确跳过）。
     4. `claude`: 更新 Claude Code 插件市场（未安装则明确跳过）。
@@ -227,6 +227,7 @@ flowchart TD
     6. `skills`: 刷新 global skills 与 Agent 技能供应链（上游更新失败则阻止分发，阶段标为失败）。
     7. `chrome`: `make patch-chrome-gemini` 保持 Chrome Gemini 特性。
   - **部分失败与结果摘要**: 独立阶段在前序阶段失败后继续执行；命令最后输出各阶段 `[ SUCCESS ]` / `[ FAILED ]` / `[ SKIPPED ]` 摘要及失败原因。任一阶段失败则整体退出非零，失败绝不伪装为成功。
+  - **并发与进度**: 同一仓库同时只允许一个升级进程；第二个实例立即以退出码 3 报出持有者 PID。锁目录不会被自动回收（自动回收有竞态），崩溃残留时按提示手动删除。输出非终端时（重定向、CI），`brew upgrade` 等长阶段每 30 秒打印一次 `still running` 心跳，避免看起来卡死；`UPGRADE_HEARTBEAT_SECONDS` 可调间隔。
   - **定向重跑与恢复**: 支持通过 `--only` 参数或 Makefile 变量 `UPGRADE_ONLY` 指定单一或多个阶段进行恢复重试，避免重跑已成功的无关步骤。
 - **使用方式**:
   ```bash
@@ -234,6 +235,7 @@ flowchart TD
   ./scripts/system-upgrade.sh --only npm,skills  # 仅运行指定阶段
   make system-upgrade UPGRADE_ONLY=npm,skills    # Make 入口参数传递
   make system-upgrade ARGS=--yes                 # 透传脚本参数（--yes / --help 等）
+  # 小写 args= 会被 make 静默忽略，入口会直接报错拒绝运行
   ./scripts/system-upgrade.sh --yes              # 仅绕过入口 TTY 检查；工具确认或 sudo 仍可能需要终端
   ```
 

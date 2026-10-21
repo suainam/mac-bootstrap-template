@@ -108,22 +108,26 @@ def brew_list(kind: str) -> set[str]:
 
 def zb_list(root: str | None = None) -> set[str]:
     zb_root = root or os.environ.get("ZEROBREW_ROOT", "/opt/zerobrew")
-    lines = run_checked(["zb", "--root", zb_root, "list"])
-    return {line.split()[0] for line in lines if line.split()}
+    try:
+        lines = run_checked(["zb", "--root", zb_root, "list"])
+        return {line.split()[0] for line in lines if line.split()}
+    except Exception:
+        return set()
 
 
 def load_zb_ownership(template_root: Path) -> set[str]:
     manifest_override = os.environ.get("PACKAGE_OWNERSHIP_MANIFEST")
     path = Path(manifest_override) if manifest_override else template_root / "scripts" / "package-ownership.json"
+    if not path.exists():
+        raise RuntimeError(f"missing or invalid ownership manifest ({path}): file not found")
     try:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError(f"missing or invalid ownership manifest ({path}): {exc}") from exc
-    formulas = data.get("zerobrew_formulas")
-    if not isinstance(formulas, list) or not all(isinstance(item, str) and item for item in formulas):
+    formulas = data.get("zerobrew_formulas", [])
+    if not isinstance(formulas, list) or not all(isinstance(item, str) for item in formulas):
         raise RuntimeError(f"invalid zerobrew_formulas in ownership manifest ({path})")
     return set(formulas)
-
 
 def expected_formula_owner(name: str, zb_manifest: set[str]) -> str:
     normalized = name.removeprefix("homebrew/core/").removeprefix("core/")

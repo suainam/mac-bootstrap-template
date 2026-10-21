@@ -151,6 +151,35 @@ def test_verify_rejects_unmanaged_top_level_ssh_files(tmp_path: Path) -> None:
     assert "unexpected ~/.ssh entry" in verify.stderr
 
 
+def test_verify_accepts_authorized_keys(tmp_path: Path) -> None:
+    """`authorized_keys` is a standard ssh file, not a rogue entry."""
+    home = tmp_path / "home"
+    private = tmp_path / "private"
+    shell_dir = private / "shell"
+    config_dir = shell_dir / "ssh_config.d"
+    keys_dir = shell_dir / "ssh_keys"
+    home.mkdir()
+    config_dir.mkdir(parents=True)
+    keys_dir.mkdir(parents=True)
+    (shell_dir / "ssh_config").write_text("Include ~/.ssh/config.d/*\n")
+    (config_dir / "host").write_text(
+        "Host host\n"
+        "  HostName localhost\n"
+        "  User root\n"
+        "  IdentityFile ~/.ssh/keys/test_key\n"
+    )
+    (keys_dir / "test_key").write_text("private\n")
+
+    install = run_ssh_manage(home, private, "install")
+    assert install.returncode == 0, install.stderr
+
+    authorized = home / ".ssh" / "authorized_keys"
+    authorized.write_text("ssh-ed25519 AAAA test\n")
+
+    verify = run_ssh_manage(home, private, "verify")
+    assert verify.returncode == 0, verify.stderr
+
+
 @pytest.mark.skipif(shutil.which("ssh") is None, reason="ssh not installed")
 def test_verify_detects_host_snippets_that_are_not_in_effect(tmp_path: Path) -> None:
     """A snippet on disk proves nothing if ssh never reads it."""

@@ -4,8 +4,8 @@ This file records GUI apps that are locally manual, need non-Brew installation,
 or need `make doctor` cask overrides so the template stays rerunnable.
 `scripts/doctor.sh` (`make doctor`) evaluates `Brewfile` and active profile
 extensions once via `brew bundle list` (`HOMEBREW_MAC_BOOTSTRAP_PROFILE` /
-`HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR`) and verifies formula ownership against
-`scripts/package-ownership.json` without mutating packages or services.
+`HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR`) and verifies formula installation against
+the active Brewfile without mutating packages or services.
 
 ## 小米互联服务 (Xiaomi HyperConnect)
 

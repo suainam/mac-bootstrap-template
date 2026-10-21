@@ -1,5 +1,2 @@
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
-export ZEROBREW_ROOT="${ZEROBREW_ROOT:-/opt/zerobrew}"
-export ZEROBREW_PREFIX="${ZEROBREW_PREFIX:-$ZEROBREW_ROOT}"
-export PATH="$ZEROBREW_PREFIX/bin:$ZEROBREW_PREFIX/sbin:$PATH"
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"

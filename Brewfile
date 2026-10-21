@@ -3,7 +3,6 @@ tap "rtk-ai/tap"
 tap "anomalyco/tap"
 tap "wangnov/tap"
 tap "can1357/tap"
-tap "zerobrewhq/zerobrew"
 
 # ========== CLI 核心 ==========
 brew "git"
@@ -13,7 +12,6 @@ brew "tree"
 brew "ripgrep"
 brew "fd"
 brew "ast-grep"
-brew "zerobrew"
 brew "neovim"
 brew "tree-sitter-cli"
 # ========== Shell 增强 ==========
