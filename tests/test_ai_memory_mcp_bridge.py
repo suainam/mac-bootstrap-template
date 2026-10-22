@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,3 +113,43 @@ def test_rewrite_passes_through_non_tool_calls():
     forwarded, error = bridge.rewrite(notif, scope)
     assert error is None
     assert forwarded == notif
+
+
+def test_private_env_value_reads_exported_and_quoted(monkeypatch, tmp_path: Path):
+    env = tmp_path / ".env"
+    env.write_text('# comment\nexport AI_MEMORY_SERVER_URL="http://10.0.0.5:1/mcp"\nOTHER=x\n')
+    monkeypatch.setattr(bridge, "PRIVATE_ENV", env)
+    assert bridge.private_env_value("AI_MEMORY_SERVER_URL") == "http://10.0.0.5:1/mcp"
+    assert bridge.private_env_value("MISSING") is None
+
+
+def test_server_url_prefers_env_over_private_file(monkeypatch, tmp_path: Path):
+    env = tmp_path / ".env"
+    env.write_text("AI_MEMORY_SERVER_URL=http://from-file:1/mcp\n")
+    monkeypatch.setattr(bridge, "PRIVATE_ENV", env)
+    monkeypatch.setenv("AI_MEMORY_SERVER_URL", "http://from-env:2/mcp")
+    assert bridge.parse_args([])["server-url"] == "http://from-env:2/mcp"
+
+
+def test_server_url_falls_back_to_private_file(monkeypatch, tmp_path: Path):
+    env = tmp_path / ".env"
+    env.write_text("AI_MEMORY_SERVER_URL=http://from-file:1/mcp\n")
+    monkeypatch.setattr(bridge, "PRIVATE_ENV", env)
+    monkeypatch.delenv("AI_MEMORY_SERVER_URL", raising=False)
+    assert bridge.parse_args([])["server-url"] == "http://from-file:1/mcp"
+
+
+def test_server_url_fails_closed_without_config(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(bridge, "PRIVATE_ENV", tmp_path / "absent.env")
+    monkeypatch.delenv("AI_MEMORY_SERVER_URL", raising=False)
+    try:
+        bridge.resolve_server_url()
+    except SystemExit as exc:
+        assert "no server URL configured" in str(exc)
+    else:
+        raise AssertionError("resolve_server_url must fail closed")
+
+
+def test_no_private_address_is_hardcoded():
+    source = (ROOT / "scripts" / "ai-memory-mcp-bridge.py").read_text()
+    assert not re.search(r"\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+\.\d+\b", source)
