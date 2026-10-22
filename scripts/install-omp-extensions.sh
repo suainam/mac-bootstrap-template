@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MANIFEST="${OMP_EXTENSIONS_MANIFEST:-$ROOT/agent/omp/extensions.json}"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
+AGENTS_SOURCE_DIR="$ROOT/agent/omp/agents"
 DRY_RUN=0
 DOCTOR=0
 
@@ -12,7 +13,8 @@ usage() {
   cat <<'EOF'
 Usage: scripts/install-omp-extensions.sh [--dry-run|--doctor]
 
-Install the version-pinned public OMP extensions and link their non-secret settings.
+Install the version-pinned public OMP extensions, link their non-secret settings,
+and link the repository's OMP task agents into $PI_CODING_AGENT_DIR/agents/.
 Use --doctor to verify local extension links and the OMP host baseline without mutating anything.
 
 Manifest entries are either registry packages or repository-owned local sources:
@@ -24,6 +26,9 @@ Manifest entries are either registry packages or repository-owned local sources:
 Local entries are symlinked into $PI_CODING_AGENT_DIR/extensions/ so this
 repository stays their single source of truth: they are never fetched, never
 version-resolved, and cannot be replaced by a registry update.
+
+Each agent/omp/agents/*.md file is linked individually into
+$PI_CODING_AGENT_DIR/agents/, so agents installed by other means survive.
 EOF
 }
 
@@ -63,6 +68,42 @@ link_setting() {
     mv "$target" "$backup"
   fi
   ln -s "$source" "$target"
+}
+
+agent_sources() {
+  [[ -d "$AGENTS_SOURCE_DIR" ]] || return 0
+  local file
+  for file in "$AGENTS_SOURCE_DIR"/*.md; do
+    [[ -e "$file" ]] || continue
+    printf '%s\n' "$file"
+  done
+}
+
+doctor_agent_links() {
+  local source link rc=0
+  while IFS= read -r source; do
+    link="$AGENT_DIR/agents/$(basename "$source")"
+    if [[ -L "$link" && "$(readlink "$link")" == "$source" ]]; then
+      echo "OK   agent $(basename "$source") -> $source"
+    else
+      echo "MISS agent $(basename "$source") (expected -> $source)"
+      rc=1
+    fi
+  done < <(agent_sources)
+  return "$rc"
+}
+
+link_agent_files() {
+  local source link
+  while IFS= read -r source; do
+    link="$AGENT_DIR/agents/$(basename "$source")"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "Would link $link -> $source"
+    else
+      link_setting "$source" "$link"
+      echo "LINK agent $(basename "$source") -> $source"
+    fi
+  done < <(agent_sources)
 }
 
 doctor_version() {
@@ -144,6 +185,7 @@ if [[ "$DOCTOR" -eq 1 ]]; then
         ]
       | join("\u001f")' "$MANIFEST"
   )
+  doctor_agent_links || doctor_rc=1
   exit "$doctor_rc"
 fi
 
@@ -216,3 +258,5 @@ done < <(
       ]
     | join("\u001f")' "$MANIFEST"
 )
+
+link_agent_files

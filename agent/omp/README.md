@@ -71,3 +71,41 @@
 
 发生 400 时先保存脱敏的请求摘要和 request ID，再把错误按“地区/账号、协议转换、
 入口路由、额度/限流、网络”分类；不要用盲目重启或反复重试替代定位。
+
+## 工作流任务代理 (Workflow Task Agents)
+
+`agent/omp/agents/` 存放五个公共 OMP 原生任务代理。文件名带 `s-` 前缀，避免与
+内置代理（`task`、`scout`、`reviewer` 等）重名；`task` 工具按 `name` 精确匹配调用。
+
+| Agent | 阶段 | Model | 工具与写入边界 |
+|---|---|---|---|
+| `s-planner` | 1–2 澄清与规格 | `@plan` | 只写被指派的计划/规格；工作流确认与范围变更前必须 `ask` |
+| `s-designer` | 3 方案与接缝 | `@plan` | 只写设计/规格；不改生产代码 |
+| `s-implementer` | 4–5 实现与自检 | `@task` | 常规读写；提交/推送/PR/合并需显式授权 |
+| `s-reviewer` | 独立评审（跨阶段） | `@advisor` | 只读：`read,grep,glob,find,bash`；`bash` 仅限确定性只读检查，MCP 工具叠加但不放宽写入限制 |
+| `s-retro` | 6 可选复盘 | `@task` | 默认只提案；仅在被授权的路径内改动 |
+
+模型字段只使用角色别名（`@plan`、`@task`、`@advisor`），具体模型由
+`~/.omp/agent/config.yml` 的 `modelRoles` 决定，模板不写入 provider ID。
+
+技能路由按需引用，不复制既有契约：
+
+- 分析类需求：`analytics-demand-intake` → `analytics-demand-analysis` →
+  `analytics-data-solution` → `analytics-data-execution` → `analytics-result-delivery`，
+  确认口径沿用它们共享的 confirmation contract。
+- 规格与工单：`to-spec`、`to-tickets` 保留其用户确认门禁；未获授权不得自动发布
+  tracker 或应用 triage 标签。实现阶段可引用 `tdd`、`python-testing`；
+  评审引用 `code-review`；复盘引用 `writing-for-agents`。
+- 不做整条工作流的自动加载，代理只处理被指派的阶段切片。
+
+安装与验收：
+
+```bash
+make omp-extensions                       # 安装扩展并逐文件链接 agent/omp/agents/*.md
+scripts/install-omp-extensions.sh --dry-run
+scripts/install-omp-extensions.sh --doctor # 校验每个代理均为指向本仓库的符号链接
+```
+
+链接目标为 `${PI_CODING_AGENT_DIR:-~/.omp/agent}/agents/<name>.md`。逐文件链接保证
+其他方式安装的代理不被覆盖或删除；已存在的同名真实文件会先备份为
+`<name>.md.pre-mac-bootstrap`。
