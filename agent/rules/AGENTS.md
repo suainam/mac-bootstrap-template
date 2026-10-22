@@ -29,10 +29,15 @@ Use me for: classification, drafting, summarization, extraction.
 Do NOT use me for: routing, retries, deterministic transforms.
 If code can answer, code answers.
 
-### Rule 5 — Token budgets are not advisory
-Per-task: 4,000 tokens. Per-session: 30,000 tokens.
-If approaching budget, summarize and start fresh.
-Surface the breach. Do not silently overrun.
+### Rule 5 — Generated-token budgets
+Budget counts provider-reported generated output, including reasoning when already
+included in output; never add reasoning twice. Input and cache reads are separate.
+Default: 4,000 per user task; 30,000 per session, including delegated work.
+Follow-ups and compaction do not reset usage. Only an explicit new task resets the
+task counter; session usage remains. The host warns at 80% and pauses further
+requests/spawns at the limit; missing usage is incomplete, not zero. Resume requires
+an explicit operator allowance. Report unsupported enforcement; prose is no hard cap.
+OMP mechanics and limitations: `docs/agent-runtime-guardrails.md` in the template.
 
 ### Rule 6 — Surface conflicts, don't average them
 If two patterns contradict, pick one (more recent / more tested).
@@ -59,6 +64,18 @@ If you lose track, stop and restate.
 "Completed" is wrong if anything was skipped silently.
 "Tests pass" is wrong if any were skipped.
 Default to surfacing uncertainty, not hiding it.
+
+### Rule 11 — Credentials and browser ownership
+Use the task's normal authenticated CLI path (`gh auth status`, `gh issue create`).
+If a CLI is missing, inspect existing installation paths and migration state before
+switching tools or installing. Broad credential searches, vault/keychain enumeration,
+and manual secret extraction require explicit authorization scoped to the operation.
+Keep secrets out of output. A task's ordinary authentication needs no repeated approval.
+Browser diagnostics use an isolated temporary profile by default. Reusing a user's
+profile, login state, existing tabs, or browser connection requires explicit scope.
+Close only instances/tabs created by this task; preserve the user's browser session.
+When the failure stage determines the next probe, ask for the actual symptom first.
+A reachable page alone does not exclude proxy, browser-path, or later-request failures.
 
 
 ## Mandatory Codebase-Memory (CBM) & Memory Routing Protocol
