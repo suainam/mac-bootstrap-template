@@ -23,6 +23,8 @@ description: Execute data pipelines, interactive ODPS queries, batch backfills, 
 - **数据质量核验清单**：[references/DATA_QUALITY_CHECKLIST.md](references/DATA_QUALITY_CHECKLIST.md)
 - **黄金执行与验证范例**：[examples/golden_execution_runner.py](examples/golden_execution_runner.py)
 - **工程实施关联规范**：支持本地文件入仓（详见 [odps-table-ingest](../../product-strategy/odps-table-ingest/SKILL.md)）、批量多分区回刷（详见 [dataworks-yoy-backfill](../../product-strategy/dataworks-yoy-backfill/SKILL.md)）与策略规则治理（详见 [ps-reduction-scope-config-maintenance](../../product-strategy/ps-reduction-scope-config-maintenance/SKILL.md)）
+- **共享契约（权威真源，阶段回复/交付六栏）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
+- **八格详细（按条件引用：版本/来源/预测分解）**：[../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md](../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md)
 
 ---
 
@@ -60,6 +62,12 @@ flowchart TD
 2. **专题宽表批量计算**：调用专题经单测验证的本地测算脚本（如 `calculate_new_store_metrics.py`）；
 3. **大盘基准对齐核验**：调用外部参考与 MaxCompute 对齐校验工具（如 `verify_market_baseline.py`）。
 
+### 配置变更验收补充
+
+进入规则治理分支时，先核对阶段二快照、阶段三差异与当前配置仍一致；按当前授权执行写入并回读主键、行数及未变更规则。分别记录配置落库、代码同步、调度提交、结果生成状态及实例ID、业务分区。结果核验范围泄漏/缺失、重复、版本、共享额度、容量和同范围历史量级；零结果先核对日期门禁与映射。
+
+完成标准：实际输出满足本次范围和约束，证据可追溯；明确区分测试执行、测试收集、静态检查与生产查询结果。
+
 ### Branch D: 策略规则治理与安全覆写 (Rule Governance & Deploy)
 1. 从用户需求确定规则变更范围与生效日期；
 2. 在开发库 `dsl_analysis_dev` 执行验证与回读，确认无脏数据；
@@ -77,7 +85,10 @@ flowchart TD
 - 提取门店汇总宽表数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-dataset.parquet` 与高管 Excel。
 
 ### Step 3: 执行对抗性质量门禁核验 (Adversarial Verification Gate ★)
-运行 `scripts/audit_execution_sanity.py` 或内嵌门禁断言，严格核验 4 大指标：
+运行 `scripts/audit_execution_sanity.py` 或内嵌门禁断言，严格核验（技术验证与业务验证分离记录）：
+- 技术验证：门禁脚本 exit code、主键唯一性、守恒断言、NaN/空组处理；
+- 业务验证：大盘合理性、门店分布、指标方向；
+严格核验 4 大指标：
 1. **主键唯一性**：`COUNT(1) - COUNT(DISTINCT keys) == 0`，杜绝 Left Join 笛卡尔积膨胀；
 2. **商品数二元互斥守恒**：`目录内在营商品数 + 目录外手工在营商品数 == 全店总在营商品数`（误差严格为 0）；
 3. **金额全额流水自洽守恒**：`目录内销售额 + 目录外手工销售额 == 全店总销售额`（浮点误差 < 0.05元）；
@@ -87,5 +98,9 @@ flowchart TD
 ### Step 4: 物化交付物与质检报告输出 (Materialization & Report)
 - 数据实体自动沉淀入外部数据湖并建立软链接；
 - 运行数据湖边界检查命令断言合规；
-- 输出现场质检监控 Markdown 报告：`04_outputs/reports/demand-<adhoc|id>-<topic_id>-<datehour>-04-sanity-report.md`，直接留存在仓库原位；文风严格按照 `/skill:humanizer-zh` 规范，不含糊其辞，直接呈现清晰核验事实。
-**完成标准**：数据文件通过全部门禁断言，外部数据湖软链接建立完毕，生成客观的质检监控 Markdown 报告。
+- 输出现场质检监控 Markdown 报告：`04_outputs/reports/demand-<adhoc|id>-<topic_id>-<datehour>-04-sanity-report.md`，直接留存在仓库原位；文风严格按照 `/skill:humanizer-zh` 规范，不含糊其辞，直接呈现清晰核验事实；
+- **阶段四产物对抗性审查**：按共享契约 §2.0 执行产物审查，核验：生产基线可复现、主键唯一性守恒、来源保留完整、真实命令与其退出码；**明确区分 collect-only 与实际测试执行；产物存在不等于本次重跑**。
+
+**完成标准**：数据文件通过全部门禁断言，外部数据湖软链接建立完毕，生成客观的质检监控 Markdown 报告，阶段四对抗性审查通过（阻断 0 项且附真实命令与退出码证据）。
+
+**阶段四回复/交付**：按共享契约 §1 六栏输出，附阶段四审查门槛登记；涉及版本/来源/预测分解时引用八格详细参考；技术与业务验证分离记录。

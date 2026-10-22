@@ -37,6 +37,8 @@ description: Author and review technical RFC data solutions, system architecture
   - **加盟店组货与桑基流专题**：21 项大盘基准指标与分类模型设计，详见内置契约 [franchise_market_baseline_contract.md](references/domain_blueprints/franchise_market_baseline_contract.md) 与 [ps-franchise-store-report](../../product-strategy/ps-franchise-store-report/SKILL.md)
   - **政策因果实证推断专题**：事前特征 1:N 匹配、尺度不变性 MDM 与 DID 模型设计，详见 [ps-causal-evaluation](../../product-strategy/ps-causal-evaluation/SKILL.md)
   - **策略规则治理专题**：商品剔除范围规则与生效配置变更设计，详见 [ps-reduction-scope-config-maintenance](../../product-strategy/ps-reduction-scope-config-maintenance/SKILL.md)
+- **共享契约（权威真源，阶段回复/交付六栏）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
+- **八格详细（按条件引用：版本/来源/预测分解）**：[../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md](../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md)
 ---
 
 ## 执行步骤与方案标准 (Steps)
@@ -51,12 +53,15 @@ flowchart TD
 
 ### Step 1: 设定业务目标与双轨范围 (Goals & Cohort Scoping)
 1. **Goals**：以 G1, G2, G3 显式列出可量化、可验证的核心目标（如：考核结束日截面指标聚合、单品日均产出与单品毛利对决、同期新店均线挂载）。
-2. **双轨范围界定**：
+2. **双轨范围界定 [NEW-STORE-ONLY]**：
    - 考核归因轨：跑完周期的成熟实体，输出执行率、动销率、全额流水与达成比；
    - 静态备货轨：筹备/试营业实体，重点输出目录铺货数、手工备货数与品类宽度，保持指标有效性。
+   - *仅新店效益分析分支强制；策略变更/缩铺/组货/因果评估分支使用通用"范围与影响"章节，不得被双轨流程阻断。*
 3. **Non-Goals 与边界隔离**：明确本次方案不覆盖的边界与保护约束（如：不修改生产底表结构、不影响既有生产流水线）。
    - **试点特批台账 vs 全国系统底表边界隔离原则 (Pilot Ledger vs. System Master Boundary)**：
      当分析范围从试点区域扩展到全国大盘时，**明确隔离“局部实验特批台账”与“企业级系统档案”**。严禁将局部覆盖（如仅几十家试点店）的人工盘点表强行作为全国分母，必须以中台主档为唯一源头，并清晰披露口径差异。
+4. **阶段三回复/交付**：按共享契约 §1 六栏输出；涉及版本/来源/预测分解时引用八格详细参考；技术验证（SQL 可执行/分区可解析）与业务验证（目标/Non-Goals/范围）分离记录。
+
 ### Step 2: 绘制端到端架构与数据流图 (Mermaid Data Flow)
 使用 `flowchart TD` 呈现清晰的数据流动与计算层级：
 - 输入层：基础事实表与维表全称，注明分区过滤规则；
@@ -70,6 +75,12 @@ flowchart TD
    对于新店组货执行率与动销率，分母优先采用实际到店在营商品（如 1,700 余款），将因供应链断货/未到店的断流商品（如 300 余款）单列为履约缺损监控，保持货架指标与单品品效产出客观自洽。
 3. **梳理数据字典契约 (Data Dictionary)**：
    完整建立字段映射表格，包括物理字段名、类型、标准中文列名与计算口径规则，消除命名歧义。
+
+### 配置变更分支：最小迁移与恢复设计
+
+优先复用现有配置及消费SQL；新增维度时同步DDL、全部配置行、消费SQL、调用方和维护示例。按实际schema生成完整列序的新增/保留/停用清单，设计平台支持的写入方式及快照恢复步骤。全量覆写在执行前重新核对基线，避免覆盖并发修改。
+
+完成标准：方案含可审阅差异、受影响调用方、验证SQL和恢复步骤；阈值与业务编码保留在专题，不复制到通用技能。
 
 ### Step 4: 编写高性能 SQL 原型并执行扫描 (SQL Prototype & Lint)
 1. 遵守 MaxCompute 原生性能准则：
@@ -90,5 +101,7 @@ flowchart TD
    - `目录内销售额 + 目录外手工销售额 == 全店总销售额`（浮点差 < 0.05元）。
 2. **单调性与区间断言**：制定比率指标在 $[0, 100\%]$ 区间内的约束，无目录门店严格保留 NULL 语义。
 3. **隔离与回滚机制**：分析方案以只读形式运行，若出现对账异常阻断下游物化，保护数据资产安全。
+4. **阶段三产物对抗性审查**：按共享契约 §2.0 执行产物审查，核验：最小目标规则替换（仅修改待评估规则，不动无关逻辑）、保留既有来源顺位、同池严格前后对比设计、基线容差合理性。
+5. **阶段三回复/交付**：按共享契约 §1 六栏输出，附阶段三审查门槛登记；技术可执行性与业务目标/范围分离记录。
 
-**完成标准**：在 `topics/<topic_id>/03_analysis/` 生成符合规范的 RFC 设计文档（`demand-<adhoc|id>-<topic_id>-<datehour>-03-rfc.md`）与通过静态扫描的 SQL 方案文件（`sql/demand-<adhoc|id>-<topic_id>-<datehour>-03-query.sql`）。
+**完成标准**：在 `topics/<topic_id>/03_analysis/` 生成符合规范的 RFC 设计文档（`demand-<adhoc|id>-<topic_id>-<datehour>-03-rfc.md`）与通过静态扫描的 SQL 方案文件（`sql/demand-<adhoc|id>-<topic_id>-<datehour>-03-query.sql`），SQL 静态扫描 `0 errors`，阶段三对抗性审查通过（阻断 0 项且附证据）。

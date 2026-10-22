@@ -27,7 +27,15 @@ description: Analyze demand calibers, retrieve domain knowledge, introspect data
 - 口径锁定模板：[templates/caliber_lock_template.md](templates/caliber_lock_template.md)
 - 黄金基准范例：[examples/golden_profiling_and_caliber_lock.md](examples/golden_profiling_and_caliber_lock.md)
 - 维表治理与语义保真：[references/DIM_DICTIONARY_GOVERNANCE.md](references/DIM_DICTIONARY_GOVERNANCE.md)
+- 共享契约（权威真源）：[references/ANALYSIS_CONFIRMATION_CONTRACT.md](references/ANALYSIS_CONFIRMATION_CONTRACT.md)
+- 八格详细（按条件引用）：[references/EIGHT_CELL_AUDIT_REFERENCE.md](references/EIGHT_CELL_AUDIT_REFERENCE.md)
 ---
+
+## 共享契约与八格参考 (Shared Contract & Eight-Cell Reference)
+回复与交付约定、阶段门槛、已确认/未决纪律统一遵循共享契约；涉及版本/来源/预测分解时按条件引用八格详细参考。
+
+### 阶段二回复/交付必须附带 §1 六栏
+阶段、边界、重点指标与分母、物理表/分区/键/关联基数/未匹配处置、已确认/未决与阻断、证据与完成标准。已确认项不重复索取；技术键/基数先自行查证后呈现，不向用户索取工具可查信息。
 
 ## 执行步骤与完成标准 (Steps)
 ```mermaid
@@ -85,8 +93,14 @@ flowchart TD
 5. **横向严格相同周期大盘基准对比 (Cross-Sectional Benchmark)**：
    所有对比对象（目标新店、同期开业新店大盘均线、区域成熟老店均线）必须**严格对齐在完全一致的日期闭区间**内，消除时间差异，真实衡量其实际经营能力。
 
+### 配置变更分支：基线与范围核验
+
+涉及新增区域、仓库或策略范围时，读取线上实际schema与完整配置，保存可恢复快照；查证同一业务日期的组织与仓库映射、主键、空值、未匹配和候选范围。明确重叠规则、排除规则、仲裁顺序及共享约束粒度；业务常量以专题真源为准。
+
+完成标准：锁定卡包含配置基线、范围画像、映射证据及拟新增/停用差异；已有确认直接继承。
+
 ### Step 5: 核心口径假设双向审讯对齐 (Human Alignment Gate ★ 关键防线)
-**硬性约束**：严禁分析师/Agent 单向脑补口径直接进入方案。在完成事实复现与横纵画像后，向业务负责人/用户发起交互审讯确认，覆盖 4 大核心定性：
+**硬性约束**：先继承阶段一与本轮已确认口径，仅就新增或变更的业务选择发起确认；技术字段、键与基数自行查证。以下定性按分析类型适用，新店考核问题仅适用于新店效益分析：
 1. **时间窗口定性**：开业活动期是否剥离、动态考核天数起止规则；
 2. **分母边界定性**：仓缺断货是否剔除、有库存 vs 在营状态判定；
 3. **指标门禁定性**：动销率有效门槛（如纯有销售 vs 在架天数限制）；
@@ -103,3 +117,9 @@ flowchart TD
    - **3. 纵向生命周期流水拆解**（大促期 vs 考核期 vs 日常期演变）；
    - **4. 横向严格相同周期大盘基准对比**（目标店 vs 同期新店均线 vs 成熟老店均线）；
    - **5. 阶段三分析方向与设计指引**（基于前四部分总结建模原则、截面基准日选定建议与样本适用性，避免硬编码断言）。
+3. **阶段二产物对抗性审查**：
+   按共享契约 §2.0 执行产物审查，核验：生产节点版本有效性、时间窗口对齐、主键唯一性、分母防卫边界、来源优先级顺位与掩盖排查。
+4. **阶段二回复/交付**：
+   按共享契约 §1 六栏输出，附阶段二审查门槛登记；技术表/键/基数已查证呈现，未决项仅剩业务确认。
+
+**完成标准**：锁定卡与口径假设日志规范落盘，主键唯一性与 6 项基准画像指标固化，阶段二对抗性审查通过（阻断 0 项且附证据）。

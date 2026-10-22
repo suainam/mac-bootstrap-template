@@ -73,6 +73,12 @@ flowchart TD
 ### Step 1: 原始信息捕获 (Capture)
 载入原始结构化 JSON 或沟通原文字符串至缓冲区，完整保留第一手数值与初始诉求。
 
+### 配置变更分支：新增区域、仓库或策略范围
+
+需求涉及配置变更时，记录新增、保留、停用的范围，策略版本、生效业务日期及交付物；区分调度业务日期与执行日期。继承已有确认，将配置修改与结果导出归入同一需求链路。
+
+完成标准：需求记录覆盖范围、日期、策略、版本与交付物；仅剩业务选择待确认，技术编码由阶段二查证。
+
 ### Step 2: 决策导向要素结构化 (Synthesize & Scope)
 对齐为 5 大分析要素：
 1. **业务背景与痛点**：触发背景与经营现状；
@@ -105,8 +111,10 @@ flowchart TD
    - **反事实对比期 (Counterfactual Window)**：明确基准窗口；
    - **分母防卫规则 (Denominator Guard)**：明确过滤门禁与排除条件；
    - **中台探查关键词 (Keywords)**：提供 3~5 个中台表与字段检索词。
+4. **阶段一产物对抗性审查**：按共享契约 §2.0 执行，核验一范围、未开展 story 显式声明、决策目标可判定性（分析驱动哪个管理动作、对比基准是什么）。
+5. **阶段一回复/交付**：按共享契约 §1 六栏输出，附阶段一审查门槛登记；技术键/基数在阶段二查证，阶段一仅锁定业务边界与分母防卫。
 
-**完成标准**：对应专题 `01_source_data/` 下生成非空规范 Markdown 文件，7 大元数据完整，口径交接卡片要素闭环。
+**完成标准**：对应专题 `01_source_data/` 下生成非空规范 Markdown 文件，7 大元数据完整，口径交接卡片要素闭环，阶段一对抗性审查通过（阻断 0 项且附证据）。
 
 ---
 
@@ -119,3 +127,4 @@ flowchart TD
 - 需求模板：[templates/demand_template.md](templates/demand_template.md)
 - 提取范例参考：[examples/golden_demand_extraction.md](examples/golden_demand_extraction.md)
 - 澄清范例参考：[examples/adhoc_socratic_clarification.md](examples/adhoc_socratic_clarification.md)
+- 共享契约（权威真源，阶段回复/交付六栏）：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)

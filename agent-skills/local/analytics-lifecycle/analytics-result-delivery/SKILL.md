@@ -15,7 +15,7 @@ description: Deliver analytics assets across executive Excel workbooks, interact
 - **`【工时与协同 / timesheet-audit】`**：工时填报与需求结单基于真实 Git 提交与需求编号交叉比对，整周工时严格守恒。
 - **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话（如以“陈列架总长度”取代“延米”），写出自然、直接、有立场的业务决策语言。
 - **`【命名空间契约 / scoped-delivery-naming】`**：阶段五交付文件严格采用 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 与同名 `.html` 命名。
-- **`【阶段六复盘沉淀 / decision-postmortem】`**：成果交付结单后，必须在 `topics/<topic_id>/06_decisions/` 物化三段式决策复盘卡，并沉淀生产底表、复用 SQL 与踩坑防线。
+- **`【阶段六复盘询问 / postmortem-inquiry】`**：成果交付结单后，先询问用户是否需要复盘；用户明确同意（或当前会话已明确授权）后才在 `topics/<topic_id>/06_decisions/` 物化三段式决策复盘卡，未经同意不默认生成。
 - **`【先读责任书 / source-first】`**：HPM 的指标名称、指标类型、权重、档位选项与目标值以在线责任书为唯一真源；动笔前先读出并逐项照录。
 
 ## 内部资产引用 (Internal Assets)
@@ -31,6 +31,7 @@ description: Deliver analytics assets across executive Excel workbooks, interact
 - **表格协同操作规约**：[references/wecom_sheet_patterns.md](references/wecom_sheet_patterns.md)
 - **绩效自评标准规约**：[references/hpm_criteria.md](references/hpm_criteria.md)
 - **关联工程规范**：融合新店 32 项体系（详见 [ps-new-store-benefit-report](../../product-strategy/ps-new-store-benefit-report/SKILL.md)）、加盟店前端 HTML 看板与桑基图（详见 [ps-franchise-store-report](../../product-strategy/ps-franchise-store-report/SKILL.md)）、O2O 卡片诊断（详见 [o2o-store-benefit-report](../../product-strategy/o2o-store-benefit-report/SKILL.md)）、统一门户同步（详见 [ps-portal-sync](../../product-strategy/ps-portal-sync/SKILL.md)）、季度绩效自评（详见 [hpm-performance-review](../../product-strategy/hpm-performance-review/SKILL.md)）与视频汇报（详见 [web-video-presentation-delivery](../../product-strategy/web-video-presentation-delivery/SKILL.md)）
+- **共享契约（权威真源，阶段回复/交付六栏）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
 ---
 
 ## 5 大交付形态 (Delivery Channels)
@@ -86,6 +87,14 @@ flowchart TD
 
 ---
 
+## 配置变更交付与阶段六复盘
+
+配置驱动的新增范围需求，交付报告链接配置差异、写入及调度证据、已验收业务分区与最终导出。明确候选与最终条目、原库存与建议数量；逐Sheet回读核对行数金额，按项目约定更新数据湖入口与索引。
+
+进入阶段六 `06_decisions/` 时，若用户已要求复盘，直接沿用已有授权；记录最终决策、已验证证据、恢复办法、项目真源和既有脚本入口。跨期对比仅作量级证据，建议清单与实际执行成果分开。
+
+完成标准：交付可由配置变更追溯到实际输出；复盘使下一次新增范围可从原阶段入口找到真源，无需新增技能或复制业务常量。
+
 ## 交付步骤与完成标准 (Steps & Completion Criteria)
 
 1. **Step 1：物化结构化交付报告**：
@@ -95,8 +104,14 @@ flowchart TD
    修改既有看板用 `am patch <html> --panel "<标题>" -`：先用 `grep -n '^## ' <html>` 列出面板标题，`--panel` 必须与其完全一致；`chart` 块第一行写列名（`             | 系列1 | 系列2`），否则报错。`am render --replace` 只接受 `am render` 自己写出的页面。
 3. **Step 3：外部数据湖与边界核验**：
    确认全量数据已接入数据湖，运行数据边界检查确保通过。
-4. **Step 4：[交互询问] 决策复盘卡沉淀与索引挂载 (Optional Post-Mortem Card)**：
-   交付结单时，**默认先产出 HTML 看板与 Markdown 交付报告**；在交付回复末尾**主动提醒并询问用户是否需要在 `06_decisions/` 沉淀永久决策复盘卡**。
-   若用户同意，依据模板 `templates/decision_postmortem_template.md` 输出三段式复盘卡（业务决策、复用代码资产、避坑经验），并在专题 `README.md` 挂载索引。
+4. **Step 4：阶段五对抗性审查 (Stage 5 Review Gate)**：
+   按共享契约 §2.0 执行产物审查，核验：事实与预测分离；目录销售转入等重分类不写成“销售增长”；历史无流水不直接断定为“策略纯增量”；口径双视图明确；Markdown 为真源且 HTML 看板内容由其派生；流转表达按需采用简单清晰图表。
+5. **Step 5：[交互询问] 决策复盘卡沉淀与索引挂载 (Optional Post-Mortem Card)**：
+   交付结单时，**默认先产出 HTML 看板与 Markdown 交付报告**；在交付回复末尾**主动询问用户是否需要在 `06_decisions/` 沉淀永久决策复盘卡**。
+   - 若用户当前会话已明确要求/授权复盘，直接继承授权，不重复询问；
+   - 若用户同意，按 [templates/decision_postmortem_template.md](templates/decision_postmortem_template.md) 输出三段式复盘卡（业务决策、复用代码资产、避坑经验），执行阶段六审查（经许可/仅沉淀决策、复用入口与陷阱/不重复指标/不固化未验证经验），并在专题 `README.md` 挂载索引；
+   - 未经用户授权不物化复盘卡，也不阻断交付完成。
 
-**完成标准**：交付文档（MD + HTML）规范落盘，数据湖边界校验通过，完成协同系统状态回写，并完成复盘卡交互提醒。
+**完成标准**：交付文档（MD + HTML）规范落盘，数据湖边界校验通过，阶段五对抗性审查通过（阻断 0 项且附证据），并完成复盘卡交互询问。外部协同回写（Wiki/WBS/工时）及阶段六复盘不作为无条件前置，未授权项在第六栏注明“未授权，未执行”。
+
+**阶段五回复/交付**：按共享契约 §1 六栏输出；已确认项不重复索取；技术与业务验证分离记录；附阶段五审查门槛登记。
