@@ -97,6 +97,53 @@ that hit its wall-clock cap and a parent that keeps waiting or respawns it:
 The extension is declared in `agent/omp/extensions.json` and linked by
 `scripts/install-omp-extensions.sh`; `make omp-extensions` applies it.
 
+## 5. Generated-token budget
+
+`agent/omp/extensions/usage-budget.ts` counts provider `usage.output`; reasoning
+already included there is not added again. Input/cache reads are excluded.
+Defaults live in the extension. An explicit task boundary is operator-driven;
+follow-ups and compaction retain counters. Session entries persist allowances
+and counters. Child `task:subagent:event` completed messages contribute to the
+parent's counters. Missing provider usage marks accounting incomplete.
+
+At 80%, the extension emits a visible notice without requesting another model
+turn. At the cap, the awaited assistant-message hook aborts the loop; tool calls,
+new spawns, and subsequent input are refused while over budget. This is a
+response-boundary limit: a single response and concurrent children can overshoot.
+It does not impose a provider output-token cap, cancel every independently
+running child, or meter compaction/advisor side requests. Usage before extension
+installation may lack delegated records; that historical total is incomplete.
+
+Operator commands (not model tools):
+
+- `/usage-budget` shows counters.
+- `/usage-budget add TASK SESSION` adds nonnegative generated-token allowances.
+- `/usage-budget task` explicitly starts a new task; session usage is retained.
+
+## 6. Credential and browser operation boundaries
+
+`agent/omp/extensions/operation-boundaries.ts` guards identifiable tool inputs:
+keychain enumeration/extraction, vault export/list, explicit agent-browser
+profiles/CDP/auto-connect, user-data-dir, and identifiable browser relay/adoption.
+Normal `gh auth status` and issue creation pass; ordinary isolated browser
+sessions pass. The shared agent rule additionally requires diagnosis from the
+actual failure stage and preserving all user-owned windows/tabs.
+
+After reviewing a specific proposed call, the operator can use
+`/operation-boundary allow credentials` or `/operation-boundary allow browser`.
+The grant applies to one matching tool call in that session, then expires;
+switching sessions clears grants. Inspect the entire call: a compound command
+can perform multiple operations within that one call.
+
+These checks are conservative signature guards, not a shell parser, sandbox,
+or proof of browser ownership. Literal command examples can be blocked too;
+dynamic code, shell expansion, scripts, and alternate APIs can bypass detection.
+The agent must obey the shared boundary rule even when a signature is missed.
+Arbitrary-code confinement requires host capabilities beyond this extension.
+
+Apply both extensions through `make omp-extensions`, then restart OMP. Existing
+sessions do not hot-load a newly linked extension.
+
 ## Verification
 
 ```bash
@@ -105,7 +152,8 @@ env -u PYTEST_ADDOPTS .venv/bin/python -m pytest \
   tests/test_check_docs.py \
   tests/test_agent_check_scope_gate.py \
   tests/test_doctor_helpers.py \
-  tests/test_omp_subagent_timeout_bound.py -q
+  tests/test_omp_subagent_timeout_bound.py \
+  tests/test_omp_runtime_guards.py -q
 make syntax-check
 ./scripts/privacy-audit.sh
 ```
