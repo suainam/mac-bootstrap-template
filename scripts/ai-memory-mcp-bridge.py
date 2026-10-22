@@ -29,8 +29,42 @@ from pathlib import Path
 
 MARKER = ".ai-memory.toml"
 DEFAULT_DATA_DIR = "~/.omp/agent/ai-memory-cc15"
-DEFAULT_SERVER_URL = "http://10.144.10.1:30025/mcp"
+# The shared primary lives on a private address, so the endpoint is NOT baked in
+# here: this file is part of the public template. Resolution order is
+# $AI_MEMORY_SERVER_URL, then the 0600 env file that the private overlay owns,
+# and finally a hard failure -- an unreachable default would silently point the
+# bridge at a local server instead of the shared primary.
 DEFAULT_PROXY = "http://127.0.0.1:7897"
+PRIVATE_ENV = Path("~/.omp/agent/.env").expanduser()
+
+
+def private_env_value(key: str) -> str | None:
+    try:
+        text = PRIVATE_ENV.read_text(errors="ignore")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("export "):
+            line = line[len("export ") :]
+        if not line.startswith(f"{key}="):
+            continue
+        value = line.split("=", 1)[1].strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        return value or None
+    return None
+
+
+def resolve_server_url() -> str:
+    for candidate in (os.environ.get("AI_MEMORY_SERVER_URL"), private_env_value("AI_MEMORY_SERVER_URL")):
+        if candidate and candidate.strip():
+            return candidate.strip()
+    raise SystemExit(
+        "ai-memory bridge: no server URL configured; set AI_MEMORY_SERVER_URL "
+        "or add it to the private ~/.omp/agent/.env (see docs/ai-memory-shared-primary.md)"
+    )
+
 
 # Tools whose input schema declares both `workspace` and `project`.
 PROJECT_SCOPED_TOOLS = frozenset(
@@ -221,7 +255,7 @@ def prepare_environment(data_dir: Path) -> dict[str, str]:
 def parse_args(argv: list[str]) -> dict[str, str]:
     options = {
         "data-dir": os.environ.get("AI_MEMORY_DATA_DIR", DEFAULT_DATA_DIR),
-        "server-url": os.environ.get("AI_MEMORY_SERVER_URL", DEFAULT_SERVER_URL),
+        "server-url": os.environ.get("AI_MEMORY_SERVER_URL") or private_env_value("AI_MEMORY_SERVER_URL"),
         "bridge-bin": os.environ.get("AI_MEMORY_BRIDGE_BIN", "ai-memory"),
         "scope-cwd": os.environ.get("AI_MEMORY_SCOPE_CWD", os.getcwd()),
     }
