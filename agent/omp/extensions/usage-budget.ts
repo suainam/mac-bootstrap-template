@@ -1,8 +1,11 @@
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent"
 
 const ENTRY = "generated-usage-budget"
-export const DEFAULT_TASK_LIMIT = 4_000
-export const DEFAULT_SESSION_LIMIT = 30_000
+export const DEFAULT_TASK_LIMIT = 50_000
+export const DEFAULT_SESSION_LIMIT = 500_000
+// Infinity serializes to null through entry persistence; restore() maps any
+// non-integer limit back to Infinity so a disabled budget stays disabled
+// across compaction and session switch.
 
 type CountedMessage = { role?: string; usage?: { output?: number }; timestamp?: number }
 type Snapshot = {
@@ -17,9 +20,14 @@ export class UsageBudget {
   restore(value: unknown) {
     if (!value || typeof value !== "object") return false
     const s = value as Snapshot
-    if (![s.task, s.session, s.taskLimit, s.sessionLimit].every(n => Number.isSafeInteger(n) && n >= 0)) return false
+    if (![s.task, s.session].every(n => Number.isSafeInteger(n) && n >= 0)) return false
+    if (![s.taskLimit, s.sessionLimit].every(n => typeof n === "number" || n === null)) return false
     if (![s.incomplete, s.taskWarned, s.sessionWarned].every(b => typeof b === "boolean")) return false
-    this.state = { ...s }
+    this.state = {
+      ...s,
+      taskLimit: Number.isSafeInteger(s.taskLimit) && s.taskLimit! >= 0 ? s.taskLimit! : Infinity,
+      sessionLimit: Number.isSafeInteger(s.sessionLimit) && s.sessionLimit! >= 0 ? s.sessionLimit! : Infinity,
+    }
     return true
   }
   count(message: CountedMessage | undefined) {
@@ -29,8 +37,10 @@ export class UsageBudget {
     else { this.state.task += output; this.state.session += output }
   }
   get blocked() { return this.state.task >= this.state.taskLimit || this.state.session >= this.state.sessionLimit }
+  get disabled() { return this.state.taskLimit === Infinity && this.state.sessionLimit === Infinity }
   warnings() {
     const out: string[] = []
+    if (this.disabled) return out
     for (const key of ["task", "session"] as const) {
       const flag = key === "task" ? "taskWarned" : "sessionWarned"
       const limit = key === "task" ? this.state.taskLimit : this.state.sessionLimit
@@ -42,18 +52,24 @@ export class UsageBudget {
   }
   status() {
     const s = this.state
-    return `Generated-token budget: task ${s.task}/${s.taskLimit}; session ${s.session}/${s.sessionLimit}` +
+    const fmt = (n: number) => n === Infinity ? "off" : String(n)
+    return `Generated-token budget: task ${s.task}/${fmt(s.taskLimit)}; session ${s.session}/${fmt(s.sessionLimit)}` +
       (s.incomplete ? "; accounting incomplete" : "") +
-      (this.blocked ? "; PAUSED. Operator: /usage-budget add TASK SESSION, or /usage-budget task for a new task." : "")
+      (this.blocked ? "; PAUSED. Operator: /usage-budget add TASK SESSION, /usage-budget task for a new task, or /usage-budget disable." : "")
   }
   command(args: string) {
     const words = args.trim().split(/\s+/)
     if (words[0] === "task" && words.length === 1) {
-      this.state.task = 0; this.state.taskLimit = DEFAULT_TASK_LIMIT; this.state.taskWarned = false
+      this.state.task = 0
+      if (this.state.taskLimit !== Infinity) this.state.taskLimit = DEFAULT_TASK_LIMIT
+      this.state.taskWarned = false
     } else if (words[0] === "add" && words.length === 3 && words.slice(1).every(s => /^\d+$/.test(s))) {
       const [task, session] = words.slice(1).map(Number)
-      if (![task, session, task + this.state.taskLimit, session + this.state.sessionLimit].every(Number.isSafeInteger)) return false
-      this.state.taskLimit += task; this.state.sessionLimit += session
+      if (![task, session].every(Number.isSafeInteger)) return false
+      if (this.state.taskLimit !== Infinity && !Number.isSafeInteger(task + this.state.taskLimit)) return false
+      if (this.state.sessionLimit !== Infinity && !Number.isSafeInteger(session + this.state.sessionLimit)) return false
+      if (this.state.taskLimit !== Infinity) this.state.taskLimit += task
+      if (this.state.sessionLimit !== Infinity) this.state.sessionLimit += session
       this.state.taskWarned = false; this.state.sessionWarned = false
     } else return false
     return true
@@ -89,7 +105,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_switch", (_event, ctx) => { sessionId = undefined; load(ctx) })
   pi.on("input", (_event, ctx) => {
     load(ctx)
-    if (budget.blocked) { notice(budget.status()); return { action: "handled" } }
+    if (budget.blocked) { notice(budget.status()); return { handled: true } }
   })
   pi.on("before_agent_start", (_event, ctx) => {
     load(ctx)
@@ -126,10 +142,25 @@ export default function (pi: ExtensionAPI) {
   })
   pi.on("session_shutdown", () => { unsubscribe() })
   pi.registerCommand("usage-budget", {
-    description: "Show usage; add TASK SESSION tokens; or start an explicit new task with task",
+    description: "Show usage; add TASK SESSION tokens; start a new task with task; clear limits with disable; restore defaults with enable; disable+continue with unlock",
     handler: async (args, ctx) => {
       load(ctx)
-      if (args.trim() && !budget.command(args)) { ctx.ui.notify("Usage: /usage-budget [add TASK SESSION | task]", "error"); return }
+      const trimmed = args.trim()
+      if (trimmed === "disable" || trimmed === "unlock") {
+        budget.state.taskLimit = Infinity; budget.state.sessionLimit = Infinity
+        budget.state.taskWarned = false; budget.state.sessionWarned = false
+        save()
+        ctx.ui.notify(`usage-budget limits off; /usage-budget enable restores defaults\n${budget.status()}`, "info")
+        if (trimmed === "unlock") pi.sendUserMessage("继续")
+        return
+      }
+      if (trimmed === "enable") {
+        budget.state.taskLimit = DEFAULT_TASK_LIMIT; budget.state.sessionLimit = DEFAULT_SESSION_LIMIT
+        budget.state.taskWarned = false; budget.state.sessionWarned = false
+        save(); ctx.ui.notify(budget.status(), "info")
+        return
+      }
+      if (trimmed && !budget.command(args)) { ctx.ui.notify("Usage: /usage-budget [add TASK SESSION | task | disable | enable | unlock]", "error"); return }
       save(); ctx.ui.notify(budget.status(), "info")
     },
   })

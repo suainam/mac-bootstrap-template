@@ -101,7 +101,8 @@ The extension is declared in `agent/omp/extensions.json` and linked by
 
 `agent/omp/extensions/usage-budget.ts` counts provider `usage.output`; reasoning
 already included there is not added again. Input/cache reads are excluded.
-Defaults live in the extension. An explicit task boundary is operator-driven;
+Defaults are `DEFAULT_TASK_LIMIT` (50,000) and `DEFAULT_SESSION_LIMIT` (500,000)
+in the extension. An explicit task boundary is operator-driven;
 follow-ups and compaction retain counters. Session entries persist allowances
 and counters. Child `task:subagent:event` completed messages contribute to the
 parent's counters. Missing provider usage marks accounting incomplete.
@@ -114,11 +115,15 @@ It does not impose a provider output-token cap, cancel every independently
 running child, or meter compaction/advisor side requests. Usage before extension
 installation may lack delegated records; that historical total is incomplete.
 
-Operator commands (not model tools):
+Operator commands (not model tools). They remain reachable while paused because
+`AgentSession.prompt()` dispatches extension commands before the `input` hook:
 
 - `/usage-budget` shows counters.
 - `/usage-budget add TASK SESSION` adds nonnegative generated-token allowances.
 - `/usage-budget task` explicitly starts a new task; session usage is retained.
+- `/usage-budget disable` sets both limits to off (persisted across compaction);
+  `/usage-budget enable` restores the defaults; `/usage-budget unlock` disables
+  and immediately resubmits 继续 to resume paused work.
 
 ## 6. Credential and browser operation boundaries
 
