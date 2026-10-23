@@ -253,7 +253,7 @@ def test_local_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert not agent_dir.exists()
 
 
-def test_doctor_recognizes_local_extension_and_reports_omp_baseline(tmp_path: Path) -> None:
+def test_doctor_recognizes_local_extension_and_reports_host_version(tmp_path: Path) -> None:
     repo = _repo(tmp_path, [_local_entry()])
     _local_source(repo)
 
@@ -265,8 +265,10 @@ def test_doctor_recognizes_local_extension_and_reports_omp_baseline(tmp_path: Pa
     assert result.returncode == 0, result.stderr
     assert "== OMP extension doctor ==" in result.stdout
     assert "OK   local extension local-fixture.ts" in result.stdout
-    assert "certification baseline 18.5.0" in result.stdout
-    assert "NOT VERIFIED" in result.stdout
+    # The host version is reported, never gated against a pinned baseline.
+    assert "INFO host omp:" in result.stdout
+    assert "certification baseline" not in result.stdout
+    assert "NOT VERIFIED" not in result.stdout
     assert "plugin entrypoint" not in result.stdout
 
 
