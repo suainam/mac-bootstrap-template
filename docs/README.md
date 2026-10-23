@@ -21,6 +21,7 @@
 - `agent-runtime-guardrails.md`：记忆桥作用域注入与 fail-closed、docs 内容检查、MCP 命令健康、子代理超时收敛。
 - `agents/quality-gates.md`：Agent Runtime、Git context、profile、门禁和回滚机制。
 - `agents/runtime-rollout.md`：逐仓推广经验、风险阶梯、验收 checklist 与停止条件。
+- `agents/factory-vocabulary.md`：讨论 agent 软件工厂的通用词汇（task/run/runner/orchestrator 等）与本仓槽位映射。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。
 - `ci.md`：公共 CI 契约、GitHub Actions 边界与本地复现方式。
 - `data-hub-record-knowledge.md`：知识记录路径。
