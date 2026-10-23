@@ -1,6 +1,6 @@
 # Session Compact Checklist
 
-Run when approaching token budget (30K per session, 4K per task).
+Run when the session context is under pressure, or before a handoff.
 
 ## Before Compacting
 

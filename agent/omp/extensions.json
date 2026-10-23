@@ -13,11 +13,6 @@
     },
     {
       "kind": "local",
-      "package": "agent/omp/extensions/usage-budget.ts",
-      "target": "usage-budget.ts"
-    },
-    {
-      "kind": "local",
       "package": "agent/omp/extensions/operation-boundaries.ts",
       "target": "operation-boundaries.ts"
     }
