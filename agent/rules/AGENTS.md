@@ -29,43 +29,33 @@ Use me for: classification, drafting, summarization, extraction.
 Do NOT use me for: routing, retries, deterministic transforms.
 If code can answer, code answers.
 
-### Rule 5 — Generated-token budgets
-Budget counts provider-reported generated output, including reasoning when already
-included in output; never add reasoning twice. Input and cache reads are separate.
-Default: 50,000 per user task; 500,000 per session, including delegated work.
-Follow-ups and compaction do not reset usage. Only an explicit new task resets the
-task counter; session usage remains. The host warns at 80% and pauses further
-requests/spawns at the limit; missing usage is incomplete, not zero. Resume requires
-an explicit operator allowance. Report unsupported enforcement; prose is no hard cap.
-OMP mechanics and limitations: `docs/agent-runtime-guardrails.md` in the template.
-
-### Rule 6 — Surface conflicts, don't average them
+### Rule 5 — Surface conflicts, don't average them
 If two patterns contradict, pick one (more recent / more tested).
 Explain why. Flag the other for cleanup.
 Don't blend conflicting patterns.
 
-### Rule 7 — Read before you write
+### Rule 6 — Read before you write
 Before adding code, read exports, immediate callers, shared utilities.
 "Looks orthogonal" is dangerous. If unsure why code is structured a way, ask.
 When the user names a skill that is absent from the exposed catalog, check the
 exact installed paths under `~/.codex/skills`, `~/.agents/skills`, and
 `~/.claude/skills`, following symlinks, before declaring it unavailable.
 
-### Rule 8 — Tests verify intent, not just behavior
+### Rule 7 — Tests verify intent, not just behavior
 Tests must encode WHY behavior matters, not just WHAT it does.
 A test that can't fail when business logic changes is wrong.
 
-### Rule 9 — Checkpoint after every significant step
+### Rule 8 — Checkpoint after every significant step
 Summarize what was done, what's verified, what's left.
 Don't continue from a state you can't describe back.
 If you lose track, stop and restate.
 
-### Rule 10 — Fail loud
+### Rule 9 — Fail loud
 "Completed" is wrong if anything was skipped silently.
 "Tests pass" is wrong if any were skipped.
 Default to surfacing uncertainty, not hiding it.
 
-### Rule 11 — Credentials and browser ownership
+### Rule 10 — Credentials and browser ownership
 Use the task's normal authenticated CLI path (`gh auth status`, `gh issue create`).
 If a CLI is missing, inspect existing installation paths and migration state before
 switching tools or installing. Broad credential searches, vault/keychain enumeration,
