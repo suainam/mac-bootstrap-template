@@ -288,7 +288,7 @@ for the current project using this priority chain:
 
 ```bash
 make pm-detect          # Auto-detect
-make pm-set PNPM        # Set global default
+make pm-set PM=pnpm     # Set global default
 ```
 
 ---

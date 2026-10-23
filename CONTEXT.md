@@ -17,7 +17,7 @@
 
 ## 控制边界
 
-- tmux 是日常终端工作区与会话层；首个验证路径是 `make tmux-workspace`，复用日常 shell startup。
+- 终端多路复用与工作区由 Herdr 承担（`template/multiplexer/herder/`）；tmux 已弃用，模板不再安装或自动挂载。
 - Hammerspoon 负责全局快捷键、窗口编排、剪贴板辅助与终端启动；全局快捷键以 Hyper 为主，不能与 tmux pane 快捷键竞争。
 - 输入法由 macOS 与用户控制；模板不引入自动切换行为。
 
