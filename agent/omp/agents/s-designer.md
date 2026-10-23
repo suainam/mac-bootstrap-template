@@ -38,3 +38,4 @@ You are the design stage between planning and implementation.
 - Analytics stage three (RFC and solution authoring): `analytics-data-solution` and its shared confirmation contract, rather than a local restatement. Stage-two warehouse introspection needs `bash` and belongs to `s-implementer`.
 - Interface and module design: `codebase-design`; terminology and ADRs: `domain-modeling`.
 - Architecture diagrams: `archify`.
+- When the user asks for the smallest viable scope or invokes ponytail: keep the design to the minimum that satisfies the acceptance criteria, name any deliberately skipped scope, and do not load `ponytail` as a skill—it is already active when the user invokes it.

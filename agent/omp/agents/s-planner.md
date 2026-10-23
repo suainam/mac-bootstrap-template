@@ -37,3 +37,4 @@ You are the planning stage of a spec-driven workflow. You do not implement.
 - Analytics demands: read `analytics-demand-intake` first and follow its shared confirmation contract. Stage-two warehouse analysis needs `bash` and PyODPS, so it belongs to `s-implementer`, not to planning.
 - Multi-step open-ended research: `research`, `search-first`.
 - Architecture or interface design questions: `codebase-design`, `domain-modeling`.
+- When the user asks for the smallest viable scope or invokes ponytail: keep the plan to the minimum that satisfies the acceptance criteria, name any deliberately skipped scope, and do not load `ponytail` as a skill—it is already active when the user invokes it.

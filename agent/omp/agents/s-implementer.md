@@ -39,3 +39,4 @@ You are the implementation stage. Work only on the approved slice.
 - Analytics stage two (warehouse introspection, `SELECT MAX_PT`, PyODPS probes, lineage and cardinality checks): `analytics-demand-analysis`. It needs `bash`, which is why it lands here rather than in planning or design.
 - Analytics delivery: `analytics-data-execution` for SQL runs and backfills, then `analytics-result-delivery` for Excel/HTML/wiki/WBS/timesheets. Stage six (`06_decisions/` post-mortem card) belongs to `s-retro`; stop at the delivery boundary and hand it over.
 - Debugging a failure whose cause is unknown: `diagnosing-bugs`.
+- When the user asks for the smallest viable scope or invokes ponytail: implement the minimum complete change, update every caller and test, name what was skipped, and do not load `ponytail` as a skill—it is already active when the user invokes it.

@@ -198,15 +198,16 @@ def _make_targets(command: str, root: Path) -> list[str]:
         if word in {"&&", "||", ";", "|", "\\", "#"} or word.startswith("#"):
             break
 
-        token = word.strip("\"'")
-        if not token:
+        word_value = word.strip("\"'")
+        if not word_value:
             continue
-        if token.startswith("-") or "=" in token or token.startswith(("<", "{", "[")):
+        if word_value.startswith("-") or "=" in word_value or word_value.startswith(("<", "{", "[")):
             continue
-        if "$" in token or "*" in token or "?" in token or "/" in token:
+        if "$" in word_value or "*" in word_value or "?" in word_value or "/" in word_value:
             continue
-        if token not in targets:
-            unknown.append(token)
+        if word_value not in targets:
+            unknown.append(word_value)
+
     return unknown
 
 
