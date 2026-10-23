@@ -32,7 +32,7 @@ If code can answer, code answers.
 ### Rule 5 — Generated-token budgets
 Budget counts provider-reported generated output, including reasoning when already
 included in output; never add reasoning twice. Input and cache reads are separate.
-Default: 4,000 per user task; 30,000 per session, including delegated work.
+Default: 50,000 per user task; 500,000 per session, including delegated work.
 Follow-ups and compaction do not reset usage. Only an explicit new task resets the
 task counter; session usage remains. The host warns at 80% and pauses further
 requests/spawns at the limit; missing usage is incomplete, not zero. Resume requires
