@@ -42,6 +42,5 @@ assertion is released automatically once `claude -p` exits.
 
 ## Notes
 
-- `tmux` is unrelated to this daemon. If you're looking for the interactive
-  tmux workspace, see `make tmux-workspace` — that's a separate, unrelated
-  feature for day-to-day terminal sessions.
+- `tmux` is unrelated to this daemon; the template no longer installs or
+  auto-attaches it. Use Herdr for interactive workspaces.

@@ -5,6 +5,12 @@ Checks, per Markdown file:
   * relative links resolve to an existing file on disk (URLs and pure anchors skipped)
   * fenced ```bash/```sh/```shell blocks parse under ``bash -n`` (never executed)
   * no secret-looking flag is fed a literal or command-substitution value as argv
+  * `make <target>` references name a target the owning Makefile defines
+    (read as text; the parent catch-all is resolved through ``template/Makefile``)
+  * paths in an ``权威来源`` table column exist in the owning repository
+
+Documents that describe unimplemented work opt out per file with
+``<!-- check-docs: historical -->``.
 
 Usage: check_docs.py [PATH ...]   (PATH = file or directory; default: cwd recursively)
 """
@@ -14,6 +20,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -78,6 +85,175 @@ PLACEHOLDER_RE = re.compile(r"^(?:<[^>]*>|\{\{[^}]*\}\}|`[^`]*`)$")
 # `cmd <table>` is a syntax error to bash, so parse a neutral stand-in instead.
 ANGLE_PLACEHOLDER_RE = re.compile(r"(?<!<)<[^<>\s][^<>]*>")
 BRACE_PLACEHOLDER_RE = re.compile(r"\{\{[^{}]*\}\}")
+# `make` counts only as a command word at the start of a statement; prose such as
+# "make sure" inside a sentence is never scanned.
+MAKE_COMMAND_RE = re.compile(r"(?:^|[;&|]\s*|\$\s+|(?:rtk|sudo)\s+|\w+=\S*\s+)make(?:\s+|$)")
+MAKE_FLAGS_WITH_VALUE = {"-C", "-f", "--file", "--directory", "--makefile"}
+# A `cd` leaves this repository, so later `make` lines belong to another one.
+CD_COMMAND_RE = re.compile(r"^\s*(?:cd|pushd)\s+")
+MAKE_FLAGS = {
+    "-B", "-e", "-i", "-I", "-j", "-k", "-l", "-n", "-O", "-o", "-p", "-q", "-r",
+    "-s", "-t", "-w", "--always-make", "--dry-run", "--environment-overrides",
+    "--ignore-errors", "--jobs", "--just-print", "--keep-going", "--no-builtin-rules",
+    "--no-print-directory", "--print-data-base", "--question", "--silent",
+    "--touch", "--warn-undefined-variables",
+}
+TARGET_RULE_RE = re.compile(r"^([A-Za-z0-9_][A-Za-z0-9_. -]*?)\s*:(?!=)")
+PHONY_RE = re.compile(r"^\.PHONY\s*:(.*)$")
+CATCH_ALL_RE = re.compile(r"^%:", re.MULTILINE)
+AUTHORITY_COLUMN = "权威来源"
+PATH_TOKEN_SUFFIXES = (".md", ".mdx", ".py", ".sh", ".json", ".jsonc", ".yml", ".yaml", ".txt", ".toml", ".cfg")
+BRACE_EXPANSION_RE = re.compile(r"\{([^{}]+)\}")
+HISTORICAL_MARKER_RE = re.compile(r"<!--\s*check-docs:\s*historical\b")
+
+
+def _makefile_targets(makefile: Path) -> set[str] | None:
+    """Targets defined by one Makefile, read as text (never executed)."""
+    try:
+        text = makefile.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    targets: set[str] = set()
+    for line in text.splitlines():
+        if line.startswith(("\t", "#")):
+            continue
+        rule = TARGET_RULE_RE.match(line)
+        if rule:
+            targets.update(name for name in rule.group(1).split() if name)
+            continue
+        phony = PHONY_RE.match(line)
+        if phony:
+            targets.update(name for name in phony.group(1).replace("\\", " ").split() if name)
+    if CATCH_ALL_RE.search(text):
+        forwarded = _makefile_targets(makefile.parent / "template" / "Makefile")
+        if forwarded:
+            targets |= forwarded
+    return targets
+
+
+_TARGET_CACHE: dict[Path, set[str] | None] = {}
+
+
+def _defined_targets(makefile: Path) -> set[str] | None:
+    key = makefile.resolve()
+    if key not in _TARGET_CACHE:
+        _TARGET_CACHE[key] = _makefile_targets(key)
+    return _TARGET_CACHE[key]
+
+
+def _makefile_root(doc: Path) -> Path | None:
+    """Nearest ancestor of `doc` that carries a Makefile."""
+    for parent in doc.resolve().parents:
+        if (parent / "Makefile").is_file():
+            return parent
+    return None
+
+
+def _owns_make_interface(doc: Path, root: Path) -> bool:
+    """True when `doc` documents this repository's own make targets.
+
+    Skill and subproject docs describe other repositories' make interfaces, so
+    a missing target there says nothing about this repo. Only the root docs and
+    the top-level `docs/` and `agent/` trees are in scope.
+    """
+    try:
+        relative = doc.resolve().relative_to(root)
+    except ValueError:
+        return False
+    return len(relative.parts) == 1 or relative.parts[0] in {"docs", "agent"}
+
+
+def _make_targets(command: str, root: Path) -> list[str]:
+    """Bare goal names from one `make ...` command line."""
+    try:
+        words = shlex.split(command)[1:]
+    except ValueError:
+        return []
+    makefile = root / "Makefile"
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word in MAKE_FLAGS_WITH_VALUE:
+            if word in {"-C", "--directory"} and index + 1 < len(words):
+                directory = (root / words[index + 1]).resolve()
+                makefile = directory / "Makefile"
+            index += 2
+            continue
+        if word.startswith(("-C", "--directory=")):
+            value = word.split("=", 1)[1] if "=" in word else word[2:]
+            makefile = (root / value).resolve() / "Makefile"
+            index += 1
+            continue
+        if word.startswith("-"):
+            index += 1
+            continue
+        break
+
+    targets = _defined_targets(makefile)
+    if targets is None:
+        return []
+
+    unknown: list[str] = []
+    for word in words[index:]:
+        if word in {"&&", "||", ";", "|", "\\", "#"} or word.startswith("#"):
+            break
+
+        word_value = word.strip("\"'")
+        if not word_value:
+            continue
+        if word_value.startswith("-") or "=" in word_value or word_value.startswith(("<", "{", "[")):
+            continue
+        if "$" in word_value or "*" in word_value or "?" in word_value or "/" in word_value:
+            continue
+        if word_value not in targets:
+            unknown.append(word_value)
+
+    return unknown
+
+
+def _authority_paths(text: str) -> list[tuple[int, str]]:
+    """(line, path) for path-like backtick tokens in an 权威来源 table column."""
+    found: list[tuple[int, str]] = []
+    header: int | None = None
+    for number, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            header = None
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if AUTHORITY_COLUMN in cells:
+            header = cells.index(AUTHORITY_COLUMN)
+            continue
+        if header is None or header >= len(cells):
+            continue
+        for token in re.findall(r"`([^`]+)`", cells[header]):
+            for expanded in _expand_braces(token.strip()):
+                if not _looks_like_path(expanded):
+                    continue
+                found.append((number, expanded.rstrip("/")))
+    return found
+
+
+def _expand_braces(token: str) -> list[str]:
+    match = BRACE_EXPANSION_RE.search(token)
+    if not match:
+        return [token]
+    head, tail = token[: match.start()], token[match.end() :]
+    return [
+        expanded
+        for choice in match.group(1).split(",")
+        for expanded in _expand_braces(head + choice + tail)
+    ]
+
+
+def _looks_like_path(token: str) -> bool:
+    if not token or token.startswith(("~", "http", "/", "$", "-")):
+        return False
+    if any(char in token for char in "*?<>{}"):
+        return False
+    if " " in token:
+        return False
+    return "/" in token or token.endswith(PATH_TOKEN_SUFFIXES)
 
 
 def _shell_parse_body(body: str) -> str:
@@ -156,6 +332,8 @@ def check_file(path: Path) -> list[Finding]:
     fenced_spans = [(m.start(), m.end()) for m in FENCE_RE.finditer(text)]
     code_spans = fenced_spans + [(m.start(), m.end()) for m in INLINE_CODE_RE.finditer(text)]
     findings: list[Finding] = []
+    if HISTORICAL_MARKER_RE.search(text):
+        return findings
 
     for match in LINK_RE.finditer(text):
         if any(start <= match.start() < end for start, end in code_spans):
@@ -189,7 +367,7 @@ def check_file(path: Path) -> list[Finding]:
             findings.append(
                 Finding(path, _line_of(text, offset), f"shell block does not parse: {detail}")
             )
-        base = _line_of(text, offset)
+        base = _line_of(text, offset) + 1
         for number, line in enumerate(body.splitlines(), start=1):
             for match in ARGV_RE.finditer(line):
                 flag, value = match.group(1), match.group(2) or ""
@@ -210,6 +388,55 @@ def check_file(path: Path) -> list[Finding]:
                         f"secret value in command-line argv: {flag} {value}",
                     )
                 )
+    findings.extend(_check_make_targets(path, text, blocks, fenced_spans))
+    findings.extend(_check_authority_paths(path, text))
+    return findings
+
+
+def _check_make_targets(
+    path: Path, text: str, blocks: list[tuple[int, str, str]], fenced_spans: list[tuple[int, int]]
+) -> list[Finding]:
+    """Flag `make <target>` references whose target no Makefile defines."""
+    root = _makefile_root(path)
+    if root is None or not _owns_make_interface(path, root):
+        return []
+    findings: list[Finding] = []
+    for offset, body in _shell_blocks(blocks):
+        base = _line_of(text, offset) + 1
+        for number, line in enumerate(body.splitlines(), start=1):
+            # A `cd` elsewhere switches to another project's Makefile, whose
+            # targets this repository cannot know.
+            if CD_COMMAND_RE.match(line):
+                break
+            for match in MAKE_COMMAND_RE.finditer(line):
+                for target in _make_targets(line[match.end() - len("make") :], root):
+                    findings.append(
+                        Finding(path, base + number - 1, f"unknown make target: {target}")
+                    )
+    for match in INLINE_CODE_RE.finditer(text):
+        if any(start <= match.start() < end for start, end in fenced_spans):
+            continue
+        span = match.group(0).strip("`").strip()
+        command = MAKE_COMMAND_RE.match(span)
+        if not command:
+            continue
+        for target in _make_targets(span[command.end() - len("make") :], root):
+            findings.append(
+                Finding(path, _line_of(text, match.start()), f"unknown make target: {target}")
+            )
+    return findings
+
+
+def _check_authority_paths(path: Path, text: str) -> list[Finding]:
+    """Flag 权威来源 table paths that do not exist in the owning repository."""
+    root = _makefile_root(path)
+    if root is None:
+        return []
+    return [
+        Finding(path, number, f"authority path does not exist: {token}")
+        for number, token in _authority_paths(text)
+        if not (root / token).exists()
+    ]
     return findings
 
 

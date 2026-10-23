@@ -106,17 +106,15 @@ link_agent_files() {
   done < <(agent_sources)
 }
 
-doctor_version() {
-  local name="$1" expected="$2" actual="unavailable"
+doctor_host_version() {
+  local name="$1" actual="unavailable"
   if command -v "$name" >/dev/null 2>&1; then
     actual="$("$name" --version 2>&1 | head -n 1 || true)"
     [[ -n "$actual" ]] || actual="unknown"
   fi
-  if [[ "$actual" == *"$expected"* ]]; then
-    echo "OK   host $name: $actual (baseline $expected)"
-  else
-    echo "INFO host $name: $actual (certification baseline $expected; NOT VERIFIED)"
-  fi
+  # OMP ships often, so the host version is reported for the record and never
+  # gated: a pinned baseline would need editing on every release.
+  echo "INFO host $name: $actual"
 }
 
 doctor_local_link() {
@@ -160,7 +158,7 @@ link_settings_file() {
 if [[ "$DOCTOR" -eq 1 ]]; then
   doctor_rc=0
   echo "== OMP extension doctor =="
-  doctor_version omp "18.5.0"
+  doctor_host_version omp
   while IFS=$'\x1f' read -r kind package version settings target; do
     [[ -n "$package" ]] || continue
     if [[ "$kind" == "local" ]]; then

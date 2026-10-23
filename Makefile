@@ -16,7 +16,7 @@ DISPATCH_SOURCE ?= $(HOME)/.local/src/Dispatch
 .PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent install-maintenance-agents unload-maintenance-agents system-patrol \
 	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
- 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan instinct-sync \
+	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan \
 	package-migrate \
  	omp-extensions dispatch-install dispatch-upgrade dispatch-status dispatch-doctor dispatch-uninstall \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
@@ -33,141 +33,14 @@ DISPATCH_SOURCE ?= $(HOME)/.local/src/Dispatch
 	net-tune net-tune-apply net-tune-save net-tune-auto net-tune-list net-tune-status net-tune-restore \
 	ssh-install ssh-verify ssh-smoke
 
+HELP_AWK ?= scripts/make_help.awk
+
 help:
 	@echo "Usage: make <target>"
-	@echo ""
-	@echo "── Common ──"
-	@echo "  bootstrap              Full bootstrap on this machine"
-	@echo "  check                  Repository checks + strict machine doctor"
-	@echo "  check-parallel         Repository + machine checks with grouped xdist"
-	@echo "  repo-check             Repository-only grouped syntax, privacy, skills, and tests"
-	@echo "  repo-check-serial      Repository-only serial checks for debugging"
-	@echo "  machine-check          Strict machine health check"
-	@echo "  ci                     Public CI: syntax + pytest + privacy + skill + docs gates"
-	@echo "  syntax-check          Shell, Python, and Lua syntax checks"
-	@echo "  pytest                Run repository-only Python tests"
-	@echo "  pytest-machine        Run machine-dependent Python tests"
-	@echo "  neat-freak-ci         Check changed operational files have public docs"
-	@echo "  doctor                 Machine health check"
-	@echo "  doctor-agent           Agent tooling health check"
-	@echo "  agent-rules-audit      Scan all AGENTS.md / CLAUDE.md for duplicate imports & drift"
-	@echo "  cleanup-services       Audit & clean obsolete LaunchAgents and zombie daemon processes"
-	@echo "  privacy-audit          Redacted privacy scan"
-	@echo "  proxy-on               Configure npm + git to use the shell proxy values"
-	@echo "  proxy-off              Clear npm + git proxy settings"
-	@echo "  ssh-install            Deploy SSH config, keys, and helper symlinks"
-	@echo "  ssh-verify             Verify SSH deploy, permissions, and ssh -G resolution"
-	@echo "  ssh-key-generate       Create private/shell/ssh_keys/NAME and optional host snippet"
-	@echo "  ssh-key-import         Import existing key into private/shell/ssh_keys/NAME"
-	@echo "  ssh-key-import-stdin   Read pasted key from stdin into private/shell/ssh_keys/NAME"
-	@echo "  ssh-smoke              Live SSH auth probe (HOST=github.com) for proxy wiring"
-	@echo "  external-tools         Install/verify standalone CLI and external tools from manifest"
-	@echo "  obsidian-kit           Install reusable Obsidian vault kit: VAULT=/path/to/vault"
-	@echo "  ghostty-font-repair    Re-register existing Liga SFMono Nerd Font files"
-	@echo "  net-tune               Adaptive network probe & macOS TCP window optimization"
-	@echo "  net-tune-apply         Apply dynamic macOS TCP window tuning (requires sudo)"
-	@echo "  net-tune-status        Show current macOS TCP socket parameters"
-	@echo "  net-tune-restore       Restore macOS stock TCP socket defaults"
-	@echo ""
-	@echo "── Bootstrap ──"
-	@echo "  install / bootstrap    Full install (Homebrew + shell + agent tooling)"
-	@echo "  cold-start             Install Clash Verge proxy (first step on fresh Mac)"
-	@echo "  check                  Syntax-check all scripts + run doctor"
-	@echo "  doctor                 System health check"
-	@echo "  doctor-agent           Agent tooling health check"
-	@echo ""
-	@echo "── Cleanup ──"
-	@echo "  clean-cache            Clean Homebrew/Library/LaTeX caches"
-	@echo "  clean-cache-aggressive More aggressive cache cleanup"
-	@echo "  cache-report           Show cache sizes"
-	@echo ""
-	@echo "── Agent ──"
-	@echo "  agent-tools            Install/configure agent tooling"
-	@echo "  agent-sync             Sync managed skills + prompt libraries"
-	@echo "  agent-refresh          Full sync + full agent reconfigure"
-	@echo "  omp-extensions         Install version-pinned OMP extensions"
-	@echo "  dispatch-install       Install standalone Dispatch from DISPATCH_SOURCE"
-	@echo "  dispatch-upgrade       Upgrade standalone Dispatch from DISPATCH_SOURCE"
-	@echo "  dispatch-status        Show standalone Dispatch status"
-	@echo "  dispatch-doctor        Run standalone Dispatch doctor"
-	@echo "  dispatch-uninstall     Uninstall standalone Dispatch (state preserved by default)"
-	@echo "  skill-plan             Summarize skill registry and targets"
-	@echo "  skill-fetch            Fetch one non-bundle external skill: SOURCE=id SKILL=name"
-	@echo "  skill-fetch-bundle     Fetch one external bundle: SOURCE=id"
-	@echo "  skill-ensure-bundles   Fetch missing enabled bundles before distribution"
-	@echo "  skill-promote          Promote a staged bundle: SOURCE=id"
-	@echo "  skill-update           Fetch + safely promote bundle updates: SOURCE=id"
-	@echo "  skill-audit            Audit one quarantined skill: SOURCE=id SKILL=name"
-	@echo "  skill-diff             Show one quarantined skill diff/hash: SOURCE=id SKILL=name"
-	@echo "  skill-distribute       Wire approved managed skills into agents/projects"
-	@echo "  skill-reconcile        Dry-run stale skill cleanup; APPLY=1 to prune symlinks/copies"
-	@echo "  skill-snapshot         Snapshot current global/project skill views"
-	@echo "  skill-refresh          Validate + wire managed skills"
-	@echo "  skill-check            Validate skill registry and local skill sources"
-	@echo "  system-upgrade         Interactive system + manifest-managed npm upgrade + safe skill refresh"
-	@echo "  prompt-sync            Sync prompt libraries + rebuild prompt index"
-	@echo "  prompt-index           Rebuild prompt index from local prompt upstreams"
-	@echo "  prompt-list            List indexed prompts: Q=query"
-	@echo "  prompt-mcp             Run prompt-library MCP stdio server"
-	@echo "  security-scan          Security scan + fix"
-	@echo "  instinct-sync          Sync instinct files"
-	@echo "  devspace-check         Validate local DevSpace config + prerequisites"
-	@echo "  devspace-run           Start local DevSpace in foreground"
-	@echo "  devspace-doctor        Probe local DevSpace /mcp and classify failures"
-	@echo "  devspace-tunnel        Run configured Cloudflare Tunnel in foreground"
-	@echo "  devspace-home-push     Mirror private DevSpace home files into ~/.devspace"
-	@echo "  devspace-home-pull     Pull ~/.devspace files into private/agent mirror"
-	@echo "  quality-gate-pre-commit Run the fast quality gate plan"
-	@echo "  quality-gate-pre-push   Run the heavy quality gate plan"
-	@echo "  quality-gate-doctor     Print legacy quality gate plan and health inputs"
-	@echo "  quality-gate-hook-inventory Inventory existing Git/LFS/legacy hooks"
-	@echo "  quality-gate-hook-install Install trusted user-level dispatcher (explicit migration only)"
-	@echo "  quality-gate-hook-uninstall Restore the previous hooksPath atomically"
-	@echo "  quality-gate-hook-doctor Verify trusted dispatcher, registry, hooks, and approved chains"
-	@echo "  devspace-install-agent Install and start DevSpace LaunchAgents"
-	@echo "  devspace-unload-agent  Stop and remove DevSpace LaunchAgents"
-	@echo "  devspace-status        Show DevSpace LaunchAgent status and local health"
-	@echo "  devspace-logs          Tail DevSpace LaunchAgent logs"
-	@echo "  devspace-restart       Restart DevSpace LaunchAgents"
-	@echo "  colima-start           Start isolated local Docker runtime"
-	@echo "  colima-stop            Stop local Docker runtime"
-	@echo "  colima-status          Show local Docker runtime status"
-	@echo "  colima-doctor          Verify proxy, Docker, and log rotation"
-	@echo ""
-	@echo "── Terminal & Theme ──"
-	@echo "  theme-switch          Switch terminal theme: THEME=catppuccin-mocha|gruvbox-dark"
-	@echo "  theme-list            List supported terminal themes"
-	@echo ""
-	@echo "── Claude Daemon ──"
-	@echo "  claude-daemon-install    Install launchd keepalive daemon"
-	@echo "  claude-daemon-unload     Stop daemon services"
-	@echo "  claude-daemon-status     Show daemon status"
-	@echo "  claude-daemon-logs       Show daemon logs"
-	@echo ""
-	@echo "── System Limits ──"
-	@echo "  maxfiles-limit-install   Install LaunchDaemon raising launchd maxfiles (sudo)"
-	@echo "  maxfiles-limit-status    Show maxfiles daemon + current limit"
-	@echo "  maxfiles-limit-uninstall Remove maxfiles LaunchDaemon (sudo)"
-	@echo ""
-	@echo "── Config ──"
-	@echo "  render-configs         Render config templates"
-	@echo "  private-sync           Sync private overlay"
-	@echo "  privacy-audit          Scan for secrets"
-	@echo "  privacy-audit-history  Scan with git history"
-	@echo "  export-public DEST=…   Export public template"
-	@echo "  publish-public         Publish public template"
-	@echo ""
-	@echo "── Other ──"
-	@echo "  pm-detect              Detect package manager"
-	@echo "  pm-set                 Set global package manager"
-	@echo "  mcp-profiles           Setup MCP profiles"
-	@echo "  hook-matchers          Add hook matchers"
-	@echo "  patch-chrome-gemini    Patch Google Chrome Local State to enable Gemini"
-	@echo ""
-	@echo "── ImgBed ──"
-	@echo "  imgup                  Upload images to CloudFlare-ImgBed (alias for imgup-install)"
-	@echo "  imgup-install          Install imgup CLI symlink + validate config"
+	@awk -f "$(HELP_AWK)" "$(firstword $(MAKEFILE_LIST))"
 
+## 1.1 Common | bootstrap | Full bootstrap on this machine
+## 2.1 Bootstrap | install / bootstrap | Full install (Homebrew + shell + agent tooling)
 bootstrap install:
 	./install.sh --yes --with-vim --with-neovim --cleanup
 	./scripts/install-agent-tooling.sh --configure
@@ -182,9 +55,11 @@ docs-check:
 docs-check-all:
 	@"$(PYTHON)" scripts/check_docs.py .
 
+## 1.4 Common | repo-check | Repository-only grouped syntax, privacy, skills, and tests
 repo-check: docs-check
 	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
 
+## 1.5 Common | repo-check-serial | Repository-only serial checks for debugging
 repo-check-serial:
 	$(MAKE) syntax-check
 	$(MAKE) skill-check
@@ -193,12 +68,16 @@ repo-check-serial:
 
 repo-check-parallel: repo-check
 
+## 1.6 Common | machine-check | Strict machine health check
 machine-check:
 	./scripts/doctor.sh --strict
 	$(MAKE) pytest-machine
 
+## 1.2 Common | check | Repository checks + strict machine doctor
+## 2.3 Bootstrap | check | Syntax-check all scripts + run doctor
 check: check-parallel
 
+## 1.3 Common | check-parallel | Repository + machine checks with grouped xdist
 check-parallel:
 	+$(MAKE) -j2 repo-check-parallel machine-check
 
@@ -206,6 +85,7 @@ check-serial:
 	$(MAKE) repo-check-serial
 	$(MAKE) machine-check
 
+## 1.7 Common | ci | Public CI: syntax + pytest + privacy + skill + docs gates
 ci:
 	$(MAKE) syntax-check
 	$(MAKE) pytest
@@ -213,9 +93,11 @@ ci:
 	$(MAKE) skill-check
 	$(MAKE) neat-freak-ci
 
+## 1.8 Common | syntax-check | Shell, Python, and Lua syntax checks
 syntax-check:
 	PYTHON="$(PYTHON)" LUAC="$(LUAC)" bash scripts/syntax-check.sh
 
+## 1.9 Common | pytest | Run repository-only Python tests
 pytest:
 	mkdir -p "$(UV_CACHE_DIR)"
 	if $(PYTHON) -c 'import pytest_cov' >/dev/null 2>&1; then \
@@ -224,6 +106,7 @@ pytest:
 		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m 'not machine'; \
 	fi
 
+## 1.10 Common | pytest-machine | Run machine-dependent Python tests
 pytest-machine:
 	mkdir -p "$(UV_CACHE_DIR)"
 	env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q -m machine
@@ -244,121 +127,161 @@ pytest-all:
 		env -u PYTHON -u PYTHON_BIN $(PYTHON) -m pytest tests/ -q; \
 	fi
 
+## 1.11 Common | neat-freak-ci | Check changed operational files have public docs
 neat-freak-ci:
 	bash scripts/neat-freak-ci.sh
 
+## 1.12 Common | doctor | Machine health check
+## 2.4 Bootstrap | doctor | System health check
 doctor:
 	./scripts/doctor.sh
 
+## 4.48 Agent | colima-start | Start isolated local Docker runtime
 colima-start:
 	./scripts/colima-local.sh start
 
+## 4.49 Agent | colima-stop | Stop local Docker runtime
 colima-stop:
 	./scripts/colima-local.sh stop
 
+## 4.50 Agent | colima-status | Show local Docker runtime status
 colima-status:
 	./scripts/colima-local.sh status
 
+## 4.51 Agent | colima-doctor | Verify proxy, Docker, and log rotation
 colima-doctor:
 	./scripts/colima-local.sh doctor
 
+## 4.30 Agent | devspace-check | Validate local DevSpace config + prerequisites
 devspace-check:
 	./scripts/devspace-local.sh check
 
+## 4.31 Agent | devspace-run | Start local DevSpace in foreground
 devspace-run:
 	./scripts/devspace-local.sh run
 
+## 4.32 Agent | devspace-doctor | Probe local DevSpace /mcp and classify failures
 devspace-doctor:
 	./scripts/devspace-local.sh doctor
 
+## 4.33 Agent | devspace-tunnel | Run configured Cloudflare Tunnel in foreground
 devspace-tunnel:
 	./scripts/devspace-local.sh tunnel-run
 
+## 4.34 Agent | devspace-home-push | Mirror private DevSpace home files into ~/.devspace
 devspace-home-push:
 	./scripts/devspace-local.sh home-push
 
+## 4.35 Agent | devspace-home-pull | Pull ~/.devspace files into private/agent mirror
 devspace-home-pull:
 	./scripts/devspace-local.sh home-pull
 
+## 4.36 Agent | quality-gate-pre-commit | Run the fast quality gate plan
 quality-gate-pre-commit:
 	./scripts/agent-quality-gate.sh pre-commit
 
+## 4.37 Agent | quality-gate-pre-push | Run the heavy quality gate plan
 quality-gate-pre-push:
 	./scripts/agent-quality-gate.sh pre-push
 
+## 4.38 Agent | quality-gate-doctor | Print legacy quality gate plan and health inputs
 quality-gate-doctor:
 	./scripts/agent-quality-gate.sh doctor
 
+## 4.39 Agent | quality-gate-hook-inventory | Inventory existing Git/LFS/legacy hooks
 quality-gate-hook-inventory:
 	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" inventory
 
+## 4.40 Agent | quality-gate-hook-install | Install trusted user-level dispatcher (explicit migration only)
 quality-gate-hook-install:
 	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" --python "$(GIT_HOOK_PYTHON)" install --registry "$(GIT_HOOK_REGISTRY)" $(GIT_HOOK_APPROVALS)
 
+## 4.41 Agent | quality-gate-hook-uninstall | Restore the previous hooksPath atomically
 quality-gate-hook-uninstall:
 	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" uninstall
 
+## 4.42 Agent | quality-gate-hook-doctor | Verify trusted dispatcher, registry, hooks, and approved chains
 quality-gate-hook-doctor:
 	$(PYTHON) scripts/agent_git_hook_dispatcher.py --repo "$(GIT_HOOK_REPO)" doctor
 
+## 4.43 Agent | devspace-install-agent | Install and start DevSpace LaunchAgents
 devspace-install-agent:
 	./scripts/install-devspace-agents.sh install
 
+## 4.44 Agent | devspace-unload-agent | Stop and remove DevSpace LaunchAgents
 devspace-unload-agent:
 	./scripts/install-devspace-agents.sh unload
 
+## 4.45 Agent | devspace-status | Show DevSpace LaunchAgent status and local health
 devspace-status:
 	./scripts/install-devspace-agents.sh status
 
+## 4.46 Agent | devspace-logs | Tail DevSpace LaunchAgent logs
 devspace-logs:
 	./scripts/install-devspace-agents.sh logs
 
+## 4.47 Agent | devspace-restart | Restart DevSpace LaunchAgents
 devspace-restart:
 	./scripts/install-devspace-agents.sh restart
 
+## 1.17 Common | proxy-on | Configure npm + git to use the shell proxy values
 proxy-on:
 	./scripts/configure-proxies.sh
 
+## 1.18 Common | proxy-off | Clear npm + git proxy settings
 proxy-off:
 	./scripts/clear-proxies.sh
 
+## 1.19 Common | ssh-install | Deploy SSH config, keys, and helper symlinks
 ssh-install:
 	./scripts/ssh-manage.sh install
 
+## 1.20 Common | ssh-verify | Verify SSH deploy, permissions, and ssh -G resolution
 ssh-verify:
 	./scripts/ssh-manage.sh verify
 
+## 1.24 Common | ssh-smoke | Live SSH auth probe (HOST=github.com) for proxy wiring
 ssh-smoke:
 	./scripts/ssh-manage.sh smoke $(or $(HOST),github.com)
 
+## 1.21 Common | ssh-key-generate | Create private/shell/ssh_keys/NAME and optional host snippet
 ssh-key-generate:
 	@test -n "$(NAME)" || (echo "Usage: make ssh-key-generate NAME=id_ed25519_example TYPE=ed25519 [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
 	./scripts/ssh-manage.sh add-key --name "$(NAME)" --generate --type "$(or $(TYPE),ed25519)" $(if $(HOST),--host "$(HOST)" --hostname "$(HOSTNAME)" --user "$(USER)" --port "$(or $(PORT),22)",)
 
+## 1.22 Common | ssh-key-import | Import existing key into private/shell/ssh_keys/NAME
 ssh-key-import:
 	@test -n "$(NAME)" || (echo "Usage: make ssh-key-import NAME=id_example SRC=/path/to/key [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
 	@test -n "$(SRC)" || (echo "Usage: make ssh-key-import NAME=id_example SRC=/path/to/key [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
 	./scripts/ssh-manage.sh add-key --name "$(NAME)" --import "$(SRC)" $(if $(HOST),--host "$(HOST)" --hostname "$(HOSTNAME)" --user "$(USER)" --port "$(or $(PORT),22)",)
 
+## 1.23 Common | ssh-key-import-stdin | Read pasted key from stdin into private/shell/ssh_keys/NAME
 ssh-key-import-stdin:
 	@test -n "$(NAME)" || (echo "Usage: cat key | make ssh-key-import-stdin NAME=id_example [HOST=alias HOSTNAME=host USER=user PORT=22]" >&2; exit 2)
 	./scripts/ssh-manage.sh add-key --name "$(NAME)" --stdin $(if $(HOST),--host "$(HOST)" --hostname "$(HOSTNAME)" --user "$(USER)" --port "$(or $(PORT),22)",)
 
+## 1.13 Common | doctor-agent | Agent tooling health check
+## 2.5 Bootstrap | doctor-agent | Agent tooling health check
 doctor-agent:
 	./scripts/agent-doctor.sh
 
+## 1.14 Common | agent-rules-audit | Scan all AGENTS.md / CLAUDE.md for duplicate imports & drift
 agent-rules-audit:
 	@"$(PYTHON)" ./scripts/audit-agent-rules.py || python3 ./scripts/audit-agent-rules.py
 
+## 4.28 Agent | security-scan | Security scan + fix
 security-scan:
 	./scripts/agent-doctor.sh --fix
 
+## 3.1 Cleanup | clean-cache | Clean Homebrew/Library/LaTeX caches
 clean-cache:
 	./scripts/clean-cache.sh
 
+## 3.2 Cleanup | clean-cache-aggressive | More aggressive cache cleanup
 clean-cache-aggressive:
 	./scripts/clean-cache.sh --aggressive
 
+## 3.3 Cleanup | cache-report | Show cache sizes
 cache-report:
 	./scripts/cache-report.sh
 
@@ -374,79 +297,101 @@ install-downloads-agent:
 install-antigravity-cli:
 	./scripts/install-antigravity-cli.sh
 
+## 4.2 Agent | agent-sync | Sync managed skills + prompt libraries
 agent-sync: skill-refresh prompt-sync
 
+## 4.1 Agent | agent-tools | Install/configure agent tooling
 agent-tools:
 	./scripts/install-agent-tooling.sh --configure
 
+## 4.4 Agent | omp-extensions | Install version-pinned OMP extensions
 omp-extensions:
 	./scripts/install-omp-extensions.sh
 
+## 4.5 Agent | dispatch-install | Install standalone Dispatch from DISPATCH_SOURCE
 dispatch-install:
 	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
 	"$(DISPATCH_SOURCE)/bin/dispatchctl" install
 
+## 4.6 Agent | dispatch-upgrade | Upgrade standalone Dispatch from DISPATCH_SOURCE
 dispatch-upgrade:
 	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
 	"$(DISPATCH_SOURCE)/bin/dispatchctl" upgrade
 
+## 4.7 Agent | dispatch-status | Show standalone Dispatch status
 dispatch-status:
 	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
 	"$(DISPATCH_SOURCE)/bin/dispatchctl" status
 
+## 4.8 Agent | dispatch-doctor | Run standalone Dispatch doctor
 dispatch-doctor:
 	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
 	"$(DISPATCH_SOURCE)/bin/dispatchctl" doctor
 
+## 4.9 Agent | dispatch-uninstall | Uninstall standalone Dispatch (state preserved by default)
 dispatch-uninstall:
 	@test -x "$(DISPATCH_SOURCE)/bin/dispatchctl" || { echo "Dispatch source not found: $(DISPATCH_SOURCE)" >&2; exit 2; }
 	"$(DISPATCH_SOURCE)/bin/dispatchctl" uninstall
 
+## 4.3 Agent | agent-refresh | Full sync + full agent reconfigure
 agent-refresh: agent-sync agent-tools omp-extensions
 
+## 4.10 Agent | skill-plan | Summarize skill registry and targets
 skill-plan:
 	$(PYTHON) scripts/skill_supply_chain.py plan
 
+## 4.11 Agent | skill-fetch | Fetch one non-bundle external skill: SOURCE=id SKILL=name
 skill-fetch:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-fetch SOURCE=id SKILL=name" >&2; exit 2)
 	@test -n "$(SKILL)" || (echo "Usage: make skill-fetch SOURCE=id SKILL=name" >&2; exit 2)
 	$(PYTHON) scripts/skill_supply_chain.py fetch --source "$(SOURCE)" --skill "$(SKILL)"
 
+## 4.12 Agent | skill-fetch-bundle | Fetch one external bundle: SOURCE=id
 skill-fetch-bundle:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-fetch-bundle SOURCE=bundle-id" >&2; exit 2)
 	$(PYTHON) scripts/skill_supply_chain.py fetch-bundle --source "$(SOURCE)"
 
+## 4.13 Agent | skill-ensure-bundles | Fetch missing enabled bundles before distribution
 skill-ensure-bundles:
 	$(PYTHON) scripts/skill_supply_chain.py ensure-bundles
 
+## 4.14 Agent | skill-promote | Promote a staged bundle: SOURCE=id
 skill-promote:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-promote SOURCE=bundle-id" >&2; exit 2)
 	$(PYTHON) scripts/skill_supply_chain.py promote --source "$(SOURCE)"
 
+## 4.15 Agent | skill-update | Fetch + safely promote bundle updates: SOURCE=id
 skill-update:
 	$(PYTHON) scripts/skill_supply_chain.py update-bundles --source "$(or $(SOURCE),mattpocock-skills)"
 
+## 4.16 Agent | skill-audit | Audit one quarantined skill: SOURCE=id SKILL=name
 skill-audit:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
 	@test -n "$(SKILL)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
 	$(PYTHON) scripts/skill_supply_chain.py audit --source "$(SOURCE)" --skill "$(SKILL)"
 
+## 4.17 Agent | skill-diff | Show one quarantined skill diff/hash: SOURCE=id SKILL=name
 skill-diff:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-diff SOURCE=id SKILL=name" >&2; exit 2)
 	@test -n "$(SKILL)" || (echo "Usage: make skill-diff SOURCE=id SKILL=name" >&2; exit 2)
 	$(PYTHON) scripts/skill_supply_chain.py diff --source "$(SOURCE)" --skill "$(SKILL)"
 
+## 4.18 Agent | skill-distribute | Wire approved managed skills into agents/projects
 skill-distribute:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
+## 4.19 Agent | skill-reconcile | Dry-run stale skill cleanup; APPLY=1 to prune symlinks/copies
 skill-reconcile:
 	$(PYTHON) scripts/skill_supply_chain.py reconcile $(if $(APPLY),--apply,)
 
+## 4.20 Agent | skill-snapshot | Snapshot current global/project skill views
 skill-snapshot:
 	$(PYTHON) scripts/skill_supply_chain.py snapshot --label "$${LABEL:-manual}"
 
+## 4.21 Agent | skill-refresh | Validate + wire managed skills
 skill-refresh: skill-check skill-ensure-bundles skill-distribute
 
+## 4.23 Agent | system-upgrade | Interactive system + manifest-managed npm upgrade + safe skill refresh
 system-upgrade:
 	@test -z "$(args)" || { echo "Error: 'args' is ignored by make; use uppercase ARGS, e.g. make system-upgrade ARGS=--yes" >&2; exit 2; }
 	./scripts/system-upgrade.sh $(if $(UPGRADE_ONLY),--only $(UPGRADE_ONLY),) $(ARGS)
@@ -454,25 +399,32 @@ system-upgrade:
 package-migrate:
 	./scripts/brew-bundle.sh migrate
 
+## 4.22 Agent | skill-check | Validate skill registry and local skill sources
 skill-check:
 	$(PYTHON) scripts/skill_supply_chain.py check
 
+## 4.24 Agent | prompt-sync | Sync prompt libraries + rebuild prompt index
 prompt-sync:
 	./scripts/sync-agent-prompts.sh
 
+## 4.25 Agent | prompt-index | Rebuild prompt index from local prompt upstreams
 prompt-index:
 	$(PYTHON) scripts/agent-prompt-index.py build
 
+## 4.26 Agent | prompt-list | List indexed prompts: Q=query
 prompt-list:
 	./scripts/agent-prompt.sh list "$(Q)"
 
+## 4.27 Agent | prompt-mcp | Run prompt-library MCP stdio server
 prompt-mcp:
 	./scripts/agent-prompt-mcp.sh
 
+## 1.26 Common | obsidian-kit | Install reusable Obsidian vault kit: VAULT=/path/to/vault
 obsidian-kit:
 	@test -n "$(VAULT)" || (echo "Usage: make obsidian-kit VAULT=/path/to/vault" >&2; exit 2)
 	./editors/obsidian/install.sh "$(VAULT)"
 
+## 1.27 Common | ghostty-font-repair | Re-register existing Liga SFMono Nerd Font files
 ghostty-font-repair:
 	./terminals/ghostty/repair-fonts.sh
 
@@ -486,22 +438,29 @@ tern-capture:
 tern-status:
 	./terminals/tern/install.sh status
 
+## 8.1 Config | render-configs | Render config templates
 render-configs:
 	./scripts/render-configs.sh
 
+## 8.2 Config | private-sync | Sync private overlay
 private-sync:
 	./scripts/sync-private-overlay.sh
 
+## 1.16 Common | privacy-audit | Redacted privacy scan
+## 8.3 Config | privacy-audit | Scan for secrets
 privacy-audit:
 	./scripts/privacy-audit.sh
 
+## 8.4 Config | privacy-audit-history | Scan with git history
 privacy-audit-history:
 	./scripts/privacy-audit.sh --history
 
+## 8.5 Config | export-public DEST=… | Export public template
 export-public:
 	@test -n "$(DEST)" || (echo "Usage: make export-public DEST=/path/to/public-template" >&2; exit 2)
 	./scripts/export-public-template.sh --dest "$(DEST)"
 
+## 8.6 Config | publish-public | Publish public template
 publish-public:
 	@test -n "$(PUBLIC_REPO)$(PUBLIC_REMOTE)$(MAC_BOOTSTRAP_PUBLIC_REPO)$(MAC_BOOTSTRAP_PUBLIC_REMOTE)" || (echo "Usage: PUBLIC_REPO=owner/repo make publish-public" >&2; exit 2)
 	./scripts/publish-public-template.sh
@@ -512,18 +471,24 @@ npm-packages:
 npm-packages-upgrade:
 	./scripts/install-npm-global-packages.sh --yes --upgrade
 
+## 9.1 Other | pm-detect | Detect package manager
 pm-detect:
 	@./scripts/detect-package-manager.sh
 
+## 9.2 Other | pm-set | Set global package manager
 pm-set:
-	@./scripts/detect-package-manager.sh --set-global $(filter-out $@,$(MAKECMDGOALS))
+	@test -n "$(PM)" || { echo "Usage: make pm-set PM=<npm|pnpm|yarn|bun>" >&2; exit 2; }
+	@./scripts/detect-package-manager.sh --set-global "$(PM)"
 
+## 9.3 Other | mcp-profiles | Setup MCP profiles
 mcp-profiles:
 	./scripts/setup-mcp-profiles.sh
 
+## 9.4 Other | hook-matchers | Add hook matchers
 hook-matchers:
 	./scripts/add-hook-matchers.sh
 
+## 9.5 Other | patch-chrome-gemini | Patch Google Chrome Local State to enable Gemini
 patch-chrome-gemini:
 	TARGET_USER=$(if $(USER),$(USER),) KILL_CHROME=$(if $(KILL),$(KILL),$(KILL_CHROME)) ./scripts/patch-chrome-gemini.sh
 
@@ -537,23 +502,28 @@ system-patrol:
 	./scripts/system-patrol.sh
 
 # ── Claude Code Daemon ─────────────────────────────────────
+## 6.1 Claude Daemon | claude-daemon-install | Install launchd keepalive daemon
 claude-daemon-install:
 	./scripts/install-maintenance-agents.sh install claude-daemon
 
+## 6.3 Claude Daemon | claude-daemon-status | Show daemon status
 claude-daemon-status:
 	@echo "=== claude-daemon ==="
 	launchctl print gui/$$(id -u)/io.local.mac-bootstrap.claude-daemon 2>&1 | head -20
 
+## 6.4 Claude Daemon | claude-daemon-logs | Show daemon logs
 claude-daemon-logs:
 	@echo "=== Claude daemon logs ==="
 	tail -20 "$(HOME)/Library/Logs/claude-daemon/daemon.log" 2>/dev/null || echo "(no daemon.log)"
 
+## 6.2 Claude Daemon | claude-daemon-unload | Stop daemon services
 claude-daemon-unload:
 	./scripts/install-maintenance-agents.sh unload claude-daemon
 	@echo "=== Claude daemon unloaded ==="
 # ── System maxfiles limit (survives reboot) ─────────────────
 # launchd's default global soft limit (256) is too low for tools like
 # codex/context-mode that fan out many fds; this raises it at every boot.
+## 7.1 System Limits | maxfiles-limit-install | Install LaunchDaemon raising launchd maxfiles (sudo)
 maxfiles-limit-install:
 	sudo cp "$(CURDIR)/launchd/io.local.mac-bootstrap.maxfiles.plist" /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	sudo chown root:wheel /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
@@ -563,47 +533,58 @@ maxfiles-limit-install:
 	@echo "=== maxfiles daemon installed. Effective now and on every future boot. ==="
 	launchctl limit maxfiles
 
+## 7.2 System Limits | maxfiles-limit-status | Show maxfiles daemon + current limit
 maxfiles-limit-status:
 	@echo "=== maxfiles daemon ==="
 	sudo launchctl print system/io.local.mac-bootstrap.maxfiles 2>&1 | head -20
 	@echo "--- current limit ---"
 	launchctl limit maxfiles
 
+## 7.3 System Limits | maxfiles-limit-uninstall | Remove maxfiles LaunchDaemon (sudo)
 maxfiles-limit-uninstall:
 	sudo launchctl bootout system/io.local.mac-bootstrap.maxfiles 2>/dev/null || true
 	sudo rm -f /Library/LaunchDaemons/io.local.mac-bootstrap.maxfiles.plist
 	@echo "=== maxfiles daemon uninstalled ==="
 
 # ── Daemon & LaunchAgent Maintenance ──────────────────────────────
+## 1.15 Common | cleanup-services | Audit & clean obsolete LaunchAgents and zombie daemon processes
 cleanup-services:
 	./scripts/cleanup-daemon-services.sh
 
 # ── External Tools Manifest ──────────────────────────────────────────
+## 1.25 Common | external-tools | Install/verify standalone CLI and external tools from manifest
 external-tools:
 	./scripts/install-external-tools.sh
 
+## 5.1 Terminal & Theme | theme-switch | Switch terminal theme: THEME=catppuccin-mocha|gruvbox-dark
 theme-switch:
 	@test -n "$(THEME)" || (echo "Usage: make theme-switch THEME=catppuccin-mocha|gruvbox-dark" >&2; exit 2)
 	./scripts/switch-terminal-theme.sh "$(THEME)"
 
+## 5.2 Terminal & Theme | theme-list | List supported terminal themes
 theme-list:
 	@echo "catppuccin-mocha"
 	@echo "gruvbox-dark"
+## 10.2 ImgBed | imgup-install | Install imgup CLI symlink + validate config
 imgup-install:
 	./scripts/install-imgup.sh
 
+## 10.1 ImgBed | imgup | Upload images to CloudFlare-ImgBed (alias for imgup-install)
 imgup: imgup-install
 
 # ── Cold Start (Proxy Bootstrap) ────────────────────────────────────
+## 2.2 Bootstrap | cold-start | Install Clash Verge proxy (first step on fresh Mac)
 cold-start:
 	./scripts/install-clash.sh
 cold-start-dry:
 	./scripts/install-clash.sh --dry-run
 
 # ── Network Tuning & Dynamic BDP (macOS Client) ──────────────────────
+## 1.28 Common | net-tune | Adaptive network probe & macOS TCP window optimization
 net-tune:
 	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) $(if $(APPLY),--apply,)
 
+## 1.29 Common | net-tune-apply | Apply dynamic macOS TCP window tuning (requires sudo)
 net-tune-apply:
 	./scripts/net-tune-macos.sh tune $(if $(PROFILE),$(PROFILE),) --apply
 
@@ -616,8 +597,10 @@ net-tune-auto:
 net-tune-list:
 	./scripts/net-tune-macos.sh list
 
+## 1.30 Common | net-tune-status | Show current macOS TCP socket parameters
 net-tune-status:
 	./scripts/net-tune-macos.sh status
 
+## 1.31 Common | net-tune-restore | Restore macOS stock TCP socket defaults
 net-tune-restore:
 	./scripts/net-tune-macos.sh restore

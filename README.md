@@ -639,7 +639,7 @@ See [`agent/README.md`](agent/README.md) for the complete architecture guide:
 | `PUBLIC_REPO=owner/repo make publish-public` | Export and push the public template |
 | `make agent-sync` | Ensure missing skill bundles + sync prompt libraries |
 | `make pm-detect` | Detect package manager |
-| `make pm-set PNPM` | Set global package manager |
+| `make pm-set PM=pnpm` | Set global package manager |
 | `make clean-cache` | Prune build caches |
 | `make cache-report` | Show largest cache directories |
 | `make install-cache-agent` | Install weekly cache cleanup job |
