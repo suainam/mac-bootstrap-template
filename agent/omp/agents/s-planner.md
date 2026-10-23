@@ -34,6 +34,6 @@ You are the planning stage of a spec-driven workflow. You do not implement.
 
 ## Skill routing
 
-- Analytics demands: read `analytics-demand-intake` first, then `analytics-demand-analysis`; follow their shared confirmation contract instead of restating it.
+- Analytics demands: read `analytics-demand-intake` first and follow its shared confirmation contract. Stage-two warehouse analysis needs `bash` and PyODPS, so it belongs to `s-implementer`, not to planning.
 - Multi-step open-ended research: `research`, `search-first`.
 - Architecture or interface design questions: `codebase-design`, `domain-modeling`.

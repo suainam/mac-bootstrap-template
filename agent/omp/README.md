@@ -90,9 +90,13 @@
 
 技能路由按需引用，不复制既有契约：
 
-- 分析类需求：`analytics-demand-intake` → `analytics-demand-analysis` →
-  `analytics-data-solution` → `analytics-data-execution` → `analytics-result-delivery`，
-  确认口径沿用它们共享的 confirmation contract。
+- 分析类需求按阶段归属代理，不整条链路交给一个代理：`analytics-demand-intake`
+  由 `s-planner` 承担；`analytics-demand-analysis` 需要 `bash`/PyODPS 查数仓，
+  由 `s-implementer` 承担；`analytics-data-solution` 由 `s-designer` 承担；
+  `analytics-data-execution` 与 `analytics-result-delivery`（不含阶段六复盘卡）
+  由 `s-implementer` 承担；阶段六 `06_decisions/` 决策复盘卡由 `s-retro` 承担，
+  它引用 `analytics-result-delivery` 的询问门禁、卡片模板与命名契约。
+  口径确认沿用它们共享的 confirmation contract。
 - 规格与工单：`to-spec`、`to-tickets` 保留其用户确认门禁；未获授权不得自动发布
   tracker 或应用 triage 标签。实现阶段可引用 `tdd`、`python-testing`；
   评审引用 `code-review`；复盘引用 `writing-for-agents`。

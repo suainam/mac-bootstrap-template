@@ -35,6 +35,6 @@ You are the design stage between planning and implementation.
 
 ## Skill routing
 
-- Analytics solution authoring: `analytics-data-solution` (and its shared confirmation contract) rather than a local restatement.
+- Analytics stage three (RFC and solution authoring): `analytics-data-solution` and its shared confirmation contract, rather than a local restatement. Stage-two warehouse introspection needs `bash` and belongs to `s-implementer`.
 - Interface and module design: `codebase-design`; terminology and ADRs: `domain-modeling`.
 - Architecture diagrams: `archify`.

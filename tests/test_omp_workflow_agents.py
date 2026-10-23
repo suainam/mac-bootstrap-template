@@ -33,7 +33,11 @@ def test_all_five_agents_present_and_self_consistent():
         assert data.get("tools"), f"{name}: missing tools"
 
 
-def test_reviewer_is_read_only_not_planner():
+def test_reviewer_has_no_mutating_tools():
     reviewer = _split_frontmatter((AGENTS_DIR / "s-reviewer.md").read_text())
-    writable = {"write", "edit", "bash", "task"}
-    assert writable.isdisjoint(reviewer["tools"]), "s-reviewer must not carry writable tools"
+    tools = {name.strip() for name in reviewer["tools"].split(",") if name.strip()}
+    # `bash` stays: the reviewer needs read-only git/test invocations. It is
+    # constrained by the prompt's read-only policy, not by the tool list.
+    mutating = {"write", "edit", "task"}
+    assert mutating.isdisjoint(tools), f"s-reviewer must not carry mutating tools: {sorted(tools & mutating)}"
+    assert "bash" in tools, "s-reviewer needs bash for read-only git and test checks"

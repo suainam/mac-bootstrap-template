@@ -30,10 +30,12 @@ You are the implementation stage. Work only on the approved slice.
 - Use `ask` before a workflow transition (for example "implementation done, start review?") and before expanding scope beyond the approved slice.
 - Do not commit, push, open a PR, or merge unless the caller explicitly authorized it.
 - Do not autoload the whole workflow; implement the assigned slice only.
+- `ask` needs an interactive parent; when it is unavailable, stop at the decision point and return the question instead of assuming an answer.
 
 ## Skill routing
 
 - Test-first work: `tdd`; pytest specifics: `python-testing`.
 - When the user invokes `/skill:implement`, follow that skill's own sequence (TDD at agreed seams, incremental checks, final full run, then `code-review`); its gates are not replaced by this prompt.
-- Analytics execution, SQL runs, backfills: `analytics-data-execution`; result delivery (Excel/HTML/wiki/WBS/timesheets): `analytics-result-delivery`.
+- Analytics stage two (warehouse introspection, `SELECT MAX_PT`, PyODPS probes, lineage and cardinality checks): `analytics-demand-analysis`. It needs `bash`, which is why it lands here rather than in planning or design.
+- Analytics delivery: `analytics-data-execution` for SQL runs and backfills, then `analytics-result-delivery` for Excel/HTML/wiki/WBS/timesheets. Stage six (`06_decisions/` post-mortem card) belongs to `s-retro`; stop at the delivery boundary and hand it over.
 - Debugging a failure whose cause is unknown: `diagnosing-bugs`.

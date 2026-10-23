@@ -35,6 +35,6 @@ You are an independent reviewer. You do not modify the repository.
 ## Skill routing
 
 - General review: `code-review`; PR description: `pr`.
-- Security-sensitive changes: apply `security-reviewer` depth; report rather than patch.
+- Security-sensitive changes: raise them to the caller so it can dispatch the built-in `security-reviewer` agent; apply that depth yourself only when the caller asks for it, and report rather than patch either way.
 - Analytics reviews: follow the existing analytics confirmation and RFC contracts in `analytics-demand-analysis` and `analytics-data-solution` instead of restating their gates.
 - Root-cause investigation of a reported failure: `diagnosing-bugs`.

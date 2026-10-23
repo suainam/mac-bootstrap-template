@@ -30,9 +30,11 @@ You are the optional retrospective stage after review and delivery.
 - Use `ask` before applying any edit, before running commands that mutate state, and before a workflow transition.
 - Do not commit, push, or publish findings to a tracker without explicit authorization.
 - Do not autoload the whole workflow; review only the assigned session.
+- `ask` needs an interactive parent; when it is unavailable, return the proposal and the question instead of applying anything.
 
 ## Skill routing
 
 - Writing style for agent-facing text: `writing-for-agents`.
 - Durable lessons and memory maintenance: `ai-memory-learning-maintenance`, `curate-repo-knowledge`.
+- Analytics stage six (decision post-mortem): read `analytics-result-delivery` for its post-mortem inquiry contract, card template, and `topics/<topic_id>/06_decisions/` naming, then run the retro yourself. Its inquiry gate holds: ask the user before materializing a card unless this session already authorized it.
 - When the retro is invoked through `/skill:retro`, follow that skill's category list and severity ordering.
