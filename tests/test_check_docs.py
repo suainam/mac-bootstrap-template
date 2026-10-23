@@ -127,3 +127,137 @@ def test_archive_and_quarantine_directories_are_skipped(tmp_path: Path):
     kept = tmp_path / "kept.md"
     kept.write_text("[gone](missing.md)\n")
     assert [path.name for path in check_docs.iter_docs([tmp_path])] == ["kept.md"]
+
+
+def _repo(tmp_path: Path, makefile: str) -> Path:
+    (tmp_path / "Makefile").write_text(makefile)
+    return tmp_path
+
+
+def test_unknown_make_target_detected(tmp_path: Path):
+    root = _repo(tmp_path, "build:\n\t@:\n")
+    doc = root / "guide.md"
+    doc.write_text("```bash\nmake deploy\n```\n")
+    findings = check_docs.check_file(doc)
+    assert [str(finding) for finding in findings] == [
+        f"{doc}:2: unknown make target: deploy"
+    ]
+
+
+def test_known_make_targets_and_arguments_are_allowed(tmp_path: Path):
+    root = _repo(
+        tmp_path,
+        "build:\n\t@:\nrelease: build\n\t@:\ninstall:\n\t@:\n.phonyish:\n",
+    )
+    doc = root / "guide.md"
+    doc.write_text(
+        "```bash\n"
+        "make build\n"
+        "make -j4 release\n"
+        "PROFILE=work make build\n"
+        "make -C . build\n"
+        "make install DEST=/tmp/x\n"
+        "make\n"
+        "```\n"
+        "Run `make build` after editing.\n"
+    )
+    assert check_docs.check_file(doc) == []
+
+
+def test_prose_and_placeholders_are_not_make_targets(tmp_path: Path):
+    root = _repo(tmp_path, "build:\n\t@:\n")
+    doc = root / "guide.md"
+    doc.write_text(
+        "Make sure the build works, then make it fast.\n"
+        "```bash\n"
+        "make <target>\n"
+        "make $TARGET\n"
+        "make build* \n"
+        "# make commented-out\n"
+        "```\n"
+    )
+    assert check_docs.check_file(doc) == []
+
+
+def test_catch_all_makefile_accepts_forwarded_targets(tmp_path: Path):
+    (tmp_path / "template").mkdir()
+    (tmp_path / "template" / "Makefile").write_text("forwarded:\n\t@:\n")
+    (tmp_path / "Makefile").write_text("%:\n\t$(MAKE) -C template $@\n")
+    doc = tmp_path / "guide.md"
+    doc.write_text("```bash\nmake forwarded\n```\n")
+    assert check_docs.check_file(doc) == []
+
+
+def test_make_target_check_never_runs_recipes(tmp_path: Path):
+    marker = tmp_path / "ran"
+    (tmp_path / "Makefile").write_text(f"deploy:\n\ttouch {marker}\n")
+    doc = tmp_path / "guide.md"
+    doc.write_text("```bash\nmake deploy\n```\n")
+    assert check_docs.check_file(doc) == []
+    assert not marker.exists()
+
+
+def test_missing_authority_path_detected(tmp_path: Path):
+    (tmp_path / "Makefile").write_text("build:\n\t@:\n")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "present.md").write_text("ok\n")
+    doc = tmp_path / "matrix.md"
+    doc.write_text(
+        "| 主题 | 权威来源 |\n"
+        "|---|---|\n"
+        "| A | `docs/present.md` |\n"
+        "| B | `docs/absent.md` |\n"
+    )
+    findings = check_docs.check_file(doc)
+    assert [str(finding) for finding in findings] == [
+        f"{doc}:4: authority path does not exist: docs/absent.md"
+    ]
+
+
+def test_authority_paths_skip_prose_globs_and_home(tmp_path: Path):
+    (tmp_path / "Makefile").write_text("build:\n\t@:\n")
+    (tmp_path / "a.md").write_text("ok\n")
+    (tmp_path / "b.md").write_text("ok\n")
+    doc = tmp_path / "matrix.md"
+    doc.write_text(
+        "| 主题 | 权威来源 | 备注 |\n"
+        "|---|---|---|\n"
+        "| A | `{a,b}.md` | `missing.md` 不在权威列 |\n"
+        "| B | `~/runtime.jsonc`、`https://example.com/x.md` |\n"
+    )
+    assert check_docs.check_file(doc) == []
+
+
+def test_historical_marker_skips_content_checks(tmp_path: Path):
+    doc = tmp_path / "proposal.md"
+    doc.write_text(
+        "<!-- check-docs: historical -->\n"
+        "```bash\nmake not-implemented-yet\n```\n"
+    )
+    assert check_docs.check_file(doc) == []
+
+
+def test_make_targets_checked_only_in_own_interface_docs(tmp_path: Path):
+    """Skill docs describe other repositories' make targets, not this one."""
+    (tmp_path / "Makefile").write_text("build:\n\t@:\n")
+    skill_doc = tmp_path / "skills" / "other"
+    skill_doc.mkdir(parents=True)
+    doc = skill_doc / "SKILL.md"
+    doc.write_text("```bash\nmake deploy-to-their-server\n```\n")
+    assert check_docs.check_file(doc) == []
+
+
+def test_quoted_arguments_are_not_make_targets(tmp_path: Path):
+    (tmp_path / "Makefile").write_text("new-project:\n\t@:\n")
+    doc = tmp_path / "guide.md"
+    doc.write_text('```bash\nmake new-project NAME=x DESC="Short description"\n```\n')
+    assert check_docs.check_file(doc) == []
+
+
+def test_make_after_cd_elsewhere_is_ignored(tmp_path: Path):
+    (tmp_path / "Makefile").write_text("build:\n\t@:\n")
+    doc = tmp_path / "guide.md"
+    doc.write_text(
+        "```bash\ncd $HOME/work/projects/sales\nmake export\n```\n"
+    )
+    assert check_docs.check_file(doc) == []
