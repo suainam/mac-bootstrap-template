@@ -115,6 +115,47 @@ def test_rewrite_passes_through_non_tool_calls():
     assert forwarded == notif
 
 
+def test_rewrite_preserves_profile_scope():
+    scope = ("my-ws", "my-proj")
+    req = {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "tools/call",
+        "params": {
+            "name": "memory_write_page",
+            "arguments": {
+                "path": "tools/reply-style.md",
+                "body": "content",
+                "scope": "profile",
+            },
+        },
+    }
+    line = json.dumps(req).encode() + b"\n"
+    forwarded, error = bridge.rewrite(line, scope)
+    assert error is None
+    assert forwarded == line
+
+
+def test_rewrite_preserves_global_scope_param():
+    scope = ("my-ws", "my-proj")
+    req = {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "tools/call",
+        "params": {
+            "name": "memory_write_page",
+            "arguments": {
+                "path": "notes/shared.md",
+                "body": "content",
+                "scope": "global",
+            },
+        },
+    }
+    line = json.dumps(req).encode() + b"\n"
+    forwarded, error = bridge.rewrite(line, scope)
+    assert error is None
+    assert forwarded == line
+
 def test_private_env_value_reads_exported_and_quoted(monkeypatch, tmp_path: Path):
     env = tmp_path / ".env"
     env.write_text('# comment\nexport AI_MEMORY_SERVER_URL="http://10.0.0.5:1/mcp"\nOTHER=x\n')

@@ -36,6 +36,12 @@ with mode `0600`; only `scripts/dataworks-mcp-bridge.py` reads it, injecting
 `ALIBABA_CLOUD_ACCESS_KEY_ID` / `ALIBABA_CLOUD_ACCESS_KEY_SECRET` / `REGION`
 into the child MCP server environment. Validate with
 `python3 scripts/dataworks-mcp-bridge.py --validate-private-config`.
+The MemOS memory key belongs in `private/agent/omp/.env` with mode `0600`
+(as `MEMOS_API_KEY`); only `scripts/memos-mcp-bridge.py` reads it for the
+MemOS MCP server, resolving the project identity from `~/.omp/agent/.env`
+(or an explicit `MEMOS_USER_ID`) into `MEMOS_USER_ID` before spawning the
+official server. Validate with
+`python3 scripts/memos-mcp-bridge.py --validate-private-config`.
 
 Note: Private paths stay as `private/clash/`, `private/infra/`, and `private/python/` (not the new
 public paths `proxy/clash/` or `infra/python/`) to avoid breaking existing
