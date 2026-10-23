@@ -176,6 +176,8 @@ def resolve_scope(cwd: Path) -> tuple[str, str] | None:
 def is_explicitly_scoped(arguments: dict) -> bool:
     if arguments.get("global") is True:
         return True
+    if arguments.get("scope") in ("profile", "global"):
+        return True
     scopes = arguments.get("scopes")
     return isinstance(scopes, list) and bool(scopes)
 
