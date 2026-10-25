@@ -7,6 +7,28 @@ extensions once via `brew bundle list` (`HOMEBREW_MAC_BOOTSTRAP_PROFILE` /
 `HOMEBREW_MAC_BOOTSTRAP_PRIVATE_DIR`) and verifies formula installation against
 the active Brewfile without mutating packages or services.
 
+## 外部工具声明与漂移审计
+
+Brew 软件只在 Brewfile 分层中声明。非 Brew 工具使用公共
+`manifests/external-tools.json`，叠加私有覆盖目录下的
+`profiles/<profile>/external-tools.json`；没有 profile 清单时仅使用公共层。
+有效 profile 与私有目录沿用 `resolve-profile.sh` 及其环境覆盖。
+`scripts/install-external-tools.sh` 调用审计脚本的 `--dump-manifest`，
+与审计消费同一加载结果；该安装入口只处理 npm 与独立二进制，GUI app 和
+daemon plist 的安装仍由各自 runbook 负责。
+
+`make fresh-check` 在 `machine-check` 执行，返回 0 表示无漂移、2 表示
+`MISSING` 或 `UNEXPECTED`、3 表示配置或归属查询错误。扫描范围是
+`~/.local/bin`、`/Applications`、`~/Applications`、用户及系统 LaunchAgents
+和系统 LaunchDaemons；它不卸载软件，也不以 plist 存在证明服务正在运行。
+未声明输出需要核实所有权，不能直接作为卸载清单。
+
+复盘结论：声明探针的绿灯不能证明没有多余安装；回归必须用隔离目录覆盖
+缺失、未声明和跨 profile 泄漏，并验证 Brew 归属排除。机器盘点留在
+machine gate，repository gate 不依赖机器安装状态。迁移清单时同步检查安装入口、
+测试与文档，避免重复权威。操作边界拒绝后按原操作等待授权恢复，禁止换工具绕过；
+重复授权不累积票据。
+
 ## 小米互联服务 (Xiaomi HyperConnect)
 
 - 路径：`/Applications/小米互联服务.app`
@@ -24,7 +46,7 @@ the active Brewfile without mutating packages or services.
 ## Prism Browser
 
 - 路径：`/Applications/Prism Browser.app`（bundle id `com.prismbrowser.desktop`）
-- 管理：声明于 `template/manifests/external-tools.json`（外部应用清单）
+- 管理：声明于 `private/profiles/work/external-tools.json`（work profile 专属外部应用清单）
 - 用途：桌面多应用容器浏览器
 ## 豆包 (Doubao)
 
@@ -54,7 +76,7 @@ the active Brewfile without mutating packages or services.
 
 ## 企业专有与非 Brew 托管应用
 
-以下应用属于企业内部准入、特定硬件配套或专有客户端，无公共 Homebrew cask，统一记录于 `template/manifests/external-tools.json`：
+以下应用属于企业内部准入、特定硬件配套或专有客户端，无公共 Homebrew cask，统一记录于 `private/profiles/work/external-tools.json`（通用外部工具置于公共 `template/manifests/external-tools.json`）：
 
 1. **CorpLink**：
    - 路径：`/Applications/CorpLink.app`（bundle id `com.volcengine.corplink`）

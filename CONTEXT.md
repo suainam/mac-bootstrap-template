@@ -25,7 +25,7 @@
 
 | 内容 | 权威来源 |
 |---|---|
-| 软件与工具清单 | `Brewfile` |
+| 软件与工具清单 | `Brewfile`（Brew 管理）；`manifests/external-tools.json`（公共非 Brew 工具）；`private/profiles/<profile>/external-tools.json`（profile 专属） |
 | Pi 兼容包 | `agent/pi-packages.txt` |
 | Python 公共依赖 | `infra/python/requirements-common.txt` |
 | Python venv 与测试依赖 | `pyproject.toml`、`uv.lock`、`.python-version`（`scripts/setup-python-venv.sh` 生成 `.venv`） |

@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
-# install-external-tools.sh — Idempotently install and verify tools declared in manifests/external-tools.json
+# install-external-tools.sh — Idempotently install and verify tools declared in external-tools manifests
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-MANIFEST="$DIR/manifests/external-tools.json"
+PYTHON="${PYTHON:-python3}"
 
-if [ ! -f "$MANIFEST" ]; then
-  echo "Manifest not found: $MANIFEST" >&2
-  exit 1
-fi
-
-echo "=== Processing External Tools Manifest ($MANIFEST) ==="
+echo "=== Processing External Tools Manifest (Common + Active Profile) ==="
 
 # 1. NPM globals
 if command -v npm >/dev/null 2>&1; then
@@ -24,13 +19,20 @@ fi
 echo "--- Verifying Standalone Binaries ---"
 mkdir -p "$HOME/.local/bin"
 
-python3 -c "
+"$PYTHON" -c "
 import json, os, subprocess, sys
 from pathlib import Path
 
-manifest_path = Path('$MANIFEST')
-with open(manifest_path, encoding='utf-8') as f:
-    data = json.load(f)
+dir_path = Path('$DIR')
+audit_script = dir_path / 'scripts' / 'audit_external_tools.py'
+
+proc = subprocess.run(
+    [sys.executable, str(audit_script), '--dump-manifest'],
+    capture_output=True,
+    text=True,
+    check=True,
+)
+data = json.loads(proc.stdout)
 
 for item in data.get('standalone_binaries', []):
     name = item.get('name')
@@ -44,7 +46,7 @@ for item in data.get('standalone_binaries', []):
 
     print(f'  INSTALLING {name}...')
     if installer:
-        installer_path = Path('$DIR') / installer
+        installer_path = dir_path / installer
         if installer_path.exists():
             subprocess.run(['bash', str(installer_path)], check=True)
         else:

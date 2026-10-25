@@ -59,6 +59,9 @@ docs-check-all:
 repo-check: docs-check
 	+$(MAKE) syntax-check skill-check privacy-audit pytest-parallel
 
+## 1.4.1 Fresh | fresh-check | External-tools manifest drift audit (standalone)
+fresh-check:
+	"$(PYTHON)" scripts/audit_external_tools.py
 ## 1.5 Common | repo-check-serial | Repository-only serial checks for debugging
 repo-check-serial:
 	$(MAKE) syntax-check
@@ -69,7 +72,7 @@ repo-check-serial:
 repo-check-parallel: repo-check
 
 ## 1.6 Common | machine-check | Strict machine health check
-machine-check:
+machine-check: fresh-check
 	./scripts/doctor.sh --strict
 	$(MAKE) pytest-machine
 

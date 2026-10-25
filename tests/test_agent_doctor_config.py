@@ -178,12 +178,10 @@ def test_makefile_exposes_devspace_targets_and_checks_script():
     assert "./scripts/devspace-local.sh tunnel-run" in content
 
 
-def test_agent_browser_is_registered_in_external_tools_doctor_and_skills():
-    """agent-browser (Vercel Labs) replaces jev-browser-use"""
-    ext_tools = read_template("manifests", "external-tools.json")
-    assert '"name": "agent-browser"' in ext_tools
-    assert '"installer": "scripts/install-agent-browser.sh"' in ext_tools
-
+def test_agent_browser_is_registered_in_brewfile_doctor_and_skills():
+    """agent-browser is brew-managed and checked by doctor + skills."""
+    brewfile = read_template("Brewfile")
+    assert 'brew "agent-browser"' in brewfile
     doctor_manifest = read_template("scripts", "doctor-manifest.json")
     assert '"agent-browser"' in doctor_manifest
 

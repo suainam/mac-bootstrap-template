@@ -21,6 +21,8 @@ def test_all_five_agents_present_and_self_consistent():
         "s-implementer": "@task",
         "s-reviewer": "@advisor",
         "s-retro": "@task",
+        "s-skeptic": "@advisor",
+        "s-acceptor": "@task",
     }
     files = {p.stem: p for p in AGENTS_DIR.glob("s-*.md")}
     assert set(files) == set(expected), f"expected dash {sorted(expected)}"

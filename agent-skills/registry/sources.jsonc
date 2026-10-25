@@ -1534,6 +1534,64 @@
           "projects": ["www"]
         }
       }
+    },
+
+    "addyosmani-agent-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/addyosmani/agent-skills",
+      "skills": {
+        "doubt-driven-development": {
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-10-25",
+            "approved_hash": "sha256:939cf884cb25b7669e00fa92502b8bb5d9fabcddba050e96c691e380168c6c7f",
+            "reason": "User-approved doubt-driven-development for s-skeptic adversarial framing; script-free text, LOW risk"
+          }
+        },
+        "planning-and-task-breakdown": {
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-10-25",
+            "approved_hash": "sha256:34768342dbf3b84e2440fc8dd11fed23f099c605fdfd7edf57317ec9159ce82d",
+            "reason": "User-approved planning-and-task-breakdown for s-planner guided DAG output; script-free text, LOW risk"
+          }
+        }
+      }
+    },
+
+    "poteto-noodle": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/poteto/noodle",
+      "skills": {
+        "adversarial-review": {
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "audit": {
+            "allow_unaudited": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "dsl",
+            "approved_at": "2026-10-25",
+            "approved_hash": "sha256:871f42eed5883ead65d2e1be770f0dc888b6199602b8b9e56d92144d6d291b98",
+            "reason": "User-approved adversarial-review for s-skeptic/s-acceptor cross-model lens framing; text-only skill, LOW risk"
+          }
+        }
+      }
     }
   }
 }
