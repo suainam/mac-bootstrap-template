@@ -74,7 +74,7 @@
 
 ## 工作流任务代理 (Workflow Task Agents)
 
-`agent/omp/agents/` 存放五个公共 OMP 原生任务代理。文件名带 `s-` 前缀，避免与
+`agent/omp/agents/` 存放公共 OMP 原生任务代理，定义以该目录中的 frontmatter 为准。文件名带 `s-` 前缀，避免与
 内置代理（`task`、`scout`、`reviewer` 等）重名；`task` 工具按 `name` 精确匹配调用。
 
 | Agent | 阶段 | Model | 工具与写入边界 |
@@ -84,6 +84,8 @@
 | `s-implementer` | 4–5 实现与自检 | `@task` | 常规读写；提交/推送/PR/合并需显式授权 |
 | `s-reviewer` | 独立评审（跨阶段） | `@advisor` | 只读：`read,grep,glob,find,bash`；`bash` 仅限确定性只读检查，MCP 工具叠加但不放宽写入限制 |
 | `s-retro` | 6 可选复盘 | `@task` | 默认只提案；仅在被授权的路径内改动 |
+| `s-skeptic` | 规格与方案对抗审查 | `@advisor` | 只读；在实现前质疑验收条件与依赖 |
+| `s-acceptor` | 对抗测试与验收 | `@task` | 仅写被指派的测试路径，不改生产实现 |
 
 模型字段只使用角色别名（`@plan`、`@task`、`@advisor`），具体模型由
 `~/.omp/agent/config.yml` 的 `modelRoles` 决定，模板不写入 provider ID。
