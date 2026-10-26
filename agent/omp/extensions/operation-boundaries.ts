@@ -11,7 +11,7 @@ export function boundaryFor(call: ToolInput): Boundary | undefined {
       /\b(?:bw|op)\s+(?:export|list\s+(?:items|passwords))\b/.test(text)) return "credentials"
   if (/\bagent-browser\b/.test(text) && /--(?:profile|auto-connect|cdp)\b/.test(text)) return "browser"
   if (/--user-data-dir\b/.test(text)) return "browser"
-  if (/\brelay\s*["']?\s*:\s*true|\btarget\s*["']?\s*:/.test(text) && /browser|app/.test(text)) return "browser"
+  if (call.toolName === "eval" && (/\brelay\s*["']?\s*:\s*true/.test(text) || /\b(?:browser|cdp)[^;\n]*\btarget\s*["']?\s*:/.test(text)) && /browser|app/.test(text)) return "browser"
   if (call.toolName === "browser" && /"(?:profile|cdp|target|relay)"\s*:/.test(text)) return "browser"
   return undefined
 }

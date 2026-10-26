@@ -20,9 +20,9 @@ daemon plist 的安装仍由各自 runbook 负责。
 `make fresh-check` 在 `machine-check` 执行，返回 0 表示无漂移、2 表示
 `MISSING` 或 `UNEXPECTED`、3 表示配置或归属查询错误。扫描范围是
 `~/.local/bin`、`/Applications`、`~/Applications`、用户及系统 LaunchAgents
-和系统 LaunchDaemons；它不卸载软件，也不以 plist 存在证明服务正在运行。
+和系统 LaunchDaemons；它同时结合 `brew info --json=v2 --casks` 与
+`brew services list --json` 排除 Cask 与 Formula 托管的 plists，不卸载软件，也不以 plist 存在证明服务正在运行。
 未声明输出需要核实所有权，不能直接作为卸载清单。
-
 复盘结论：声明探针的绿灯不能证明没有多余安装；回归必须用隔离目录覆盖
 缺失、未声明和跨 profile 泄漏，并验证 Brew 归属排除。机器盘点留在
 machine gate，repository gate 不依赖机器安装状态。迁移清单时同步检查安装入口、
