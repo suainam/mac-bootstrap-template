@@ -170,7 +170,7 @@ def _normalize_app_name(raw: object) -> str | None:
 
 
 def get_brew_installed_artifacts() -> tuple[set[str], set[str], set[str]]:
-    """Extract apps, plists, and bundle IDs from installed Brew casks."""
+    """Extract apps, plists, and bundle IDs from installed Brew casks and services."""
     if not shutil.which("brew"):
         raise RuntimeError("brew CLI not found in PATH")
     res = subprocess.run(
@@ -187,10 +187,37 @@ def get_brew_installed_artifacts() -> tuple[set[str], set[str], set[str]]:
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"failed to parse brew info JSON: {exc}") from exc
 
+    services_res = subprocess.run(
+        ["brew", "services", "list", "--json"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if services_res.returncode != 0:
+        raise RuntimeError(f"brew services list failed (exit {services_res.returncode}): {services_res.stderr.strip()}")
+
+    try:
+        services_data = json.loads(services_res.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"failed to parse brew services JSON: {exc}") from exc
+
+    if not isinstance(services_data, list):
+        raise RuntimeError(f"failed to parse brew services JSON: expected list, got {type(services_data).__name__}")
+
     apps = set()
     plists = set()
     bundle_ids = set()
 
+    for svc in services_data:
+        if not isinstance(svc, dict):
+            raise RuntimeError(f"failed to parse brew services JSON: expected dict item, got {type(svc).__name__}")
+        file_path = svc.get("file")
+        if file_path is not None:
+            if not isinstance(file_path, str):
+                raise RuntimeError(f"failed to parse brew services JSON: expected string for 'file', got {type(file_path).__name__}")
+            base = Path(file_path.strip()).name
+            if base:
+                plists.add(base)
     for cask in data.get("casks", []):
         for art in cask.get("artifacts", []):
             if not isinstance(art, dict):

@@ -154,3 +154,106 @@ def test_brew_owned_application_excluded_but_stray_reported(isolated_roots):
         launchd_dir=isolated_roots["launchd"],
     )
     assert drift == [f"  app 'Stray.app': UNEXPECTED in {isolated_roots['app']}"]
+
+
+def _load_audit_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("audit_external_tools", SCRIPT)
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    return audit
+
+
+def test_brew_services_collection_and_regression_filtering(minimal_manifest, isolated_roots, mock_private, monkeypatch):
+    audit = _load_audit_module()
+    monkeypatch.setattr(audit.shutil, "which", lambda _: "/opt/homebrew/bin/brew")
+
+    services_payload = [
+        {"name": "colima", "status": "started", "file": "/opt/homebrew/opt/colima/sh.brew.colima.plist"},
+        {"name": "cloudflared", "status": "none", "file": "/opt/homebrew/opt/cloudflared/sh.brew.cloudflared.plist"},
+    ]
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd[:2] == ["brew", "info"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"casks": []}), stderr="")
+        if cmd[:3] == ["brew", "services", "list"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(services_payload), stderr="")
+        raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+    monkeypatch.setattr(audit.subprocess, "run", fake_run)
+
+    apps, plists, bundle_ids = audit.get_brew_installed_artifacts()
+    assert "sh.brew.colima.plist" in plists
+    assert "sh.brew.cloudflared.plist" in plists
+
+    (isolated_roots["launchd"] / "sh.brew.colima.plist").write_text("<plist></plist>")
+    (isolated_roots["launchd"] / "org.unrelated.daemon.plist").write_text("<plist></plist>")
+
+    code, drift, _ = audit.run_audit(
+        common_manifest_path=minimal_manifest,
+        profile="home",
+        private_dir=mock_private,
+        bin_roots=[isolated_roots["bin"]],
+        app_roots=[isolated_roots["app"]],
+        launchd_roots=[isolated_roots["launchd"]],
+        skip_brew=False,
+    )
+
+    assert code == 2
+    assert any("org.unrelated.daemon.plist" in d and "UNEXPECTED" in d for d in drift)
+    assert not any("sh.brew.colima.plist" in d for d in drift)
+
+
+def test_brew_services_nonzero_exit_reports_config_error(minimal_manifest, isolated_roots, mock_private, monkeypatch):
+    audit = _load_audit_module()
+    monkeypatch.setattr(audit.shutil, "which", lambda _: "/opt/homebrew/bin/brew")
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd[:2] == ["brew", "info"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"casks": []}), stderr="")
+        if cmd[:3] == ["brew", "services", "list"]:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="failed to inspect services")
+        raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+    monkeypatch.setattr(audit.subprocess, "run", fake_run)
+
+    code, drift, _ = audit.run_audit(
+        common_manifest_path=minimal_manifest,
+        profile="home",
+        private_dir=mock_private,
+        bin_roots=[isolated_roots["bin"]],
+        app_roots=[isolated_roots["app"]],
+        launchd_roots=[isolated_roots["launchd"]],
+        skip_brew=False,
+    )
+
+    assert code == 3
+    assert any("audit configuration error" in d and "brew services list failed" in d for d in drift)
+
+
+def test_brew_services_malformed_json_reports_config_error(minimal_manifest, isolated_roots, mock_private, monkeypatch):
+    audit = _load_audit_module()
+    monkeypatch.setattr(audit.shutil, "which", lambda _: "/opt/homebrew/bin/brew")
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd[:2] == ["brew", "info"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps({"casks": []}), stderr="")
+        if cmd[:3] == ["brew", "services", "list"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="not valid json", stderr="")
+        raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+    monkeypatch.setattr(audit.subprocess, "run", fake_run)
+
+    code, drift, _ = audit.run_audit(
+        common_manifest_path=minimal_manifest,
+        profile="home",
+        private_dir=mock_private,
+        bin_roots=[isolated_roots["bin"]],
+        app_roots=[isolated_roots["app"]],
+        launchd_roots=[isolated_roots["launchd"]],
+        skip_brew=False,
+    )
+
+    assert code == 3
+    assert any("audit configuration error" in d and "failed to parse brew services JSON" in d for d in drift)
