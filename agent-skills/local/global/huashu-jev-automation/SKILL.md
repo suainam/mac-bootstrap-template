@@ -7,6 +7,18 @@ description: In-browser automation using huashu-chrome with TypeSafe Jev micro-d
 
 在 OMP 或 Codex 等 Agent 环境中，使用 huashu-chrome 控制复用真实登录态的 Chrome，配合 TypeSafe Jev（System One）实现低延迟、低 token 消耗的自动化交互内环。
 
+## 环境依赖与前置准备
+
+运行本技能需要以下环境，缺一不可：
+
+1. **huashu-chrome 扩展**：已安装并启用，且网站访问权限设为**「在所有网站上」**（`chrome://extensions` → huashu-chrome → 详细信息 → 网站访问权限）。否则对未授权域名会报 `Cannot access contents of the page. Extension manifest must request permission`。
+2. **复用登录态的 Chrome**：目标站点须已在该 Chrome 中完成 SSO 登录；主 Agent 通过 CDP/调试端口与它连接。不要另开无登录态的实例。
+3. **Python ≥ 3.9**（仅标准库）：客户端封装 `scripts/typesafe_jev.py` 只用 stdlib（`json` / `urllib` / `pathlib` / `uuid`），无需 pip 安装第三方包。将其所在目录放入 `sys.path` 或同目录，然后 `from typesafe_jev import send_jev`。
+4. **Jev API key**：环境变量 `TYPESAFE_JEV_TOKEN`（主，108 字符）与 `TYPESAFE_JEV_TOKEN1`（备，107 字符）；两把 key 均已实测可用。缺少某把 key 时自动回退到下一候选（见下文「主备 key 调用」）。
+5. **magpie 文本网关（仅 TYPE_TEXT 需要）**：`TEXT_MODEL=group/group-daily`；禁用 `group/group-fast`（Groq 不支持 `reasoning` → HTTP 400）。OMP `.env` 中的 token 用 `os.environ` 注入，勿用 `uv --env-file`。
+
+**快速自检**：`python -c "import typesafe_jev"` 可导入；`echo $TYPESAFE_JEV_TOKEN` 非空；`chrome://extensions` 中 huashu-chrome 权限为「所有网站」；目标站已登录。
+
 ## 核心主导词 (Leading Words)
 
 - **`【内环微决策 / micro-decision】`**: 针对页面候选元素，由 Jev 一趟 API 调用同时返回操作类别与目标元素 ref，替代大模型长推理。
