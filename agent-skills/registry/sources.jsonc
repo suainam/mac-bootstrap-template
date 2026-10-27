@@ -1235,6 +1235,11 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "Monid CLI 数据端点发现、模式检查与执行技能（https://monid.ai/SKILL.md）"
+        },
+        "huashu-jev-automation": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "使用 huashu-chrome 与 TypeSafe Jev 实现低延迟、低 token 消耗的浏览器交互内环与表单自动化"
         }
       }
     },

@@ -53,7 +53,6 @@ brew "agent-browser"
 # ========== 终端 & 系统增强 ==========
 cask "ghostty"
 cask "hammerspoon"
-cask "shottr"
 cask "maccy"
 # ========== 网络 & 安全 ==========
 brew "cloudflared"
