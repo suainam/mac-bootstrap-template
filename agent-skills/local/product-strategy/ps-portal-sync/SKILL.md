@@ -1,11 +1,23 @@
 ---
 name: ps-portal-sync
-description: Automate enterprise portal workflows for product strategy via OMP eval browser (tab.run + Puppeteer page) and agent-browser CLI: DevOps original demand extraction & timesheet logging, Confluence Wiki doc publishing, HPM review draft sync, Assortment board inspection, and WeCom/Tencent Sheet WBS project tracker maintenance. Use when scraping DevOps demands/stories, logging timesheets, updating Wiki, syncing HPM reviews, inspecting Assortment boards, or auditing WeCom sheets.
+description: Product-strategy portal automation, auto-routed by URL host or task wording, no skill name needed. wiki.dslbuy.com (Confluence edit/publish, REST-first), devops.dslbuy.com (demand extraction, timesheet), xzapp.dslbuy.com/hpm (review draft), assortment.dslyy.com (board check), doc.weixin.qq.com/sheet (WBS sheet). Use when the user pastes any of these URLs or says 改 wiki, 填工时, 提取需求, 写 HPM, 改推进表, 验收看板.
 ---
 
 # 商品策略中台门户协同 (ps-portal-sync)
 
 用于商品策略（Product Strategy）五大企业内网门户的一体化自动化操作：Wiki 业务文档沉淀、DevOps 需求管理与工时填报、HPM 绩效自评草稿录入、商品决策运营看板数据验收、企业微信 / 腾讯文档共享表格（WBS 推进表）结构化维护。
+
+## 入口（直接给链接或说需求）
+
+路由由代码按主机名决定，不问用户；无链接时按关键词。仅目标页/表无法确定，或动作是终审提交时才询问。
+
+| 用户给出 | 分支 |
+| :--- | :--- |
+| `wiki.dslbuy.com` 链接；改/发布 wiki | 1 |
+| `devops.dslbuy.com`；拉需求、填工时 | 2 |
+| `xzapp.dslbuy.com`；HPM 自评 | 3 |
+| `assortment.dslyy.com`；验收看板 | 4 |
+| `doc.weixin.qq.com/sheet`；推进表 | 5 |
 
 ---
 
@@ -16,7 +28,8 @@ description: Automate enterprise portal workflows for product strategy via OMP e
 - **`v-model-sync`（双向绑定同步）**：Element-UI 输入框赋值后必须派发 `input` 与 `change` 冒泡事件，禁止裸赋 `el.value` 导致状态未提交。
 - **`popover-gate`（悬浮录入门禁）**：定性只读输入框必须先点击唤起 `.el-popover`，在其内部文本域录入并点击【确认】后关闭。
 - **`timesheet-audit`（工时闭环审计）**：工时填报前必须通过本地 Git 日志与需求号完成交叉比对，单日上限 8.0 小时，整周合计严格等于 40.0 小时。
-- **`wiki-sync`（增量结构更新）**：Wiki 文档必须采用定点章节追加或局部替换，严禁全量清空覆盖破坏历史版本与附件。
+- **`wiki-rest-first`（REST 接口秒级直写）**：Confluence Wiki 更新优先直接调用 REST API（`GET /rest/api/content/{id}` 与 `PUT /rest/api/content/{id}`，附带 `X-Atlassian-Token: nocheck`），避免 TinyMCE 繁重 DOM 渲染与多步 UI 往返；复杂视觉样式才走 TinyMCE。
+- **`wiki-sync`（增量结构与附件守恒）**：Wiki 文档必须采用定点章节追加或锚点幂等替换，严禁全量清空覆盖；附件必须通过 `/child/attachment` 实体化上传后以 `<ac:image><ri:attachment .../></ac:image>` 宏结构关联。
 - **`xhr-api-first`（接口优先拉取）**：在 DevOps 批量提取原始需求时，优先在微前端 `pmp.dslbuy.com` 帧内拦截 XHR `Authorization` 头并直调 `devops-order.dslbuy.com/demand/manager/detail?demandId=<ID>`（本地 CLI 调用需加 `--noproxy '*'`），取代逐行点击抽屉的慢速且易截断 DOM 解析。
 - **`extension-target-discipline`（扩展靶标隔离纪律）**：Jev 浏览器扩展通过 CDP 仅维护经由 `Target.createTarget` 显式创建并附加调试器的标签，绝不主动泄露或接管用户在 Chrome 中原生打开的其它标签。`browser.listPages()` 或 `targets: 0` 仅表示未注册活动调试靶标，严禁误判为“浏览器没有标签”或“系统不支持”。
 - **`no-blind-getpage`（防盲目新建纪律）**：`browser.getPage(name)` 底层为 get-or-create 语义。当靶标失联时切勿原样循环重试，否则会不断产生同名/多重标签；必须先调用 `browser.newPage()` 获取稳定 handle，或复用已知 targetId。
@@ -44,6 +57,7 @@ skills/ps-portal-sync/
 │   ├── golden_wiki_sync.md           # Confluence Wiki 知识沉淀与更新黄金范例
 │   └── anti_patterns.md              # 门户操作 5 大典型反模式
 └── scripts/
+    ├── wiki_sync_helper.js           # Confluence REST API 极速读写与附件挂载驱动
     ├── extract_devops_demand.js      # DevOps 原始需求单条/批量 API+DOM 提取脚本
     ├── portal_browser_sync.js        # 统一多门户浏览器自动化执行脚本
     ├── hpm_browser_sync.js           # HPM 兼容独立执行脚本
@@ -69,6 +83,7 @@ flowchart TD
     B3 --> V3["popover-gate & draft-only 门禁"]
     B4 --> V4["指标卡片与目录对齐核验"]
     B5 --> V5["wbs-structure-gate & date-grain-discipline 核验"]
+```
 
 ---
 
@@ -76,18 +91,18 @@ flowchart TD
 
 **触发条件**：沉淀策略逻辑、SOP 操作指引、算法说明（如三合一目录 V7.0 `pageId=122182137`、新店目录策略 `pageId=122182045`）。
 
-1. **定位与提取**：
-   - 导航至目标页面：`https://wiki.dslbuy.com/pages/viewpage.action?pageId=<ID>`。
-   - 读取页面元数据（标题、最后修改时间、修改人），确认当前页面非锁定态。
-2. **文本清洗**：
-   - 剥离本地代码相对路径，转为绝对模块说明。
-   - 核心 SQL 与逻辑段转换为标准代码块；表格必须包含完整表头。
-3. **编辑与注入**：
-   - 点击 `#editPageLink` 进入编辑模式。
-   - 遵循 `wiki-sync` 原则：在正文末尾或目标章节使用 TinyMCE/ProseMirror 接口追加增量修订记录。
+1. **网络与鉴权前置**：
+   - 内网域名（`*.dslbuy.com`）必须直连（终端请求加 `--noproxy '*'` 或设环境变量避免 Clash 拦截）。
+   - 浏览器调试通过本地 `huashu-chrome` 或已登录 Chrome Profile 复用已有 SSO Cookie 与 `X-Atlassian-Token`。
+2. **极速更新路径 (`wiki-rest-first`，首选)**：
+   - **读正文**：`GET /rest/api/content/<ID>?expand=body.storage,version`，获取最新 `storageHtml` 与 `version.number`。
+   - **附件物化**：先 `POST /rest/api/content/<ID>/child/attachment` 上传，再在正文插入 `view-file` 宏（`viewFileMacro()` 见 [`scripts/wiki_sync_helper.js`](scripts/wiki_sync_helper.js)，形态取自线上 storage 回读）。
+   - **幂等替换**：用 `replaceOnce(html, 旧片段, 新片段)`，旧片段须恰好命中 1 次，否则抛错；不用 HTML 注释锚点（保存时可能被剥离）。
+   - **秒级写入**：`PUT /rest/api/content/<ID>` 传入新 Storage HTML 与 `version.number + 1`，0.5 秒内完成发布。
+3. **富文本备选路径（视觉染色/微调）**：
+   - 仅在需要设置复杂行底色（如黄底 `#fffb8f`）或精细排版时，通过 TinyMCE `activeEditor.getDoc()` 操纵 DOM。
 4. **发布校验**：
-   - 点击 `#rte-button-publish`。
-   - **完成标准**：页面恢复查看态，标题未变更，新增修订记录完整呈现，无转义坏损。
+   - 回读页面确认标题未变、新增内容/样式正确呈现、附件可点击打开。
 
 ---
 

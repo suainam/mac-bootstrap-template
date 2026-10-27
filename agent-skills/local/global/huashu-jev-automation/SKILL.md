@@ -151,3 +151,4 @@ resp, key = send_jev(
    - 原生 `<select>` 标签应直接用 ref 定位：`act({"do": "select", "ref": "eX", "value": "..."})`。避免使用按名称猜测点击选项的模糊模式。
 4. **确定性路由**：
    - 凡有固定规则（如需求编号前缀、URL 域名分流、固定状态码）直接在 Python/Bash 代码中分支，禁止转入 Jev 模型浪费时间。
+5. **企业门户路由**：目标为 `*.dslbuy.com`、`assortment.dslyy.com`、`doc.weixin.qq.com/sheet` 时，按主机名直接读 `skill://ps-portal-sync` 走对应分支；Wiki 优先 REST（`wiki-rest-first`），不走 snapshot+Jev 点 UI。
