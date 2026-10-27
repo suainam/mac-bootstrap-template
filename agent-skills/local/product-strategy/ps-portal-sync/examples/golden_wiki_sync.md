@@ -17,61 +17,67 @@
 ---
 
 ## 2. 自动化执行脚本
+### 方案 A：REST API 秒级直读直写与附件挂载（首选，耗时 < 3s）
+
+Confluence 6.13 自带标准 REST API。只要携带登录态 Cookie 与 `X-Atlassian-Token: nocheck` 请求头，可跳过 TinyMCE 前端富文本编辑器的缓慢加载与 DOM 操作：
 
 ```javascript
-// 执行方式: OMP eval browser.open + tab.run("<script>")
-const p = await browser.getPage("wiki");
-await p.bringToFront();
+// 执行方式：huashu-chrome eval，复用现有 Wiki 标签页。
+// 规范实现为单一权威：scripts/wiki_sync_helper.js（先把其源码注入页面，再调用 API）。
+const c = new ConfluenceWikiClient("128206125");
+const p = await c.getPage();                // { title, version, storageHtml }
 
-// 1. 打开目标页面
-await p.goto("https://wiki.dslbuy.com/pages/viewpage.action?pageId=122182137");
-await p.waitForLoad();
+const oldFrag = "<li>自有品牌优化</li>";
+const storageHtml = replaceOnce(p.storageHtml, oldFrag,
+  "<li>自有品牌优化（Demand-31939b）…</li>");   // 锚点须恰好命中 1 次，0/多次抛错
 
-// 2. 提取当前页面元数据 (页面标题、最后修改时间、修改人)
-const pageMeta = await p.evaluate(() => {
-  const title = document.querySelector('#title-text')?.innerText?.trim() || '';
-  const author = document.querySelector('.last-modified a')?.innerText?.trim() || '';
-  const date = document.querySelector('.last-modified time')?.innerText?.trim() || '';
-  return { title, author, date };
-});
-console.log("当前 Wiki 页面信息:", JSON.stringify(pageMeta, null, 2));
-
-// 3. 点击进入编辑模式 (或通过键盘触发 'e')
-await p.click('#editPageLink');
-await p.waitForSelector('#rte-button-publish', { timeout: 10000 });
-
-// 4. 内容安全注入规范
-// 注意：Confluence 编辑器多采用 iframe (TinyMCE) 或 Atlassian Content State
-const isIframeEditor = await p.evaluate(() => !!document.querySelector('#wysiwygTextarea_ifr'));
-
-if (isIframeEditor) {
-  // 进入 iframe 注入更新块 (例如在文档末尾追加修订记录)
-  const frame = p.frames().find(f => f.name() === 'wysiwygTextarea_ifr');
-  if (frame) {
-    await frame.evaluate((changelogHtml) => {
-      const body = document.querySelector('#tinymce');
-      if (body) {
-        body.insertAdjacentHTML('beforeend', changelogHtml);
-      }
-    }, '<h3>2026-10 策略修订记录</h3><p>已同步禁发仓逻辑与门店三合一池，回刷分区 20261012 完成。</p>');
-  }
-} else {
-  // 现代编辑器：直接定位正文区域
-  await p.evaluate((text) => {
-    const editor = document.querySelector('.ProseMirror, [contenteditable="true"]');
-    if (editor) {
-      editor.focus();
-      document.execCommand('insertText', false, text);
-    }
-  }, '\n\n【2026-10 修订记录】：完成禁发仓指标与门店三合一池对齐。\n');
-}
-
-// 5. 校验无破坏性格式后，点击保存/发布
-await p.click('#rte-button-publish');
-await p.waitForLoad();
-console.log("Wiki 更新发布完成。");
+await c.updatePage(p.title, storageHtml, p.version, "自动化同步策略口径");  // PUT 发布，version 自动 +1
 ```
 
+`getPage` / `updatePage` / `replaceOnce` / `viewFileMacro` 均定义于
+[`scripts/wiki_sync_helper.js`](../../scripts/wiki_sync_helper.js)（同一目录下），文档不再另抄一份实现。
+
+#### 附件上传与 View-File 宏自动绑定
+
+先上传附件，再在 Storage 正文插入 `view-file` 宏。宏形态取自线上页面 `pageId=128206125` 的 storage 回读（2026-10-27 实测），完整封装见 `scripts/wiki_sync_helper.js`：
+- 注意：同名附件已存在时的更新端点（`/child/attachment/{attId}/data`）本站未实测；先 `GET /rest/api/content/{id}/child/attachment` 确认或重命名再传。
+
+```javascript
+const fd = new FormData();
+fd.append("file", new Blob([fileContentStr], { type: "application/octet-stream" }), fileName);
+await fetch(`/rest/api/content/${pageId}/child/attachment`, {
+  method: "POST", headers: { "X-Atlassian-Token": "nocheck" }, body: fd
+});
+
+// 正文宏（Storage 格式）：
+// <ac:structured-macro ac:name="view-file" ac:schema-version="1">
+//   <ac:parameter ac:name="name"><ri:attachment ri:filename="demand-31939b-query.sql" /></ac:parameter>
+//   <ac:parameter ac:name="height">150</ac:parameter>
+// </ac:structured-macro>
+```
+
+---
+
+### 方案 B：富文本 TinyMCE DOM 注入（复杂样式/视觉高亮备选）
+
+针对需要给既有表格特定 `<tr>` 标黄底色（`style="background-color: #fffb8f"`）或红字高亮的场景，使用 `huashu-chrome` 操纵 TinyMCE：
+
+```javascript
+const ed = window.tinymce?.activeEditor;
+const doc = ed.getDoc();
+const targetRow = Array.from(doc.querySelectorAll("table")[1].querySelectorAll("tr"))
+  .find(tr => tr.innerText.includes("步骤4: 最终剔除"));
+
+// 1. 整行黄底
+targetRow.style.backgroundColor = "#fffb8f";
+targetRow.querySelectorAll("td").forEach(td => td.style.backgroundColor = "#fffb8f");
+
+// 2. 定点红字插入与宏占位符挂载
+targetRow.querySelectorAll("td")[3].insertAdjacentHTML(
+  "beforeend",
+  `<ul><li><span style="color: red;"><strong>新增策略逻辑</strong>：...</span></li></ul>`
+);
+```
 ---
 
 ## 2. 页面克隆与新版本创建范例 (Clone & Create New Version Page)
