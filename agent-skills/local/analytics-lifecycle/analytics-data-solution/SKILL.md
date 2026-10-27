@@ -39,6 +39,8 @@ description: Author and review technical RFC data solutions, system architecture
   - **策略规则治理专题**：商品剔除范围规则与生效配置变更设计，详见 [ps-reduction-scope-config-maintenance](../../product-strategy/ps-reduction-scope-config-maintenance/SKILL.md)
 - **共享契约（权威真源，阶段回复/交付六栏）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
 - **八格详细（按条件引用：版本/来源/预测分解）**：[../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md](../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md)
+- **数据质量门禁清单（条件触发：涉及目录增删/清洗/剔除/多源判定时必读）**：[../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md](../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md)
+- **同源判定与标记原因一致性范例（条件触发：目录增删/清洗方案）**：[../analytics-data-execution/examples/action_reason_parity_example.py](../analytics-data-execution/examples/action_reason_parity_example.py)
 ---
 
 ## 执行步骤与方案标准 (Steps)
@@ -73,9 +75,13 @@ flowchart TD
    根据需求所属业务域，直接调用内置蓝图库中已验证的成熟算式与字典规约（新店考核、O2O Cohort、加盟店桑基、因果匹配）。
 2. **在营品效分母界定原则**：
    对于新店组货执行率与动销率，分母优先采用实际到店在营商品（如 1,700 余款），将因供应链断货/未到店的断流商品（如 300 余款）单列为履约缺损监控，保持货架指标与单品品效产出客观自洽。
-3. **梳理数据字典契约 (Data Dictionary)**：
-   完整建立字段映射表格，包括物理字段名、类型、标准中文列名与计算口径规则，消除命名歧义。
-
+3. **梳理数据字典契约与同源单点取值 (Data Dictionary & Single Source of Truth)**：
+   - 完整建立字段映射表格，包括物理字段名、类型、标准中文列名与计算口径规则，消除命名歧义。
+   - **口径与字段同源单点取值**：展示字段与计算判定字段必须取自同一计算节点与别名，严禁“判定取表 A、展示或原因取表 B”。若底层下发表属性缺失，必须在 Layer 1 前置清洗层统一下沉关联主数据权威源补齐后再行判定与展示。
+   - **动作标记计算一次，原因消费标记**：动作标记（如 `is_drop`）必须是一次性正向判定的确定性布尔值；原因字段（`drop_reason` / `retain_reason`）直接以该标记为前置条件进行分流派生。
+   - **正向收紧判定，严禁 ELSE 兜底**：高破坏性动作（如“剔除”）判定必须是全部要素同时为 TRUE 的严密白名单交集；保留原因显式逐级分流，末尾 `ELSE` 仅作为防卫探针且命中数必须为 0。
+   - **禁止擅自篡改业务条件**：禁止将“金额=0”擅自加入剔除条件；NULL 销量/标签补 0 会导致误剔除；`=0` 与 `<=0`（含负销退货）必须由明确业务契约决定。
+   - 详见质量清单：[../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md](../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md)。
 ### 配置变更分支：最小迁移与恢复设计
 
 优先复用现有配置及消费SQL；新增维度时同步DDL、全部配置行、消费SQL、调用方和维护示例。按实际schema生成完整列序的新增/保留/停用清单，设计平台支持的写入方式及快照恢复步骤。全量覆写在执行前重新核对基线，避免覆盖并发修改。
@@ -99,9 +105,12 @@ flowchart TD
 1. **二元互斥守恒断言**：在方案中制定阶段四必须跑过的对账检查：
    - `目录内在营商品数 + 目录外手工在营商品数 == 全店总在营商品数`（差值严格为 0）；
    - `目录内销售额 + 目录外手工销售额 == 全店总销售额`（浮点差 < 0.05元）。
-2. **单调性与区间断言**：制定比率指标在 $[0, 100\%]$ 区间内的约束，无目录门店严格保留 NULL 语义。
-3. **隔离与回滚机制**：分析方案以只读形式运行，若出现对账异常阻断下游物化，保护数据资产安全。
-4. **阶段三产物对抗性审查**：按共享契约 §2.0 执行产物审查，核验：最小目标规则替换（仅修改待评估规则，不动无关逻辑）、保留既有来源顺位、同池严格前后对比设计、基线容差合理性。
-5. **阶段三回复/交付**：按共享契约 §1 六栏输出，附阶段三审查门槛登记；技术可执行性与业务目标/范围分离记录。
+2. **动作与原因 100% 互斥闭环断言**：
+   - 标记与原因一致性：`COUNT(CASE WHEN is_drop = 0 AND drop_reason IS NOT NULL THEN 1 END) == 0`，杜绝标记保留但原因写剔除的裂痕；
+   - 业务保护标签不穿透：`COUNT(CASE WHEN is_protected = 1 AND is_drop = 1 THEN 1 END) == 0`。
+3. **单调性与区间断言**：制定比率指标在 $[0, 100\%]$ 区间内的约束，无目录门店严格保留 NULL 语义。
+4. **隔离与回滚机制**：分析方案以只读形式运行，若出现对账异常阻断下游物化，保护数据资产安全。
+5. **阶段三产物对抗性审查**：按共享契约 §2.0 执行产物审查，核验：最小目标规则替换（仅修改待评估规则，不动无关逻辑）、保留既有来源顺位、同池严格前后对比设计、基线容差合理性。
+6. **阶段三回复/交付**：按共享契约 §1 六栏输出，附阶段三审查门槛登记；技术可执行性与业务目标/范围分离记录。
 
 **完成标准**：在 `topics/<topic_id>/03_analysis/` 生成符合规范的 RFC 设计文档（`demand-<adhoc|id>-<topic_id>-<datehour>-03-rfc.md`）与通过静态扫描的 SQL 方案文件（`sql/demand-<adhoc|id>-<topic_id>-<datehour>-03-query.sql`），SQL 静态扫描 `0 errors`，阶段三对抗性审查通过（阻断 0 项且附证据）。

@@ -19,8 +19,10 @@ description: Execute data pipelines, interactive ODPS queries, batch backfills, 
 ## 内部资产引用 (Internal Assets)
 
 - **通用对账门禁脚本**：`scripts/audit_execution_sanity.py`（单调性、守恒性、有界性与空值断言 CLI）
+- **动作与原因互斥闭环门禁脚本**：`scripts/audit_action_reason_parity.py`（标记与原因互斥闭环、保护不穿透、待核验隔离断言 CLI）
 - **数仓轻量探查脚本**：`scripts/odps_quick_probe.py`（分区与主键唯一性一键探查）
-- **数据质量核验清单**：[references/DATA_QUALITY_CHECKLIST.md](references/DATA_QUALITY_CHECKLIST.md)
+- **数据质量核验清单（权威真源）**：[references/DATA_QUALITY_CHECKLIST.md](references/DATA_QUALITY_CHECKLIST.md)
+- **同源判定与标记原因一致性范例（条件触发：目录增删/清洗方案）**：[examples/action_reason_parity_example.py](examples/action_reason_parity_example.py)
 - **黄金执行与验证范例**：[examples/golden_execution_runner.py](examples/golden_execution_runner.py)
 - **工程实施关联规范**：支持本地文件入仓（详见 [odps-table-ingest](../../product-strategy/odps-table-ingest/SKILL.md)）、批量多分区回刷（详见 [dataworks-yoy-backfill](../../product-strategy/dataworks-yoy-backfill/SKILL.md)）与策略规则治理（详见 [ps-reduction-scope-config-maintenance](../../product-strategy/ps-reduction-scope-config-maintenance/SKILL.md)）
 - **共享契约（权威真源，阶段回复/交付六栏）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
@@ -77,12 +79,15 @@ flowchart TD
 
 ## 执行步骤与对账门禁 (Steps & Verification Gates)
 
-### Step 1: 环境与凭据加载 (Environment Loading)
-严格从家目录 `~/.env` 读取凭据，复用 `product_strategy/shared` 设施，避免硬编码。
+### Step 1: 环境加载与交付资产路径锁定 (Environment & Asset Locking)
+1. 严格从家目录 `~/.env` 读取凭据，复用 `product_strategy/shared` 设施，避免硬编码；
+2. **执行前锁定唯一交付资产身份**：显式确定本轮交付的目标文件名、外部数据湖真实物理路径及仓库软链接路径。若属于已有产物迭代更新，必须锁定原文件名与路径，严禁因重新跑数私起 `_v1`/`_v2`/`_fixed` 等新别名。
 
 ### Step 2: 执行数据提取与生成物理中间明细 (Data Extraction & Staging)
-- 提取店品粒度明细数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-item-detail.parquet`；
-- 提取门店汇总宽表数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-dataset.parquet` 与高管 Excel。
+1. **计算与判定准则**：严格对照 [references/DATA_QUALITY_CHECKLIST.md](references/DATA_QUALITY_CHECKLIST.md) 执行——动作标记只计算一次，原因直接消费标记；展示与判定同源；严禁将金额=0擅自混入剔除条件；区分 NULL 与 0；
+2. **两段式物理提取**：
+   - 提取店品粒度明细数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-item-detail.parquet`；
+   - 提取门店汇总宽表数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-dataset.parquet` 与高管 Excel。
 
 ### Step 3: 执行对抗性质量门禁核验 (Adversarial Verification Gate ★)
 运行 `scripts/audit_execution_sanity.py` 或内嵌门禁断言，严格核验（技术验证与业务验证分离记录）：
@@ -96,11 +101,14 @@ flowchart TD
 5. **物理空间密度常识对抗断言 (Physical Density Sanity Gate)**：涉及货架、面积、排面等实体空间数据时，增加空间物理密度断言（如 $\text{陈列密度} = \frac{\text{门店陈列架总长度 (米)}}{\text{门店营业面积 (m²)}} \in [0.4, 1.8]\text{ m/m²}$）。密度低于 0.3 提示中台漏登或错误折叠，高于 2.0 提示混陈重复累计，触发预警排查。
 6. **回溯五问 (Cohort Backtrace Five Questions ★)**：用本期名单回溯上期的指标（同品池、同店池），交付前必须附一次拆解，详见 [references/cohort_backtrace_five_questions.md](references/cohort_backtrace_five_questions.md)。五问为：匹配粒度、商品有效性、门店数、覆盖×强度、新老品分组。
 ### Step 4: 物化交付物与质检报告输出 (Materialization & Report)
-- 数据实体自动沉淀入外部数据湖并建立软链接；
-- 运行数据湖边界检查命令断言合规；
-- 输出现场质检监控 Markdown 报告：`04_outputs/reports/demand-<adhoc|id>-<topic_id>-<datehour>-04-sanity-report.md`，直接留存在仓库原位；文风严格按照 `/skill:humanizer-zh` 规范，不含糊其辞，直接呈现清晰核验事实；
-- **阶段四产物对抗性审查**：按共享契约 §2.0 执行产物审查，核验：生产基线可复现、主键唯一性守恒、来源保留完整、真实命令与其退出码；**明确区分 collect-only 与实际测试执行；产物存在不等于本次重跑**。
+1. **临时验证后同名覆盖机制**：
+   - **警惕“查询成功不等于最终交付成功”**：严防数仓跑通或生成了中间日志，但最终交付文件写漏或另起新名，导致用户在外部数据湖打开的是旧文件的脱节事故；
+   - 新产物先写入临时文件，经主键唯一性、金额守恒、标记原因一致性等门禁断言验证通过后，再同名原子替换目标外部数据湖物理文件；
+   - 同步验证并更新仓库相对软链接指向；
+2. 运行数据湖边界检查命令断言合规；
+3. 输出现场质检监控 Markdown 报告：`04_outputs/reports/demand-<adhoc|id>-<topic_id>-<datehour>-04-sanity-report.md`，直接留存在仓库原位；文风严格按照 `/skill:humanizer-zh` 规范，不含糊其辞，直接呈现清晰核验事实；
+4. **阶段四产物对抗性审查**：按共享契约 §2.0 执行产物审查，核验：生产基线可复现、主键唯一性守恒、标记与原因 100% 互斥闭环、业务保护不穿透、来源保留完整、真实命令与其退出码；**明确区分 collect-only 与实际测试执行；产物存在不等于本次重跑**。
 
-**完成标准**：数据文件通过全部门禁断言，外部数据湖软链接建立完毕，生成客观的质检监控 Markdown 报告，阶段四对抗性审查通过（阻断 0 项且附真实命令与退出码证据）。
+**完成标准**：数据文件通过全部门禁断言，完成门槛必须真实回读并校验：外部数据湖物理文件存在且修改时间戳为本次更新、字节数正常、可解析，仓库软链接有效且指向该物理文件；生成客观的质检监控 Markdown 报告，阶段四对抗性审查通过（阻断 0 项且附真实命令与退出码证据）。
 
 **阶段四回复/交付**：按共享契约 §1 六栏输出，附阶段四审查门槛登记；涉及版本/来源/预测分解时引用八格详细参考；技术与业务验证分离记录。

@@ -24,7 +24,7 @@ class AuditInputError(ValueError):
     """输入协议不满足时抛出，CLI 统一转为退出码 1。"""
 
 
-def load_records(path: Path) -> list[dict[str, Any]]:
+def load_records(path: Path, sheet_name: str | int | None = None) -> list[dict[str, Any]]:
     """按扩展名加载长表记录；CSV/JSONL 走标准库，Parquet/Excel 需要 pandas。"""
     suffix = path.suffix.lower()
     if suffix == ".csv":
@@ -45,7 +45,11 @@ def load_records(path: Path) -> list[dict[str, Any]]:
             raise AuditInputError(
                 f"读取 {suffix} 需要 pandas，请改用 .csv/.jsonl 或安装 pandas"
             ) from exc
-        frame = pd.read_parquet(path) if suffix == ".parquet" else pd.read_excel(path)
+        if suffix == ".parquet":
+            frame = pd.read_parquet(path)
+        else:
+            sheet = 0 if sheet_name is None else sheet_name
+            frame = pd.read_excel(path, sheet_name=sheet)
         return frame.to_dict(orient="records")
     raise AuditInputError(f"不支持的数据文件类型: {suffix}（支持 .csv/.jsonl/.parquet/.xlsx）")
 
