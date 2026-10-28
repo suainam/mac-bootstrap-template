@@ -11,7 +11,7 @@ esac
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$script_path")" && pwd)
 sample_file="$script_dir/../examples/company-hosts.sample.txt"
-tun_gateway="198.18.0.1"
+tun_gateway="198.18.0.1"   # legacy gateway; matches 198.18/198.19 fake-ip block
 hosts_file=""
 hosts=""
 
@@ -102,10 +102,13 @@ printf '%s\n' "$hosts" | while IFS= read -r host; do
     gateway=$(printf '%s\n' "$route_info" | awk '/gateway:/{print $2; exit}')
     iface=$(printf '%s\n' "$route_info" | awk '/interface:/{print $2; exit}')
 
-    if [ "$gateway" = "$tun_gateway" ]; then
-      echo "$ip -> $iface / $gateway [captured by tun gateway; exclude only if the site should keep its original path]"
-    else
-      echo "$ip -> $iface / $gateway [not captured by tun gateway]"
-    fi
+    case "$gateway" in
+      198.18.*|198.19.*)
+        echo "$ip -> $iface / $gateway [captured by tun gateway; exclude only if the site should keep its original path]"
+        ;;
+      *)
+        echo "$ip -> $iface / $gateway [not captured by tun gateway]"
+        ;;
+    esac
   done
 done

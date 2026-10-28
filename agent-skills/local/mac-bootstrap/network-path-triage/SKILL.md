@@ -119,13 +119,18 @@ whether the browser socket pool was flushed (`Shift + Cmd + R`).
    as app-owned fields).
 8. Browser web targets: never diagnose failure on `ERR_SSL_PROTOCOL_ERROR` without
    first flushing browser socket pools (`Shift + Cmd + R`).
-
+9. `tun.route-exclude-address` is GUI-owned (script writes are dropped); but
+   `dns.fake-ip-filter` has no GUI list editor and IS script-writable.
+   Persist company-domain DNS exemptions via `Script.js` injection (see
+   `references/local-persistent-fake-ip-filter.md`), never by editing the cloud
+   subscription. Keep repo source + Global Script + profile-bound script in sync.
 ## Reference Routing
 
 - Read `REFERENCE.md` for the command set, path map, and interpretation checklist.
 - Read `references/platform-mapping.md` when the current incident is clearly
   platform-bound and you need the nearest equivalent check surface.
-- Read `references/app-owned-proxy.md` when diagnosing an app- or agent-owned
-  proxy environment, including a shared Codex daemon holding a stale port.
+- Read `references/local-persistent-fake-ip-filter.md` when a target keeps
+  resolving to fake-ip `198.19.x.x` and you need a persistent exemption that
+  survives subscription refreshes (Script.js injection, no subscription edit).
 - Re-read `private/clash/corplink-experience.md` when the issue involves company
   domains, PAC, TUN, or the route snapshot helper.
