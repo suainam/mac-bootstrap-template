@@ -83,6 +83,11 @@ route -n get <ip>
 # targeted grep in final runtime config
 rtk rg -n "route-exclude-address|respect-rules|stack:|DOMAIN-SUFFIX,corp.example.com|DOMAIN-SUFFIX,internal.example.net|GEOSITE,CN|GEOIP,CN|DOMAIN-SUFFIX,cn" \
   ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml
+
+# fake-ip-filter injection check (local persistent, survives subscription refresh)
+rtk rg -n "fake-ip-filter|ex-talent|localFakeIpFilter" \
+  ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml \
+  ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/profiles/Script.js
 ```
 
 The bundled sample hosts are historical examples only. For real incidents, pass
@@ -163,6 +168,15 @@ When a company target fails, answer these in order:
   不支持安全连接") even after TUN routing is repaired. Mandatory verification step
   for web targets: flush stale sockets via hard reload (`Shift + Cmd + R`) or
   `chrome://net-internals/#sockets` -> "Flush socket pools".
+- Persistent DNS exemptions without subscription edits: `dns.fake-ip-filter`
+  has no GUI list editor but IS script-writable. Keep a target out of
+  fake-ip via `Script.js` injection across all three copies (repo source, Global
+  Script `profiles/Script.js`, and the current profile-bound script from
+  `profiles.yaml` -> `current` -> `option.script`). See
+  `references/local-persistent-fake-ip-filter.md`.
+- Only `tun.route-exclude-address` (TUN exclusions) and `dns.*` toggle are
+  GUI-owned; a fake-ip-filter appends via script survive subscription refreshes
+  and are idempotent.
 
 ## Escalation hints
 
