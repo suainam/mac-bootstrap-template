@@ -86,22 +86,25 @@ A reachable page alone does not exclude proxy, browser-path, or later-request fa
 
 ## Subagent Delegation Contract
 
-Spawn only for ≥2 independent slices or read-only scouting that saves main context. Otherwise work inline (Occam Gate wins). Task size gate: work a single agent can finish in about half a day stays inline; only week-scale work with shifting conditions earns orchestration.
+Spawn only for ≥2 independent slices or read-only scouting that saves main context. Otherwise work inline (Occam Gate wins). Task size gate: work a single agent can finish in about half a day stays inline; only week-scale work with shifting conditions earns orchestration. Human workstream orchestration operates at hour-level chunks (research and consensus before handoff; avoid minute-level human micromanagement bottlenecks).
 
-- **Caps**: ≤5 concurrent subagents; ≤5 min wall-clock each. The host must enforce both (`task.maxConcurrency`, `task.maxRuntimeMs` in OMP; defaults are 32 and unlimited). Models: main tier or fast tier only; never a costlier tier.
+- **Caps**: ≤5 concurrent subagents; ≤15 min wall-clock each. The host must enforce both (`task.maxConcurrency`, `task.maxRuntimeMs` in OMP; defaults are 32 and unlimited). Models: main tier or fast tier only; never a costlier tier.
 - **Coordinator**: the parent owns scope, slice design, staging, and the final report; it does not implement slices itself. Keep its context on goals and evidence, not implementation detail.
+- **Offline preflight & no blind downloads**: Tooling, dependencies, packages, and grammars MUST be pre-installed or vendored locally before spawning. Subagents MUST NOT blindly trigger external downloads/fetches during execution; network timeout or missing offline assets is a caller preflight defect.
+- **Single responsibility & task slicing**: Each subagent executes exactly one cohesive slice with zero unnecessary abstraction. Slices must be mutually orthogonal with explicit file ownership; parallel agents never share mutable target files.
+- **Progress heartbeat & deadlock prevention**: Subagents must report a 1-line progress heartbeat at milestones and at least every ~60s. Silence >3 min or spinning in retry loops triggers parent kill (`write proc://<id>/kill`) to prevent deadlock and silent hangs.
 - **Preflight before spawn**: write the slice list, each slice's files, the verification command, and the human gates the work will cross. Surface missing access, credentials, or decisions now; do not discover them mid-run.
 - **Task contract** (the `task` text MUST carry all of it, goal-style; use `qiaomu-goal-meta-skill` when the slice is unclear):
   - Outcome: one concrete result, not an activity.
   - Boundaries: exact files/dirs it may read or write; read-only unless a single named writer.
-  - Verification: command or artifact that proves done.
+  - Verification: command or artifact that proves done. Test counts alone are NOT evidence; results tied to requirements are.
   - Stop when: proof of completion. Pause if: credential, destructive step, or product decision needed.
   - Rationale: for non-obvious choices, report options considered, the choice, and the evidence behind it.
-  - Time: 5 min cap. Report one-line progress to the parent at each milestone and at least every ~60 s; silence is a defect.
+  - Time: 15 min cap. Report one-line progress to the parent at each milestone and at least every ~60 s; silence is a defect.
 - **Non-blocking questions are recorded, not asked**: keep working on the parts that are already clear, batch the decisions for the next human gate, and stop only for genuinely blocking gates (merge, credentials, destructive actions).
-- **Parent supervision**: run subagents as async jobs and stay quiet while they work. Patrol every child once at ~3 min via `history://<id>`: on track → leave; drifting → steer with `write agent://<id>`; stuck, silent, or off-scope → `write proc://<id>/kill`, keep its partial output, and take over or respawn narrower.
+- **Parent supervision**: run subagents as async jobs and stay quiet while they work. Liveness is separate from human interruption: children report 1-line progress at milestones/~60s without interrupting human rhythm; coordinator inspects and batches decisions at settled checkpoints. Patrol every child once at ~3 min via `history://<id>`: on track → leave; drifting → steer with `write agent://<id>`; stuck, silent, or off-scope → `write proc://<id>/kill`, keep its partial output, and take over or respawn narrower.
 - **Closeout**: never yield with a running child. Each child ends as consumed, killed, or reported lost. Verify its claims before relying on them. If the session spanned ≥3 verification rounds or produced a wrong call, run `retro` and write at least one lesson back to `rules/` or `docs/`.
-
+- **Workflow routing (P1–P4)**: for verification generation (`create-verification-skill`), formal verification (`create-formal-verification-skill`), ceremony-free vertical slicing (`grilling`, `to-spec`, `to-tickets`, `implement`, `code-review`), and long-run decision records / adversarial reviews, follow `docs/agent-subagents.md`.
 ## Reply Routing
 
 The user's explicit format, language, and depth win over every default here.

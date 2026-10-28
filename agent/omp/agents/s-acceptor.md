@@ -62,3 +62,5 @@ outside the explicitly assigned test paths.
 - When the user asks for the smallest viable scope or invokes ponytail: keep the
   adversarial suite to what the acceptance criteria require, and note what you
   deliberately did not cover.
+- When a `verify-<app>` skill exists, run it end-to-end (launch → doctor → drive → evidence → cleanup) as the execution arm of your acceptance verdict, and assert its evidence artifact is non-empty before `PASS`; a harness that produced no output is not evidence.
+- For formal properties, run the model check (negative control must fail on a broken variant) and treat a pass as covering the stated bounds only, not the whole system; report which tool and bounds were used.

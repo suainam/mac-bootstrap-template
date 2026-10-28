@@ -31,17 +31,20 @@ command execution.
 ## When To Spawn
 
 The authoritative contract lives in `agent/rules/AGENTS.md` under
-`## Subagent Delegation Contract`; this document only adds role detail.
+`## Subagent Delegation Contract`; this document adds role detail and workflow routing.
 
 Every task text carries the contract fields, including the reporting duty: one
 line per milestone and at least every ~60 s, or the parent treats silence as a
-defect and intervenes. The examples below are the role-specific body; wrap them
-with Outcome, Boundaries, Verification and Stop/Pause from the contract.
+defect and intervenes. Liveness is separate from human interruptions: agents
+run async while the human coordinates at settled checkpoints.
 
-The caps (5 concurrent children, 5 minutes wall clock each) are a contract the
-host must configure: OMP defaults to 32 concurrent children with no wall clock,
-so an unconfigured host lets a silent child run for minutes. The machine-local
-values live in the private overlay, not in this template.
+The caps (5 concurrent children, 15 minutes wall clock each) are an enforced
+runtime guardrail; human workstream orchestration operates at hour-level chunks
+with documented consensus.
+
+Acceptance requires substantive live evidence (end-to-end runs, transcripts,
+artifacts, or `/create-verification-skill` feature maps). Raw unit test counts
+are evidence, but not sufficient alone for live behavior.
 
 Spawn subagents when at least two lanes can run independently:
 
@@ -53,6 +56,33 @@ Spawn subagents when at least two lanes can run independently:
 Do not spawn them for tiny single-file edits, when all work depends on the
 same mutable file set, or when one agent can finish in about half a day.
 
+## Workflow Pipelines & Skills (P1–P4)
+
+### P1: Verification Skills & Statechart
+- `/create-verification-skill`: generate project-local verification skills (`.agents/skills/verify-<app>/`, `.claude/skills/`, `.cursor/skills/`) driving real app behavior from the user's POV with Launch, Doctor, Drive, Evidence, Cleanup sections and feature maps.
+- `/maintain-verification-skill`: upkeep loop keeping feature maps honest against source churn.
+- `/create-formal-verification-skill` & `/maintain-formal-verification-skill`: formal verification for concurrency races, state machines, or data structure invariants; pairs with `/statechart` for visual rendering.
+- Negative control: required only for new or modified verification harnesses or formal properties (demonstrating the check fails on broken code).
+
+### P2: Behavioral Proof & Context Hygiene
+- Results tied to requirements, not raw test counts.
+- Build deterministic reusable tools only when justified by repeated execution; avoid blanket boilerplate.
+- Structural lessons: encode verified traps/decisions into `rules/` or `docs/`.
+- Context hygiene: keep context lean; disclose reference details behind pointers.
+
+### P3: Ceremony-Free Vertical Slicing (Matt Skills)
+Optional vertical slicing using local skills:
+- `/grilling`: Stress-test assumptions and extract hidden constraints into design trees before committing.
+- `/to-spec`: Synthesize discussion and codebase state into structured spec without redundant user interviews.
+- `/to-tickets`: Decompose spec into context-sized tracer-bullet vertical slices with explicit blocking edges.
+- `/implement`: Implement individual slice with TDD at pre-agreed seams.
+- `/code-review`: Review diff/branch against repo standards and acceptance criteria.
+
+### P4: Long-Horizon Governance & Decision Records
+- Keep scratch decision/evidence/outcome notes during long multi-turn runs; write formal ADR into `docs/adr/` only for durable, surprising architectural choices (no second wiki in `notes/`).
+- Adversarial review: reuse `code-review` and `grilling` with skeptic/acceptor dual lenses on critical boundaries and security assumptions.
+- Competing designs: compare 2–3 minimal alternatives against explicit criteria before locking in architecture.
+- Bespoke playbooks: reserved for multi-subsystem migrations when standard vertical slicing is demonstrably mismatched.
 ## Prompt Contracts
 
 Deploy subagent:

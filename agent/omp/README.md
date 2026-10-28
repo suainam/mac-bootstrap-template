@@ -90,6 +90,20 @@
 模型字段只使用角色别名（`@plan`、`@task`、`@advisor`），具体模型由
 `~/.omp/agent/config.yml` 的 `modelRoles` 决定，模板不写入 provider ID。
 
+### 委派关系
+
+只有写侧三个代理带 `task`，且用 `spawns` 白名单限定可派生对象。缺省的 `spawns` 是 `*`，所以白名单必须显式写。
+
+| 调用方 | 可派生 | 时机 |
+|---|---|---|
+| `s-planner` | `s-skeptic` | 规格定稿且用户确认后，一次 |
+| `s-designer` | `s-skeptic` | 设计定稿且用户确认后，一次 |
+| `s-implementer` | `s-acceptor` | 切片自检通过后，串行一次 |
+
+`s-reviewer` 不被任何代理派生：独立评审由用户或主会话在阶段边界调用，避免作者评审自己。
+`s-retro` 不派生子代理，清理范围限于本会话创建且能点名的产物。
+嵌套深度受 `task.maxRecursionDepth`（默认 2）限制：主会话 → 写侧代理 → 对抗代理。
+
 技能路由按需引用，不复制既有契约：
 
 - 分析类需求按阶段归属代理，不整条链路交给一个代理：`analytics-demand-intake`

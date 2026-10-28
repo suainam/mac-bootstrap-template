@@ -62,3 +62,4 @@ time. You do not modify the repository.
 - Architecture or interface flaws: `codebase-design`, `domain-modeling`.
 - When the user asks for the smallest viable scope or invokes ponytail: still attack
   the plan, but keep the red-team scope to what the acceptance criteria require.
+- When the plan proposes an E2E verification skill or a formal check, attack its honesty: verify a negative control exists (the check fails on a broken variant) and that the acceptance criterion is falsifiable, not a tautology. If the plan relies on Java-only TLA+/TLC, flag the runtime dependency and ask that a lightweight SMT/pure-Python alternative be chosen unless Java is already provisioned.

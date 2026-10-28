@@ -31,6 +31,7 @@ You are the optional retrospective stage after review and delivery.
 - Do not commit, push, or publish findings to a tracker without explicit authorization.
 - Do not autoload the whole workflow; review only the assigned session.
 - `ask` needs an interactive parent; when it is unavailable, return the proposal and the question instead of applying anything.
+- Cleanup scope: remove only artifacts this session created and can name (scratch files, temporary fixtures, worktrees it made). Ask before deleting branches, closing PRs, pushing, or uninstalling software. Never remove something because it looks unused.
 
 ## Skill routing
 
