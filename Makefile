@@ -15,7 +15,7 @@ DISPATCH_SOURCE ?= $(HOME)/.local/src/Dispatch
 
 .PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent install-maintenance-agents unload-maintenance-agents system-patrol \
-	install-antigravity-cli install agent-sync agent-tools agent-refresh agent-rules-audit \
+	install-antigravity-cli install agent-sync agent-tools agent-apply agent-refresh agent-rules-audit \
 	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan \
 	package-migrate \
  	omp-extensions dispatch-install dispatch-upgrade dispatch-status dispatch-doctor dispatch-uninstall \
@@ -48,6 +48,7 @@ bootstrap install:
 	$(PYTHON) scripts/skill_supply_chain.py distribute
 
 docs-check:
+	@"$(PYTHON)" scripts/agent-reference.py --check
 	@files="$${DOCS_PATHS:-$$(git diff --name-only --diff-filter=ACMR $(DOCS_BASE) -- '*.md' '*.mdx' 2>/dev/null)}"; \
 	if [ -z "$$files" ]; then echo "docs-check: no changed docs"; exit 0; fi; \
 	"$(PYTHON)" scripts/check_docs.py $$files
@@ -306,6 +307,10 @@ agent-sync: skill-refresh prompt-sync
 ## 4.1 Agent | agent-tools | Install/configure agent tooling
 agent-tools:
 	./scripts/install-agent-tooling.sh --configure
+
+## Agent | agent-apply | Apply local agent configuration without installs
+agent-apply:
+	./scripts/install-agent-tooling.sh --local-apply
 
 ## 4.4 Agent | omp-extensions | Install version-pinned OMP extensions
 omp-extensions:

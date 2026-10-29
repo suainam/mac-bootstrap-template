@@ -13,48 +13,6 @@
     "prompt_library_root": "~/.agent/prompts",
     "cross_agent_skills_dir": "~/.agents/skills"
   },
-  "mcp_servers": {
-    "context-mode": {
-      "command": "context-mode",
-      "args": [],
-      "approved_tools": [
-        "ctx_stats",
-        "ctx_search",
-        "ctx_index",
-        "ctx_doctor"
-      ]
-    },
-    "codebase-memory-mcp": {
-      "command": "codebase-memory-mcp",
-      "args": [],
-      "approved_tools": [
-        "index_repository",
-        "list_projects",
-        "delete_project",
-        "index_status",
-        "search_graph",
-        "trace_path",
-        "detect_changes",
-        "query_graph",
-        "get_graph_schema",
-        "get_code_snippet",
-        "get_architecture",
-        "search_code",
-        "manage_adr",
-        "ingest_traces",
-        "check_index_coverage",
-        "compare_graphs",
-        "get_file_outline"
-      ]
-    },
-    "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp"
-      ]
-    }
-  },
   "agents": {
     "claude": {
       "binary": "claude",

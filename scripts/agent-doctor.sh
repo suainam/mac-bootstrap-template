@@ -6,6 +6,7 @@ set -euo pipefail
 
 DRY_RUN=0
 FIX=0
+ERRORS=0
 BOOTSTRAP="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$BOOTSTRAP/agent/agent-manifest.json"
 PYTHON_BIN="${PYTHON:-$BOOTSTRAP/.venv/bin/python}"
@@ -104,6 +105,7 @@ check_contains() {
     echo "  OK   $name"
   else
     echo "  MISS $name"
+    ERRORS=$((ERRORS + 1))
   fi
 }
 
@@ -112,6 +114,7 @@ audit_mcp_config() {
   shift 2
   if [ ! -f "$path" ]; then
     echo "  MISS $host MCP config"
+    ERRORS=$((ERRORS + 1))
     return 0
   fi
   if command -v context7-mcp >/dev/null 2>&1; then
@@ -133,6 +136,7 @@ audit_mcp_config() {
     echo "  OK   $host managed MCP state"
   else
     echo "  MISS $host managed MCP state"
+    ERRORS=$((ERRORS + 1))
     while IFS= read -r line; do
       [ -n "$line" ] && echo "       $line"
     done <<EOF
@@ -247,37 +251,46 @@ echo ""
 echo "=== Configuration Health ==="
 
 check_symlink() {
-  local name="$1" path="$2"
+  local name="$1" path="$2" expected="${3:-}"
   if [ -L "$path" ]; then
     local target
     target="$(readlink "$path")"
-    if [ -e "$path" ]; then
+    if [ -e "$path" ] && { [ -z "$expected" ] || [ "$target" = "$expected" ]; }; then
       echo "  OK   $name → $target"
     else
-      echo "  BROKEN $name → $target (missing)"
+      echo "  BROKEN $name → $target (missing or incorrect target)"
+      ERRORS=$((ERRORS + 1))
     fi
   elif [ -f "$path" ] || [ -d "$path" ]; then
     echo "  COPY $name (not a symlink)"
+    ERRORS=$((ERRORS + 1))
   else
     echo "  MISS $name (not found)"
+    ERRORS=$((ERRORS + 1))
   fi
 }
 
 echo ""
 echo "--- Claude Code ---"
-check_symlink "AGENTS.md" "$CLAUDE_AGENTS_MD"
-check_symlink "CLAUDE.md → AGENTS.md" "$CLAUDE_MD"
-check_symlink "rules/common" "$CLAUDE_RULES_COMMON"
-check_symlink "rules/python" "$CLAUDE_RULES_PYTHON"
+if command -v claude >/dev/null 2>&1 || [ -d "$(dirname "$CLAUDE_MD")" ] || [ -e "$CLAUDE_MCP_JSON" ]; then
+check_symlink "AGENTS.md" "$CLAUDE_AGENTS_MD" "$BOOTSTRAP/agent/rules/AGENTS.md"
+check_symlink "CLAUDE.md → AGENTS.md" "$CLAUDE_MD" "$CLAUDE_AGENTS_MD"
+check_symlink "rules/common" "$CLAUDE_RULES_COMMON" "$BOOTSTRAP/agent/rules/common"
+check_symlink "rules/python" "$CLAUDE_RULES_PYTHON" "$BOOTSTRAP/agent/rules/python"
 if [ -f "$CLAUDE_SETTINGS" ]; then
   echo "  OK   settings.json"
 else
   echo "  MISS settings.json"
+  ERRORS=$((ERRORS + 1))
 fi
 audit_mcp_config claude "$CLAUDE_MCP_JSON"
+else
+  echo "  SKIP Claude Code (not installed)"
+fi
 
 echo ""
 echo "--- Codex ---"
+if command -v codex >/dev/null 2>&1 || [ -d "$(dirname "$CODEX_TOML")" ]; then
 if [ -f "$CODEX_HOOKS" ]; then
   echo "  OK   hooks.json"
 fi
@@ -285,35 +298,42 @@ if [ -d "$CODEX_SKILLS_DIR/caveman" ]; then
   echo "  OK   caveman skill installed"
 else
   echo "  MISS caveman skill"
+  ERRORS=$((ERRORS + 1))
+fi
+codex_rtk_arg=()
+if [ -f "$HOME/.codex/RTK.md" ]; then
+  codex_rtk_arg=(--rtk "$HOME/.codex/RTK.md")
+fi
+adv_arg=()
+if [ -f "$BOOTSTRAP/agent/rules/adversarial-review-gate.md" ]; then
+  adv_arg=(--adversarial-review "$BOOTSTRAP/agent/rules/adversarial-review-gate.md")
 fi
 if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
   --target "$CODEX_AGENTS" \
   --rules "$BOOTSTRAP/agent/rules/AGENTS.md" \
-  --rtk "$HOME/.codex/RTK.md" \
-  --adversarial-review "$BOOTSTRAP/agent/rules/adversarial-review-gate.md"; then
+  "${codex_rtk_arg[@]}" \
+  "${adv_arg[@]}"; then
   echo "  OK   AGENTS.md canonical rules content"
 else
   echo "  MISS AGENTS.md canonical rules content"
+  ERRORS=$((ERRORS + 1))
 fi
 check_contains "AGENTS.md context-mode SOP" "$CODEX_AGENTS" '## Context Mode SOP'
 if "$PYTHON_BIN" "$BOOTSTRAP/scripts/context7-mcp-bridge.py" --validate-private-config; then
   echo "  OK   Context7 private config and permissions"
 else
   echo "  MISS Context7 private config or permissions"
+  ERRORS=$((ERRORS + 1))
 fi
 audit_mcp_config codex "$CODEX_TOML" --hooks-path "$CODEX_HOOKS"
 check_contains "hooks.json context-mode SOP reminder" "$CODEX_HOOKS" 'CONTEXT-MODE SOP:'
-check_contains "quality gate manifest" "$BOOTSTRAP/agent/quality-gates/manifest.jsonc" '"events"'
-check_contains "quality gate runner" "$BOOTSTRAP/scripts/agent-quality-gate.sh" 'agent_quality_gate.py'
-check_contains "neat-freak adapter" "$BOOTSTRAP/scripts/neat-freak-gate.sh" 'check|apply'
-check_contains "knowledge record adapter" "$BOOTSTRAP/scripts/knowledge-record-gate.sh" 'record-push'
 HOOKS_PATH="$(git -C "$BOOTSTRAP/.." config --get core.hooksPath 2>/dev/null || true)"
 if [ "$HOOKS_PATH" = "template/agent/quality-gates/hooks" ]; then
   echo "  WARN core.hooksPath is legacy self-hook (run: make quality-gate-hook-install)"
 elif [ -n "$HOOKS_PATH" ] && [ -x "$HOOKS_PATH/pre-commit" ]; then
   echo "  OK   core.hooksPath -> dispatcher ($HOOKS_PATH)"
 else
-  echo "  MISS core.hooksPath quality gate hooks (run: make quality-gate-hook-install)"
+  echo "  WARN core.hooksPath quality gate hooks (run: make quality-gate-hook-install)"
 fi
 if grep -q 'QUALITY GATE PRE-' "$CODEX_HOOKS" 2>/dev/null; then
   echo "  WARN legacy Codex quality gate prompt hooks still present"
@@ -322,7 +342,12 @@ else
 fi
 
 echo ""
+else
+  echo "  SKIP Codex (not installed)"
+fi
+
 echo "--- OpenCode ---"
+if command -v opencode >/dev/null 2>&1 || [ -d "$(dirname "$OPENCODE_CONFIG")" ]; then
 if [ -f "$OPENCODE_CONFIG" ]; then
   echo "  OK   opencode.json"
 fi
@@ -330,6 +355,7 @@ if [ -f "$OPENCODE_PLUGINS_DIR/rtk.ts" ]; then
   echo "  OK   OpenCode V2 RTK plugin"
 else
   echo "  MISS OpenCode V2 RTK plugin"
+  ERRORS=$((ERRORS + 1))
 fi
 if grep -q '"plugin"[[:space:]]*:' "$OPENCODE_CONFIG" 2>/dev/null; then
   echo "  WARN legacy OpenCode plugin key remains"
@@ -337,13 +363,34 @@ fi
 if grep -Eq '"@opencode-ai/plugin"' "$(dirname "$OPENCODE_CONFIG")/package.json" 2>/dev/null; then
   echo "  WARN legacy @opencode-ai/plugin dependency remains"
 fi
-check_contains "AGENTS.md generated marker" "$OPENCODE_AGENTS" 'Generated by install-agent-tooling.sh'
 audit_mcp_config opencode "$OPENCODE_CONFIG"
-check_contains "AGENTS.md RTK" "$OPENCODE_AGENTS" '## RTK'
-check_contains "OpenCode AGENTS.md Adversarial Review" "$OPENCODE_AGENTS" 'Adversarial Review'
-check_max_lines "AGENTS.md length" "$OPENCODE_AGENTS" 60
+opencode_rtk_arg=()
+rtk_source="$(pick_rtk_source)"
+if [ -n "$rtk_source" ] && [ -f "$rtk_source" ]; then
+  opencode_rtk_arg=(--rtk "$rtk_source")
+fi
+opencode_adv_arg=()
+if [ -f "$BOOTSTRAP/agent/rules/adversarial-review-gate.md" ]; then
+  opencode_adv_arg=(--adversarial-review "$BOOTSTRAP/agent/rules/adversarial-review-gate.md")
+fi
+if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
+  --host opencode \
+  --target "$OPENCODE_AGENTS" \
+  --rules "$BOOTSTRAP/agent/rules/AGENTS.md" \
+  "${opencode_rtk_arg[@]}" \
+  "${opencode_adv_arg[@]}"; then
+  echo "  OK   AGENTS.md canonical rules content"
+else
+  echo "  MISS AGENTS.md canonical rules content"
+  ERRORS=$((ERRORS + 1))
+fi
+check_contains "OpenCode AGENTS.md CRG First" "$OPENCODE_AGENTS" '## CRG First'
 
 echo ""
+else
+  echo "  SKIP OpenCode (not installed)"
+fi
+
 echo "--- Reasonix ---"
 if command -v reasonix &>/dev/null; then
   echo "  OK   reasonix binary"
@@ -351,6 +398,7 @@ if command -v reasonix &>/dev/null; then
     echo "  OK   config.json"
   else
     echo "  MISS config.json"
+    ERRORS=$((ERRORS + 1))
   fi
   audit_mcp_config reasonix "$REASONIX_CONFIG"
   if [ -d "$REASONIX_SKILLS_DIR" ]; then
@@ -367,6 +415,7 @@ if command -v agy &>/dev/null; then
     echo "  OK   settings.json"
   else
     echo "  MISS settings.json"
+    ERRORS=$((ERRORS + 1))
   fi
   audit_mcp_config antigravity "$ANTIGRAVITY_MCP_JSON"
   if [ -d "$ANTIGRAVITY_SKILLS_DIR" ]; then
@@ -374,40 +423,53 @@ if command -v agy &>/dev/null; then
     echo "  OK   skills/ ($SKILL_COUNT SKILL.md files)"
   else
     echo "  MISS skills/"
+    ERRORS=$((ERRORS + 1))
   fi
 fi
 
 echo ""
 
 echo "--- Global Instructions & Antigravity ---"
-check_symlink "global GEMINI.md → canonical AGENTS.md" "$GLOBAL_GEMINI"
+if command -v agy >/dev/null 2>&1 || [ -e "$GLOBAL_GEMINI" ] || [ -L "$GLOBAL_GEMINI" ]; then
+  check_symlink "global GEMINI.md → canonical AGENTS.md" "$GLOBAL_GEMINI" "$BOOTSTRAP/agent/rules/AGENTS.md"
+else
+  echo "  SKIP Antigravity global instructions (not installed)"
+fi
 
 OMP_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
 if [ -d "$OMP_AGENT_DIR" ] || command -v omp &>/dev/null; then
-  check_symlink "OMP AGENTS.md" "$OMP_AGENT_DIR/AGENTS.md"
+  check_symlink "OMP AGENTS.md" "$OMP_AGENT_DIR/AGENTS.md" "$BOOTSTRAP/agent/rules/AGENTS.md"
 fi
 echo ""
+echo "--- Shared Managed Configuration ---"
+check_contains "quality gate manifest" "$BOOTSTRAP/agent/quality-gates/manifest.jsonc" '"events"'
+check_contains "quality gate runner" "$BOOTSTRAP/scripts/agent-quality-gate.sh" 'agent_quality_gate.py'
+check_contains "neat-freak adapter" "$BOOTSTRAP/scripts/neat-freak-gate.sh" 'check|apply'
+check_contains "knowledge record adapter" "$BOOTSTRAP/scripts/knowledge-record-gate.sh" 'record-push'
 echo "--- Skill Supply Chain ---"
 if [ -f "$BOOTSTRAP/agent-skills/registry/sources.jsonc" ]; then
   echo "  OK   skills-sources.jsonc"
 else
   echo "  MISS skills-sources.jsonc"
+  ERRORS=$((ERRORS + 1))
 fi
 if [ -f "$BOOTSTRAP/agent-skills/registry/targets.jsonc" ]; then
   echo "  OK   skill-targets.jsonc"
 else
   echo "  MISS skill-targets.jsonc"
+  ERRORS=$((ERRORS + 1))
 fi
 if "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" check >/tmp/mac-bootstrap-skill-check.out 2>/tmp/mac-bootstrap-skill-check.err; then
   sed 's/^/  OK   /' /tmp/mac-bootstrap-skill-check.out
 else
   echo "  FAIL skill supply-chain check"
+  ERRORS=$((ERRORS + 1))
   sed 's/^/       /' /tmp/mac-bootstrap-skill-check.err
 fi
 if [ -d "$CLAUDE_SKILLS_DIR" ] || [ -d "$(json_get_path shared.cross_agent_skills_dir)" ]; then
   echo "  OK   agent skill dirs present"
 else
-  echo "  MISS agent skill dirs"
+  echo "  SKIP agent skill dirs (not installed)"
 fi
 
 echo ""
@@ -416,13 +478,13 @@ PROMPT_LIBRARY="$(json_get_path shared.prompt_library_root)"
 if [ -x "$HOME/.local/bin/agent-prompt" ]; then
   echo "  OK   agent-prompt helper"
 else
-  echo "  MISS agent-prompt helper (run: make agent-tools)"
+  echo "  SKIP agent-prompt helper (run: make agent-tools)"
 fi
 if [ -f "$PROMPT_LIBRARY/index.json" ]; then
   PROMPT_COUNT=$(grep -c '"id":' "$PROMPT_LIBRARY/index.json" 2>/dev/null || true)
   echo "  OK   prompt index: $PROMPT_COUNT records"
 else
-  echo "  MISS prompt index (run: make prompt-sync)"
+  echo "  SKIP prompt index (run: make prompt-sync)"
 fi
 
 echo ""
@@ -431,7 +493,7 @@ for tool in rtk context-mode codebase-memory-mcp; do
   if command -v "$tool" &>/dev/null; then
     echo "  OK   $tool ($(command -v "$tool"))"
   else
-    echo "  MISS $tool"
+    echo "  SKIP $tool (not installed)"
   fi
 done
 # Check context7 (npx package, not a standalone binary)
@@ -443,7 +505,7 @@ if command -v npx &>/dev/null; then
      grep -q 'context7' "$ANTIGRAVITY_MCP_JSON" 2>/dev/null; then
     echo "  OK   context7 MCP (configured in agent configs)"
   else
-    echo "  MISS context7 MCP (not configured in any agent)"
+    echo "  SKIP context7 MCP (not configured in any agent)"
   fi
 fi
 npm_packages_file="$BOOTSTRAP/agent/npm-global-packages.txt"
@@ -496,8 +558,9 @@ CBM_PROJECT_COUNT="$(codebase-memory-mcp cli list_projects '{}' 2>/dev/null | aw
 if [ -n "$CBM_PROJECT_COUNT" ] && [ "$CBM_PROJECT_COUNT" -gt 0 ]; then
   echo "  OK   CBM graph ($CBM_PROJECT_COUNT indexed projects)"
 else
-  echo "  MISS CBM graph (run: codebase-memory-mcp cli index_repository '{\"repo_path\": \"'\"$PWD\"'\"}')"
+  echo "  WARN CBM graph (run: codebase-memory-mcp cli index_repository '{\"repo_path\": \"'\"$PWD\"'\"}')"
 fi
 
 echo ""
-echo "Done."
+echo "Done. ($ERRORS required failures)"
+[ "$ERRORS" -eq 0 ]

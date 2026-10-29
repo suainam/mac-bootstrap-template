@@ -1,44 +1,7 @@
 version: 1
 
-# Prompt library metadata remains here.
-# Skill source lineage and distribution authority:
-# ../agent-skills/registry/sources.jsonc
-# ../agent-skills/registry/targets.jsonc
-# Do not use this YAML file as the Skill supply-chain authority.
-
-home: "~/.agent"
-
-prompt_libraries:
-  fabric:
-    repo: "https://github.com/danielmiessler/fabric.git"
-    path: "upstream/fabric"
-    mode: "fabric-patterns"
-    patterns_path: "data/patterns"
-    license: "MIT"
-  wonderful-prompts:
-    repo: "https://github.com/langgptai/wonderful-prompts.git"
-    path: "upstream/wonderful-prompts"
-    mode: "markdown-sections"
-    license: "MIT"
-
-agents:
-  claude:
-    reads:
-      - "~/.agent/agents/claude/CLAUDE.md"
-      - "~/.agent/skills"
-    notes:
-      - "Hooks are Claude-specific; render adapters from ~/.agent/hooks."
-  codex:
-    reads:
-      - "~/.agent/agents/codex/AGENTS.md"
-      - "~/.agent/skills"
-    notes:
-      - "Keep MCP rendered separately from Claude settings."
-  opencode:
-    reads:
-      - "~/.agent/agents/opencode/AGENTS.md"
-      - "~/.agent/skills"
-  pi:
-    reads:
-      - "~/.agent/agents/pi/AGENTS.md"
-      - "~/.agent/skills"
+# Legacy compatibility pointer; this file is not a configuration authority.
+# Agent paths: agent-manifest.json
+# MCP servers and tool approvals: ../scripts/agent_mcp_runtime.py
+# Prompt libraries: prompts/sources.json
+# Skill sources and targets: ../agent-skills/registry/{sources,targets}.jsonc

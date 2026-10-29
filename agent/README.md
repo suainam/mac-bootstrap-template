@@ -8,9 +8,10 @@ runtime configuration only.
 
 ```bash
 # From bootstrap repo root:
-make bootstrap   # Brewfile deps + shell/vim/neovim/tmux config
+make bootstrap   # Install the environment defined by the bootstrap entrypoint
 make agent-sync  # Validate/distribute registry-enabled skills + sync prompt libraries
 make agent-tools # Configure RTK, caveman, CBM, context7 + wire skills for all agents
+make agent-apply # Apply local agent configuration without installs or downloads
 make skill-refresh # Validate and distribute landed registry sources only
 make prompt-sync # Sync Fabric/Wonderful prompt libraries + rebuild index
 make prompt-mcp  # Run the optional local prompt-library MCP server
@@ -23,16 +24,33 @@ For full agent sync and reconfiguration (`make agent-refresh`), see the canonica
 Agent paths and targets are driven from
 [`agent-manifest.json`](agent-manifest.json); Codex MCP startup defaults and
 profiles are driven from [`mcp-policy.json`](mcp-policy.json). Edit canonical
-sources once, then re-run `make agent-tools`.
-Generated runtime markdown files are ordered by host adapter: canonical rules,
-then RTK, then host-specific CBM/docs guidance.
+sources once, then re-run `make agent-apply` for local configuration, or
+`make agent-tools` for the full install and configuration workflow.
+Generated instruction composition is owned by the renderer and host adapters;
+see [Instruction ownership and loading](#instruction-ownership-and-loading).
+The legacy `manifest.yaml` is a compatibility pointer; prompt sources live in
+[`prompts/sources.json`](prompts/sources.json), and managed MCP definitions and
+tool approvals live in [`agent_mcp_runtime.py`](../scripts/agent_mcp_runtime.py).
+
+Canonical source paths (refresh with `python3 scripts/agent-reference.py --write`):
+
+<!-- agent-reference:start -->
+| Manifest key | Source path |
+|---|---|
+| `adversarial_review_file` | `agent/rules/adversarial-review-gate.md` |
+| `personal_extensions_dir` | `agent/extensions/personal` |
+| `prompts_dir` | `agent/prompts` |
+| `rules_common_dir` | `agent/rules/common` |
+| `rules_file` | `agent/rules/AGENTS.md` |
+| `rules_python_dir` | `agent/rules/python` |
+<!-- agent-reference:end -->
 
 ### Codex MCP Profiles
 
 Codex MCP startup policy is managed in [`mcp-policy.json`](mcp-policy.json).
 Keep server connection definitions in `scripts/agent_mcp_runtime.py`; use the
 policy file only for default enablement and named profiles. Run `make
-agent-tools` after changing either source.
+agent-apply` after changing either source.
 
 The base Codex session starts context-mode, codebase-memory-mcp, and Context7.
 The only retained profile is a compatibility override for Context7. DevSpace is
@@ -63,51 +81,79 @@ managed state with `make doctor-agent`; refresh with `make agent-tools`.
 
 ## Architecture
 
-### Canonical Sources
+### Instruction ownership and loading
 
+规则管理分三层：公共默认规则、宿主适配、仓库约束。修改规则前先确定
+所属层；同一条规则只维护一个源，其他入口引用或生成。
+
+| 内容 | 权威来源与维护方式 | 读取时机 |
+|---|---|---|
+| 跨项目公共规则 | [rules/AGENTS.md](rules/AGENTS.md)；源路径由 [agent-manifest.json](agent-manifest.json) 的 `canonical` 声明 | 宿主全局入口 |
+| 专题与语言规则 | manifest 的 `rules_common_dir`、`rules_python_dir`、`adversarial_review_file` | 按宿主适配接入；不能假设所有宿主都自动加载 |
+| 宿主路径与分发 | manifest 的 `agents.*.paths`；[agent-configure.sh](../scripts/lib/agent-configure.sh) 执行链接与生成 | 安装/刷新时 |
+| 仓库与子目录约束 | 各仓库自己的 `AGENTS.md` / `CLAUDE.md` | 按宿主目录发现机制；只写该作用域特有约束 |
+| 系统模型与操作说明 | 仓库 `CONTEXT.md`、专题文档及本 README | 由任务指针按需读取 |
+| Skill 与 Prompt | [Skill 分发契约](../agent-skills/README.md)、下文 Prompt Libraries | 按需调用，不复制为全局规则 |
+
+`rules.md` 只是文件名，不是本仓定义的跨宿主自动加载入口。新增此类文件时，
+必须明确谁读取、何时读取、如何验证；优先使用现有 `rules/` 权威。
+文件存在、软链接同源、内容进入会话是三件不同的事。
+
+宿主路径直接查 manifest，不在此维护第二份路径清单。当前分发行为以
+`link_canonical_symlinks`、`configure_global_instruction_links`、
+`ensure_codex_instructions` 等适配函数为准：Claude 的两个全局文件是兼容
+软链接；Codex 使用受管内容块，保留块外用户内容。精确拼接顺序与校验由
+[agent-instructions.py](../scripts/agent-instructions.py) 定义；CBM 等宿主块由
+适配器维护。OpenCode 的 `generate_opencode_agents_doc` 当前生成核心摘要，
+只逐字摘取 `Reply Routing`，并列出源路径；源路径存在不等于完整正文已加载。
+公共规则变化后需单独核对该适配器是否遗漏新约束。
+安装器管理全局入口，仓库规则由各仓库自己管理。
+
+### 防止重复与冲突
+
+1. 先查 manifest、适配器和目标文件 realpath，确定唯一源；修改源文件后刷新，
+   不在生成块、软链接视图中维护第二份规则。
+2. 同目录 `AGENTS.md` 与 `CLAUDE.md` 表达同一份仓库约束时，使用同源兼容
+   入口；不要分别演进正文。引用语法是否生效必须按宿主验证，不能把 `@file`
+   当成通用加载契约。
+3. 项目规则只补充项目边界、验证入口与专题路由。已由宿主加载的公共规则，
+   不再复制或再次导入；语言规则也不重复写入全局正文。
+4. 遇到“必须/禁止”、权限、委派、预算或验证命令冲突，记录两处来源和各自
+   作用域。可由代码确认的事实按实现修正文档；涉及行为取舍的矛盾由维护者
+   明确选择后修改权威源。不要用重复次数、拼接先后猜测哪条获胜。
+5. 修改后同时检查受管内容与保留的用户内容。生成器保留块外文本，意味着
+   刷新成功仍可能留下旧规则；机械同源也不证明规则语义一致。
+
+这里描述的是仓库维护约定，不覆盖宿主自身的指令优先级。宿主升级后，需核对
+实际加载入口；本仓测试只能证明本仓适配器的行为。
+
+### Doc-as-Code：变更与验证闭环
+
+可执行事实（路径、目标、拼接、命令）归 manifest、脚本和 Makefile；README
+解释职责、原因与操作流程，并链接事实来源。清单需要展示时从源生成或校验，
+不手工同步多份表格。代码变化时，同一变更集更新相关测试、投影和说明。
+
+从模板根目录执行最小检查：
+
+```bash
+.venv/bin/python -m pytest -q tests/test_agent_instruction_management.py tests/test_agent_doctor_config.py
+make docs-check DOCS_PATHS=agent/README.md
 ```
-agent/agent-manifest.json             ← Agent locations + config targets (edit here)
-agent/rules/AGENTS.md                 ← Canonical global instruction source
-  → ~/.claude/AGENTS.md              ← Symlink
-  → ~/.claude/CLAUDE.md              ← Symlink → AGENTS.md (compatibility alias)
-  → ~/.codex/AGENTS.md               ← Rendered with Codex host additions (embedded content)
-  → ~/.pi/agent/AGENTS.md            ← Symlink (Pi legacy global instructions)
-  → ~/.omp/agent/AGENTS.md           ← Symlink; also wins OMP global-source precedence
-  → ~/.gemini/GEMINI.md              ← Symlink; Antigravity global GEMINI.md adapter
 
-agent/rules/common/                   ← Canonical Claude path-independent rules
-  → ~/.claude/rules/common/          ← Claude Code auto-loads rules
+规则分发行为改变时，在受控环境执行 `make agent-tools` 后运行
+`make doctor-agent`，核对受影响目标的 realpath 或生成内容，再次刷新验证幂等。
+`agent-tools` 会写宿主配置；纯文档修改不需要刷新。
 
-agent/rules/python/                   ← Canonical Claude Python rules
-  → ~/.claude/rules/python/          ← Claude Code auto-loads rules
-```
+| 检查 | 能证明什么 | 不能证明什么 |
+|---|---|---|
+| [指令管理测试](../tests/test_agent_instruction_management.py) | 生成内容、保留用户文本、重复执行、篡改拒绝等回归契约 | 宿主实际加载及语义无冲突 |
+| `make docs-check` | [文档检查器](../scripts/check_docs.py) 支持的机械约束 | 所有叙述都与实现一致 |
+| `make agent-rules-audit` | [审计脚本](../scripts/audit-agent-rules.py) 覆盖的重复导入、体积与双入口漂移 | 全部规则文件、所有引用语法及自然语言矛盾 |
+| `make doctor-agent` | [doctor](../scripts/agent-doctor.sh) 覆盖的机器配置检查 | 模型会正确遵守每条规则 |
 
-Repositories and workspaces maintain their own instructions (e.g. repo-level
-`AGENTS.md` or `CLAUDE.md`); the installer manages host-level global instructions
-only and does not write or generate workspace instruction copies.
-
-### Install Scripts (Write Agent Configs)
-
-`scripts/install-agent-tooling.sh --configure` reads the manifest and is the
-single distribution entrypoint for:
-- Canonical global `AGENTS.md` symlink distribution (Claude `~/.claude/AGENTS.md` + `~/.claude/CLAUDE.md` compatibility alias, Pi `~/.pi/agent/AGENTS.md`, OMP `${PI_CODING_AGENT_DIR:-~/.omp/agent}/AGENTS.md`, Antigravity `~/.gemini/GEMINI.md` adapter)
-- Codex `AGENTS.md` (embeds canonical rules, RTK, adversarial review gate, and context-mode SOP; no `@` imports)
-- OpenCode `AGENTS.md` (embeds host-specific instructions)
-- Codex `hooks.json` (adds caveman hooks + context-mode)
-- Quality gate policy under `template/agent/quality-gates/manifest.jsonc`
-- Caveman default mode (`~/.config/caveman/config.json`)
-- Pi `settings.json` + `mcp.json` + global `AGENTS.md` symlink
-- Antigravity `settings.json` + `mcp_config.json` + skills + global `GEMINI.md` symlink adapter
-- Reasonix `config.json` + skills (no global rules distributed)
-- OpenCode V2 plugin list (RTK only; Context Mode remains MCP-only until V2 support exists)
-- MCP profiles (`~/.zshrc`)
-- Hook matchers (console.log guards, destructive op warnings)
-- Skill setup delegates to the registry-driven distributor documented in
-  [`../agent-skills/README.md`](../agent-skills/README.md).
-
-The script is intentionally split by responsibility:
-
-- `scripts/install-agent-tooling.sh` — thin step runner / orchestration only
+`make repo-check` 已串联文档检查及仓库测试；发布前仍按仓库规范执行完整检查。
+审阅时核对“代码事实 → 文档引用 → 测试证据”三者一致，特别检查保留的
+用户内容和嵌套规则。语义审阅与机器门禁互补，不能用一个通过标记替代另一个。
 
 ## Agent Runtime 与 Quality Gates
 
@@ -361,7 +407,7 @@ RTK and CBM locations.
 │   ├── reboot/                       ← Context recovery checklists
 │   ├── prompts/                      ← Prompt-library registry + docs
 │   ├── quality-gates/                ← Runtime quality-gate policy
-│   ├── manifest.yaml
+│   ├── agent-manifest.json
 │   └── README.md
 ├── agent-skills/                     ← Skill supply chain; see its README
 ├── data-hub/                         ← Knowledge lifecycle backend; separate subsystem

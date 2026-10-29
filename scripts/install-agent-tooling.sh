@@ -2,6 +2,7 @@
 set -euo pipefail
 
 CONFIGURE=0
+LOCAL_APPLY=0
 DRY_RUN=0
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOOTSTRAP="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -23,6 +24,7 @@ Single source of truth for all agent configuration.
 
 Options:
   --configure    Modify user-level agent config for detected agents.
+  --local-apply  Apply local configuration without fetching or installing tools.
   --dry-run      Print commands without running them.
   -h, --help     Show this help.
 
@@ -48,6 +50,7 @@ EOF
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --configure) CONFIGURE=1 ;;
+    --local-apply) CONFIGURE=1; LOCAL_APPLY=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --with-cbm-ui) echo "  --with-cbm-ui is deprecated" ;;
     -h|--help) usage; exit 0 ;;
@@ -103,7 +106,9 @@ CLAUDE_RTK="$HOME/.claude/RTK.md"
 CODEX_RTK="$HOME/.codex/RTK.md"
 RTK_SOURCE=""
 
-log_agent_binaries
+if [ "$LOCAL_APPLY" -eq 0 ]; then
+  log_agent_binaries
+fi
 
 if [ "$CONFIGURE" -eq 0 ]; then
   echo "Skip config changes. Re-run with --configure to wire hooks/plugins/MCP."
@@ -117,7 +122,9 @@ print_step_header "Step 2 — Agent dirs"
 ensure_agent_dirs
 
 print_step_header "Step 2b — Wire managed skills into agents"
-run "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles
+if [ "$LOCAL_APPLY" -eq 0 ]; then
+  run "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" ensure-bundles
+fi
 run "$PYTHON_BIN" "$BOOTSTRAP/scripts/skill_supply_chain.py" distribute
 
 print_step_header "Step 2c — Prompt library helper"
@@ -137,7 +144,9 @@ print_step_header "Step 5 — Caveman"
 configure_caveman_step
 
 print_step_header "Step 6 — Codebase Memory MCP + Context7"
-ensure_codebase_memory_mcp
+if [ "$LOCAL_APPLY" -eq 0 ]; then
+  ensure_codebase_memory_mcp
+fi
 
 print_step_header "Step 7 — MCP config for all agents"
 configure_all_mcp
@@ -157,10 +166,14 @@ print_step_header "Step 11b — Antigravity CLI"
 configure_antigravity_step
 
 print_step_header "Step 12 — Security scan (AgentShield)"
-configure_security_scan_step
+if [ "$LOCAL_APPLY" -eq 0 ]; then
+  configure_security_scan_step
+fi
 
 print_step_header "Step 12b — Repo Git Hooks"
-if git -C "$BOOTSTRAP/.." rev-parse --git-dir >/dev/null 2>&1; then
+if [ "$LOCAL_APPLY" -eq 1 ]; then
+  echo "  SKIP: local apply does not change repository hooks"
+elif git -C "$BOOTSTRAP/.." rev-parse --git-dir >/dev/null 2>&1; then
   current_hooks_path="$(git -C "$BOOTSTRAP/.." config --get core.hooksPath 2>/dev/null || true)"
   if [ -z "$current_hooks_path" ] || [ "$current_hooks_path" = "template/agent/quality-gates/hooks" ]; then
     run chmod +x "$BOOTSTRAP/agent/quality-gates/hooks/pre-commit" "$BOOTSTRAP/agent/quality-gates/hooks/pre-push"

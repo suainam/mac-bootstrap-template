@@ -1,6 +1,7 @@
 ## Core Operating Rules
 
-These rules apply to every task in this project unless explicitly overridden.
+These are shared defaults across projects. Follow the host instruction hierarchy
+and applicable repository rules; this file grants no additional permissions.
 Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
 
 ### Occam Gate — before design
@@ -9,10 +10,10 @@ Apply `ponytail` before design: choose the smallest existing path that satisfies
 the request. Add abstractions, dependencies, agents, or files only when needed.
 
 ### Rule 1 — Think Before Coding
-State assumptions explicitly. If uncertain, ask rather than guess.
-Present multiple interpretations when ambiguity exists.
-Push back when a simpler approach exists.
-Stop when confused. Name what's unclear.
+State assumptions that affect the result. Resolve uncertainty from available
+evidence first. Ask when a missing decision affects scope, correctness, permission,
+or an irreversible action; continue independent authorized work meanwhile.
+Choose the smallest reversible interpretation for non-blocking details.
 
 ### Rule 2 — Surgical Changes
 Touch only what you must. Clean up only your own mess.
@@ -21,7 +22,7 @@ Don't refactor what isn't broken. Match existing style.
 
 ### Rule 3 — Goal-Driven Execution
 Define success criteria. Loop until verified.
-Don't follow steps. Define success and iterate.
+Follow required procedures; use evidence to decide when the outcome is complete.
 Strong success criteria let you loop independently.
 
 ### Rule 4 — Use the model only for judgment calls
@@ -30,9 +31,11 @@ Do NOT use me for: routing, retries, deterministic transforms.
 If code can answer, code answers.
 
 ### Rule 5 — Surface conflicts, don't average them
-If two patterns contradict, pick one (more recent / more tested).
-Explain why. Flag the other for cleanup.
-Don't blend conflicting patterns.
+Distinguish instruction conflicts from stale implementation facts. Apply the
+host instruction hierarchy and explicit scope first. For facts, inspect current
+code and tests; recency alone does not establish authority. If an unresolved
+conflict changes permissions or intended behavior, name both sources and ask
+for that decision. Do not combine contradictory requirements.
 
 ### Rule 6 — Read before you write
 Before adding code, read exports, immediate callers, shared utilities.
@@ -70,41 +73,61 @@ A reachable page alone does not exclude proxy, browser-path, or later-request fa
 
 ## Mandatory Codebase-Memory (CBM) & Memory Routing Protocol
 
-### 1. Structural Code Discovery (CBM via `xd://`)
-- CBM MCP tools are mounted as `xd://` devices (e.g. `xd://mcp__codebase_memory_mcp_search_graph`, `xd://mcp__codebase_memory_mcp_trace_path`). Execute via `write(path="xd://...", content='{...}')`.
-- **Mandatory Routing**: MUST use CBM first for symbols, functions, classes, methods, routes, callers/callees, blast radius, and architecture overview.
-- **Prohibition**: Do NOT use `glob` or `read` on multiple code files to discover symbols or trace dependencies before running `search_graph` or `trace_path`.
-- **Threshold**: If a search or glob would return >20 code files, abort and use CBM graph queries.
-- **Coverage**: Call `check_index_coverage` before stating absence or dead code.
+### 1. Structural Code Discovery
+- Use the host's available CBM tools first for symbols, callers/callees, routes,
+  blast radius, and architecture. Use `search_graph` for discovery and
+  `trace_path` for relationships; transport syntax belongs to the host adapter.
+- Check index coverage and freshness before claiming absence or dead code.
+  Repository source is ground truth; a graph miss alone is not proof.
+- Use targeted text search for literals, configuration, and uncovered files.
+  If CBM is unavailable, report the limitation and use bounded source inspection;
+  never invent a tool call. Narrow searches that would span more than 20 code files.
 
-### 2. Multi-Tier Agent Memory
-- **SSOT Layers**:
-  1. **Codebase-Memory (CBM)**: Deterministic code architecture (`xd://mcp__codebase_memory_mcp_*`).
-  2. **Shared memory MCP**: Long-term semantic decisions, architectural trade-offs, and operational pitfalls. Use the tools the host actually mounts (on OMP: `memory_query`, `memory_read_page`, `memory_recent`, `memory_write_page`); there is no `remember`/`recall`.
-  3. **Local Runtime (`agent.db`)**: Ephemeral turn context and session compaction.
-- **Practice**: Query shared memory before a non-trivial refactor or debug in a subsystem with history, and read the full page on a hit. Record a durable trap only after live verification. A missing memory tool is a defect, not permission to invent history. Code in the repository is the ultimate ground truth.
+### 2. Memory and Evidence
+- Use available shared memory before a non-trivial refactor or debugging task
+  in a subsystem with history; read the underlying page when a result matters.
+- Memory supplies prior decisions and pitfalls, not proof of current behavior.
+  Verify against current source or live evidence before relying on it.
+- If memory is unavailable, state the gap and continue from repository evidence;
+  ask only when the missing history blocks a required decision.
+- Record durable lessons only after verification and within the authorized
+  memory workflow. Session storage and memory tool names belong to the host.
 
 ## Subagent Delegation Contract
 
-Spawn only for ≥2 independent slices or read-only scouting that saves main context. Otherwise work inline (Occam Gate wins). Task size gate: work a single agent can finish in about half a day stays inline; only week-scale work with shifting conditions earns orchestration. Human workstream orchestration operates at hour-level chunks (research and consensus before handoff; avoid minute-level human micromanagement bottlenecks).
+Work inline for tasks one agent can finish in about half a day. Larger,
+changing work may use orchestration only when at least two independent slices
+exist. An explicitly required independent review follows its own task scope.
+Host and user restrictions on delegation always apply.
 
-- **Caps**: ≤5 concurrent subagents; ≤15 min wall-clock each. The host must enforce both (`task.maxConcurrency`, `task.maxRuntimeMs` in OMP; defaults are 32 and unlimited). Models: main tier or fast tier only; never a costlier tier.
-- **Coordinator**: the parent owns scope, slice design, staging, and the final report; it does not implement slices itself. Keep its context on goals and evidence, not implementation detail.
-- **Offline preflight & no blind downloads**: Tooling, dependencies, packages, and grammars MUST be pre-installed or vendored locally before spawning. Subagents MUST NOT blindly trigger external downloads/fetches during execution; network timeout or missing offline assets is a caller preflight defect.
-- **Single responsibility & task slicing**: Each subagent executes exactly one cohesive slice with zero unnecessary abstraction. Slices must be mutually orthogonal with explicit file ownership; parallel agents never share mutable target files.
-- **Progress heartbeat & deadlock prevention**: Subagents must report a 1-line progress heartbeat at milestones and at least every ~60s. Silence >3 min or spinning in retry loops triggers parent kill (`write proc://<id>/kill`) to prevent deadlock and silent hangs.
-- **Preflight before spawn**: write the slice list, each slice's files, the verification command, and the human gates the work will cross. Surface missing access, credentials, or decisions now; do not discover them mid-run.
-- **Task contract** (the `task` text MUST carry all of it, goal-style; use `qiaomu-goal-meta-skill` when the slice is unclear):
-  - Outcome: one concrete result, not an activity.
-  - Boundaries: exact files/dirs it may read or write; read-only unless a single named writer.
-  - Verification: command or artifact that proves done. Test counts alone are NOT evidence; results tied to requirements are.
-  - Stop when: proof of completion. Pause if: credential, destructive step, or product decision needed.
-  - Rationale: for non-obvious choices, report options considered, the choice, and the evidence behind it.
-  - Time: 15 min cap. Report one-line progress to the parent at each milestone and at least every ~60 s; silence is a defect.
-- **Non-blocking questions are recorded, not asked**: keep working on the parts that are already clear, batch the decisions for the next human gate, and stop only for genuinely blocking gates (merge, credentials, destructive actions).
-- **Parent supervision**: run subagents as async jobs and stay quiet while they work. Liveness is separate from human interruption: children report 1-line progress at milestones/~60s without interrupting human rhythm; coordinator inspects and batches decisions at settled checkpoints. Patrol every child once at ~3 min via `history://<id>`: on track → leave; drifting → steer with `write agent://<id>`; stuck, silent, or off-scope → `write proc://<id>/kill`, keep its partial output, and take over or respawn narrower.
-- **Closeout**: never yield with a running child. Each child ends as consumed, killed, or reported lost. Verify its claims before relying on them. If the session spanned ≥3 verification rounds or produced a wrong call, run `retro` and write at least one lesson back to `rules/` or `docs/`.
-- **Workflow routing (P1–P4)**: for verification generation (`create-verification-skill`), formal verification (`create-formal-verification-skill`), ceremony-free vertical slicing (`grilling`, `to-spec`, `to-tickets`, `implement`, `code-review`), and long-run decision records / adversarial reviews, follow `docs/agent-subagents.md`.
+- **Caps**: at most 5 concurrent children and 15 minutes per child, or the
+  host's stricter limit. Use supported runtime controls; if enforcement and
+  supervision are unavailable, work inline. Use the main or fast model tier;
+  never silently choose a costlier tier.
+- **Ownership & Single responsibility & task slicing**: the parent owns scope,
+  verification, integration, and reporting. Each child has one cohesive slice
+  with explicit file ownership. Never assign concurrent writers to the same files.
+  The parent may take over only after the child stops and its changes are inspected.
+- **Preflight & Offline preflight & no blind downloads**: identify slices,
+  dependencies, available tools, verification, and human gates before spawning.
+  Tooling, dependencies, and packages must be pre-installed locally; never trigger
+  blind downloads during execution.
+- **Task contract**: include outcome, exact read/write boundaries, verification,
+  completion condition, blocking decisions, rationale for non-obvious choices,
+  and time cap. Tie evidence to requirements, not only test counts.
+- **Supervision & Progress heartbeat & deadlock prevention**: children report at
+  milestones and at least every 60 seconds. Inspect silence of about 3 minutes
+  using the host's status/output tools; distinguish a running command from a
+  stalled child before interrupting it. Report meaningful progress to the user and
+  batch non-blocking questions.
+- **Closeout**: stop or consume every child before ending the task. Verify its
+  claims; retain and report partial work when interrupted. Record recurring,
+  verified traps in an existing authorized knowledge surface, not automatically
+  in always-loaded global rules.
+- **Workflow routing**: consult the bootstrap template's `docs/agent-subagents.md`
+  for its project-specific roles and P1–P4 workflows. Resolve this path relative
+  to the template source checkout, not the user's current repository.
+
 ## Reply Routing
 
 The user's explicit format, language, and depth win over every default here.

@@ -38,15 +38,15 @@ line per milestone and at least every ~60 s, or the parent treats silence as a
 defect and intervenes. Liveness is separate from human interruptions: agents
 run async while the human coordinates at settled checkpoints.
 
-The caps (5 concurrent children, 15 minutes wall clock each) are an enforced
-runtime guardrail; human workstream orchestration operates at hour-level chunks
-with documented consensus.
+Concurrency and time caps belong to the authoritative contract above. They
+require supported host runtime controls and supervision; prose alone does not
+enforce them. Use the stricter host limit and work inline when controls are unavailable.
 
 Acceptance requires substantive live evidence (end-to-end runs, transcripts,
 artifacts, or `/create-verification-skill` feature maps). Raw unit test counts
 are evidence, but not sufficient alone for live behavior.
 
-Spawn subagents when at least two lanes can run independently:
+After the authoritative size and permission gates pass, possible independent lanes include:
 
 - implementation is still changing while regression checks can run in parallel
 - machine state and repo state both need verification
