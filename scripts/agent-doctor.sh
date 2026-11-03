@@ -311,8 +311,8 @@ fi
 if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
   --target "$CODEX_AGENTS" \
   --rules "$BOOTSTRAP/agent/rules/AGENTS.md" \
-  "${codex_rtk_arg[@]}" \
-  "${adv_arg[@]}"; then
+  ${codex_rtk_arg[@]:-} \
+  ${adv_arg[@]:-}; then
   echo "  OK   AGENTS.md canonical rules content"
 else
   echo "  MISS AGENTS.md canonical rules content"
