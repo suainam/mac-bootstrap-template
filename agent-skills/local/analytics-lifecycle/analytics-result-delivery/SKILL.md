@@ -11,7 +11,8 @@ description: Deliver analytics assets across executive Excel workbooks, interact
 
 - **`【高管工作簿 / executive-excel】`**：Excel 交付达到直接呈报标准（深蓝底白字表头居中、自适应列宽、数值带千分位、比率严格应用百分比格式）。
 - **`【设计品味 / design-taste-html】`**：利用 HTML/现代前端规范呈现分析报告，遵循“总-分-总”结构，背景、结论、过程数据证据链完备，排版考究、层次分明、拒绝模板化。
-- **`【知识增量 / wiki-sync】`**：Wiki 文档发布遵循增量版本追加原则，保持历史版本与附件完整。
+- **`【知识增量与Wiki契约 / wiki-publishing-contract】`**：Wiki 文档发布遵循 REST 源码直写、专项页面独立落盘、附件宏免下载预览与既有主文档原行内高亮改写原则。
+- **`【原行内改写与高亮契约 / inline-highlight-contract】`**：主文档策略表格不另起新行，在原行就地改写并应用整行黄色底色；废弃规则用删除线，新增规则用红字，暂停需求在清单标红说明。
 - **`【工时与协同 / timesheet-audit】`**：工时填报与需求结单基于真实 Git 提交与需求编号交叉比对，整周工时严格守恒。
 - **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话（如以“陈列架总长度”取代“延米”），写出自然、直接、有立场的业务决策语言。
 - **`【命名空间契约 / scoped-delivery-naming】`**：阶段五交付文件严格采用 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 与同名 `.html` 命名。
@@ -30,6 +31,7 @@ description: Deliver analytics assets across executive Excel workbooks, interact
 - **统一门户驱动脚本**：`scripts/portal_browser_sync.js`
 - **表格协同操作规约**：[references/wecom_sheet_patterns.md](references/wecom_sheet_patterns.md)
 - **绩效自评标准规约**：[references/hpm_criteria.md](references/hpm_criteria.md)
+- **Wiki 发布与改写规范手册**：[references/wiki_publishing_contract.md](references/wiki_publishing_contract.md)
 - **关联工程规范**：融合新店 32 项体系（详见 [ps-new-store-benefit-report](../../product-strategy/ps-new-store-benefit-report/SKILL.md)）、加盟店前端 HTML 看板与桑基图（详见 [ps-franchise-store-report](../../product-strategy/ps-franchise-store-report/SKILL.md)）、O2O 卡片诊断（详见 [o2o-store-benefit-report](../../product-strategy/o2o-store-benefit-report/SKILL.md)）、统一门户同步（详见 [ps-portal-sync](../../product-strategy/ps-portal-sync/SKILL.md)）、季度绩效自评（详见 [hpm-performance-review](../../product-strategy/hpm-performance-review/SKILL.md)）与视频汇报（详见 [web-video-presentation-delivery](../../product-strategy/web-video-presentation-delivery/SKILL.md)）
 - **共享契约（权威真源，阶段回复/交付六栏与唯一资产身份）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
 - **数据质量核验清单（数据湖隔离与同名覆盖规范）**：[../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md](../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md)
@@ -72,7 +74,11 @@ flowchart TD
 - 侧边栏内建双向拖拽分栏（`#resizer`，支持 300px~950px 自由拉伸），图例按核心品类色系收敛合并；
 - 图元点击与清单表格实现双向互锁联动定位。
 ### Channel C: Confluence Wiki 增量沉淀 (Wiki Publishing)
-提取方案与结论，在正文末尾追加修订记录，增量更新知识库页面。
+遵循 [references/wiki_publishing_contract.md](references/wiki_publishing_contract.md) 的标准四步流程：
+1. **专项新页面独立落盘**：调用 `POST /rest/api/content` 在指定空间与父级页面下新建专项说明页；
+2. **交付附件直传与 view-file 宏嵌入**：技术交接文档与 SQL 上传为页面附件，正文嵌入 `<ac:structured-macro ac:name="view-file">` 宏实现在线直接预览；
+3. **策略主文档原行内高亮改写**：步骤表格在原行就地改写并应用整行黄色底色（`class="highlight-yellow"`），废弃规则加删除线 `<s>`，新规则加红字；版本清单对暂停项显式加红字说明；
+4. **技术用语规范与边界防漂移**：严禁用语口语化，统一使用「分步实施策略」；严格排除与当期需求无关的全局口径。
 
 ### Channel D: WBS 推进表结单与工时核销 (WBS & Timesheet)
 通过驱动工具将需求流转为已完成，并核验工时守恒记录至工时系统。

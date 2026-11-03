@@ -1,0 +1,88 @@
+# 交互模式 D / E / F 详细参考
+
+本文档是 `SKILL.md` 中「模式 D/E/F」摘要的展开说明。按需读取；SKILL.md 为路由入口。
+
+---
+
+## 模式 D: Vue/React 受控表单与动态文件注入 (Controlled Forms & File Injection)
+
+针对现代前端框架（Vue 3 / React / Element UI / Ant Design / 腾讯文档表单）：
+
+### D.1 受控组件文本写入
+
+直接修改 `el.value = ...` 会被框架响应式拦截，导致失焦后值清空或校验失败。必须调用原型链原生 setter 并派发冒泡事件：
+
+```javascript
+const proto = el instanceof HTMLTextAreaElement
+  ? HTMLTextAreaElement.prototype
+  : HTMLInputElement.prototype;
+Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, val);
+el.dispatchEvent(new Event('input',  { bubbles: true }));
+el.dispatchEvent(new Event('change', { bubbles: true }));
+```
+
+### D.2 动态文件上传注入
+
+绕过系统文件选择弹窗，将本地文件经 Base64 转为内存 `File`，通过 `DataTransfer` 注入隐藏或动态生成的 `input[type=file]`：
+
+```javascript
+const dt = new DataTransfer();
+dt.items.add(new File([byteArray], fileName, { type: mimeType }));
+input.files = dt.files;
+input.dispatchEvent(new Event('input',  { bubbles: true }));
+input.dispatchEvent(new Event('change', { bubbles: true }));
+```
+
+标准工具实现已沉淀在 `scripts/form_injector.mjs`，可直接跨仓库复用。
+
+### D.3 动态 input 触发时序
+
+部分上传组件初始 DOM 中不存在 `input[type=file]`；必须先点击「上传」容器触发组件渲染，等新 input 挂载后再注入。用 `document.querySelectorAll('input[type=file]')` 探活，长度从 0 变 1 后再注入。
+
+### D.4 语义特征锚定定位（多 textarea 场景）
+
+页面存在多个相似 textarea 时，**禁止**硬编码下标（如 `querySelectorAll('textarea')[2]`）。应向上遍历父节点文本特征（如「01 观点来源」标签），在其父容器内唯一定位目标 textarea。
+
+---
+
+## 模式 E: 多标签页并发槽位与 Four-Gate 生产防错门禁 (Multi-tab & Four-Gate Safety)
+
+针对具有真实业务副作用（积分申报、工单提交、配置修改）的自动化操作，必须实施确定性四重防错门禁：
+
+| Gate | 名称 | 规则 |
+|------|------|------|
+| **Gate 1** | 显式槽位隔离 | 所有 CDP / huashu-chrome 指令显式携带 `tabId`（`client.call(cmd, { tabId, ... })`），禁止依赖隐式缺省槽，防止多 Agent 会话并发串台。 |
+| **Gate 2** | 语义卡片与标题强断言 | 操作前后严格断言目标卡片文本与弹窗标题（如 `.el-dialog__title`），未命中立即熔断中断，绝不盲操作。 |
+| **Gate 3** | 单实例防重校验 | 上传附件前清空旧列表，注入后强校验 DOM 渲染列表项长度必须严格为 1（`document.querySelectorAll('.el-upload-list__item').length === 1`）。 |
+| **Gate 4** | 人机终审交接 (Human-in-the-Loop) | 自动化只负责完整填写表单并保持弹窗展开态，严禁脚本点击提交按钮，最终确认交由人工终审执行。 |
+
+---
+
+## 模式 F: 顶层环境 REST 直写与附件透传 (Top-Frame REST & Attachment Ingestion)
+
+针对具备 REST/RPC 接口的系统（如 Confluence 6.x、GitLab、Jira、企业知识库）：
+
+### F.1 顶层原生 fetch 穿透
+
+当页面存在跨域 iframe 导致 `eval` 抛出 `Cannot access contents of the page` 权限错误时，改用：
+
+```javascript
+client.call("fetch", { url, init }, { tabId })
+```
+
+仅在顶层 frame 上下文执行原生 `fetch`，自动复用当前站点的 Cookie 与 SSO 会话，完全穿透权限壁垒。
+
+根因：`eval` 指令底层默认执行 `allFrames: true` 注入脚本，当页面内嵌第三方或跨域 iframe 时触发扩展宿主权限拦截。
+
+### F.2 二进制/文档附件透传
+
+通过在页面上下文组装 `FormData` 并 POST 目标上传端点（如 `/rest/api/content/${pageId}/child/attachment`），免下载落地直传大附件，避免 base64 内存膨胀与字符截断。
+
+### F.3 标准工具实现
+
+顶层请求与附件直传能力已封装在 `scripts/huashu_driver.mjs`：
+
+- `callTopFetch(client, { tabId, url, method, headers, body })` — 顶层 fetch 穿透。
+- `uploadAttachmentToPage(client, { tabId, pageId, filePath, mimeType })` — 附件直传端点。
+
+完整函数签名与示例见 `scripts/huashu_driver.mjs`。
