@@ -14,7 +14,8 @@ description: Deliver analytics assets across executive Excel workbooks, interact
 - **`【知识增量与Wiki契约 / wiki-publishing-contract】`**：Wiki 文档发布遵循 REST 源码直写、专项页面独立落盘、附件宏免下载预览与既有主文档原行内高亮改写原则。
 - **`【原行内改写与高亮契约 / inline-highlight-contract】`**：主文档策略表格不另起新行，在原行就地改写并应用整行黄色底色；废弃规则用删除线，新增规则用红字，暂停需求在清单标红说明。
 - **`【工时与协同 / timesheet-audit】`**：工时填报与需求结单基于真实 Git 提交与需求编号交叉比对，整周工时严格守恒。
-- **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话（如以“陈列架总长度”取代“延米”），写出自然、直接、有立场的业务决策语言。
+- **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话，写出自然、直接、有立场的业务决策语言。
+- **`【四项金标准大盘对比矩阵 / assortment-metrics-matrix】`**：策略评估必须建立原目录 vs 新目录（不同放开档位）大盘指标影响全景对比表，明确对比：涉及门店数、纯增量条目数、增量店均条目数、新目录总条目数、新目录店均条目、目录内动销率变动、全店动销率变动、目录实绩销占/毛占变动以及综合测算金额，量化证明模型对关键指标的拉动。
 - **`【命名空间契约 / scoped-delivery-naming】`**：阶段五交付文件严格采用 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 与同名 `.html` 命名。
 - **`【同名幂等覆盖与资产继承 / idempotent-asset-overwrite】`**：同一数据交付物坚持稳定命名，继承既有物理文件名，严禁私起 `_v1`/`_v2`/`_fixed` 别名。新版本经临时产物门禁断言通过后同名原子覆盖，保持数据湖物理实体与仓库软链接稳定有效。
 - **`【阶段六复盘询问 / postmortem-inquiry】`**：成果交付结单后，先询问用户是否需要复盘；用户明确同意（或当前会话已明确授权）后才在 `topics/<topic_id>/06_decisions/` 物化三段式决策复盘卡，未经同意不默认生成。复盘严禁事后篡改交付口径。
@@ -27,6 +28,7 @@ description: Deliver analytics assets across executive Excel workbooks, interact
 - **桑基图标准文案模板**：[references/sankey_wording_templates.md](references/sankey_wording_templates.md)
 - **交付报告通用模板**：[templates/delivery_report_template.md](templates/delivery_report_template.md)
 - **黄金交付范例**：[examples/golden_delivery_report.md](examples/golden_delivery_report.md)
+- **黄金技术开发交接范例**：[examples/golden_development_handoff.md](examples/golden_development_handoff.md)
 - **决策复盘卡规范模板**：[templates/decision_postmortem_template.md](templates/decision_postmortem_template.md)
 - **统一门户驱动脚本**：`scripts/portal_browser_sync.js`
 - **表格协同操作规约**：[references/wecom_sheet_patterns.md](references/wecom_sheet_patterns.md)

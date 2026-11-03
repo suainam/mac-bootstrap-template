@@ -10,7 +10,9 @@ description: Execute data pipelines, interactive ODPS queries, batch backfills, 
 ## 核心主导词 (Leading Words)
 
 - **`【免Docker直跑 / pyodps-uv】`**：交互式轻量探索与快速查询统一采用 `uv run --with pyodps --no-project` 免 Docker 直跑，严格从 `~/.env` 读取数仓凭据。
-- **`【中间表架构 / staging-table】`**：执行两段式提取，物化店品明细事实表（Parquet 列存）与门店汇总宽表，消除长 CTE 重复开销，支持秒级下钻排查。
+- **`【中间表架构 / staging-table】`**：复杂多阶段数据分析严禁单体超长 WITH 查询。宏观上表间采用物理中间表（Checkpoints）物化解耦，微观上表内用局部 CTE 消除子查询嵌套。消除长 CTE 重复开销，支持秒级断点续跑与排查。
+- **`【安全隔离铁律 / dev-isolation】`**：中间物化表必须且只能写入开发临时库 `${dsl_tmp_dev}`，表名必须携带专题唯一标识（如 `tmp_<topic_id>_*`），跑完或归档时按规清理，严禁中间计算污染生产 ADS 库。
+- **`【前置履约门禁 / fulfillment-gate】`**：目录增补模型在候选生成层必须严格关联仓库与门店在营状态表，执行 `is_wh_itme_status_yc = 0` 等多级门禁，防止“纸面增补、实际无货”。
 - **`【对账门禁 / adversarial-gate】`**：模型与 SQL 计算产出后必须通过自动化断言门禁，严格核验行数唯一性、二元互斥守恒、金额自洽与 NULL 空值防卫。
 - **`【数据湖外置 / lake-isolation】`**：全量二进制数据（Parquet/Excel）通过 `shared.data_lake` 存入外部数据湖并建立规范软链接，Markdown 报告直接留在仓库。
 

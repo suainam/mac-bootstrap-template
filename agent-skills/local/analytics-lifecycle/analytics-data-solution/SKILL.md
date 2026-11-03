@@ -89,10 +89,12 @@ flowchart TD
 完成标准：方案含可审阅差异、受影响调用方、验证SQL和恢复步骤；阈值与业务编码保留在专题，不复制到通用技能。
 
 ### Step 4: 编写高性能 SQL 原型并执行扫描 (SQL Prototype & Lint)
-1. 遵守 MaxCompute 原生性能准则：
+1. 遵守 MaxCompute 原生性能与工程解耦准则：
+   - **宏观物理落盘 vs 微观局部 CTE**：复杂多阶段计算严禁包装为单一超长 WITH 查询。表间采用物理中间表（Checkpoints）解耦，表内用局部 CTE 消除子查询嵌套；阻断全盘重跑并支持单步断点排查；
+   - **全流程参数化模板**：数仓库名（`${dsl_tmp_dev}`、`${dsl_ads}` 等）、业务快照（`${benchmark_date}`、`${observation_date}`）与配置版本号一律采用变量模板，严禁硬编码；
+   - **增补品前置履约门禁**：组货目录增补候选必须在第二步关联状态表（`dwd_item_3he1_db_1_6_sale_store_item_status`），执行 `is_wh_itme_status_yc = 0` 等多级门禁，防止“纸面增补、实际无货”；
    - 优先建议使用考核结束日当天快照截面（契约对齐原生 `lt90_*_sum`），大幅精简跨日计算；
-   - 强制使用原生宏或显式分区；
-   - 关联前置聚合压平多版本；
+   - 强制使用原生宏或显式分区；关联前置聚合压平多版本；
    - **MaxCompute Grouping Sets 语法规约**：使用 `GROUPING SETS` 进行多级汇聚（公司/大区/营运区/门店）时，`GROUPING(col)` 及 `SELECT` 中出现的所有分组键，必须在主 `GROUP BY` 列清单中完整声明（如 `GROUP BY col_a, col_b, col_c GROUPING SETS ((), (col_a), (col_a, col_b), (col_a, col_b, col_c))`），避免报 `Argument should be a group by key` 语义异常；
    - 所有除法算式强制嵌套 `NULLIF(col, 0)` 实施除零防卫。
 2. 运行本地扫描工具核验 SQL 原型：
