@@ -25,6 +25,8 @@
 - `agents/portable-agent-workflow/01-capability-mapping.md`：pstack 七项能力与已安装技能/registry 分发的复用、缺口与宿主依赖清单。
 - `agents/portable-agent-workflow/01-baseline-report.md`：试验仓基线验证报告（绑定提交的命令、退出码、结果与未验证项）。
 - `agents/portable-agent-workflow/02-verification-flow.md`：launch/doctor/drive/evidence/cleanup 验证流程、干净检出实测与 unverified_checks。
+- `agents/portable-agent-workflow/03-independent-review.md`：独立审阅者复验、FAIL/BLOCKED 退回与最多两轮修正的规则。
+- `agents/portable-agent-workflow/04-regression-guard.md`：bash 3.2 + `set -u` 下可选变量与空数组展开的缺陷类、一般守卫规则与拦截该类的测试清单。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。
 - `ci.md`：公共 CI 契约、GitHub Actions 边界与本地复现方式。
 - `data-hub-record-knowledge.md`：知识记录路径。

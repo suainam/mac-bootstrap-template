@@ -414,14 +414,21 @@ ensure_codex_instructions() {
   if [ -n "$rtk_src" ] && [ -f "$rtk_src" ]; then
     rtk_arg=(--rtk "$rtk_src")
   fi
+  # Accumulate into one argv array; ${arr[@]:-} on an empty array would pass a
+  # stray empty argument, and unguarded "${arr[@]}" is unbound under set -u on
+  # macOS bash 3.2 (#223 defect class).
+  local -a render_cmd=(render --target "$CODEX_AGENTS" --rules "$RULES_FILE")
+  if [ "${#rtk_arg[@]}" -gt 0 ]; then
+    render_cmd+=("${rtk_arg[@]}")
+  fi
+  if [ "${#adv_arg[@]}" -gt 0 ]; then
+    render_cmd+=("${adv_arg[@]}")
+  fi
 
   if [ "${DRY_RUN:-0}" -eq 1 ]; then
     echo "DRY-RUN: render canonical rules into $CODEX_AGENTS"
   else
-    "${PYTHON_BIN:-python3}" "$BOOTSTRAP/scripts/agent-instructions.py" render \
-      --target "$CODEX_AGENTS" --rules "$RULES_FILE" \
-      "${rtk_arg[@]}" \
-      "${adv_arg[@]}"
+    "${PYTHON_BIN:-python3}" "$BOOTSTRAP/scripts/agent-instructions.py" "${render_cmd[@]}"
   fi
   echo "  Codex canonical rules embedded"
 

@@ -96,6 +96,38 @@ ensure_codex_instructions
     assert result.returncode == 0, result.stderr
     assert "canonical-rule" in target.read_text()
 
+def test_codex_instruction_generation_tolerates_missing_rtk_and_adv_files(tmp_path: Path):
+    """ensure_codex_instructions must survive when RTK/adversarial files are absent.
+
+    rtk_arg/adv_arg stay empty when neither $CODEX_RTK nor the default
+    adversarial-review file exists; under set -u on macOS bash 3.2 an unguarded
+    "${rtk_arg[@]}" expansion is an unbound-variable crash (#223 defect class).
+    """
+    target = tmp_path / "codex" / "AGENTS.md"
+    target.parent.mkdir()
+    rules = tmp_path / "canonical" / "AGENTS.md"
+    rules.parent.mkdir()
+    rules.write_text("canonical-rule\n")
+
+    script = f'''set -euo pipefail
+run() {{ "$@"; }}
+source "{TEMPLATE}/scripts/lib/agent-shared.sh"
+source "{TEMPLATE}/scripts/lib/agent-configure.sh"
+DRY_RUN=0
+BOOTSTRAP="{TEMPLATE}"
+CODEX_AGENTS="{target}"
+RULES_FILE="{rules}"
+CODEX_RTK="{tmp_path}/no-such-RTK.md"
+ADVERSARIAL_REVIEW_SRC="{tmp_path}/no-such-gate.md"
+HOME="{tmp_path}"
+ensure_codex_instructions
+'''
+    result = run_bash(script)
+
+    assert result.returncode == 0, result.stderr
+    assert "unbound variable" not in result.stderr
+    assert "canonical-rule" in target.read_text()
+
 def test_instruction_verifier_rejects_tampered_managed_content(tmp_path: Path):
     target = tmp_path / "codex" / "AGENTS.md"
     target.parent.mkdir(parents=True)
