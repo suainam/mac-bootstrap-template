@@ -7,7 +7,7 @@
 
 - 试验仓：mac-bootstrap 父仓本身（per spec：不另建隔离仓）。
 - 基线提交：父仓 `e3f4d0d18656856cf5fca201337b11de16727589`（main），
-  模板子仓 `5871c115ceffde3ba156caaed47b41555396411b`（feat/portable-agent-workflow）。
+  模板子仓 `5871c115ceffde3ba156caaed47b41555396411b`（main，当时分支尚未建立）。
 - 基线任务：`make check`、`make doctor`、`make doctor-agent`（均在父仓根目录），
   外加模板子仓自身的 `make check`。选择理由：无需生产凭据、只读或可恢复、
   输出可观察且退出码明确。

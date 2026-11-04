@@ -77,6 +77,33 @@ cd template && .venv/bin/python scripts/check_docs.py <改动的 docs>
 - `unverified_checks` 与缺失依赖；
 - 日志位置：临时目录 `/tmp/*.log` 不入库，仅结论与关键行入报告。
 
+任务契约与证据包的最小字段（缺字段即证据不足，不得报 PASS）：
+
+```yaml
+task_contract:
+  goal: 一句话目标
+  constraints: [范围、禁改路径、不得 push 等]
+  observable_success: [可由命令或文件观察的通过条件]
+evidence_package:
+  - command: 原文命令
+    exit_code: 0
+    commit_sha: 被测提交（父仓/子仓）
+    artifacts: [日志或报告路径]
+  unverified_checks:
+    - item: 未验证项
+      reason: 为什么未验证（BLOCKED / 超范围 / 依赖缺失）
+```
+
+### 路由：何时用哪条路径
+
+- 直接做：单文件、单一权威、可一条命令验证的改动。
+- 先设计：涉及模块边界、数据模型或跨权威来源时，先用 `codebase-design`、
+  `domain-modeling`、`improve-codebase-architecture`，需要图时用 `archify`；
+  动手前先 `search-first` 查现有实现。
+- 验证优先：缺陷修复或高风险行为改动，先 `diagnosing-bugs` 复现，再 `tdd`
+  红到绿；需要新验证流程时参考 `create-verification-skill`（未登记 registry，
+  见 `01-capability-mapping.md`）；收口走 `knowledge-record`。
+
 ### 5. cleanup
 
 只清理本次创建的状态，不按名称杀进程：
@@ -107,7 +134,9 @@ rm -f /tmp/<本次创建的日志>             # 证据结论已写入报告后�
 1. `scripts/lib/agent-shared.sh` 的 `pick_rtk_source` 直接引用只在
    `install-agent-tooling.sh` 里定义的 `CLAUDE_RTK`/`CODEX_RTK`。
 2. `scripts/agent-doctor.sh` 对空数组 `"${opencode_rtk_arg[@]}"` 展开（macOS bash 3.2
-   下同样触发 unbound），Codex 段已用 `${arr[@]:-}`，OpenCode 段漏了。
+   下同样触发 unbound）。当时的临时修法是 `${arr[@]:-}`，后续复核发现它在 bash 3.2
+   下仍会把空串带入 `agent-instructions.py verify` 的 argv；Codex/OpenCode 两段现均
+   改为先判长度的累加数组，见 `04-regression-guard.md`。
 
 新增 `tests/test_agent_doctor_status.py::test_opencode_section_tolerates_unbound_rtk_paths`。
 
@@ -124,7 +153,7 @@ rm -f /tmp/<本次创建的日志>             # 证据结论已写入报告后�
 | 命令 | 退出码 | 判定 | 说明 |
 | --- | --- | --- | --- |
 | `make doctor` | 0 | PASS | 无 FAIL/MISS |
-| `make doctor-agent` | 2 | FAIL（drift） | 不再出现 `unbound variable`；剩 Codex 与 OpenCode 两处 `MISS AGENTS.md canonical rules content`，属本机宿主指令内容 drift，未修 |
+| `make doctor-agent` | 2 | FAIL（drift） | 不再出现 `unbound variable`；剩 Codex 与 OpenCode 两处 `MISS AGENTS.md canonical rules content`，属本机宿主指令内容 drift，未修（argv 缺陷修复后复跑仍是这 2 项，见 `04-regression-guard.md`） |
 | `make check` | 2 | FAIL（已知 drift） | pytest 1024 通过（#222 为 1023，差值为新增测试），覆盖率 81.11%，skill supply 通过；失败仅 `fresh-check` 的 4 项 external tools drift |
 | `./scripts/privacy-audit.sh`（模板） | 0 | PASS | |
 | `skill_supply_chain.py check` | 0 | PASS | skills=141 targets=6 |
@@ -149,8 +178,9 @@ parent privacy-audit）绑定主检出实例，不能在干净检出上被报告
   profile，且 fresh-check drift 已知。
 - 修复前 `make doctor-agent` 在干净检出上的结果取自基线指针 `9065c11`（
   缺 venv 的 BLOCKED 项与 unbound 缺陷混在同一输出），未单独隔离。
-- Codex/OpenCode 的 `AGENTS.md canonical rules content` MISS 未调查，需 private
-  overlay 或 agent 配置刷新决策，未执行。
+- Codex/OpenCode 的 `AGENTS.md canonical rules content` MISS：已确认 argv 缺陷
+  修复后仍在，来源是 `~/.codex/AGENTS.md` 与 `~/.config/opencode/AGENTS.md` 内容
+  与模板权威不一致；刷新这两个宿主文件需 agent 配置刷新决策，未执行。
 - `make devspace-status` 未跑：本票改动不涉及 DevSpace。
 - 第二宿主（Codex/OpenCode）复跑、GPT-6.1 Terra 均未验证。
 - 子模块 SSH URL 在干净检出无法拉取，改用本地克隆，属 stand-in。

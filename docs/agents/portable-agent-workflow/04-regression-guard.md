@@ -28,6 +28,9 @@ scripts/lib/agent-shared.sh: line 89: CLAUDE_RTK: unbound variable
    doctor 独立运行时变量未定义即崩。
 2. `scripts/agent-doctor.sh` OpenCode 段对可能为空的
    `opencode_rtk_arg`/`opencode_adv_arg` 用不带守卫的 `"${arr[@]}"` 展开。
+   （后续实测发现：改用 `"${arr[@]:-}"` 仍不够——空数组在 bash 3.2 下展开成
+   1 个空串进入下游 argv，argparse 报 unrecognized arguments 产生误报 MISS；
+   两段均须用先判长度的累加数组，见下表。）
 
 bash 5 下两种写法都不报错，所以缺陷只在 `set -u` + 旧 bash 组合上暴露：
 三条约束缺一不可——`set -u`、可选变量（安装期才定义或按文件存在性填充）、
@@ -45,9 +48,9 @@ bash 5 下两种写法都不报错，所以缺陷只在 `set -u` + 旧 bash 组�
     ```bash
     local -a cmd=(fixed --args)
     if [ "${#opt_arg[@]}" -gt 0 ]; then cmd+=("${opt_arg[@]}"); fi
-    "$cmd[@]" 调用方式见下
+    run_cmd "${cmd[@]}"
     ```
-    即 `run_cmd "${cmd[@]}"`。
+    （`local -a` 仅限函数内；脚本顶层用普通数组赋值。）
   - **在 `if cmd ${arr[@]:-}` 这类无需保留空串的位置**（不进入下游 argv）：
     `"${arr[@]:-}"` 可用且必要，否则空数组即 unbound。
 - 判断标准不是「当前机器跑得过」，而是 `/bin/bash 3.2 + set -u + 数组可能为空`
@@ -58,10 +61,21 @@ bash 5 下两种写法都不报错，所以缺陷只在 `set -u` + 旧 bash 组�
 | 位置 | 约束 | 证据测试 |
 | --- | --- | --- |
 | `scripts/lib/agent-shared.sh` `pick_rtk_source` | `CLAUDE_RTK`/`CODEX_RTK` 带 `:-` 默认值 | `tests/test_agent_doctor_status.py::test_opencode_section_tolerates_unbound_rtk_paths` |
-| `scripts/agent-doctor.sh` OpenCode 段 | `opencode_rtk_arg`/`opencode_adv_arg` 用 `"${arr[@]:-}"`（不进下游 argv 的位置） | 同上 |
-| `scripts/agent-doctor.sh` Codex 段 | `codex_rtk_arg`/`adv_arg` 用 `"${arr[@]:-}"`（同上） | 同上 |
+| `scripts/agent-doctor.sh` Codex 段 | `codex_rtk_arg`/`adv_arg` 先判长度再追加进 `codex_verify_args`（进下游 argv 的位置，不用 `:-`；原为不带引号的 `${arr[@]:-}`，bash 3.2 下静默丢失，bash 5 下空串，行为随版本漂移） | `tests/test_agent_doctor_status.py::test_verify_optional_args_reach_argparse_as_real_argv` |
+| `scripts/agent-doctor.sh` OpenCode 段 | `opencode_rtk_arg`/`opencode_adv_arg` 先判长度再追加进 `opencode_verify_args`（同上；原为带引号的 `"${arr[@]:-}"`，bash 3.2 下把空数组展开成 1 个空串 argv，argparse 报 unrecognized arguments，doctor 误报 MISS） | 同上 |
 | `scripts/lib/agent-configure.sh` `ensure_codex_instructions` | `rtk_arg`/`adv_arg` 先判长度再追加进 `render_cmd`（进下游 argv 的位置，不用 `:-`） | `tests/test_agent_instruction_management.py::test_codex_instruction_generation_tolerates_missing_rtk_and_adv_files` |
 | 反向约束（防倒退回 `auth_header`/`policy_args` 旧写法） | agent-doctor 不得出现 `"${auth_header[@]}"`/`"${policy_args[@]}"` | `tests/test_agent_doctor_config.py::test_agent_doctor_avoids_empty_array_expansion_under_nounset` |
+
+两处 doctor 段的修复：`agent-doctor.sh` Codex/OpenCode 段改为
+`codex_verify_args`/`opencode_verify_args` 累加数组。修复前后本机
+`make doctor-agent` 均为 2 项 `MISS AGENTS.md canonical rules content`
+（Codex、OpenCode 各一），所以该 MISS 的「本机宿主指令内容 drift」归类对当前
+机器仍成立：`~/.codex/AGENTS.md` 与 `~/.config/opencode/AGENTS.md` 内容与模板
+权威不一致，`agent-instructions.py verify` 在 argv 正确时同样返回 1。
+但代码缺陷也是真实的（bash 3.2.57 实测）：OpenCode 段修复前把空数组展开成
+2 个空串 argv，argparse 会先报 unrecognized arguments。该缺陷在本机被真实
+drift 遮蔽，换一台内容无 drift 的机器会误报 MISS。判定 MISS 来源须看
+`verify` 的 argv 与 stderr，不能只凭「本机有 drift」就判为同一原因。
 
 任何一项被改坏，`make check`（父仓）或 `template` 内 pytest 即红，无需人工
 口述「上次这里坏过」。#225 的红绿复演证明该拦截有效：在临时 worktree 检出
@@ -110,5 +124,5 @@ cd template && .venv/bin/python scripts/skill_supply_chain.py check
 ```
 
 父仓侧：`make doctor`、`make doctor-agent`、`make check`（已知 4 项
-external tools drift 与 3 项 AGENTS.md/MCP MISS，#222 起未变，属 private
-overlay 范畴，不在本票修复）。
+external tools drift；`doctor-agent` 剩 2 项 AGENTS.md 内容 MISS，属本机宿主
+文件 drift，不在本票修复）。

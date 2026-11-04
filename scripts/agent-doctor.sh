@@ -308,11 +308,21 @@ adv_arg=()
 if [ -f "$BOOTSTRAP/agent/rules/adversarial-review-gate.md" ]; then
   adv_arg=(--adversarial-review "$BOOTSTRAP/agent/rules/adversarial-review-gate.md")
 fi
-if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
-  --target "$CODEX_AGENTS" \
-  --rules "$BOOTSTRAP/agent/rules/AGENTS.md" \
-  ${codex_rtk_arg[@]:-} \
-  ${adv_arg[@]:-}; then
+  # Empty arrays under set -u must not inject a stray empty argv into the
+  # verify call (bash 3.2: "${arr[@]:-}" expands to one empty argument and
+  # unquoted ${arr[@]:-} silently drops it; accumulate with length guards).
+  codex_verify_args=(
+    --target "$CODEX_AGENTS"
+    --rules "$BOOTSTRAP/agent/rules/AGENTS.md"
+  )
+  if [ "${#codex_rtk_arg[@]}" -gt 0 ]; then
+    codex_verify_args+=("${codex_rtk_arg[@]}")
+  fi
+  if [ "${#adv_arg[@]}" -gt 0 ]; then
+    codex_verify_args+=("${adv_arg[@]}")
+  fi
+  if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
+    "${codex_verify_args[@]}"; then
   echo "  OK   AGENTS.md canonical rules content"
 else
   echo "  MISS AGENTS.md canonical rules content"
@@ -373,12 +383,20 @@ opencode_adv_arg=()
 if [ -f "$BOOTSTRAP/agent/rules/adversarial-review-gate.md" ]; then
   opencode_adv_arg=(--adversarial-review "$BOOTSTRAP/agent/rules/adversarial-review-gate.md")
 fi
-if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
-  --host opencode \
-  --target "$OPENCODE_AGENTS" \
-  --rules "$BOOTSTRAP/agent/rules/AGENTS.md" \
-  "${opencode_rtk_arg[@]:-}" \
-  "${opencode_adv_arg[@]:-}"; then
+  # Same empty-array guard as the Codex section above (#223 defect class).
+  opencode_verify_args=(
+    --host opencode
+    --target "$OPENCODE_AGENTS"
+    --rules "$BOOTSTRAP/agent/rules/AGENTS.md"
+  )
+  if [ "${#opencode_rtk_arg[@]}" -gt 0 ]; then
+    opencode_verify_args+=("${opencode_rtk_arg[@]}")
+  fi
+  if [ "${#opencode_adv_arg[@]}" -gt 0 ]; then
+    opencode_verify_args+=("${opencode_adv_arg[@]}")
+  fi
+  if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
+    "${opencode_verify_args[@]}"; then
   echo "  OK   AGENTS.md canonical rules content"
 else
   echo "  MISS AGENTS.md canonical rules content"

@@ -3,7 +3,7 @@
 来源：issue #222（spec `portable-agent-workflow` 草稿，未发布）。本文核对七项
 pstack 能力与本仓已安装技能及 registry 分发状态，形成复用/缺口/宿主依赖清单。
 基线绑定：父仓 mac-bootstrap @ `e3f4d0d18656856cf5fca201337b11de16727589`，
-模板子仓 @ `5871c115ceffde3ba156caaed47b41555396411b`（feat/portable-agent-workflow）。
+模板子仓 @ `5871c115ceffde3ba156caaed47b41555396411b`（main，当时分支尚未建立）。
 
 ## 核对方法
 
