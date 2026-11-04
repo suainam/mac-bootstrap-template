@@ -377,8 +377,8 @@ if "$PYTHON_BIN" "$BOOTSTRAP/scripts/agent-instructions.py" verify \
   --host opencode \
   --target "$OPENCODE_AGENTS" \
   --rules "$BOOTSTRAP/agent/rules/AGENTS.md" \
-  "${opencode_rtk_arg[@]}" \
-  "${opencode_adv_arg[@]}"; then
+  "${opencode_rtk_arg[@]:-}" \
+  "${opencode_adv_arg[@]:-}"; then
   echo "  OK   AGENTS.md canonical rules content"
 else
   echo "  MISS AGENTS.md canonical rules content"

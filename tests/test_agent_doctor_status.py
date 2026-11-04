@@ -8,7 +8,8 @@ from pathlib import Path
 from helpers import TEMPLATE
 
 
-def doctor(tmp_path, *, host=False, fail=None, codex_config=False):
+def doctor(tmp_path, *, host=False, fail=None, codex_config=False,
+            opencode_installed=False):
     home = tmp_path / "home"
     home.mkdir(exist_ok=True)
     root = tmp_path / "template"
@@ -33,6 +34,10 @@ def doctor(tmp_path, *, host=False, fail=None, codex_config=False):
         path.chmod(0o755)
     if host:
         path = bin_dir / "codex"
+        path.write_text("#!/bin/sh\nexit 0\n")
+        path.chmod(0o755)
+    if opencode_installed:
+        path = bin_dir / "opencode"
         path.write_text("#!/bin/sh\nexit 0\n")
         path.chmod(0o755)
     fake_python = bin_dir / "python-fake"
@@ -70,3 +75,23 @@ def test_invalid_managed_mcp_audit_fails(tmp_path):
     result = doctor(tmp_path, host=True, codex_config=True, fail="agent_mcp_runtime.py")
     assert "MISS codex managed MCP state" in result.stdout
     assert result.returncode != 0
+
+
+def test_opencode_section_tolerates_unbound_rtk_paths(tmp_path):
+    """pick_rtk_source must not crash under set -u when RTK path vars are unset.
+
+    doctor-agent runs with `set -u`; install-agent-tooling.sh only defines
+    CLAUDE_RTK/CODEX_RTK at install time, so a plain doctor run hits the
+    OpenCode section without them and must still emit a verdict, not die.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    config_dir = home / ".config" / "opencode"
+    config_dir.mkdir(parents=True)
+    (config_dir / "opencode.json").write_text("{}\n")
+    (config_dir / "plugins").mkdir()
+    (config_dir / "plugins" / "rtk.ts").write_text("// rtk\n")
+    result = doctor(tmp_path, opencode_installed=True)
+    assert "--- OpenCode ---" in result.stdout, result.stdout + result.stderr
+    assert "unbound variable" not in result.stderr
+    assert "AGENTS.md canonical rules content" in result.stdout
