@@ -24,6 +24,7 @@
 - `agents/factory-vocabulary.md`：讨论 agent 软件工厂的通用词汇（task/run/runner/orchestrator 等）与本仓槽位映射。
 - `agents/portable-agent-workflow/01-capability-mapping.md`：pstack 七项能力与已安装技能/registry 分发的复用、缺口与宿主依赖清单。
 - `agents/portable-agent-workflow/01-baseline-report.md`：试验仓基线验证报告（绑定提交的命令、退出码、结果与未验证项）。
+- `agents/portable-agent-workflow/02-verification-flow.md`：launch/doctor/drive/evidence/cleanup 验证流程、干净检出实测与 unverified_checks。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。
 - `ci.md`：公共 CI 契约、GitHub Actions 边界与本地复现方式。
 - `data-hub-record-knowledge.md`：知识记录路径。
