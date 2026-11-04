@@ -27,6 +27,7 @@
 - `agents/portable-agent-workflow/02-verification-flow.md`：launch/doctor/drive/evidence/cleanup 验证流程、干净检出实测与 unverified_checks。
 - `agents/portable-agent-workflow/03-independent-review.md`：独立审阅者复验、FAIL/BLOCKED 退回与最多两轮修正的规则。
 - `agents/portable-agent-workflow/04-regression-guard.md`：bash 3.2 + `set -u` 下可选变量与空数组展开的缺陷类、一般守卫规则与拦截该类的测试清单。
+- `agents/portable-agent-workflow/05-second-host.md`：第二宿主（Codex/OpenCode 非交互）复跑实测、分发边界 dry-run 检查、监督成本与采用/暂缓结论。
 - `skill-supply-chain.md`：Agent Skill 来源、审核、快照与分发 runbook。
 - `ci.md`：公共 CI 契约、GitHub Actions 边界与本地复现方式。
 - `data-hub-record-knowledge.md`：知识记录路径。
