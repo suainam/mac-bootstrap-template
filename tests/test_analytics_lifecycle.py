@@ -9,6 +9,7 @@ Verifies:
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -55,8 +56,10 @@ def test_all_five_lifecycle_skills_exist_and_pass_supply_chain_validation() -> N
         skill_md = skill_dir / "SKILL.md"
         content = skill_md.read_text(encoding="utf-8")
         assert title_keyword in content, f"Missing title keyword '{title_keyword}' in {skill_name}"
-        assert "## 核心主导词 (Leading Words)" in content
-        assert "## 内部资产引用 (Internal Assets)" in content
+        assert "## 执行步骤" in content
+        steps = content.split("## 执行步骤", 1)[1].split("\n## ", 1)[0]
+        for step in steps.split("\n### ")[1:]:
+            assert "完成标准：" in step, f"Step lacks completion criterion: {step}"
         assert "完成标准" in content
 
 
@@ -81,7 +84,7 @@ def test_frontmatter_adheres_to_writing_for_agents_criteria() -> None:
 
         # Front-loaded leading words verify high demand and clear triggers
         first_word = desc.split()[0].lower()
-        assert first_word in {"intake", "analyze", "author", "execute", "deliver"}, (
+        assert first_word in {"intake", "analyze", "author", "execute", "deliver", "capture", "profile", "design", "run"}, (
             f"Expected leading action verb in {skill_name} description, got '{first_word}'"
         )
 
@@ -92,12 +95,11 @@ def test_asset_pointers_resolve_to_real_files() -> None:
         skill_dir = LIFECYCLE_ROOT / skill_name
         content = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
 
-        for word in content.split():
-            clean_word = word.strip("`'\"(),;:")
-            if any(clean_word.startswith(prefix) for prefix in ("scripts/", "references/", "examples/", "templates/", "../../")):
-                if not clean_word.endswith("..."):
-                    target_path = (skill_dir / clean_word).resolve()
-                    assert target_path.exists(), f"Broken pointer in {skill_name}: {clean_word} -> {target_path}"
+        pointers = re.findall(r"\]\(([^)]+)\)", content)
+        pointers += re.findall(r"`((?:scripts|references|examples|templates)/[^`]+)`", content)
+        for pointer in pointers:
+            if "://" not in pointer:
+                assert (skill_dir / pointer.split("#", 1)[0]).is_file(), pointer
 
 
 def test_demand_intake_is_self_contained_with_all_assets() -> None:
@@ -207,7 +209,7 @@ def test_legacy_skills_functional_parity_and_coverage() -> None:
 
 def test_underlying_analytics_unit_tests_pass() -> None:
     """Verify that existing unit test suites for underlying analytics tools continue to pass."""
-    test_file = PRODUCT_STRATEGY_ROOT / "ps-analytics/scripts/test_analytics_skill.py"
+    test_file = LIFECYCLE_ROOT / "analytics-result-delivery/scripts/test_analytics_skill.py"
     result = subprocess.run(
         [sys.executable, "-m", "pytest", str(test_file), "-q"],
         capture_output=True,
@@ -215,3 +217,17 @@ def test_underlying_analytics_unit_tests_pass() -> None:
         check=False,
     )
     assert result.returncode == 0, f"Underlying analytics tests failed: {result.stdout}\n{result.stderr}"
+
+
+def test_historical_snapshot_and_non_store_tasks_keep_their_scope() -> None:
+    """Historical and non-store tasks must not inherit latest-partition or new-store defaults."""
+    profile = (LIFECYCLE_ROOT / "analytics-demand-analysis/references/profiling_checklist.md").read_text()
+    assert "先实测并锁定业务快照" in profile
+    assert "COALESCE(col, 0) == 0" not in profile
+    template = (LIFECYCLE_ROOT / "analytics-demand-analysis/templates/caliber_lock_template.md").read_text()
+    assert "[NEW-STORE-ONLY]" in template
+    execution = (LIFECYCLE_ROOT / "analytics-data-execution/SKILL.md").read_text()
+    assert "仅店品分析且需穿透对账时" in execution
+    delivery = (LIFECYCLE_ROOT / "analytics-result-delivery/SKILL.md").read_text()
+    assert "默认 MD + HTML" in delivery
+    assert "未授权项注明未执行" in delivery

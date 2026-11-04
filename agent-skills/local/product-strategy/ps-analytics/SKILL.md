@@ -1,74 +1,31 @@
 ---
 name: ps-analytics
-description: "Product Strategy 统一数据分析全流程规范：涵盖 ODPS SQL 性能优化（MAX_PT/防笛卡尔积/物理中间表去CTE）、多省区分批纳管与双日期基准、历史零漂移三段切片回归、多模型优先级掩盖排查、环形跨年时间区间解析、PyODPS 高效抽取以及高质量报表交付。"
+description: 旧数据分析入口；内容已归入 analytics 生命周期五阶段。
 disable-model-invocation: true
 ---
 
-# ODPS & Python 联合数据分析 (ODPS Python Analytics)
+# 已迁移
 
-本技能定义了在长期数据分析环境（如 `product_strategy`）中，基于 **MaxCompute (ODPS) SQL** 与 **Python (PyODPS / Pandas / DuckDB)** 进行高质量、可复现数据分析与交付的工业级闭环流程。
+按当前任务读取对应阶段；已有确认与产物直接继承。
 
----
+- [analytics-demand-intake](../../analytics-lifecycle/analytics-demand-intake/SKILL.md)
+- [analytics-demand-analysis](../../analytics-lifecycle/analytics-demand-analysis/SKILL.md)
+- [analytics-data-solution](../../analytics-lifecycle/analytics-data-solution/SKILL.md)
+- [analytics-data-execution](../../analytics-lifecycle/analytics-data-execution/SKILL.md)
+- [analytics-result-delivery](../../analytics-lifecycle/analytics-result-delivery/SKILL.md)
 
-## 核心分析闭环 (6-Step Analytics Loop)
+旧脚本与样例保留兼容路径；新任务使用下列阶段资产。旧样例中的具体表、日期、NULL 默认值与输出路径须按本次口径替换，质量契约优先。
 
-```text
-1. 探查画像 -> 2. 定位规则与优先级 -> 3. 原生性能SQL -> 4. 交叉验证与防误伤 -> 5. 本地轻量化呈现 -> 6. 资产沉淀
-```
-
-### 1. 探查画像与颗粒度锁定 (Profile & Grain)
-- **锁定实体粒度**：明确主键键值组合（如 `store_code + item_code`、`city_name + upc_code`）。
-- **核验真实分区**：禁止猜测试验或历史脏分区（如 `29090902`），必须先探查有效分区范围。
-- **主键唯一性初检**：在进行任何 Join 或过滤前，必须先断言 `COUNT(1) - COUNT(DISTINCT keys) == 0`。
-
-### 2. 定位规则与优先级反查 (Priority & Masking Audit)
-- **追溯生成代码源头**：分析综合打标字段（如 `reason_zfl`、`reason_fl`）时，严禁望文生义；必须通过 DataWorks OpenAPI 或快照拉取真实生成节点（如 `10002161979`），审查 `CASE WHEN` 的短路顺序。
-- **排查低优先级属性重叠**：当目标原因（如季节性）排在高顺位时，必须排查后续所有排在更低顺位的标志位（新品、自有品牌、预测、品牌品、O2O、必上品等），防止粗暴拦截误伤正当入选品。
-- 详见 [多模型优先级掩盖排查规约](references/MULTI_MODEL_MASKING_AUDIT.md)。
-
-### 3. 原生性能 SQL 与防笛卡尔积聚合 (ODPS Performance)
-- **必须使用原生 `MAX_PT()`**：严禁书写 `WHERE stat_date = (SELECT MAX(stat_date) ...)` 嵌套子查询；所有表统一采用 `WHERE stat_date = MAX_PT('project.table_name')`。
-- **多版本店品并发去重**：针对月度组货、季度组货、新老店多版本并发导致的底层店品重复，关联合并层必须前置 `GROUP BY store_code, item_code` 并配合 `MAX(CASE WHEN ...)` 聚合收敛。
-- **物理中间表去 CTE 加速**：对涉及数千万行候选底表的多轮查询与走势分析，严禁在下游重复书写多层 Hash Join CTE；统一采用配置表（`analysis_*_config_df`）加自动物化物理中间表（`analysis_*_active_base_df`）架构，查询直连中间物理表，消除重复全表扫描。
-- **计算加速选择**：批量与复杂关联优先切换至 `os.environ['ODPS_PROJECT'] = 'dsl_ads'`，避免常规队列资源饥饿。
-- 详见 [ODPS 性能与防踩坑规约](references/ODPS_OPTIMIZATION_RULES.md) 及 [分批纳管与物理中间表规约](references/BATCH_ROLLOUT_REGRESSION_SOP.md)。
-
-### 4. 交叉验证、同口径对比与抽样核查 (Adversarial Check)
-- **同口径对比**：先对齐结果表、实体粒度、筛选条件、指标定义及分区日期；优先比较同一业务日。日期无法对齐时，明确标出各自日期并说明时点差异，不把差异直接归因于省区或策略。
-- **分子与分母同时报告**：比例必须写明分子、分母、比例；行动建议类指标还需同时给出每店/每实体建议量和全量明细量，避免把全量明细行误读为建议执行量。区分候选字段与最终执行/建议字段（如 `return_amt_process > 0` 与最终 `return_amt > 0`）。
-- **汇总用加权比例**：合并多个省区时用 `SUM(分子) / SUM(分母)`，不可简单平均各省区比例；同时报告每店等实体标准化指标，检查分母构成是否不同。
-- **解释构成差异**：比例差异需拆解分子、分母及每实体数量；只有比例与标准化绝对量都支持时，才称构成“相近”。结论注明高低差值（百分点）与日期/范围限制。
-- **批次双日期基准 (Dual-Date Baseline)**：分批执行业务中，必须严格区分测算基准日 `rlt_stat_date`（关联策略底表与考核分母）与业务执行日 `launch_date`（库存走势行级截断门禁），防止考核分母归零或未启动数据提前渗透。
-- **历史零漂移三段切片回归 (Zero-Drift Three-Stage Slice)**：重构底层底表或扩展批次时，必须在全量真实数据上核验三个关键切片：T1 历史纯净切片（历史指标 100% 绝对一致、零漂移）、T2 渐进过渡切片（新批次平滑接入、未生效省区严格隔离）、T3 当前全量切片（总规模与降幅完整达标）。
-- **多维断言**：每次过滤、Join 或聚合后，强制断言行数变化与关键指标守恒。
-- **真实抽样反查**：从最终交付结果中按大区/品类随机抽取样本（如 10~20 条），返回 MaxCompute 底层明细表穿透复核，确保证据链 100% 闭环。
-- 详见 [分批纳管、中间物理表加速与历史零漂移回归规约](references/BATCH_ROLLOUT_REGRESSION_SOP.md)。
-
-### 5. 本地轻量化呈现与保真导出 (Export & Delivery)
-- **环形跨年时间区间智能合并**：对具有连续跨年特征的月份列表（如 `[1, 2, 10, 11, 12]`），必须格式化为业务友好的 **`10月-次年2月`**，杜绝生硬割裂输出。算法见 [环形跨年解析手册](references/CIRCULAR_SEASON_PARSER.md)。
-- **安全行数红线**：禁止向 Git 仓库导出超过 1,000,000 行明细；明细超限必须在 ODPS 侧完成聚合汇总。
-- **编码与格式**：CSV 统一采用 `utf-8-sig`（带 BOM，防 Excel 乱码）；Excel 统一采用 `openpyxl` 并保持样式与自动列宽。
-
-### 6. 规范沉淀与索引闭环 (Topic Governance)
-- 产出落地至专题标准的 `03_analysis/scripts/` 与 `04_outputs/tables/`；
-- 更新专题 `manifest.jsonc` 的 `datasets` 与 `deliverables`；
-- 运行 `python3 scripts/generate_topic_indexes.py` 刷新全局索引。
-
----
-
-## 目录索引与关键资产
-
-- **核心规约**:
-  - `references/ODPS_OPTIMIZATION_RULES.md` — MaxCompute 性能与分区规约
-  - `references/MULTI_MODEL_MASKING_AUDIT.md` — 业务模型优先级掩盖与防误伤 SOP
-  - `references/DATA_QUALITY_CHECKLIST.md` — 深度数据质量校验清单
-  - `references/CIRCULAR_SEASON_PARSER.md` — 跨年环形时间段解析与呈现
-  - `references/SQL_DIFF_DIAGNOSIS_GUIDE.md` — SQL 差异排查、MaxCompute 类型陷阱与门禁
-  - `references/BATCH_ROLLOUT_REGRESSION_SOP.md` — 多省区分批纳管、物理中间表加速与历史零漂移回归规约
-- **完整样例**:
-  - `examples/01_pure_premature_seasonal_audit.sql` — 多表对齐、MAX_PT 优化与绝对纯季节性穿透 SQL
-  - `examples/02_export_excel_with_dedup.py` — PyODPS 高效抽取并导出 15万+ 行格式化 Excel 模板
-- **通用工具**:
-  - `scripts/odps_quick_probe.py` — 表结构、主键唯一性与最新分区一键探查 CLI
-  - `scripts/format_circular_months.py` — 跨年月份区间解析函数独立工具库
-  - `scripts/test_analytics_skill.py` — 自动化单元与回归测试套件
+| 旧资产 | 权威归属 | 核对结果 |
+|---|---|---|
+| `references/MULTI_MODEL_MASKING_AUDIT.md` | [analytics-demand-analysis/references/MULTI_MODEL_MASKING_AUDIT.md](../../analytics-lifecycle/analytics-demand-analysis/references/MULTI_MODEL_MASKING_AUDIT.md) | 采用阶段现有版本（质量契约优先） |
+| `references/ODPS_OPTIMIZATION_RULES.md` | [analytics-data-solution/references/ODPS_OPTIMIZATION_RULES.md](../../analytics-lifecycle/analytics-data-solution/references/ODPS_OPTIMIZATION_RULES.md) | 采用阶段现有版本（质量契约优先） |
+| `references/BATCH_ROLLOUT_REGRESSION_SOP.md` | [analytics-data-solution/references/BATCH_ROLLOUT_REGRESSION_SOP.md](../../analytics-lifecycle/analytics-data-solution/references/BATCH_ROLLOUT_REGRESSION_SOP.md) | 已有同内容 |
+| `references/DATA_QUALITY_CHECKLIST.md` | [analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md](../../analytics-lifecycle/analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md) | 采用阶段现有版本（质量契约优先） |
+| `references/SQL_DIFF_DIAGNOSIS_GUIDE.md` | [analytics-data-execution/references/SQL_DIFF_DIAGNOSIS_GUIDE.md](../../analytics-lifecycle/analytics-data-execution/references/SQL_DIFF_DIAGNOSIS_GUIDE.md) | 迁入 |
+| `references/CIRCULAR_SEASON_PARSER.md` | [analytics-result-delivery/references/CIRCULAR_SEASON_PARSER.md](../../analytics-lifecycle/analytics-result-delivery/references/CIRCULAR_SEASON_PARSER.md) | 迁入 |
+| `scripts/odps_quick_probe.py` | [analytics-data-execution/scripts/odps_quick_probe.py](../../analytics-lifecycle/analytics-data-execution/scripts/odps_quick_probe.py) | 已有同内容 |
+| `scripts/format_circular_months.py` | [analytics-result-delivery/scripts/format_circular_months.py](../../analytics-lifecycle/analytics-result-delivery/scripts/format_circular_months.py) | 迁入 |
+| `scripts/test_analytics_skill.py` | [analytics-result-delivery/scripts/test_analytics_skill.py](../../analytics-lifecycle/analytics-result-delivery/scripts/test_analytics_skill.py) | 迁入 |
+| `examples/01_pure_premature_seasonal_audit.sql` | [analytics-demand-analysis/examples/01_pure_premature_seasonal_audit.sql](../../analytics-lifecycle/analytics-demand-analysis/examples/01_pure_premature_seasonal_audit.sql) | 迁入 |
+| `examples/02_export_excel_with_dedup.py` | [analytics-result-delivery/examples/02_export_excel_with_dedup.py](../../analytics-lifecycle/analytics-result-delivery/examples/02_export_excel_with_dedup.py) | 迁入 |
