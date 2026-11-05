@@ -54,6 +54,14 @@ replace the later specification, ticket, implementation, or review stages.
 
 Only `enabled` skills are distributed. `staged`, `disabled`, and `merged` records preserve source lineage and review decisions without installing the skill.
 
+
+External skills that ship host-specific adaptations or large plugin suites (e.g.
+`cursor/plugins/pstack`) follow host segregation: Claude Code manages the plugin
+suite through official plugin channels (`pstack@cursor-plugins`), while verified
+portable skills (`create-verification-skill`, `statechart`, etc.) are cataloged
+in `sources.jsonc` with target agents excluding `claude`. This prevents duplicate
+runtime definitions while maintaining access across Codex, OpenCode, Antigravity,
+and Reasonix.
 `skill-check` verifies every enabled dependency covers the dependent Skill's
 agent and project targets. It also verifies relative `.md` files linked from an
 available `SKILL.md`, so auxiliary contracts such as `CONTEXT-FORMAT.md` cannot

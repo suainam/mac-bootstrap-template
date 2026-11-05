@@ -59,6 +59,7 @@ git submodule update --init --recursive
 2. **Always run `make check` before pushing parent.**
 3. **After editing template, sync the submodule pointer in parent.**
 4. **Edit `template/install.sh`, not the parent wrapper `install.sh`.**
+5. **Plugin vs. Skill Supply Chain**: Claude Code plugins (e.g. `pstack@cursor-plugins`) are managed via `claude plugin` and declared in `private/agent/claude/settings.json`; their portable skills in quarantine are cataloged in `sources.jsonc` targeting non-Claude agents (`codex`, `opencode`, etc.) to prevent duplicate runtime entrypoints.
 
 ## Architecture details
 
