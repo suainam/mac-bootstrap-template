@@ -1,6 +1,6 @@
-# 交互模式 D / E / F 详细参考
+# 交互模式 D / E / F / G 详细参考
 
-本文档是 `SKILL.md` 中「模式 D/E/F」摘要的展开说明。按需读取；SKILL.md 为路由入口。
+本文档是 `SKILL.md` 中「模式 D/E/F/G」摘要的展开说明。按需读取；SKILL.md 为路由入口。
 
 ---
 
@@ -85,4 +85,43 @@ client.call("fetch", { url, init }, { tabId })
 - `callTopFetch(client, { tabId, url, method, headers, body })` — 顶层 fetch 穿透。
 - `uploadAttachmentToPage(client, { tabId, pageId, filePath, mimeType })` — 附件直传端点。
 
+
+---
+
+## 模式 G: 测试工作台用例批量执行与阶段流转自动化 (Test Workbench Batch Execution & Stage Transition)
+
+针对 QA 测试工作台（如 `next.dslbuy.com` 等用例执行面板）的批量自动化执行、状态推进与阶段门禁流转。
+
+### G.1 动效与遮罩防护 (mask-guard)
+
+用例卡片切换与详情渲染时常伴有 ElementUI `el-loading-mask` 渐隐动效（~200-300ms）。在此期间如果直接调用坐标点击，会被遮罩拦截报 `[NOT_INTERACTABLE]`。
+防护策略：
+1. 优先调用 `.result-btn.passed-btn.click()` 触发原生事件。
+2. 每步执行前检测 `.el-loading-mask:not([style*="display: none"])`，存在时等待 200ms 渐隐完成。
+
+### G.2 宿主外层紧凑驱动循环 (tight-loop vs 30s timeout)
+
+huashu-chrome 扩展对单次 `eval` 命令有约 30s 响应时限。**严禁在 Chrome 页面内部写大循环 `await sleep(...)`**，否则必报 `扩展 32s 未响应 (TIMEOUT)`。
+必须由 Node.js 宿主脚本驱动外层步进循环：单步在 Chrome 内执行轻量原子同步 eval，每步间隔 300~400ms，在外部掌控全局超时与进度回调。
+
+### G.3 末尾用例失焦补偿 (tail-compensation)
+
+测试工作台通常在点击「通过」后自动将详情面板切换到下一个 `pending` 用例；但在跳至列表最后一条，或网络卡顿导致失焦时，右侧详情区不会载入「通过」按钮。
+补偿策略：每轮先检测详情区是否存在 `.result-btn.passed-btn`，若不存在则主动执行 `pendingCards[0].click()` 显式选中激活。
+
+### G.4 阶段用例动态扩增 (stage-expansion)
+
+平台通常分阶段控制用例曝光：冒烟阶段仅展示 P0 用例（如 26 条）；冒烟确认流转至系统测试阶段后，底层重新注入全量用例（如扩增至 49 条）。
+处理策略：
+1. 第一阶段推进直到 `pending === 0`，底部「冒烟通过」按钮由 `is-disabled` 变为点亮。
+2. 阶段流转完成后，重新获取用例列表（`cards.length`），进入第二阶段推进。
+
+### G.5 流程终审流转门禁 (human-gate)
+
+阶段流转（冒烟通过、完成测试）会导致工单流转、邮件通知与测试报告生成，具有业务副作用。
+必须严格执行 Four-Gate 规范：
+1. 自动化负责把所有待执行用例批量通过，直到流转按钮点亮。
+2. 阶段流转按钮（`冒烟通过` / `完成测试`）及模态确认弹窗（`确认通过` / `确认完成`）须在获得人机终审授权后，通过 `confirmStageTransition` 精确触发。
+
+标准工具脚本已实现于 `scripts/test_case_runner.mjs`。
 完整函数签名与示例见 `scripts/huashu_driver.mjs`。

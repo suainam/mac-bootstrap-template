@@ -1,6 +1,6 @@
 ---
 name: huashu-jev-automation
-description: In-browser automation using huashu-chrome with TypeSafe Jev micro-decisions. Use when automating multi-step web flows (forms, paginated lists, DOM ref actions), injecting controlled inputs into React/Vue components or uploading files dynamically, or handling mission-critical submissions needing multi-tab safety gates and human-in-the-loop sign-off.
+description: In-browser automation using huashu-chrome with TypeSafe Jev micro-decisions. Use when automating multi-step web flows (forms, paginated lists, DOM ref actions), executing QA test workbench cases and stage transitions (smoke/system tests), injecting controlled inputs into React/Vue components or uploading files dynamically, or handling mission-critical submissions needing multi-tab safety gates and human-in-the-loop sign-off.
 ---
 
 ## 环境依赖
@@ -100,9 +100,20 @@ resp, key = send_jev(
 
 针对 REST/RPC 接口系统（Confluence 6.x、GitLab、Jira）。跨域 iframe 导致 `eval` 报权限时，改用 `client.call("fetch", { url, init }, { tabId })`，仅在顶层 frame 执行原生 fetch，复用会话 Cookie。附件直传通过页面上下文组装 `FormData` POST 上传端点。实现在 `scripts/huashu_driver.mjs`（`callTopFetch` / `uploadAttachmentToPage`）。详见 `references/interaction-patterns-def.md#模式-f`。
 
+### 模式 G: 测试工作台批量执行与阶段流转 *(tight-loop + tail-compensation + stage-gate)*
+
+针对 QA 测试工作台（`next.dslbuy.com` 等用例执行面板）的批量自动化执行、状态推进与阶段门禁流转：
+
+1. **宿主外层紧凑循环 (*tight-loop*)**：由 Node.js 驱动步进循环，每步执行轻量原子同步 eval（单步间隔 300~400ms）。**严禁在 Chrome 内部长循环或 `await sleep`**，避免触发 30s 扩展超时（`TIMEOUT`）。
+2. **动效遮罩防护 (*mask-guard*)**：卡片切换时检测 `.el-loading-mask` 渐隐状态，等待 200ms 避免 `[NOT_INTERACTABLE]`；优先触发 `.result-btn.passed-btn.click()`。
+3. **末尾失焦主动补偿 (*tail-compensation*)**：若用例详情未自动载入「通过」按钮，主动执行 `pendingCards[0].click()` 显式激活。
+4. **动态用例扩增与阶段门禁 (*stage-gate*)**：冒烟通过（P0）后重新获取扩充后的系统用例；阶段流转按钮（「冒烟通过」「完成测试」）及模态弹窗确认遵循 Four-Gate 人机终审。
+
+标准实现在 `scripts/test_case_runner.mjs`。详见 `references/interaction-patterns-def.md#模式-g`。
+
 ## 工具脚本
 
-`scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
+`scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
 
 ## 避坑指南
 
@@ -112,5 +123,7 @@ resp, key = send_jev(
 4. **确定性路由**：固定规则（URL 域名、状态码、需求编号前缀）直接在代码中分支，不转入 Jev。
 5. **企业门户路由**：`*.dslbuy.com` / `assortment.dslyy.com` / `doc.weixin.qq.com/sheet` → 读 `skill://ps-portal-sync`；Wiki 走 REST（`wiki-rest-first`）。
 6. **扩展休眠探活**：操作前先 `client.call("tabs", { action: "list" })` 唤醒休眠的 Service Worker。
+7. **工作台大循环超时**：批量推进用例时，禁止在单个 `eval` 中写长循环与 `await Promise`；由 Node.js 外层以 300ms 节流轮询驱动原子 `eval`。
+8. **动态阶段用例扩增**：冒烟流转（P0）通过后，底层通常局部增量注入系统测试用例（如 26 变 49 条），操作间需刷新卡片与操作按钮状态。
 
 架构职责分工见 `references/architecture.md`。
