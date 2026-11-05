@@ -49,12 +49,11 @@ def _csv(value) -> set[str]:
     return {item.strip() for item in str(value or "").split(",") if item.strip()}
 
 
-def test_only_writers_delegate_and_only_to_their_adversary():
-    """Delegation must stay a closed graph: a missing spawns list defaults to '*'."""
+def test_only_planner_and_designer_delegate_and_implementer_is_leaf():
+    """Delegation must stay a closed graph: only planning/design carry task; s-implementer is leaf."""
     expected = {
         "s-planner": {"s-skeptic"},
         "s-designer": {"s-skeptic"},
-        "s-implementer": {"s-acceptor"},
     }
     for path in AGENTS_DIR.glob("s-*.md"):
         data = _split_frontmatter(path.read_text())
