@@ -6,10 +6,16 @@ from pathlib import Path
 
 from helpers import TEMPLATE
 
+# The production scripts declare `#!/usr/bin/env bash` and must survive the
+# oldest interpreter they run under: macOS /bin/bash 3.2 with `set -u`.
+# PATH bash may be 5.x, where empty-array expansion silently differs
+# (#225 defect class); pin /bin/bash so the regression guard actually guards.
+SCRIPT_BASH = "/bin/bash"
+
 
 def run_bash(script: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bash", "-c", script],
+        [SCRIPT_BASH, "-c", script],
         capture_output=True,
         text=True,
         check=False,
@@ -71,6 +77,7 @@ ensure_codex_instructions
     assert "@/legacy/12-rules.md" not in content
     assert content.index("canonical-rule-sentinel") < content.index("personal-default")
 
+
 def test_codex_instruction_generation_creates_missing_global_file(tmp_path: Path):
     target = tmp_path / "missing" / "AGENTS.md"
     rules = tmp_path / "canonical" / "AGENTS.md"
@@ -95,6 +102,40 @@ ensure_codex_instructions
 
     assert result.returncode == 0, result.stderr
     assert "canonical-rule" in target.read_text()
+
+
+def test_codex_instruction_generation_tolerates_missing_rtk_and_adv_files(tmp_path: Path):
+    """ensure_codex_instructions must survive when RTK/adversarial files are absent.
+
+    rtk_arg/adv_arg stay empty when neither $CODEX_RTK nor the default
+    adversarial-review file exists; under set -u on macOS bash 3.2 an unguarded
+    "${rtk_arg[@]}" expansion is an unbound-variable crash (#223 defect class).
+    """
+    target = tmp_path / "codex" / "AGENTS.md"
+    target.parent.mkdir()
+    rules = tmp_path / "canonical" / "AGENTS.md"
+    rules.parent.mkdir()
+    rules.write_text("canonical-rule\n")
+
+    script = f'''set -euo pipefail
+run() {{ "$@"; }}
+source "{TEMPLATE}/scripts/lib/agent-shared.sh"
+source "{TEMPLATE}/scripts/lib/agent-configure.sh"
+DRY_RUN=0
+BOOTSTRAP="{TEMPLATE}"
+CODEX_AGENTS="{target}"
+RULES_FILE="{rules}"
+CODEX_RTK="{tmp_path}/no-such-RTK.md"
+ADVERSARIAL_REVIEW_SRC="{tmp_path}/no-such-gate.md"
+HOME="{tmp_path}"
+ensure_codex_instructions
+'''
+    result = run_bash(script)
+
+    assert result.returncode == 0, result.stderr
+    assert "unbound variable" not in result.stderr
+    assert "canonical-rule" in target.read_text()
+
 
 def test_instruction_verifier_rejects_tampered_managed_content(tmp_path: Path):
     target = tmp_path / "codex" / "AGENTS.md"
@@ -184,6 +225,7 @@ link_canonical_symlinks
     assert "sentinel" in agents_md.read_text()
     assert "sentinel" in claude_md.read_text()
 
+
 def test_managed_symlink_replaces_only_legacy_generated_targets(tmp_path: Path):
     source = tmp_path / "rules" / "AGENTS.md"
     source.parent.mkdir()
@@ -235,6 +277,7 @@ write_managed_symlink "{agents}" "{claude}"
     assert claude.is_symlink()
     assert claude.resolve() == agents.resolve()
     assert claude.read_text() == "canonical\n"
+
 
 def test_managed_symlink_migrates_legacy_symlink_and_preserves_unrelated_symlink(tmp_path: Path):
     source = tmp_path / "rules" / "AGENTS.md"

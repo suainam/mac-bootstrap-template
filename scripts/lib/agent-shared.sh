@@ -86,10 +86,14 @@ download_and_run() {
 }
 
 pick_rtk_source() {
-  if [ -f "$CLAUDE_RTK" ]; then
-    printf '%s\n' "$CLAUDE_RTK"
-  elif [ -f "$CODEX_RTK" ]; then
-    printf '%s\n' "$CODEX_RTK"
+  # CLAUDE_RTK/CODEX_RTK are only exported by install-agent-tooling.sh; default
+  # them here so callers running under `set -u` (e.g. agent-doctor.sh) survive.
+  local claude_rtk="${CLAUDE_RTK:-$HOME/.claude/RTK.md}"
+  local codex_rtk="${CODEX_RTK:-$HOME/.codex/RTK.md}"
+  if [ -f "$claude_rtk" ]; then
+    printf '%s\n' "$claude_rtk"
+  elif [ -f "$codex_rtk" ]; then
+    printf '%s\n' "$codex_rtk"
   else
     printf '\n'
   fi

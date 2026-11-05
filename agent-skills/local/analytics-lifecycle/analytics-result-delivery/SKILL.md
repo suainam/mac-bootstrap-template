@@ -1,129 +1,59 @@
 ---
 name: analytics-result-delivery
-description: Deliver analytics assets across executive Excel workbooks, interactive HTML dashboards, Confluence Wiki docs, WBS project sheets, and HPM quarterly performance reviews. Use when exporting formatted Excel, rendering report HTML, publishing Wiki updates, logging timesheets, or reading and drafting HPM OKR and self-review fields.
+description: Deliver analytics as Markdown and HTML, formatted workbooks or Sankey reports; publish authorized Wiki, WBS, timesheet and performance updates.
 ---
 
-# 阶段五：结果交付与协同闭环 (Analytics Result Delivery)
+# 阶段五：结果交付
 
-负责数据分析成果的多渠道物化、可视化呈现与协同闭环。涵盖高管 Excel 工作簿、基于前端设计规范（`design-taste-frontend`）的交互式 HTML 看板、Confluence Wiki 知识沉淀、WBS 进度回写与工时闭环。
+## 进入阶段
 
-## 核心主导词 (Leading Words)
+读取 [共享契约](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)：继承已确认范围与稳定资产身份，按六栏交付，技术事实自行查证，只确认新增业务选择。按当前任务进入本阶段，复用已有上游产物。
 
-- **`【高管工作簿 / executive-excel】`**：Excel 交付达到直接呈报标准（深蓝底白字表头居中、自适应列宽、数值带千分位、比率严格应用百分比格式）。
-- **`【设计品味 / design-taste-html】`**：利用 HTML/现代前端规范呈现分析报告，遵循“总-分-总”结构，背景、结论、过程数据证据链完备，排版考究、层次分明、拒绝模板化。
-- **`【知识增量与Wiki契约 / wiki-publishing-contract】`**：Wiki 文档发布遵循 REST 源码直写、专项页面独立落盘、附件宏免下载预览与既有主文档原行内高亮改写原则。
-- **`【原行内改写与高亮契约 / inline-highlight-contract】`**：主文档策略表格不另起新行，在原行就地改写并应用整行黄色底色；废弃规则用删除线，新增规则用红字，暂停需求在清单标红说明。
-- **`【工时与协同 / timesheet-audit】`**：工时填报与需求结单基于真实 Git 提交与需求编号交叉比对，整周工时严格守恒。
-- **`【双模交付与用语去黑话 / humanized-delivery】`**：交付成果保持 Markdown 报告与高管 HTML 看板双模落盘；正文严格调用 `/skill:humanizer-zh` 去除 AI 腔调与工程黑话，写出自然、直接、有立场的业务决策语言。
-- **`【四项金标准大盘对比矩阵 / assortment-metrics-matrix】`**：策略评估必须建立原目录 vs 新目录（不同放开档位）大盘指标影响全景对比表，明确对比：涉及门店数、纯增量条目数、增量店均条目数、新目录总条目数、新目录店均条目、目录内动销率变动、全店动销率变动、目录实绩销占/毛占变动以及综合测算金额，量化证明模型对关键指标的拉动。
-- **`【命名空间契约 / scoped-delivery-naming】`**：阶段五交付文件严格采用 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 与同名 `.html` 命名。
-- **`【同名幂等覆盖与资产继承 / idempotent-asset-overwrite】`**：同一数据交付物坚持稳定命名，继承既有物理文件名，严禁私起 `_v1`/`_v2`/`_fixed` 别名。新版本经临时产物门禁断言通过后同名原子覆盖，保持数据湖物理实体与仓库软链接稳定有效。
-- **`【阶段六复盘询问 / postmortem-inquiry】`**：成果交付结单后，先询问用户是否需要复盘；用户明确同意（或当前会话已明确授权）后才在 `topics/<topic_id>/06_decisions/` 物化三段式决策复盘卡，未经同意不默认生成。复盘严禁事后篡改交付口径。
-- **`【先读责任书 / source-first】`**：HPM 的指标名称、指标类型、权重、档位选项与目标值以在线责任书为唯一真源；动笔前先读出并逐项照录。
-## 内部资产引用 (Internal Assets)
+## 执行步骤
 
-- **交付方案融合与规范手册**：[references/DELIVERY_SYNTHESIS_REFERENCE.md](references/DELIVERY_SYNTHESIS_REFERENCE.md)
-- **桑基图流转计算与渲染引擎**：`scripts/sankey_engine.py`（8大流向分类、Ledger守恒校验与SVG/HTML渲染）
-- **桑基图视觉与样式契约**：[references/sankey_style_contract.md](references/sankey_style_contract.md)
-- **桑基图标准文案模板**：[references/sankey_wording_templates.md](references/sankey_wording_templates.md)
-- **交付报告通用模板**：[templates/delivery_report_template.md](templates/delivery_report_template.md)
-- **黄金交付范例**：[examples/golden_delivery_report.md](examples/golden_delivery_report.md)
-- **黄金技术开发交接范例**：[examples/golden_development_handoff.md](examples/golden_development_handoff.md)
-- **决策复盘卡规范模板**：[templates/decision_postmortem_template.md](templates/decision_postmortem_template.md)
-- **统一门户驱动脚本**：`scripts/portal_browser_sync.js`
-- **表格协同操作规约**：[references/wecom_sheet_patterns.md](references/wecom_sheet_patterns.md)
-- **绩效自评标准规约**：[references/hpm_criteria.md](references/hpm_criteria.md)
-- **Wiki 发布与改写规范手册**：[references/wiki_publishing_contract.md](references/wiki_publishing_contract.md)
-- **关联工程规范**：融合新店 32 项体系（详见 [ps-new-store-benefit-report](../../product-strategy/ps-new-store-benefit-report/SKILL.md)）、加盟店前端 HTML 看板与桑基图（详见 [ps-franchise-store-report](../../product-strategy/ps-franchise-store-report/SKILL.md)）、O2O 卡片诊断（详见 [o2o-store-benefit-report](../../product-strategy/o2o-store-benefit-report/SKILL.md)）、统一门户同步（详见 [ps-portal-sync](../../product-strategy/ps-portal-sync/SKILL.md)）、季度绩效自评（详见 [hpm-performance-review](../../product-strategy/hpm-performance-review/SKILL.md)）与视频汇报（详见 [web-video-presentation-delivery](../../product-strategy/web-video-presentation-delivery/SKILL.md)）
-- **共享契约（权威真源，阶段回复/交付六栏与唯一资产身份）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
-- **数据质量核验清单（数据湖隔离与同名覆盖规范）**：[../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md](../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md)
-- **同名覆盖与软链接原子发布范例（条件触发：数据湖物化交付）**：[../analytics-data-execution/examples/action_reason_parity_example.py](../analytics-data-execution/examples/action_reason_parity_example.py)
+### 1. 汇总已验证结论
 
-## 5 大交付形态 (Delivery Channels)
+按 [交付模板](templates/delivery_report_template.md) 写 Markdown 真源，包含背景、结论、证据与行动。事实、预测和建议执行分开；销售重分类不算增长，历史无流水不直接认定因果增量。策略比较列门店数、增量及总条目、店均量、目录与全店动销率、销占/毛占和测算金额，说明口径。
 
-```mermaid
-flowchart TD
-    Start["发起成果交付"] --> Route{"选择交付形态"}
-    Route -->|高管报表与工作簿| B1["Channel A: 深蓝商务 Excel 工作簿物化"]
-    Route -->|交互式可视化看板| B2["Channel B: 现代前端品味 HTML 决策看板"]
-    Route -->|中台知识与报告| B3["Channel C: Confluence Wiki 增量沉淀"]
-    Route -->|项目推进与工时| B4["Channel D: WBS 状态更新与工时核销"]
-    Route -->|季度绩效成果沉淀| B5["Channel E: HPM 季度自评草稿同步"]
+完成标准：每个数字可追溯到阶段四产物，结论与已确认范围一致。
 
-    B1 --> Audit["交付验收门禁: 样式质检与状态核实"]
-    B2 --> Audit
-    B3 --> Audit
-    B4 --> Audit
-    B5 --> Audit
-```
+### 2. 生成默认 MD + HTML 双交付
 
-### Channel A: 高管 Excel 工作簿物化 (Executive Excel)
-1. 结构组织采用金字塔架构（Sheet 1 汇总指标卡片，Sheet 2 分省/分类明细，Sheet 3 口径说明与指标数据字典）；
-2. 样式规范：深蓝底白字居中表头，自适应列宽无 `###`，金额千分位，比率百分比。
+使用 `answer-me-with-html` 从 Markdown 生成 HTML，工具参数以当前 skill 与帮助为准。按背景/结论、过程证据、行动组织页面；交付结构参考 [融合指南](references/DELIVERY_SYNTHESIS_REFERENCE.md)。技术开发交接列明输入输出、运行入口、验收证据与恢复步骤。
 
-### Channel B: 现代前端品味 HTML 决策看板与桑基流图 (Interactive HTML Dashboard & Sankey)
-1. **决策看板结构设计**：遵循“总-分-总”叙事架构：
-   - 顶层总括：背景契机与核心定性结论；
-   - 中层过程分拆：全链路流转漏斗、单品品效对决矩阵、同周期大盘均线对比；
-   - 底层行动闭环：具体业务改进建议（保供、清退、前置管控）。
-2. **加盟店桑基图自动承接 (Sankey Flow Integration)**：
-   针对加盟店组货流转与品数分类动态变化，调用内置 `scripts/sankey_engine.py` 工具：
-   - 自动生成 8 大标准流向（稳定目录内/外、流转转入/出、新增、汰换）；
-   - 自动执行 Ledger 守恒闭环校验（源端流出总额 == 终端流入总额）；
-   - 生成高保真矢量 SVG 与交互式 HTML 流图，嵌入报告。
-- 建立严谨的字体层级与排版呼吸感，保持一致的中性调色盘（Zinc/Slate/Paper）；
-- 交互看板采用原生 SVG ViewBox 矢量缩放（平移缩放无损锐利，告别光栅化模糊）；
-- 侧边栏内建双向拖拽分栏（`#resizer`，支持 300px~950px 自由拉伸），图例按核心品类色系收敛合并；
-- 图元点击与清单表格实现双向互锁联动定位。
-### Channel C: Confluence Wiki 增量沉淀 (Wiki Publishing)
-遵循 [references/wiki_publishing_contract.md](references/wiki_publishing_contract.md) 的标准四步流程：
-1. **专项新页面独立落盘**：调用 `POST /rest/api/content` 在指定空间与父级页面下新建专项说明页；
-2. **交付附件直传与 view-file 宏嵌入**：技术交接文档与 SQL 上传为页面附件，正文嵌入 `<ac:structured-macro ac:name="view-file">` 宏实现在线直接预览；
-3. **策略主文档原行内高亮改写**：步骤表格在原行就地改写并应用整行黄色底色（`class="highlight-yellow"`），废弃规则加删除线 `<s>`，新规则加红字；版本清单对暂停项显式加红字说明；
-4. **技术用语规范与边界防漂移**：严禁用语口语化，统一使用「分步实施策略」；严格排除与当期需求无关的全局口径。
+完成标准：两份文件均可打开，数字、口径、链接一致，HTML 实际渲染检查通过。
 
-### Channel D: WBS 推进表结单与工时核销 (WBS & Timesheet)
-通过驱动工具将需求流转为已完成，并核验工时守恒记录至工时系统。
+### 3. 生成任务所需附加资产
 
-### Channel E: HPM 绩效成果沉淀 (Performance Self-Review)
-1. **读出责任书**：按 [references/hpm_criteria.md](references/hpm_criteria.md) 第 4 节的读取路径，取出全部指标的序号、名称、指标类型、权重、档位选项、指标说明、计划时间与目标值。权重合计 100%，突破类合计不超过 30%。
-2. **照录口径**：指标名称、权重、指标类型、档位选项逐项照录责任书；目标值写责任书原文，不换成自拟指标。
-3. **挂接证据**：每项指标映射到 `topics/*` 的交付文档、需求底稿或数仓结果，作为完成值来源。
-4. **留空未定项**：完成值、自评档位与偏差说明在季度结束后据实填写，草稿阶段留空。
-5. **完成标准**：责任书指标全部读出并逐项对齐，权重合计 100%，每个数字可在仓库或数仓溯源。
+- Excel：汇总、明细、口径分层；深蓝白字表头、冻结表头、中文列名、列宽、千分位及百分比格式。按 [导出样例](examples/02_export_excel_with_dedup.py) 核对去重语义；逐 Sheet 回读行数金额。
+- 桑基：读 [样式契约](references/sankey_style_contract.md) 和 [文案模板](references/sankey_wording_templates.md)，使用 `scripts/sankey_engine.py`；核验八类流向及 Ledger 守恒，图元与清单联动按样式契约验收。
+- 跨年月份：读 [月份规则](references/CIRCULAR_SEASON_PARSER.md)，调用 `scripts/format_circular_months.py`。
 
-完整自评流程（基线复盘、指标核验、去 AI 味、弹窗录入与保存）见 [hpm-performance-review](../../product-strategy/hpm-performance-review/SKILL.md)。
+完成标准：所选资产完成内容回读与视觉检查，证据随报告提供。
 
----
+### 4. 核验发布实体与索引
 
-## 配置变更交付与阶段六复盘
+按 [质量契约](../analytics-data-execution/references/DATA_QUALITY_CHECKLIST.md) 核对数据湖实体、稳定命名及软链接；更新专题 manifest 的 datasets/deliverables，使用项目索引入口刷新。配置交付链接差异、写入、调度、验收分区与最终导出，区分原库存、候选和最终建议数量。
 
-配置驱动的新增范围需求，交付报告链接配置差异、写入及调度证据、已验收业务分区与最终导出。明确候选与最终条目、原库存与建议数量；逐Sheet回读核对行数金额，按项目约定更新数据湖入口与索引。
+完成标准：报告、索引、链接和实际回读文件一致，数据湖边界检查通过。
 
-进入阶段六 `06_decisions/` 时，若用户已要求复盘，直接沿用已有授权；记录最终决策、已验证证据、恢复办法、项目真源和既有脚本入口。跨期对比仅作量级证据，建议清单与实际执行成果分开。
+### 5. 执行已授权协同与复盘
 
-完成标准：交付可由配置变更追溯到实际输出；复盘使下一次新增范围可从原阶段入口找到真源，无需新增技能或复制业务常量。
+外部回写按下表读取分支规约并回读状态；未授权项注明未执行，不阻断本地交付。交付末尾询问是否复盘，已有授权直接继承；获准后按 [复盘模板](templates/decision_postmortem_template.md) 记录决策、复用入口与已证实陷阱，挂入专题 README，保持交付口径不变。
 
-## 交付步骤与完成标准 (Steps & Completion Criteria)
+完成标准：每项外部动作有回读证据或未执行状态；复盘状态明确。
 
-1. **Step 1：物化结构化交付报告**：
-   在 `topics/<topic_id>/05_delivery/md/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.md` 生成符合模板的完备报告，严格执行 `/skill:humanizer-zh` 人性化润色。
-2. **Step 2：物化交互式 HTML 诊断看板**：
-   在 `topics/<topic_id>/05_delivery/demand-<adhoc|id>-<topic_id>-<datehour>-05-delivery.html` 输出调用 `am render`（`answer-me-with-html`）编译的标准交互式看板，严禁手工拼凑粗糙 HTML，保证统一 Blueprint 暗黑蓝图或高质感现代前端品味。
-   修改既有看板用 `am patch <html> --panel "<标题>" -`：先用 `grep -n '^## ' <html>` 列出面板标题，`--panel` 必须与其完全一致；`chart` 块第一行写列名（`             | 系列1 | 系列2`），否则报错。`am render --replace` 只接受 `am render` 自己写出的页面。
-3. **Step 3：外部数据湖实体同名覆盖与物理路径回读核验**：
-   - 继承既有资产文件名，通过临时文件门禁校验后，原子替换外部数据湖目标文件，并同步验证仓库相对软链接；
-   - 运行数据湖边界检查命令断言合规；
-   - **物理路径真实回读**：交付前必须真实回读外部数据湖物理路径（检查文件大小、更新时间戳与解析前 N 行），确认实际生效文件与交付报告严格一致，杜绝用户在外部数据湖查看旧文件。
-4. **Step 4：阶段五对抗性审查 (Stage 5 Review Gate)**：
-   按共享契约 §2.0 执行产物审查，核验：事实与预测分离；目录销售转入等重分类不写成“销售增长”；历史无流水不直接断定为“策略纯增量”；口径双视图明确；Markdown 为真源且 HTML 看板内容由其派生；流转表达按需采用简单清晰图表。
-5. **Step 5：[交互询问] 决策复盘卡沉淀与索引挂载 (Optional Post-Mortem Card)**：
-   交付结单时，**默认先产出 HTML 看板与 Markdown 交付报告**；在交付回复末尾**主动询问用户是否需要在 `06_decisions/` 沉淀永久决策复盘卡**。
-   - 若用户当前会话已明确要求/授权复盘，直接继承授权，不重复询问；
-   - 若用户同意，按 [templates/decision_postmortem_template.md](templates/decision_postmortem_template.md) 输出三段式复盘卡（业务决策、复用代码资产、避坑经验），执行阶段六审查（经许可/仅沉淀决策、复用入口与陷阱/不重复指标/不固化未验证经验），并在专题 `README.md` 挂载索引；
-   - **复盘不得事后修改交付口径**：复盘仅记录真实业务决策与技术教训，严禁事后推翻或篡改已交付的数据口径；
-   - 未经用户授权不物化复盘卡，也不阻断交付完成。
+## 协同分支
 
-**完成标准**：交付文档（MD + HTML）规范落盘，数据湖物理文件同名更新且回读校验通过，仓库软链接有效，数据湖边界校验通过，阶段五对抗性审查通过（阻断 0 项且附证据），并完成复盘卡交互询问。外部协同回写（Wiki/WBS/工时）及阶段六复盘不作为无条件前置，未授权项在第六栏注明“未授权，未执行”。
+| 触发 | 读取与验收 |
+|---|---|
+| Wiki 发布/改写 | [发布契约](references/wiki_publishing_contract.md)：专项页面、附件预览、原行高亮改写与暂停项说明，回读页面和附件。 |
+| WBS/工时 | [表格规约](references/wecom_sheet_patterns.md) 与 [门户流程](../../product-strategy/ps-portal-sync/SKILL.md)：基于真实提交及需求编号更新，核验整周工时守恒。 |
+| HPM 自评 | [绩效规约](references/hpm_criteria.md)：先读在线责任书，逐项照录名称、类型、权重、档位、目标与计划；挂接证据，草稿未定项留空，核对权重 100%、突破类上限及责任书一致性。 |
+| 视频汇报 | [视频流程](../../product-strategy/web-video-presentation-delivery/SKILL.md)：按所需渠道生成并验证可播放产物。 |
 
-**阶段五回复/交付**：按共享契约 §1 六栏输出；已确认项不重复索取；技术与业务验证分离记录；附阶段五审查门槛登记。
+## 阶段验收
+
+按共享契约 §2 的本阶段门槛逐项附证据，并执行 §2.0 产物审查。适用门禁全部通过、阻断为零才宣布完成；未验证项如实列明。中文业务正文按 `humanizer-zh` 润色，保留数字、口径与证据。
+
+HPM 需要录入或保存时，继续读取 [完整自评流程](../../product-strategy/hpm-performance-review/SKILL.md)，继承已有授权并回读保存结果。

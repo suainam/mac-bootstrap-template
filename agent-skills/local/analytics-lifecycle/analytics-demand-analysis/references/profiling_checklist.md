@@ -1,6 +1,6 @@
 # 实体粒度锁定与五维数据画像核验指南 (Grain & Profiling Checklist)
 
-在开展专题分析前，必须通过数据画像与实体粒度断言，建立可验证的指标基准线。画像报告必须同时覆盖“宏观营运区店均对比”与“微观门店内部目录内外品效对比”。
+在开展专题分析前，必须通过数据画像与实体粒度断言，建立可验证的指标基准线。仅店品效益分析的画像报告覆盖“宏观营运区店均对比”与“微观门店内部目录内外品效对比”。
 
 ---
 
@@ -8,15 +8,15 @@
 
 | 检查项 | 验证 SQL / 代码 | 合格标准 |
 | :--- | :--- | :--- |
-| **主键唯一性断言** | `SELECT COUNT(1) - COUNT(DISTINCT keys) FROM table WHERE pt=MAX_PT('table')` | 严格等于 `0` |
+| **主键唯一性断言** | `SELECT COUNT(1) - COUNT(DISTINCT keys) FROM table WHERE pt = <target_pt>` | 严格等于 `0` |
 | **多版本并发去重** | 检查表是否存在 `version_id` / `version_num` / `batch_id` | 关联前通过 CTE `GROUP BY` 或窗口函数收敛为单版本 |
-| **维表放大防卫** | `dim_store` / `dim_item_master` 关联键唯一性验证 | 关联键在最新分区内重复数为 `0` |
-| **物理单体vs型号规格防卫** | `SELECT COUNT(DISTINCT code), COUNT(1) FROM tbl` | 若全国/全局仅几百个离散值，判定为规格型号码，严禁作为去重主键，必须使用物理排面节位/单体码（如 `display_code`） |
+| **维表放大防卫** | `dim_store` / `dim_item_master` 关联键唯一性验证 | 关联键在锁定业务分区内重复数为 `0` |
+| **物理单体vs型号规格防卫** | `SELECT COUNT(DISTINCT code), COUNT(1) FROM tbl` | 低基数仅作为型号编码疑点；查证字段定义与实例样本后选定物理单体键 |
 ---
 
 ## 2. 6 项基准画像指标 (6 Baseline Metrics)
 
-对原始数据源执行基准数据画像，固化以下 6 项指标基准：
+以下为店品任务示例；其他任务替换为已锁定实体键及适用指标。数量金额缺失另行计数，补零须有业务契约：
 
 ```sql
 SELECT 
@@ -24,10 +24,10 @@ SELECT
     COUNT(DISTINCT store_code) AS store_cnt,          -- 2. 去重门店数
     COUNT(DISTINCT item_code) AS item_cnt,            -- 3. 去重商品数
     COUNT(DISTINCT store_code, item_code) AS merge_cnt, -- 4. 去重主键粒度数
-    SUM(COALESCE(qty, 0)) AS sum_qty,                 -- 5. 数量总和
-    SUM(COALESCE(amt, 0)) AS sum_amt                  -- 6. 金额总和
+    SUM(qty) AS sum_qty,                 -- 5. 数量总和
+    SUM(amt) AS sum_amt                  -- 6. 金额总和
 FROM source_table
-WHERE pt = MAX_PT('source_table');
+WHERE pt = <target_pt>;
 ```
 
 **断言守恒规则**：
@@ -60,10 +60,10 @@ WHERE pt = MAX_PT('source_table');
 
 ## 4. 分区与过滤条件规范 (Partition & Filter Gates)
 
-1. **动态最高分区**：使用 `MAX_PT('table')`，确保每次运行指向最新有效业务分区。
+1. **动态最高分区**：先实测并锁定业务快照；仅最新业务分区需求且已验证有效时使用 `MAX_PT('table')`。
 2. **过滤条件守恒跟踪**：应用业务过滤规则前后，记录行数与关键维度的覆盖比例，保持过滤漏斗平稳透明。
 3. **客观时间窗口约束**：严格遵循数仓表设计事实与需求原文，避免在无业务依据时主观臆断并硬编码时间窗口。若需滑动截断，必须在文档与表头显式声明边界。
-4. **NULL 值显式表达**：字符型与数值型比较使用 `COALESCE(col, 0) == 0` 或 `col IS NULL`，保持逻辑完整性。
+4. **NULL 值显式表达**：NULL、空白、关联未命中与零值分别记录；未知值进入待核验集，补零须有已确认业务契约。
 
 ---
 

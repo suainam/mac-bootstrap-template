@@ -1,116 +1,52 @@
 ---
 name: analytics-data-execution
-description: Execute data pipelines, interactive ODPS queries, batch backfills, and model script runs. Use when running PyODPS queries, staging table ingestion, backfilling partitions, running local Python analytics runners, or enforcing adversarial gates.
+description: Run analytics queries, local models, ingestion, partition backfills or configuration changes; reconcile outputs and verify materialized assets.
 ---
 
-# 阶段四：数据分析执行与对账验证 (Analytics Data Execution & Verification)
+# 阶段四：数据分析执行
 
-负责数据方案的工程落地、算力调度与质量对账验证。统一调度 MaxCompute/PyODPS 底层交互、历史分区回刷、物理中间明细与汇总宽表提取、以及自动化对抗性单调性断言。
+## 进入阶段
 
-## 核心主导词 (Leading Words)
+读取 [共享契约](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)：继承已确认范围与稳定资产身份，按六栏交付，技术事实自行查证，只确认新增业务选择。按当前任务进入本阶段，复用已有上游产物。
 
-- **`【免Docker直跑 / pyodps-uv】`**：交互式轻量探索与快速查询统一采用 `uv run --with pyodps --no-project` 免 Docker 直跑，严格从 `~/.env` 读取数仓凭据。
-- **`【中间表架构 / staging-table】`**：复杂多阶段数据分析严禁单体超长 WITH 查询。宏观上表间采用物理中间表（Checkpoints）物化解耦，微观上表内用局部 CTE 消除子查询嵌套。消除长 CTE 重复开销，支持秒级断点续跑与排查。
-- **`【安全隔离铁律 / dev-isolation】`**：中间物化表必须且只能写入开发临时库 `${dsl_tmp_dev}`，表名必须携带专题唯一标识（如 `tmp_<topic_id>_*`），跑完或归档时按规清理，严禁中间计算污染生产 ADS 库。
-- **`【前置履约门禁 / fulfillment-gate】`**：目录增补模型在候选生成层必须严格关联仓库与门店在营状态表，执行 `is_wh_itme_status_yc = 0` 等多级门禁，防止“纸面增补、实际无货”。
-- **`【对账门禁 / adversarial-gate】`**：模型与 SQL 计算产出后必须通过自动化断言门禁，严格核验行数唯一性、二元互斥守恒、金额自洽与 NULL 空值防卫。
-- **`【数据湖外置 / lake-isolation】`**：全量二进制数据（Parquet/Excel）通过 `shared.data_lake` 存入外部数据湖并建立规范软链接，Markdown 报告直接留在仓库。
+## 执行步骤
 
----
+### 1. 锁定环境、资产与执行分支
 
-## 内部资产引用 (Internal Assets)
+读取 [质量契约](references/DATA_QUALITY_CHECKLIST.md)。复用项目 `shared.config`、`shared.odps_connector` 与数据湖设施，从项目约定凭据源加载秘密。轻量 PyODPS 查询可用 `uv run --with pyodps --no-project`；计算项目使用已授权配置，中间表仅写开发临时库、携带专题标识并约定清理。
 
-- **通用对账门禁脚本**：`scripts/audit_execution_sanity.py`（单调性、守恒性、有界性与空值断言 CLI）
-- **动作与原因互斥闭环门禁脚本**：`scripts/audit_action_reason_parity.py`（标记与原因互斥闭环、保护不穿透、待核验隔离断言 CLI）
-- **数仓轻量探查脚本**：`scripts/odps_quick_probe.py`（分区与主键唯一性一键探查）
-- **数据质量核验清单（权威真源）**：[references/DATA_QUALITY_CHECKLIST.md](references/DATA_QUALITY_CHECKLIST.md)
-- **同源判定与标记原因一致性范例（条件触发：目录增删/清洗方案）**：[examples/action_reason_parity_example.py](examples/action_reason_parity_example.py)
-- **黄金执行与验证范例**：[examples/golden_execution_runner.py](examples/golden_execution_runner.py)
-- **工程实施关联规范**：支持本地文件入仓（详见 [odps-table-ingest](../../product-strategy/odps-table-ingest/SKILL.md)）、批量多分区回刷（详见 [dataworks-yoy-backfill](../../product-strategy/dataworks-yoy-backfill/SKILL.md)）与策略规则治理（详见 [ps-reduction-scope-config-maintenance](../../product-strategy/ps-reduction-scope-config-maintenance/SKILL.md)）
-- **共享契约（权威真源，阶段回复/交付六栏）**：[../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md](../analytics-demand-analysis/references/ANALYSIS_CONFIRMATION_CONTRACT.md)
-- **八格详细（按条件引用：版本/来源/预测分解）**：[../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md](../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md)
+完成标准：输入快照、稳定目标路径、写入范围、门禁及恢复方式明确。
 
----
+### 2. 执行选定分支
 
-## 4 大执行与验证分支 (Execution Branches)
+- 查询：按锁定粒度提取；仅店品分析且需穿透对账时输出店品明细和门店汇总两层。元数据探查可用 `scripts/odps_quick_probe.py`，先核对其分区选择是否适用本次业务日期。
+- 本地模型：运行阶段三已验证的专题脚本，复用因果求解器、效益测算与基准核验入口。
+- 本地入仓：读 [入仓流程](../../product-strategy/odps-table-ingest/SKILL.md)。
+- 历史回刷：读 [回刷流程](../../product-strategy/dataworks-yoy-backfill/SKILL.md)，分区并发与跳过策略按该流程执行。
+- 配置治理：读 [规则维护](../../product-strategy/ps-reduction-scope-config-maintenance/SKILL.md)。复核阶段二快照和阶段三差异，在开发库预演；按已有授权写入后回读主键、行数与未改规则，分别记录落库、代码、调度及结果状态、实例 ID 和业务分区。
 
-```mermaid
-flowchart TD
-    Start["发起数据执行与验证"] --> Route{"选择实施执行方式"}
-    Route -->|交互探索与两段式提取| B1["Branch A: PyODPS 提取明细与宽表"]
-    Route -->|批量历史分区回刷| B2["Branch B: DataWorks 批量多分区回刷"]
-    Route -->|本地模型算法跑批| B3["Branch C: 本地 Python 算法/跑批引擎运行"]
-    Route -->|规则治理与配置下发| B4["Branch D: 开发库预演与生产配置安全覆写"]
+完成标准：实际执行有命令、退出码及输出记录，失败定位到具体阶段。
 
-    B1 --> Gate["统一对抗性质量门禁 (audit_execution_sanity.py)"]
-    B2 --> Gate
-    B3 --> Gate
-    B4 --> Gate
-    Gate -->|通过| Out["物化产出: Parquet + Excel + 数据湖软链接"]
-```
+### 3. 核验数据
 
-### Branch A: PyODPS 交互拉取与两段式物化 (Query & Staging)
-1. **加载环境与凭据**：严格读取 `~/.env`，复用 `shared.config.ODPSConfig` 与 `shared.odps_connector.ODPSConnector`；
-2. **两段式物理提取**：
-   - 第一段：提取店品明细事实层（`base_item_detail`），保存为 Parquet 文件，供排查具体品项动销；
-   - 第二段：执行门店汇总层计算，输出标准宽表；
-3. **安全数据湖外置**：调用 `shared.data_lake.export_topic_data` 输出 `.parquet` 与 `.xlsx`，仓库保留文本 `.md` 报告。
+运行 `scripts/audit_execution_sanity.py` 或对应内嵌断言；目录动作追加 `scripts/audit_action_reason_parity.py`。按方案核对行数、键、金额、集合、比率、NULL、来源与保护规则，记录不适用项理由。技术门禁和业务合理性分开记录。
 
-### Branch B: DataWorks 批量历史分区回刷 (Batch Backfill)
-1. 构建单日 Multi-Table INSERT 语句，配置自然季度并发线程池；
-2. 开启秒级跳过已存在分区机制，确保断点续跑。详见：[dataworks-yoy-backfill](../../product-strategy/dataworks-yoy-backfill/SKILL.md)。
+- 用本期名单回溯历史：读 [回溯五问](references/cohort_backtrace_five_questions.md)。
+- 版本/来源/预测分解：读 [八格门禁](../analytics-demand-analysis/references/EIGHT_CELL_AUDIT_REFERENCE.md)。
+- 分批推广或重构：读 [三段回归](../analytics-data-solution/references/BATCH_ROLLOUT_REGRESSION_SOP.md)。
+- SQL 空结果或异常：读 [差异诊断](references/SQL_DIFF_DIAGNOSIS_GUIDE.md)，先 diff，再用单键切片定位断点。
+- 物理空间：按已确认密度阈值检查漏登、折叠与重复累计；异常先排查来源。
 
-### Branch C: 本地 Python 算法与模型脚本运行 (Python Analytics Engine)
-执行阶段三设计的复杂计算与专项脚本：
-1. **政策因果实证运行**：调用倾向得分匹配与双重差分 (DID) 求解器；
-2. **专题宽表批量计算**：调用专题经单测验证的本地测算脚本（如 `calculate_new_store_metrics.py`）；
-3. **大盘基准对齐核验**：调用外部参考与 MaxCompute 对齐校验工具（如 `verify_market_baseline.py`）。
+按大区/品类回查底层样本（通常 10–20 条，不足时全查），记录源分区与差异。配置结果额外核验范围、版本、容量、共享额度和历史量级；零结果先核对日期门禁与映射。
 
-### 配置变更验收补充
+完成标准：适用断言全部通过，抽样差异已解释；测试收集、实际测试和生产查询明确区分。
 
-进入规则治理分支时，先核对阶段二快照、阶段三差异与当前配置仍一致；按当前授权执行写入并回读主键、行数及未变更规则。分别记录配置落库、代码同步、调度提交、结果生成状态及实例ID、业务分区。结果核验范围泄漏/缺失、重复、版本、共享额度、容量和同范围历史量级；零结果先核对日期门禁与映射。
+### 4. 物化与回读
 
-完成标准：实际输出满足本次范围和约束，证据可追溯；明确区分测试执行、测试收集、静态检查与生产查询结果。
+按质量契约先验证临时产物，再同名原子替换数据湖实体并核对仓库软链接；运行项目边界检查。质检报告记录实际大小、更新时间、解析结果、断言证据和业务解释。
 
-### Branch D: 策略规则治理与安全覆写 (Rule Governance & Deploy)
-1. 从用户需求确定规则变更范围与生效日期；
-2. 在开发库 `dsl_analysis_dev` 执行验证与回读，确认无脏数据；
-3. 将经验证的全量规则幂等覆写到生产正式配置表并回读校验。
+完成标准：物理文件可解析且属于本次运行，软链接指向正确，报告与文件一致。产物存在本身不证明本次重跑。
 
----
+## 阶段验收
 
-## 执行步骤与对账门禁 (Steps & Verification Gates)
-
-### Step 1: 环境加载与交付资产路径锁定 (Environment & Asset Locking)
-1. 严格从家目录 `~/.env` 读取凭据，复用 `product_strategy/shared` 设施，避免硬编码；
-2. **执行前锁定唯一交付资产身份**：显式确定本轮交付的目标文件名、外部数据湖真实物理路径及仓库软链接路径。若属于已有产物迭代更新，必须锁定原文件名与路径，严禁因重新跑数私起 `_v1`/`_v2`/`_fixed` 等新别名。
-
-### Step 2: 执行数据提取与生成物理中间明细 (Data Extraction & Staging)
-1. **计算与判定准则**：严格对照 [references/DATA_QUALITY_CHECKLIST.md](references/DATA_QUALITY_CHECKLIST.md) 执行——动作标记只计算一次，原因直接消费标记；展示与判定同源；严禁将金额=0擅自混入剔除条件；区分 NULL 与 0；
-2. **两段式物理提取**：
-   - 提取店品粒度明细数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-item-detail.parquet`；
-   - 提取门店汇总宽表数据集，保存为 `04_outputs/demand-<adhoc|id>-<topic_id>-<datehour>-04-dataset.parquet` 与高管 Excel。
-
-### Step 3: 执行对抗性质量门禁核验 (Adversarial Verification Gate ★)
-运行 `scripts/audit_execution_sanity.py` 或内嵌门禁断言，严格核验（技术验证与业务验证分离记录）：
-- 技术验证：门禁脚本 exit code、主键唯一性、守恒断言、NaN/空组处理；
-- 业务验证：大盘合理性、门店分布、指标方向；
-严格核验 4 大指标：
-1. **主键唯一性**：`COUNT(1) - COUNT(DISTINCT keys) == 0`，杜绝 Left Join 笛卡尔积膨胀；
-2. **商品数二元互斥守恒**：`目录内在营商品数 + 目录外手工在营商品数 == 全店总在营商品数`（误差严格为 0）；
-3. **金额全额流水自洽守恒**：`目录内销售额 + 目录外手工销售额 == 全店总销售额`（浮点误差 < 0.05元）；
-4. **比率有界性与空值防卫**：所有执行率、动销率指标严格在 $[0, 100\%]$ 区间；未开考/无目录门店动销率严格保留为 NULL；
-5. **物理空间密度常识对抗断言 (Physical Density Sanity Gate)**：涉及货架、面积、排面等实体空间数据时，增加空间物理密度断言（如 $\text{陈列密度} = \frac{\text{门店陈列架总长度 (米)}}{\text{门店营业面积 (m²)}} \in [0.4, 1.8]\text{ m/m²}$）。密度低于 0.3 提示中台漏登或错误折叠，高于 2.0 提示混陈重复累计，触发预警排查。
-6. **回溯五问 (Cohort Backtrace Five Questions ★)**：用本期名单回溯上期的指标（同品池、同店池），交付前必须附一次拆解，详见 [references/cohort_backtrace_five_questions.md](references/cohort_backtrace_five_questions.md)。五问为：匹配粒度、商品有效性、门店数、覆盖×强度、新老品分组。
-### Step 4: 物化交付物与质检报告输出 (Materialization & Report)
-1. **临时验证后同名覆盖机制**：
-   - **警惕“查询成功不等于最终交付成功”**：严防数仓跑通或生成了中间日志，但最终交付文件写漏或另起新名，导致用户在外部数据湖打开的是旧文件的脱节事故；
-   - 新产物先写入临时文件，经主键唯一性、金额守恒、标记原因一致性等门禁断言验证通过后，再同名原子替换目标外部数据湖物理文件；
-   - 同步验证并更新仓库相对软链接指向；
-2. 运行数据湖边界检查命令断言合规；
-3. 输出现场质检监控 Markdown 报告：`04_outputs/reports/demand-<adhoc|id>-<topic_id>-<datehour>-04-sanity-report.md`，直接留存在仓库原位；文风严格按照 `/skill:humanizer-zh` 规范，不含糊其辞，直接呈现清晰核验事实；
-4. **阶段四产物对抗性审查**：按共享契约 §2.0 执行产物审查，核验：生产基线可复现、主键唯一性守恒、标记与原因 100% 互斥闭环、业务保护不穿透、来源保留完整、真实命令与其退出码；**明确区分 collect-only 与实际测试执行；产物存在不等于本次重跑**。
-
-**完成标准**：数据文件通过全部门禁断言，完成门槛必须真实回读并校验：外部数据湖物理文件存在且修改时间戳为本次更新、字节数正常、可解析，仓库软链接有效且指向该物理文件；生成客观的质检监控 Markdown 报告，阶段四对抗性审查通过（阻断 0 项且附真实命令与退出码证据）。
-
-**阶段四回复/交付**：按共享契约 §1 六栏输出，附阶段四审查门槛登记；涉及版本/来源/预测分解时引用八格详细参考；技术与业务验证分离记录。
+按共享契约 §2 的本阶段门槛逐项附证据，并执行 §2.0 产物审查。适用门禁全部通过、阻断为零才宣布完成；未验证项如实列明。中文业务正文按 `humanizer-zh` 润色，保留数字、口径与证据。
