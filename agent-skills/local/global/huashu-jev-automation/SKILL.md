@@ -1,6 +1,6 @@
 ---
 name: huashu-jev-automation
-description: In-browser automation using huashu-chrome with TypeSafe Jev micro-decisions. Use when automating multi-step web flows (forms, paginated lists, DOM ref actions), executing QA test workbench cases and stage transitions (smoke/system tests), injecting controlled inputs into React/Vue components or uploading files dynamically, or handling mission-critical submissions needing multi-tab safety gates and human-in-the-loop sign-off.
+description: In-browser automation using huashu-chrome with TypeSafe Jev micro-decisions. Use when automating multi-step web flows (forms, paginated lists, DOM ref actions), authenticating via enterprise SSO passport forms, executing QA test workbench cases and stage transitions (smoke/system tests), injecting controlled inputs into React/Vue components or uploading files dynamically, or handling mission-critical submissions needing multi-tab safety gates and human-in-the-loop sign-off.
 ---
 
 ## 环境依赖
@@ -111,9 +111,20 @@ resp, key = send_jev(
 
 标准实现在 `scripts/test_case_runner.mjs`。详见 `references/interaction-patterns-def.md#模式-g`。
 
+### 模式 H: 企业统一身份认证 SSO 自动登录 *(sso-passport-injection + credential-decoupling + redirect-settle)*
+
+针对内网统一认证中心（如 `sso.dslbuy.com/login` 等 CAS / OAuth2 认证网关）的凭据自动化填充与登录重定向流转：
+
+1. **靶向表单锁定 (*passport-form-target*)**：内网 SSO 页面常将手机验证码（`phone`）与账号密码（`passport`）置于同名 `#p_inP_login` 下。必须通过 `input[name="loginWay"][value="passport"]` 向上 `.closest("form")` 锁定真实账号密码表单。
+2. **受控注入与事件派发 (*controlled-setter*)**：账号密码来自 `~/.sso-tech-committee.env`（`chmod 600`，严禁代码硬编码）；通过原型链 setter 注入并依次派发 `input` 与 `change` 冒泡事件，避免前端框架值拦截。
+3. **合规风控通行 (*clean-pass*)**：调用表单所属 `.login-content__form-submit` 提交按钮；正常派发原生事件可大概率免除行为拼图滑块，直接获取 TGT 票据并重定向。
+4. **重定向轮询判定 (*redirect-settle*)**：提交后在 Node 端以 800ms 间隔轮询 `snapshot`，当页面 URL 不再包含 `sso.dslbuy.com/login` 且成功加载目标业务系统即判定登录成功。
+
+标准实现在 `scripts/sso_login.mjs`。详见 `references/interaction-patterns-def.md#模式-h`。
+
 ## 工具脚本
 
-`scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
+`scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/sso_login.mjs`（企业 SSO 账号密码自动登录与重定向判定）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
 
 ## 避坑指南
 
@@ -125,5 +136,7 @@ resp, key = send_jev(
 6. **扩展休眠探活**：操作前先 `client.call("tabs", { action: "list" })` 唤醒休眠的 Service Worker。
 7. **工作台大循环超时**：批量推进用例时，禁止在单个 `eval` 中写长循环与 `await Promise`；由 Node.js 外层以 300ms 节流轮询驱动原子 `eval`。
 8. **动态阶段用例扩增**：冒烟流转（P0）通过后，底层通常局部增量注入系统测试用例（如 26 变 49 条），操作间需刷新卡片与操作按钮状态。
+9. **SSO 同 ID 多表单陷阱**：`sso.dslbuy.com` 手机验证码与密码登录使用相同表单 ID（`p_inP_login`）；严禁直接用 `#p_inP_login` 或首个表单选择器，必须以 `input[name="loginWay"][value="passport"]` 锚定。
+10. **SSO 凭据隔离与权限**：凭据文件由 `private/sso-tech-committee.env` 管理并软链接至 `~/.sso-tech-committee.env`，文件权限强制保持 `600`（通过 `harden-secret-permissions.sh` 校验）。
 
 架构职责分工见 `references/architecture.md`。

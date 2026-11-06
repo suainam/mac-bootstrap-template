@@ -1,6 +1,6 @@
-# 交互模式 D / E / F / G 详细参考
+# 交互模式 D / E / F / G / H 详细参考
 
-本文档是 `SKILL.md` 中「模式 D/E/F/G」摘要的展开说明。按需读取；SKILL.md 为路由入口。
+本文档是 `SKILL.md` 中「模式 D/E/F/G/H」摘要的展开说明。按需读取；SKILL.md 为路由入口。
 
 ---
 
@@ -124,4 +124,54 @@ huashu-chrome 扩展对单次 `eval` 命令有约 30s 响应时限。**严禁在
 2. 阶段流转按钮（`冒烟通过` / `完成测试`）及模态确认弹窗（`确认通过` / `确认完成`）须在获得人机终审授权后，通过 `confirmStageTransition` 精确触发。
 
 标准工具脚本已实现于 `scripts/test_case_runner.mjs`。
+
+---
+
+## 模式 H: 企业统一身份认证 SSO 自动登录 (Enterprise SSO Passport Login)
+
+针对企业统一身份认证服务（如 `sso.dslbuy.com/login` 等 CAS / OAuth2 网关）的账号密码自动化填入与登录流转。
+
+### H.1 凭据解耦与权限门禁 (credential-decoupling)
+
+严禁在代码、日志或 Prompt 中硬编码或回显明文凭据。
+1. 生产凭据存储在 `private/sso-tech-committee.env`，并软链接至家目录 `~/.sso-tech-committee.env`。
+2. 文件权限必须严格设置为 `600`（仅当前用户只读），并通过 `./scripts/harden-secret-permissions.sh` 与 `make parent-privacy-audit` 门禁检查。
+
+### H.2 同 ID 多表单靶向定位 (passport-form-target)
+
+企业统一认证页经常在同一页面内同时挂载手机验证码登录（`loginWay=phone`）与工号/密码登录（`loginWay=passport`），且两个表单常共用同一 ID（如 `id="p_inP_login"`）。
+如果使用 `document.querySelector("#p_inP_login")` 会默认命中第一个隐藏的手机登录表单，导致密码输入失效并报错“短信验证码已失效”。
+靶向选择器：
+```javascript
+const passportInput = document.querySelector("input[name='loginWay'][value='passport']");
+const form = passportInput.closest("form");
+const uInput = form.querySelector("input[name='username']");
+const pInput = form.querySelector("input[name='password']");
+```
+
+### H.3 原生 Setter 注入与受控事件冒泡 (controlled-setter)
+
+密码输入框被前端表单组件拦截时，直接赋值 `el.value = ...` 不会触发双向绑定。
+必须通过原型链 setter 注入，并派发原生事件：
+```javascript
+const proto = HTMLInputElement.prototype;
+const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+setter ? setter.call(el, val) : (el.value = val);
+el.dispatchEvent(new Event('input', { bubbles: true }));
+el.dispatchEvent(new Event('change', { bubbles: true }));
+```
+在派发完整事件的前提下，表单提交通常能正常通过基础风控校验，避免拉起滑动验证码浮层。
+
+### H.4 重定向判定与轮询结算 (redirect-settle)
+
+点击 `.login-content__form-submit` 后，页面需与 SSO 服务端通信并经过 302 跨域重定向回源业务系统。
+Node 驱动层使用短间隔（800ms）轮询 `snapshot`，当页面的 URL 判定离开 `sso.dslbuy.com/login` 且进入目标业务域时，判定登录成功。
+
+### H.5 标准工具实现
+
+标准实现在 `scripts/sso_login.mjs`：
+```bash
+# CLI 调用示例
+node ~/.agents/skills/huashu-jev-automation/scripts/sso_login.mjs <tabId>
+```
 完整函数签名与示例见 `scripts/huashu_driver.mjs`。
