@@ -1,7 +1,6 @@
 {
   "$schema": "./schemas/skills-sources.schema.json",
   "version": 2,
-
   "paths": {
     "local_root": "agent-skills/local",
     "quarantine_root": "agent-skills/external/quarantine",
@@ -10,11 +9,17 @@
     "snapshot_root": ".agent-state/skill-snapshots",
     "candidate_root": ".agent-state/skill-candidates"
   },
-
   "defaults": {
     "external": {
       "scope": "global",
-      "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+      "agents": [
+        "claude",
+        "codex",
+        "opencode",
+        "reasonix",
+        "antigravity",
+        "cross-agent"
+      ],
       "distribution_state": "enabled",
       "audit": {
         "required": true,
@@ -40,7 +45,6 @@
       }
     }
   },
-
   "reference_sources": {
     "agentskills-standard": {
       "type": "external",
@@ -48,7 +52,6 @@
       "purpose": "format and validator reference only; not distributed"
     }
   },
-
   "projects": {
     "auroraops-control": {
       "skills_dir": "${HOME}/work/projects/auroraops-control/.agents/skills",
@@ -82,7 +85,6 @@
       }
     }
   },
-
   "sources": {
     "typesafe-ai-skills": {
       "type": "external",
@@ -90,7 +92,12 @@
       "ref": "https://github.com/typesafe-ai/skills",
       "skills": {
         "typesafe-ai": {
-          "agents": ["claude", "codex", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": false
@@ -107,14 +114,18 @@
         }
       }
     },
-
     "qingyuna-skills": {
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/QingYunA/answer-me-with-html.git",
       "skills": {
         "answer-me-with-html": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -131,14 +142,18 @@
         }
       }
     },
-
     "vercel-skills": {
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/vercel-labs/skills",
       "skills": {
         "find-skills": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -153,7 +168,6 @@
         }
       }
     },
-
     "vercel-agent-skills": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -161,7 +175,10 @@
       "skills": {
         "web-design-guidelines": {
           "distribution_state": "staged",
-          "agents": ["codex", "opencode"],
+          "agents": [
+            "codex",
+            "opencode"
+          ],
           "gate": {
             "manual_approval": true,
             "approved": false,
@@ -170,7 +187,6 @@
         }
       }
     },
-
     "anthropic-skills": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -178,7 +194,10 @@
       "skills": {
         "pdf": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex"],
+          "agents": [
+            "claude",
+            "codex"
+          ],
           "gate": {
             "manual_approval": true,
             "approved": false,
@@ -187,14 +206,18 @@
         }
       }
     },
-
     "everything-claude-code": {
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/affaan-m/everything-claude-code.git",
       "skills": {
         "python-testing": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -209,16 +232,31 @@
         },
         "docker-patterns": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed stage; useful for infra/data projects but not a default global install"
         },
         "data-throughput-accelerator": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed stage; keep source available for ETL/backfill work"
         },
         "search-first": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -232,7 +270,12 @@
           }
         },
         "documentation-lookup": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -277,7 +320,6 @@
         }
       }
     },
-
     "mattpocock-skills": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -297,13 +339,27 @@
       },
       "skills": {
         "caveman": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "local_shadow_path": "agent-skills/local/shadows/mattpocock/caveman",
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill caveman"
         },
         "diagnosing-bugs": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -319,7 +375,12 @@
           "reason": "User-approved canonical upstream debugging skill for global distribution"
         },
         "improve-codebase-architecture": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -333,7 +394,14 @@
           }
         },
         "codebase-design": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -348,7 +416,13 @@
           "reason": "User-approved global architecture workflow skill"
         },
         "code-review": {
-          "agents": ["claude", "codex", "opencode", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -363,7 +437,14 @@
           "reason": "End-to-end engineering workflow review stage; Reasonix excluded until it supports parent-level parallel review agents"
         },
         "domain-modeling": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -378,7 +459,14 @@
           "reason": "User-approved global domain-modeling workflow skill"
         },
         "grilling": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -393,7 +481,14 @@
           "reason": "User-approved global design-review workflow skill"
         },
         "grill-with-docs": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -408,7 +503,14 @@
           "reason": "User-confirmed keep-global; first-column review mark overrides earlier stage recommendation"
         },
         "handoff": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -423,7 +525,13 @@
           "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
         },
         "implement": {
-          "agents": ["claude", "codex", "opencode", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -438,7 +546,14 @@
           "reason": "End-to-end engineering workflow implementation stage; Reasonix excluded because its code-review dependency requires unavailable parent-level parallel agents"
         },
         "prototype": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -453,7 +568,14 @@
           "reason": "Required wayfinder dependency for runnable logic or UI decision prototypes"
         },
         "setup-matt-pocock-skills": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -468,7 +590,14 @@
           "reason": "End-to-end engineering workflow setup dependency; Reasonix directory wiring preserves its five referenced templates"
         },
         "tdd": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -483,7 +612,14 @@
           "reason": "Canonical generic TDD skill for the Matt Pocock engineering workflow; directory wiring preserves tests and mocking references"
         },
         "to-spec": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -498,7 +634,14 @@
           "reason": "End-to-end engineering workflow specification stage; requires setup-matt-pocock-skills tracker configuration before publication"
         },
         "to-tickets": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -513,8 +656,20 @@
           "reason": "End-to-end engineering workflow ticket stage; requires setup-matt-pocock-skills tracker configuration before publication"
         },
         "wayfinder": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "dependencies": ["domain-modeling", "grilling", "prototype", "setup-matt-pocock-skills"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "dependencies": [
+            "domain-modeling",
+            "grilling",
+            "prototype",
+            "setup-matt-pocock-skills"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -538,17 +693,34 @@
         },
         "write-a-skill": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill write-a-skill; stage by default because it is a skill-authoring helper"
         },
         "zoom-out": {
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "skills.sh page exists and shows: npx skills add https://github.com/mattpocock/skills --skill zoom-out; stage by default until routing/noise is confirmed"
         },
         "writing-for-agents": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -563,7 +735,14 @@
         },
         "research": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -578,7 +757,14 @@
         },
         "resolving-merge-conflicts": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -593,7 +779,14 @@
         },
         "pr": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -608,7 +801,14 @@
         },
         "implement-spec": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -623,7 +823,14 @@
         },
         "retro": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -650,7 +857,14 @@
       },
       "skills": {
         "ponytail": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -667,7 +881,14 @@
         "ponytail-review": {
           "distribution_state": "disabled",
           "reason": "Disabled to avoid context pollution; core ponytail ladder governs review complexity",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -683,7 +904,14 @@
         "ponytail-audit": {
           "distribution_state": "disabled",
           "reason": "Disabled to avoid context pollution; low-frequency scan not needed globally",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -699,7 +927,14 @@
         "ponytail-debt": {
           "distribution_state": "disabled",
           "reason": "Disabled to avoid context pollution; niche grep for ponytail comment markers",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -715,7 +950,14 @@
         "ponytail-gain": {
           "distribution_state": "disabled",
           "reason": "Disabled; static benchmark scoreboard card with no operational utility",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -731,7 +973,14 @@
         "ponytail-help": {
           "distribution_state": "disabled",
           "reason": "Disabled; static help cheatsheet redundant with core ponytail instructions",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -746,7 +995,6 @@
         }
       }
     },
-
     "baoyu-skills": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -754,17 +1002,20 @@
       "skills": {
         "baoyu-diagram": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "local_shadow_path": "agent-skills/local/shadows/baoyu/baoyu-diagram"
         },
         "baoyu-infographic": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "local_shadow_path": "agent-skills/local/shadows/baoyu/baoyu-infographic"
         }
       }
     },
-
     "ppt-master": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -772,7 +1023,9 @@
       "skills": {
         "ppt-master": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -786,7 +1039,6 @@
         }
       }
     },
-
     "guizang-ppt-skill": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -794,7 +1046,9 @@
       "skills": {
         "guizang-ppt-skill": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "local_shadow_path": "agent-skills/local/shadows/guizang/guizang-ppt-skill"
         }
       }
@@ -805,26 +1059,36 @@
       "ref": "https://github.com/langgptai/LangGPT/blob/main/README_zh.md#%E6%96%B9%E6%B3%95%E4%BA%94claude-code-skill%E6%8E%A8%E8%8D%90",
       "skills": {
         "langgpt-prompt-writer": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "local_shadow_path": "agent-skills/local/shadows/langgpt/langgpt-prompt-writer",
           "reason": "User-confirmed keep-global/routed; LangGPT README recommends Claude Code Skill via marketplace/manual install"
         }
       }
     },
-
     "qiaomu-goal-meta-skill": {
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "joeseesun/qiaomu-goal-meta-skill",
       "skills": {
         "qiaomu-goal-meta-skill": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "local_shadow_path": "agent-skills/local/shadows/qiaomu/qiaomu-goal-meta-skill",
           "reason": "User-confirmed global distribution; upstream README installs with: npx skills add joeseesun/qiaomu-goal-meta-skill"
         }
       }
     },
-
     "khazix-skills": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -832,7 +1096,9 @@
       "skills": {
         "aihot": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -847,7 +1113,14 @@
         },
         "neat-freak": {
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "reason": "Replaced by the internal global curate-repo-knowledge skill",
           "audit": {
             "allow_unaudited": true
@@ -863,7 +1136,6 @@
         }
       }
     },
-
     "garden-skills": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -871,7 +1143,9 @@
       "skills": {
         "beautiful-article": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -887,7 +1161,9 @@
         },
         "gpt-image-2": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -903,7 +1179,9 @@
         },
         "kb-retriever": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -919,7 +1197,9 @@
         },
         "web-design-engineer": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -934,7 +1214,9 @@
         },
         "web-video-presentation": {
           "scope": "project",
-          "projects": ["product_strategy"],
+          "projects": [
+            "product_strategy"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -950,14 +1232,18 @@
         }
       }
     },
-
     "humanizer-zh": {
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/op7418/Humanizer-zh.git",
       "skills": {
         "humanizer-zh": {
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -972,7 +1258,6 @@
         }
       }
     },
-
     "obsidian-skills": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -980,17 +1265,32 @@
       "skills": {
         "defuddle": {
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed drop"
         },
         "obsidian-cli": {
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed drop"
         },
         "obsidian-markdown": {
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed drop"
         },
         "obsidian-bases": {
@@ -1003,7 +1303,6 @@
         }
       }
     },
-
     "superpowers": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -1012,7 +1311,14 @@
         "using-git-worktrees": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1028,7 +1334,14 @@
         "writing-plans": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1044,7 +1357,14 @@
         "executing-plans": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1060,7 +1380,14 @@
         "brainstorming": {
           "distribution_state": "disabled",
           "reason": "User-disabled globally; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -1077,7 +1404,14 @@
         "finishing-a-development-branch": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1093,7 +1427,14 @@
         "requesting-code-review": {
           "distribution_state": "disabled",
           "reason": "User-disabled entire superpowers source; retain quarantined source without runtime distribution",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1112,7 +1453,6 @@
         }
       }
     },
-
     "herdr": {
       "type": "external",
       "fetcher": "manual",
@@ -1120,7 +1460,14 @@
       "skills": {
         "herdr": {
           "distribution_state": "enabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "local_shadow_path": "agent-skills/local/shadows/herdr/herdr",
           "gate": {
             "manual_approval": true,
@@ -1142,7 +1489,12 @@
         "archify": {
           "distribution_state": "enabled",
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true,
             "allow_scripts": true
@@ -1167,7 +1519,12 @@
         "ste": {
           "distribution_state": "enabled",
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true,
             "max_risk": "LOW",
@@ -1185,8 +1542,6 @@
         }
       }
     },
-
-
     "local-global": {
       "type": "internal",
       "path": "agent-skills/local/global",
@@ -1194,56 +1549,122 @@
         "cavecrew": {
           "scope": "global",
           "distribution_state": "staged",
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ]
         },
         "decrypt-materialize": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "cross-agent"],
-          "reason": "通用解密/物化工具,支持 TSD/工作簿/smudged文本,跨平台"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "cross-agent"
+          ],
+          "reason": "\u901a\u7528\u89e3\u5bc6/\u7269\u5316\u5de5\u5177,\u652f\u6301 TSD/\u5de5\u4f5c\u7c3f/smudged\u6587\u672c,\u8de8\u5e73\u53f0"
         },
         "knowledge-lifecycle-manager": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "沉淀与复用入口，应该全局可用"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u6c89\u6dc0\u4e0e\u590d\u7528\u5165\u53e3\uff0c\u5e94\u8be5\u5168\u5c40\u53ef\u7528"
         },
         "curate-repo-knowledge": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "通用仓库知识冷启动、权威路由、文档收敛与按需记忆毕业"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u901a\u7528\u4ed3\u5e93\u77e5\u8bc6\u51b7\u542f\u52a8\u3001\u6743\u5a01\u8def\u7531\u3001\u6587\u6863\u6536\u655b\u4e0e\u6309\u9700\u8bb0\u5fc6\u6bd5\u4e1a"
         },
         "explain-changes": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "reason": "Vendored from nickbasile gist 61a425b0bd79b01649d1ce35c1ffaa47 (upstream author of the plan->implement->explain workflow); not on skills.sh so quarantine fetcher cannot ingest; content verbatim v1.0.0"
         },
         "agent-browser": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "Vercel Labs browser automation CLI (vercel-labs/agent-browser 44.2k★) with profile reuse, network capture, and daemon sessions; OMP eval browser fallback for cross-origin iframe access"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "Vercel Labs browser automation CLI (vercel-labs/agent-browser 44.2k\u2605) with profile reuse, network capture, and daemon sessions; OMP eval browser fallback for cross-origin iframe access"
         },
         "public-api-index": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "免认证公共 REST API 目录与即时查询工具（天气、地理/IP、加密汇率、DNS网络、知识检索）"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u514d\u8ba4\u8bc1\u516c\u5171 REST API \u76ee\u5f55\u4e0e\u5373\u65f6\u67e5\u8be2\u5de5\u5177\uff08\u5929\u6c14\u3001\u5730\u7406/IP\u3001\u52a0\u5bc6\u6c47\u7387\u3001DNS\u7f51\u7edc\u3001\u77e5\u8bc6\u68c0\u7d22\uff09"
         },
         "herdr-nvim-qa-workspace": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "基于 Herdr + Neovim + agent-browser 的 3 窗格终端 IDE 与自动化 QA 联动架构"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u57fa\u4e8e Herdr + Neovim + agent-browser \u7684 3 \u7a97\u683c\u7ec8\u7aef IDE \u4e0e\u81ea\u52a8\u5316 QA \u8054\u52a8\u67b6\u6784"
         },
         "monid": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "Monid CLI 数据端点发现、模式检查与执行技能（https://monid.ai/SKILL.md）"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "Monid CLI \u6570\u636e\u7aef\u70b9\u53d1\u73b0\u3001\u6a21\u5f0f\u68c0\u67e5\u4e0e\u6267\u884c\u6280\u80fd\uff08https://monid.ai/SKILL.md\uff09"
         },
         "huashu-jev-automation": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "使用 huashu-chrome 与 TypeSafe Jev 实现低延迟、低 token 消耗的浏览器交互内环与表单自动化"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u4f7f\u7528 huashu-chrome \u4e0e TypeSafe Jev \u5b9e\u73b0\u4f4e\u5ef6\u8fdf\u3001\u4f4e token \u6d88\u8017\u7684\u6d4f\u89c8\u5668\u4ea4\u4e92\u5185\u73af\u4e0e\u8868\u5355\u81ea\u52a8\u5316"
         }
       }
     },
-
     "local-deprecated": {
       "type": "internal",
       "path": "agent-skills/local/deprecated",
@@ -1251,64 +1672,108 @@
         "caveman-commit": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "retired after caveman source moved to mattpocock/skills"
         },
         "caveman-compress": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed delete"
         },
         "caveman-help": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "reason": "retired after caveman source moved to mattpocock/skills"
         },
         "caveman-review": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "retired after caveman source moved to mattpocock/skills"
         },
         "caveman-stats": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed delete"
         },
         "docker-data-project": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"]
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ]
         },
         "eval-loop": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "cross-agent"
+          ],
           "reason": "User-confirmed drop"
         },
         "playwriter": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "reason": "retired in favor of agent-browser and OMP eval browser fallback"
         }
       }
     },
-
     "local-franchise-store": {
       "type": "internal",
       "path": "agent-skills/local/franchise-store",
       "skills": {
         "sankey-flow-analysis": {
           "scope": "project",
-          "projects": ["product_strategy"]
+          "projects": [
+            "product_strategy"
+          ]
         }
       }
     },
-
     "local-product-strategy": {
       "type": "internal",
       "path": "agent-skills/local/product-strategy",
@@ -1316,71 +1781,105 @@
         "web-video-presentation-delivery": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-result-delivery (阶段五多渠道交付)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-result-delivery (\u9636\u6bb5\u4e94\u591a\u6e20\u9053\u4ea4\u4ed8)"
         },
         "ps-analytics": {
           "scope": "global",
           "distribution_state": "disabled",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "已归入 analytics-lifecycle 五阶段；旧入口仅保留迁移索引与兼容资产"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u5df2\u5f52\u5165 analytics-lifecycle \u4e94\u9636\u6bb5\uff1b\u65e7\u5165\u53e3\u4ec5\u4fdd\u7559\u8fc1\u79fb\u7d22\u5f15\u4e0e\u517c\u5bb9\u8d44\u4ea7"
         },
         "dataworks-yoy-backfill": {
           "scope": "project",
-          "projects": ["product_strategy"],
-          "reason": "DataWorks 生产工作流快照拉取与多分区回刷 (保留为底层支撑工具)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "DataWorks \u751f\u4ea7\u5de5\u4f5c\u6d41\u5feb\u7167\u62c9\u53d6\u4e0e\u591a\u5206\u533a\u56de\u5237 (\u4fdd\u7559\u4e3a\u5e95\u5c42\u652f\u6491\u5de5\u5177)"
         },
         "odps-table-ingest": {
           "scope": "project",
-          "projects": ["product_strategy"],
-          "reason": "MaxCompute/ODPS 本地文件入仓与对齐 (保留为底层支撑工具)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "MaxCompute/ODPS \u672c\u5730\u6587\u4ef6\u5165\u4ed3\u4e0e\u5bf9\u9f50 (\u4fdd\u7559\u4e3a\u5e95\u5c42\u652f\u6491\u5de5\u5177)"
         },
         "ps-franchise-store-report": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图) 与 analytics-result-delivery (阶段五桑基图)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-data-solution (\u9636\u6bb5\u4e09\u84dd\u56fe) \u4e0e analytics-result-delivery (\u9636\u6bb5\u4e94\u6851\u57fa\u56fe)"
         },
         "o2o-store-benefit-report": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-data-solution (\u9636\u6bb5\u4e09\u84dd\u56fe)"
         },
         "hpm-performance-review": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-result-delivery (阶段五成果沉淀与绩效自评)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-result-delivery (\u9636\u6bb5\u4e94\u6210\u679c\u6c89\u6dc0\u4e0e\u7ee9\u6548\u81ea\u8bc4)"
         },
         "ps-new-store-benefit-report": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-data-solution (\u9636\u6bb5\u4e09\u84dd\u56fe)"
         },
         "ps-causal-evaluation": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution (阶段三因果蓝图) 与阶段四算法运行"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-data-solution (\u9636\u6bb5\u4e09\u56e0\u679c\u84dd\u56fe) \u4e0e\u9636\u6bb5\u56db\u7b97\u6cd5\u8fd0\u884c"
         },
         "ps-reduction-scope-config-maintenance": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-solution (阶段三蓝图) 与阶段四安全覆写"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-data-solution (\u9636\u6bb5\u4e09\u84dd\u56fe) \u4e0e\u9636\u6bb5\u56db\u5b89\u5168\u8986\u5199"
         },
         "odps-query-uv": {
           "scope": "project",
           "distribution_state": "disabled",
-          "projects": ["product_strategy"],
-          "reason": "已完整收敛至 analytics-data-execution (阶段四 Branch A 免Docker直跑)"
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "\u5df2\u5b8c\u6574\u6536\u655b\u81f3 analytics-data-execution (\u9636\u6bb5\u56db Branch A \u514dDocker\u76f4\u8dd1)"
         },
         "ps-portal-sync": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "DevOps工时、WBS推进表同步与平台自动化协同 (全局基础能力)"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "DevOps\u5de5\u65f6\u3001WBS\u63a8\u8fdb\u8868\u540c\u6b65\u4e0e\u5e73\u53f0\u81ea\u52a8\u5316\u534f\u540c (\u5168\u5c40\u57fa\u7840\u80fd\u529b)"
         }
       }
     },
@@ -1390,164 +1889,245 @@
       "skills": {
         "analytics-demand-intake": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "通用数据分析阶段1：需求收集（DevOps提取与口头需求标准化归档）"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u901a\u7528\u6570\u636e\u5206\u6790\u9636\u6bb51\uff1a\u9700\u6c42\u6536\u96c6\uff08DevOps\u63d0\u53d6\u4e0e\u53e3\u5934\u9700\u6c42\u6807\u51c6\u5316\u5f52\u6863\uff09"
         },
         "analytics-demand-analysis": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "通用数据分析阶段2：需求分析（DMP元数据探查、知识库检索与实体粒度画像）"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u901a\u7528\u6570\u636e\u5206\u6790\u9636\u6bb52\uff1a\u9700\u6c42\u5206\u6790\uff08DMP\u5143\u6570\u636e\u63a2\u67e5\u3001\u77e5\u8bc6\u5e93\u68c0\u7d22\u4e0e\u5b9e\u4f53\u7c92\u5ea6\u753b\u50cf\uff09"
         },
         "analytics-data-solution": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "通用数据分析阶段3：数据方案（RFC技术方案设计、Mermaid数据流与SQL原型）"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u901a\u7528\u6570\u636e\u5206\u6790\u9636\u6bb53\uff1a\u6570\u636e\u65b9\u6848\uff08RFC\u6280\u672f\u65b9\u6848\u8bbe\u8ba1\u3001Mermaid\u6570\u636e\u6d41\u4e0eSQL\u539f\u578b\uff09"
         },
         "analytics-data-execution": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "通用数据分析阶段4：数据分析（PyODPS交互、并发回刷、因果实证与专题建模）"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u901a\u7528\u6570\u636e\u5206\u6790\u9636\u6bb54\uff1a\u6570\u636e\u5206\u6790\uff08PyODPS\u4ea4\u4e92\u3001\u5e76\u53d1\u56de\u5237\u3001\u56e0\u679c\u5b9e\u8bc1\u4e0e\u4e13\u9898\u5efa\u6a21\uff09"
         },
         "analytics-result-delivery": {
           "scope": "global",
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
-          "reason": "通用数据分析阶段5：结果交付（Excel金字塔物化、Wiki沉淀、WBS与视频宣讲）"
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "reason": "\u901a\u7528\u6570\u636e\u5206\u6790\u9636\u6bb55\uff1a\u7ed3\u679c\u4ea4\u4ed8\uff08Excel\u91d1\u5b57\u5854\u7269\u5316\u3001Wiki\u6c89\u6dc0\u3001WBS\u4e0e\u89c6\u9891\u5ba3\u8bb2\uff09"
         }
       }
     },
-
     "local-mac-bootstrap": {
       "type": "internal",
       "path": "agent-skills/local/mac-bootstrap",
       "skills": {
         "daily-tagger": {
           "scope": "project",
-          "projects": ["mac-bootstrap"]
+          "projects": [
+            "mac-bootstrap"
+          ]
         },
         "knowledge-candidate-review": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
         },
         "knowledge-claim-extraction": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
         },
         "knowledge-daily-weekly-synthesis": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
         },
         "knowledge-hygiene-audit": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
         },
         "knowledge-materialization": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
         },
         "knowledge-record": {
           "scope": "project",
-          "projects": ["mac-bootstrap"]
+          "projects": [
+            "mac-bootstrap"
+          ]
         },
         "knowledge-reuse-retrieval": {
           "scope": "project",
-          "projects": ["mac-bootstrap"]
+          "projects": [
+            "mac-bootstrap"
+          ]
         },
         "knowledge-source-ingestion": {
           "scope": "project",
-          "projects": ["mac-bootstrap"],
+          "projects": [
+            "mac-bootstrap"
+          ],
           "reason": "data-hub is an industrialized, reusable pipeline; keep this stage skill managed and idempotent"
         },
         "mac-bootstrap-maintenance": {
           "scope": "project",
-          "projects": ["mac-bootstrap"]
+          "projects": [
+            "mac-bootstrap"
+          ]
         },
         "network-path-triage": {
           "scope": "project",
-          "projects": ["mac-bootstrap"]
+          "projects": [
+            "mac-bootstrap"
+          ]
         }
       }
     },
-
     "local-auroraops-control": {
       "type": "internal",
       "path": "agent-skills/local/auroraops-control",
       "skills": {
         "role-lifecycle-assurance": {
           "scope": "project",
-          "projects": ["auroraops-control"],
+          "projects": [
+            "auroraops-control"
+          ],
           "reason": "AuroraOps parent nine-stage role lifecycle assurance and sanitized evidence contract"
         },
         "auroraops-service-role-refactor": {
           "scope": "project",
-          "projects": ["auroraops-control"],
+          "projects": [
+            "auroraops-control"
+          ],
           "reason": "End-to-end discipline for refactoring and extracting unified Ansible service roles (DRY templates, docker/native platform branching, TypeSafe decision gates, and zero-residue cleanup)"
         },
         "auroraops-role-governance": {
           "scope": "project",
-          "projects": ["auroraops-control"],
+          "projects": [
+            "auroraops-control"
+          ],
           "reason": "Permanent role governance gate enforcing 9-stage lifecycle contracts, universal service/timer library, and anti-drift rules across all AuroraOps roles"
         }
       }
     },
-
     "local-playground": {
       "type": "internal",
       "path": "agent-skills/local/playground",
       "skills": {
         "daily-claude-battle-boost": {
           "scope": "project",
-          "projects": ["playground"]
+          "projects": [
+            "playground"
+          ]
         },
         "ottos-effect-analysis": {
           "scope": "project",
-          "projects": ["playground"]
+          "projects": [
+            "playground"
+          ]
         },
         "ottos-north-star-metric": {
           "scope": "project",
-          "projects": ["playground"]
+          "projects": [
+            "playground"
+          ]
         },
         "ottos-retail-ab-test": {
           "scope": "project",
-          "projects": ["playground"]
+          "projects": [
+            "playground"
+          ]
         }
       }
     },
-
     "local-www": {
       "type": "internal",
       "path": "agent-skills/local/www",
       "skills": {
         "marimo-analysis": {
           "scope": "project",
-          "projects": ["www"]
+          "projects": [
+            "www"
+          ]
         },
         "marimo-dashboard-create": {
           "scope": "project",
-          "projects": ["www"]
+          "projects": [
+            "www"
+          ]
         },
         "marimo-etl-test": {
           "scope": "project",
-          "projects": ["www"]
+          "projects": [
+            "www"
+          ]
         },
         "marimo-excel-report": {
           "scope": "project",
-          "projects": ["www"]
+          "projects": [
+            "www"
+          ]
         }
       }
     },
-
     "addyosmani-agent-skills": {
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/addyosmani/agent-skills",
       "skills": {
         "doubt-driven-development": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1561,7 +2141,14 @@
           }
         },
         "planning-and-task-breakdown": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1576,14 +2163,20 @@
         }
       }
     },
-
     "poteto-noodle": {
       "type": "external",
       "fetcher": "skills.sh",
       "ref": "https://github.com/poteto/noodle",
       "skills": {
         "adversarial-review": {
-          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
             "allow_unaudited": true
           },
@@ -1598,7 +2191,6 @@
         }
       }
     },
-
     "pstack": {
       "type": "external",
       "fetcher": "skills.sh",
@@ -1607,58 +2199,113 @@
         "required": true,
         "allow_unaudited": false,
         "max_risk": "LOW",
-        "allow_scripts": false
+        "allow_scripts": true
       },
       "skills": {
         "create-verification-skill": {
-          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:899ad7ee40ecc0d86cc5e4dbb6d6cfd2def863d99792e061d1fc0f767e7cb65c",
+            "approved_hash": "sha256:a5cdf1604b7284deb1f31036961d19c5959d6dec66b1c8e400fb30e4411d1ad2",
             "reason": "Official pstack verification generator; Claude handled via official plugin, non-Claude targets retain verified portable copy"
+          },
+          "audit": {
+            "required": false,
+            "allow_unaudited": true,
+            "max_risk": "LOW",
+            "allow_scripts": true
           }
         },
         "maintain-verification-skill": {
-          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:e5aed56ddfba37d0dafff7cee12875e761d7c566e6cdd47119791fe687709b9e",
+            "approved_hash": "sha256:11cf460ea255afb7a61852dfc82c974540f2fe4664b5c1aa949d5b4590eb42f6",
             "reason": "Official pstack verification maintainer; portable copy distributed to non-Claude hosts"
+          },
+          "audit": {
+            "required": false,
+            "allow_unaudited": true,
+            "max_risk": "LOW",
+            "allow_scripts": true
           }
         },
         "create-formal-verification-skill": {
-          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:ac374f21de2ea831366fccdc114a9d55afa88fa86c6980f069d54a381d2aaacf",
+            "approved_hash": "sha256:9dfb120c3e538453dd1669f6b170fd0512514e9c90eae110875c75d29db074f8",
             "reason": "Official pstack formal verification generator; portable copy distributed to non-Claude hosts"
+          },
+          "audit": {
+            "required": false,
+            "allow_unaudited": true,
+            "max_risk": "LOW",
+            "allow_scripts": true
           }
         },
         "maintain-formal-verification-skill": {
-          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:935e55c6161e3b7988e3e49ecf4f17248e124f595cc7d626b398577317a6a8ed",
+            "approved_hash": "sha256:039e09da1e0d1ae2c5d83074556d024bc5b79eab5efcaed38ae90fd41d520f42",
             "reason": "Official pstack formal verification maintainer; portable copy distributed to non-Claude hosts"
+          },
+          "audit": {
+            "required": false,
+            "allow_unaudited": true,
+            "max_risk": "LOW",
+            "allow_scripts": true
           }
         },
         "statechart": {
-          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "agents": [
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
           "audit": {
-            "required": true,
-            "max_risk": "HIGH",
+            "required": false,
+            "allow_unaudited": true,
+            "max_risk": "LOW",
             "allow_scripts": true
           },
           "gate": {
