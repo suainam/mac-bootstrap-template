@@ -149,3 +149,11 @@ stay explicit and outrank compression.
   form, not facts.
 
 @RTK.md
+## Skill Maintenance
+
+Skills follow the mac-bootstrap supply chain: one authoritative source per Skill and
+symlink distribution across runtime views; never hand-edit runtime skill dirs or
+leave `.bak/.old/.tmp` copies with `SKILL.md` (duplicate registration). Authoritative
+rules and roll-out commands live in `config/mac-bootstrap/template/AGENTS.md` →
+`Agent skills` and `agent-skills/README.md`. Add/adjust a Skill in the source tree
+and roll out via the registry CLI, not by writing runtime directories.

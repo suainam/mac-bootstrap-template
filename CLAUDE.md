@@ -22,7 +22,29 @@ For non-trivial implementation, bug-fix, or security-sensitive work:
 - Complete with smoke-test evidence; block commit on blocker/critical/high/major findings, require owner and rationale for accepted lower findings, and reconfirm the reviewed change is unchanged.
 
 ## Agent skills
+### Maintenance guide
 
+Skills follow the supply chain documented in `agent-skills/README.md` (authoritative)
+with lineage/gate in `agent-skills/registry/*.jsonc`. One authoritative source per
+Skill; every runtime view (`~/.claude/skills`, `~/.agents/skills`,
+`~/.codex/skills`, project `.agents/skills`, `~/.omp/agent/managed-skills`) is a
+directory symlink to that same source. Never hand-edit runtime skill directories,
+and never leave `.bak`/`.old`/`.tmp`/manual copies holding `SKILL.md` (runtimes
+register every such subdirectory → duplicate/conflicting defs). To add or adjust a
+Skill, edit the source under `agent-skills/local/<project>/<name>/SKILL.md` (or
+`local/global/` for global), then roll out through the registry CLI:
+
+```bash
+make skill-plan
+make skill-check
+python3 scripts/skill_supply_chain.py distribute --dry-run
+make skill-snapshot LABEL=pre-change
+make skill-reconcile
+```
+
+Managed Skills format: one-level `<name>/SKILL.md`, lowercase-hyphenated `name`
+(1–64 chars), non-empty `description` (≤1024 chars); `scripts/`, `references/`,
+`assets/` stay inside the same source directory.
 ### Issue tracker
 
 GitHub Issues in `suainam/mac-bootstrap-template` are the source for specs and

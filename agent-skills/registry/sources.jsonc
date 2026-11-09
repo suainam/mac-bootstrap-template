@@ -1871,15 +1871,13 @@
         },
         "ps-portal-sync": {
           "scope": "global",
-          "agents": [
-            "claude",
-            "codex",
-            "opencode",
-            "reasonix",
-            "antigravity",
-            "cross-agent"
-          ],
-          "reason": "DevOps\u5de5\u65f6\u3001WBS\u63a8\u8fdb\u8868\u540c\u6b65\u4e0e\u5e73\u53f0\u81ea\u52a8\u5316\u534f\u540c (\u5168\u5c40\u57fa\u7840\u80fd\u529b)"
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "DevOps工时、WBS推进表同步与平台自动化协同 (全局基础能力)"
+        },
+        "full-stack-story-standardization": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "科技门户全栈单规范化五步法与效能平台 Story 推进 (独立技能)"
         }
       }
     },
