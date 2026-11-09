@@ -93,3 +93,141 @@ export async function assertUploadSingleInstance(client, tabId, itemSelector) {
     })()`
   });
 }
+
+/**
+ * 严格多图上传防重检查与去重断言门禁 (Deduplication Gate)
+ * 解决多图表单（如腾讯文档表单、观点小卡、平台共建）中异步删除延迟或重复注入导致相同图片上传的问题
+ */
+export async function assertUploadDeduplication(client, tabId, options = {}) {
+  const {
+    containerSelector = '.question',
+    thumbnailSelector = 'img.FileCore-module_picture__xamH2, [class*="thumbnail"], [class*="picture"], [class*="image-item"]',
+    expectedCount = null
+  } = options;
+
+  const result = await client.call("eval", {
+    tabId,
+    expr: `(() => {
+      const imgs = Array.from(document.querySelectorAll(${JSON.stringify(thumbnailSelector)}));
+      const seen = new Map();
+      const duplicates = [];
+
+      imgs.forEach((img, idx) => {
+        // 获取图片指纹（src、alt、尺寸或背景图）
+        const src = img.src || img.getAttribute('src') || '';
+        const key = src ? src.split('?')[0] : (img.naturalWidth + 'x' + img.naturalHeight + '_' + img.alt);
+        
+        if (seen.has(key)) {
+          duplicates.push({
+            index: idx,
+            firstIndex: seen.get(key),
+            key: key.slice(0, 80)
+          });
+        } else {
+          seen.set(key, idx);
+        }
+      });
+
+      const total = imgs.length;
+      const uniqueCount = seen.size;
+      const hasDuplicates = duplicates.length > 0;
+
+      return {
+        total,
+        uniqueCount,
+        hasDuplicates,
+        duplicates,
+        passed: !hasDuplicates && (${JSON.stringify(expectedCount)} === null || total === ${JSON.stringify(expectedCount)})
+      };
+    })()`
+  });
+
+  return result;
+}
+
+/**
+ * 安全清空旧附件并等待 DOM 彻底清除后再注入唯一文件列表
+ */
+export async function cleanAndInjectUniqueFiles(client, tabId, options) {
+  const {
+    deleteButtonSelector = '.FileCore-module_deleteContainer__yEQGJ, [class*="delete"], [class*="remove"]',
+    thumbnailSelector = 'img.FileCore-module_picture__xamH2, [class*="thumbnail"], [class*="picture"]',
+    fileInputSelector = 'input[type="file"]',
+    filePaths = [],
+    maxWaitMs = 5000
+  } = options;
+
+  // 1. 本地文件唯一性校验（防止调用方传入重复路径）
+  const uniquePaths = Array.from(new Set(filePaths.map(p => path.resolve(p))));
+  if (uniquePaths.length !== filePaths.length) {
+    throw new Error(`传入待上传文件列表存在本地重复路径: 总数 ${filePaths.length} vs 唯一 ${uniquePaths.length}`);
+  }
+
+  // 2. 清理已存在的图片并等待 DOM 彻底归零
+  await client.call("eval", {
+    tabId,
+    expr: `(() => {
+      const btns = Array.from(document.querySelectorAll(${JSON.stringify(deleteButtonSelector)}));
+      btns.forEach(b => b.click());
+      return { clickedCount: btns.length };
+    })()`
+  });
+
+  // 等待旧图全部消失
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const check = await client.call("eval", {
+      tabId,
+      expr: `document.querySelectorAll(${JSON.stringify(thumbnailSelector)}).length`
+    });
+    const count = typeof check === 'number' ? check : (check?.result ?? 0);
+    if (count === 0) break;
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  // 3. 构建唯一文件的 DataTransfer
+  const filePayloads = uniquePaths.map(fp => {
+    const buf = fs.readFileSync(fp);
+    const name = path.basename(fp);
+    const mime = fp.endsWith('.png') ? 'image/png' : fp.endsWith('.jpg') || fp.endsWith('.jpeg') ? 'image/jpeg' : 'application/octet-stream';
+    return { name, type: mime, b64: buf.toString('base64') };
+  });
+
+  // 注入
+  await client.call("eval", {
+    tabId,
+    expr: `(() => {
+      function b64toFile(b64, name, type) {
+        const chars = atob(b64);
+        const nums = new Array(chars.length);
+        for (let i = 0; i < chars.length; i++) nums[i] = chars.charCodeAt(i);
+        return new File([new Uint8Array(nums)], name, { type });
+      }
+      const payloads = ${JSON.stringify(filePayloads)};
+      const dt = new DataTransfer();
+      payloads.forEach(p => dt.items.add(b64toFile(p.b64, p.name, p.type)));
+
+      const inputs = Array.from(document.querySelectorAll(${JSON.stringify(fileInputSelector)}));
+      if (inputs.length === 0) return { error: 'no_file_input' };
+      const targetInput = inputs[inputs.length - 1];
+
+      targetInput.files = dt.files;
+      targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+      targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+      return { injected: dt.files.length };
+    })()`
+  });
+
+  // 等待渲染并严格校验去重
+  await new Promise(r => setTimeout(r, 2000));
+  const dedupeCheck = await assertUploadDeduplication(client, tabId, {
+    thumbnailSelector,
+    expectedCount: uniquePaths.length
+  });
+
+  if (dedupeCheck.hasDuplicates || dedupeCheck.total !== uniquePaths.length) {
+    throw new Error(`图片注入去重门禁失败: 期望 ${uniquePaths.length} 张，渲染出 ${dedupeCheck.total} 张 (唯一 ${dedupeCheck.uniqueCount})，检出重复项: ` + JSON.stringify(dedupeCheck.duplicates));
+  }
+
+  return { success: true, count: dedupeCheck.total };
+}

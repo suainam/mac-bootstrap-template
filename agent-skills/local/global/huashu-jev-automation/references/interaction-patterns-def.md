@@ -1,6 +1,6 @@
-# 交互模式 D / E / F / G / H 详细参考
+# 交互模式 D / E / F / G / H / I 详细参考
 
-本文档是 `SKILL.md` 中「模式 D/E/F/G/H」摘要的展开说明。按需读取；SKILL.md 为路由入口。
+本文档是 `SKILL.md` 中「模式 D/E/F/G/H/I」摘要的展开说明。按需读取；SKILL.md 为路由入口。
 
 ---
 
@@ -175,3 +175,92 @@ Node 驱动层使用短间隔（800ms）轮询 `snapshot`，当页面的 URL 判
 node ~/.agents/skills/huashu-jev-automation/scripts/sso_login.mjs <tabId>
 ```
 完整函数签名与示例见 `scripts/huashu_driver.mjs`。
+
+---
+
+## 模式 I: AI 产品工作台 PRD 闭环直写与评分审计 (React-Fiber-Sync & Direct-API-Save)
+
+针对企业级研发协同平台中的 AI 产品设计工作台（如 `ai-devops.dslbuy.com/#/prototype/Story-XXXXXX`），自动化推进 PRD 文档编写、质量检测修复与高分达标流转。
+
+### I.1 交互痛点与架构成因
+
+1. **富文本 DOM 虚假保存**：工作台使用 Vditor/富文本编辑器。仅修改 DOM 文本或 textarea 只影响浏览器临时渲染，点击保存或重新检测时，平台从底层 React 状态和云端 OSS 拉取旧快照计算，导致修改无法生效。
+2. **Agent 长生成截断与超时**：通过聊天对话框指令生成完整 PRD 时，长文档（1.5万~2.5万字）极易在中间章节发生流式超时、代码块中断或截断遗漏。
+3. **评分规则符号敏感**：平台的 32 项字段解析器使用严格的正则匹配。例如只匹配全角中文括号 `### 边界场景（edge_cases）`，若输入英文半角括号 `### 边界场景 (edge_cases)` 会被直接判定为“未填写”扣除 10 分。
+4. **评分建议的业务失真陷阱**：通用大模型评审器常机械套用 Web 交互规范，对离线数仓/算法类需求提出“补充人工导入界面”、“强制全量门店产出退货”等破坏性建议，盲目迎合会导致业务逻辑报废。
+
+### I.2 核心操作四步法 (The 4-Step Pipeline)
+
+```mermaid
+graph LR
+    Audit[1. 本地静态审计<br/>32项标准目录与符号核验] --> DirectSave[2. 顶层 API 直写<br/>/api/product-agent/prd/save]
+    DirectSave --> FiberSync[3. React Fiber 状态同步<br/>setTempPrdContent 闭环]
+    FiberSync --> ScoreAudit[4. 评分检测与真源过滤<br/>Grounding Filter 对抗核实]
+```
+
+#### 步骤 1: 32 项标准字段静态审计 (Pre-flight Audit)
+在提交前通过脚本扫描 Markdown 标题，断言 32 项必填项 100% 存在，强制要求以下正向规范：
+- `### 量化目标（baseline→target）`（包含基线与度量口径，禁止简写为“量化目标”）
+- `### 边界场景（edge_cases）`（必须使用中文全角括号）
+- `### 每个功能的详细说明` 下包含的 `#### N.` 序号与子功能名称必须与 `### 功能点列表` 保持 1-to-1 完整映射。
+- 删除任何包含“示例”、“依契约”、“待定”等模糊占位字眼，避免触发分析器质量扣分。
+
+#### 步骤 2: 顶层持久化直写 (Direct-API-Save)
+绕过低效的富文本输入，直接在页面顶层执行带有会话 Token 的原生接口持久化：
+```javascript
+const savePayload = {
+  prd_id: String(prdId),
+  content: markdownContent,
+  created_by: username,
+  version: currentVersion + 1
+};
+await fetch("/api/product-agent/prd/save", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + token,
+    "Agent-Token": token,
+    "Devops-Platform-Token": devopsToken
+  },
+  body: JSON.stringify(savePayload)
+});
+```
+
+#### 步骤 3: React Fiber 状态探针同步 (Fiber-Sync)
+从 `.vditor` 容器向上遍历 Fiber 节点，提取 `onSavePrd` 所属组件，同步更新 `setTempPrdContent`：
+```javascript
+const el = document.querySelector(".vditor");
+const k = Object.keys(el).find(k => k.startsWith("__reactFiber"));
+let fiber = el[k];
+while (fiber) {
+  if (typeof fiber.memoizedProps?.setTempPrdContent === "function") {
+    fiber.memoizedProps.setTempPrdContent(markdownContent);
+    break;
+  }
+  fiber = fiber.return;
+}
+```
+
+#### 步骤 4: 重新检测与真源对账过滤 (Grounding Filter)
+触发重新检测按钮绑定的 React `onClick` 事件，以 3 秒间隔轮询综合评分、结构分与质量分。
+
+**真实证据过滤法则 (Grounding Filter)**：
+- 评审器要求“缺少交互界面/上传接口”时：在 PRD 不做范围（Non-Goals）中显式写明“本期为纯离线数仓算子工作流，不提供 Web 交互与上传”，以规范正文消除扣分，严禁虚构未规划的接口；
+- 评审器要求“产出结果门店数必须等于全量在营门店数”时：坚持业务门禁，在验收标准中给出“门店类型覆盖全集”与“范围差集守恒”的检验 SQL，禁止强行放开退货门禁导致业务误退。
+
+### I.3 标准工具实现
+
+完整能力封装在 `scripts/prd_workbench.mjs`：
+```bash
+# 1. 本地静态检查 32 项标准字段与标点规范
+node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs audit <file.md>
+
+# 2. 读取指定标签页当前的 PRD 评分与修改建议
+node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs dump --tabId <id>
+
+# 3. 直写高质量 Markdown 实体并完成持久化
+node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs save --tabId <id> --file <file.md>
+
+# 4. 触发重新检测并轮询最终评分
+node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs score --tabId <id>
+```

@@ -1,6 +1,6 @@
 ---
 name: huashu-jev-automation
-description: In-browser automation using huashu-chrome with TypeSafe Jev micro-decisions. Use when automating multi-step web flows (forms, paginated lists, DOM ref actions), authenticating via enterprise SSO passport forms, executing QA test workbench cases and stage transitions (smoke/system tests), injecting controlled inputs into React/Vue components or uploading files dynamically, or handling mission-critical submissions needing multi-tab safety gates and human-in-the-loop sign-off.
+description: In-browser automation using huashu-chrome with TypeSafe Jev micro-decisions. Use when automating multi-step web flows (forms, paginated lists, DOM ref actions), authenticating via enterprise SSO passport forms, executing QA test workbench cases and stage transitions (smoke/system tests), injecting controlled inputs into React/Vue components or uploading files dynamically, automating AI product workbench PRD direct-save & score auditing, or handling mission-critical submissions needing multi-tab safety gates and human-in-the-loop sign-off.
 ---
 
 ## 环境依赖
@@ -122,9 +122,20 @@ resp, key = send_jev(
 
 标准实现在 `scripts/sso_login.mjs`。详见 `references/interaction-patterns-def.md#模式-h`。
 
+### 模式 I: AI 产品工作台 PRD 闭环直写与评分审计 *(react-fiber-sync + direct-api-save + score-audit)*
+
+针对企业研发平台 AI 产品设计工作台（`ai-devops.dslbuy.com/#/prototype/Story-XXXXXX`）的 PRD 文档编写、质量检测修复与高分（85+）达标流转：
+
+1. **32 项标准目录与标点敏感性 (*pre-flight-audit*)**：平台解析器强依赖全角括号。如 `### 边界场景（edge_cases）` 误用半角括号会直接判未填扣 10 分；`### 每个功能的详细说明` 下必须包含 `#### N.` 逐一对应功能清单；数据模型中避免出现“示例/依契约”等模糊字样。
+2. **React Fiber 探针与状态同步 (*fiber-sync*)**：富文本编辑器（Vditor）修改 DOM 不影响底层状态；从 `.vditor` 向上遍历 Fiber 节点提取 `onSavePrd`，并同步更新 `qiFiber.memoizedProps.setTempPrdContent`。
+3. **顶层接口持久化直写 (*direct-api-save*)**：长文档通过聊天流式生成极易发生截断遗漏。直接提取 localStorage 会话 Token，调用原生 `POST /api/product-agent/prd/save` 直写 Markdown 实体。
+4. **评分检测与真源对账过滤 (*grounding-filter*)**：通过 `fiber.memoizedProps.onClick()` 触发「重新检测」并轮询分数；对评审器提出的“增加上传接口/强制全量店退货”等脱离数仓实际的建议坚决按仓库真实事实过滤，在不做范围（Non-Goals）中说明防御，绝不盲目迎合捏造需求。
+
+标准实现在 `scripts/prd_workbench.mjs`。详见 `references/interaction-patterns-def.md#模式-i`。
+
 ## 工具脚本
 
-`scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/sso_login.mjs`（企业 SSO 账号密码自动登录与重定向判定）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
+`scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/prd_workbench.mjs`（AI 产品工作台 PRD 静态审计、直写保存与评分轮询）、`scripts/sso_login.mjs`（企业 SSO 账号密码自动登录与重定向判定）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
 
 ## 避坑指南
 
@@ -138,5 +149,7 @@ resp, key = send_jev(
 8. **动态阶段用例扩增**：冒烟流转（P0）通过后，底层通常局部增量注入系统测试用例（如 26 变 49 条），操作间需刷新卡片与操作按钮状态。
 9. **SSO 同 ID 多表单陷阱**：`sso.dslbuy.com` 手机验证码与密码登录使用相同表单 ID（`p_inP_login`）；严禁直接用 `#p_inP_login` 或首个表单选择器，必须以 `input[name="loginWay"][value="passport"]` 锚定。
 10. **SSO 凭据隔离与权限**：凭据文件由 `private/sso-tech-committee.env` 管理并软链接至 `~/.sso-tech-committee.env`，文件权限强制保持 `600`（通过 `harden-secret-permissions.sh` 校验）。
+11. **PRD 32 项标题全角标点敏感**：`ai-devops` 原型工作台对字段正则极其严格，`边界场景（edge_cases）` 与 `量化目标（baseline→target）` 严禁写成英文半角括号，否则会被判定为“未填写”直接扣 10 分。
+12. **评审器建议过度迎合与业务失真**：通用 LLM 评审建议常机械套用 Web 系统规范，对离线数仓/算法类需求提出“补充上传接口/回写状态”等违背实际的建议。必须坚持以仓库代码与调研文档为 SSOT，在 Non-Goals 中申明边界，严禁为提分虚构业务逻辑。
 
 架构职责分工见 `references/architecture.md`。
