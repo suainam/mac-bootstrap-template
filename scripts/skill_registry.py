@@ -572,6 +572,12 @@ def find_unmanaged_skill_dirs(registry: Registry, root: Path = ROOT) -> list[Pat
 def validate_registry_sources(registry: Registry, root: Path = ROOT) -> list[str]:
     errors: list[str] = []
     for skill in registry.skills.values():
+        if skill.distribution_state == "enabled" and skill.source_type == "internal":
+            if skill.source_path is None or not (root / skill.source_path).is_dir():
+                errors.append(
+                    f"enabled internal skill source missing: {skill.source_id}/{skill.name}"
+                )
+    for skill in registry.skills.values():
         source_paths = (skill.local_shadow_path, skill.source_path, skill.quarantine_path)
         source_path = next(
             (root / path for path in source_paths if path is not None and (root / path).is_dir()),

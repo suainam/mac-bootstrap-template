@@ -56,12 +56,21 @@ Only `enabled` skills are distributed. `staged`, `disabled`, and `merged` record
 
 
 External skills that ship host-specific adaptations or large plugin suites (e.g.
-`cursor/plugins/pstack`) follow host segregation: Claude Code manages the plugin
-suite through official plugin channels (`pstack@cursor-plugins`), while verified
-portable skills (`create-verification-skill`, `statechart`, etc.) are cataloged
-in `sources.jsonc` with target agents excluding `claude`. This prevents duplicate
-runtime definitions while maintaining access across Codex, OpenCode, Antigravity,
-and Reasonix.
+`cursor/plugins/pstack`) follow host segregation via native plugin channels, not
+template distribution:
+
+- Claude Code uses the official plugin marketplace: `/plugin marketplace add
+  cursor/plugins` then `/plugin install pstack@cursor-plugins`.
+- OMP uses the community port `pstack@pstack-claude`
+  (`michael-denyer/pstack-claude`; install via `omp plugin marketplace add
+  michael-denyer/pstack-claude` then `omp plugin install --scope user
+  pstack@pstack-claude`). Upstream provides no OMP harness.
+- The template no longer distributes the portable pstack skills
+  (`create-verification-skill`, `maintain-verification-skill`,
+  `create-formal-verification-skill`, `maintain-formal-verification-skill`,
+  `statechart`): they are retired (`distribution_state: disabled`) to avoid
+  duplicate definitions with the plugin suites.
+
 `skill-check` verifies every enabled dependency covers the dependent Skill's
 agent and project targets. It also verifies relative `.md` files linked from an
 available `SKILL.md`, so auxiliary contracts such as `CONTEXT-FORMAT.md` cannot
@@ -111,6 +120,33 @@ The core `ponytail` entry opts into this policy; its disabled companion skills
 do not. `LOW` is the configured risk ceiling, not a fresh scan of every
 upstream revision. Text-only updates may still change agent behavior.
 Automatic promotion does not register new skills or enable disabled ones.
+
+Non-bundle external skills follow the same staged lifecycle as bundle members.
+`skill-fetch` stages the fetched source into `.agent-state/skill-candidates/<source>/<skill>/`;
+it never mutates active quarantine. A staged candidate is promoted into quarantine only
+when the approval gate passes:
+
+```bash
+make skill-promote SOURCE=vercel-skills SKILL=find-skills
+```
+
+Promotion is atomic at the skill directory boundary (`.promote` stage with a `.previous`
+backup) and runs the same `evaluate_gate` checks as bundles: approval baseline, script
+allowance, risk ceiling, and `auto_update`. `skill-refresh` runs `skill-ensure-skills`
+to promote staged candidates whose quarantine source is absent, and
+`skill-update-skills [SOURCE=id] [SKILL=name]` refreshes all enabled non-bundle candidates
+with gated promotion:
+
+```bash
+make skill-update-skills SKILL=ste
+make skill-scan   # report enabled-skill source presence and approval drift
+```
+
+`skill-scan` is the health probe: it lists every enabled skill's resolved source and
+flags either a missing source (skill registered but not deliverable) or approval drift
+(`approved_hash` differs from the live source content). CI's `skill-check` fails on
+structural defects; `skill-scan` surfaces presence and drift that an operator must
+reconcile before distribution.
 
 Fetches pass `--yes` to both npx (package installation) and skills (skill
 installation). Without the npx flag, cold caches can stall on a hidden

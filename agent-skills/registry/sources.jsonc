@@ -134,9 +134,9 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-10-08",
-            "approved_hash": "sha256:1415168dcb0bc68c1993f3259f82f5254cf0c449c5d51d515233190f5f87e06f",
-            "reason": "User-approved upstream answer-me-with-html skill for single-page visual HTML explainer"
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:bec7dfb316329c31ad0289a3b8c6111b8d51a8aeb752f0d68d4ade715cc2adb0",
+            "reason": "Upgraded CLI 0.5.5→0.5.11: state/class/api components, table sort/filter, draft-file fix, internal-report rules; scripts audited"
           },
           "reason": "Official answer-me-with-html skill for visual one-page reports and diagrams"
         }
@@ -225,9 +225,9 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:5fb80a2e7ed868c6c7fdcfd785b7eac41f6d95f305964f2901e7e61ae4ad12ab",
-            "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:ce82b37b594a8b03b1417b5ff5a376293549136ff9bb7577c124f4c6fdb1df08",
+            "reason": "User-approved upstream python-testing update: FastAPI async fixtures use ASGITransport + LifespanManager; Flask endpoint section retitled; text-only, no scripts"
           }
         },
         "docker-patterns": {
@@ -264,8 +264,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:747f8d650d4edc84d92e23f1ee993f8e6856150bdc69ae92504c389b3966fb2f",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:e52e8ca4d38be357bc2b0c93ad3b3957a6227d807def0add2d497b231fe404ea",
             "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
           }
         },
@@ -368,9 +368,9 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-09-23",
-            "approved_hash": "sha256:3eaddfa5b028a2d4ca47731bb7a64cae28a0e8cb1ca802d201e754a1cc23d5a3",
-            "reason": "User-approved upstream secret redaction (<REDACTED>) and minor cleanup update"
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:29faf0d352422aa58beb0ce4666a49bdfdd5d2cc065c9dfe9be7b7e89fbdf584",
+            "reason": "User-approved upstream diagnosing-bugs update: explore-codebase reference renamed CONTEXT.md -> GLOSSARY.md; Phase 5 adds diff-against-pristine proof when forced-red via mutation; text-only, scripts unchanged"
           },
           "reason": "User-approved canonical upstream debugging skill for global distribution"
         },
@@ -388,8 +388,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:86096700ab48a5fb3d8b8dd73b60b4474925d63e4b3585ec07e5979a04e9ce2d",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:8d02654da91dea62336b390b4c77031629840aec40d604aa6aa08e78df98d7ea",
             "reason": "User-confirmed global; approved current quarantined version after clean redistribution"
           }
         },
@@ -409,8 +409,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:826e65f8d718794b0647dd50122d3c388c6e860c608d6aa313d7d716ff535933",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:61f4936a45f334e894fe4c7e9b1bbaf509c1b451c2f8bddf91e563ac6ae82422",
             "reason": "User-approved global architecture vocabulary skill; current upstream content manually audited"
           },
           "reason": "User-approved global architecture workflow skill"
@@ -430,8 +430,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:2bf54bc5e5eed6f8c78b2dbe99bfcfcc0e0221e0c11dbf07ff0f27effb2aed76",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:cd5bdf2afe1680d10150ae58abacbc32e7a11d034be76c7ef6fad58546ce85e3",
             "reason": "User-approved two-axis code review skill; current upstream content manually audited"
           },
           "reason": "End-to-end engineering workflow review stage; Reasonix excluded until it supports parent-level parallel review agents"
@@ -452,8 +452,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:2cc88b237a4704f9fe2057492024856a48ea803a5b9257b1c1e3174eb1f13a09",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:18a9314d338b8135e4108d1d31d2fd57ad289cf8bf31d2acd6a6f3053ac22a38",
             "reason": "User-approved global domain vocabulary skill; current upstream content manually audited"
           },
           "reason": "User-approved global domain-modeling workflow skill"
@@ -474,8 +474,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:d5833e50e0081bbf5133b6c6b61aa8ba9ffae66e9071404b61e45b18f4cdb57e",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:27f71f106a7062691b2982d4f847304a62930ebed8b50734f4d4fd498d60afa8",
             "reason": "User-approved global grilling primitive; current upstream content manually audited"
           },
           "reason": "User-approved global design-review workflow skill"
@@ -518,8 +518,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:fe287d0ae54ed66c99522e272af1020323ba4d4698ef60fe1fa63f042dffd313",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:77c2607c751b7c522e0208ab113ba4949f8267610d6061323c7ccd3ace21d7da",
             "reason": "User-confirmed global workflow skill; approved current quarantined version after clean redistribution"
           },
           "reason": "User-confirmed global workflow skill; keep installed for cross-agent handoffs"
@@ -539,8 +539,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:1a7a56bca542f46ff8e42fa5ddd293dab21b38b6dad57e1bf3e76d12e41c5fc2",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:72f446ef5b35d3df73c21b574ba2ae50ab3d02fc5d4da44b80f27ce13e7dc18d",
             "reason": "User-approved implementation stage; current upstream content manually audited, including its commit instruction"
           },
           "reason": "End-to-end engineering workflow implementation stage; Reasonix excluded because its code-review dependency requires unavailable parent-level parallel agents"
@@ -583,8 +583,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:570d12b3caf6c468d77e0aba8602efc7a5346697a77cb5372f623cf67247784b",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:d1d1b40f71fcb294d27a1b00297d1d25bcff3bc1e8759794a4af906b243d8e31",
             "reason": "User-approved workflow setup dependency; current upstream content and its confirmation-before-edit rule manually audited"
           },
           "reason": "End-to-end engineering workflow setup dependency; Reasonix directory wiring preserves its five referenced templates"
@@ -605,8 +605,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:2da488cb71308948f58928bbbae6d55d060d5414d5bb3ec7ee7d4bb73c670442",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:aaed5857190bc8088332725c9c8deecf560744f6f7ef0bdfccf4bdf3fe678c16",
             "reason": "User-approved canonical TDD dependency; current upstream content manually audited"
           },
           "reason": "Canonical generic TDD skill for the Matt Pocock engineering workflow; directory wiring preserves tests and mocking references"
@@ -649,8 +649,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-11",
-            "approved_hash": "sha256:5c1691ddf02291d5189213f8ffc82d2b05451131929bbc9e99052f912a05c300",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:6eccfac132d92b949821d154679adc7f597bfc3e8c929f3c03786b92f91b961f",
             "reason": "User-approved ticketing stage; current upstream content manually audited"
           },
           "reason": "End-to-end engineering workflow ticket stage; requires setup-matt-pocock-skills tracker configuration before publication"
@@ -677,8 +677,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-12",
-            "approved_hash": "sha256:fa164901a041cab31d281288ea4b5af5aeb0a0d557b586cf6b341998a3fb3eb3",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:62a0ab7262d40119da048328a71aeadaeaa21a4049ee9268d14500921bb6e257",
             "reason": "User-approved planning stage; current upstream content manually audited and compatible with the configured GitHub issue tracker"
           },
           "reason": "Optional front door for work larger than one agent session; maps investigation tickets before grill/spec/ticket execution"
@@ -750,8 +750,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-09-23",
-            "approved_hash": "sha256:b1976e3b4a7cdcee2f7ade52c0cf072bafdbac9cf3284568cab1aa258e584e69",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:f2d6425b15cf3100d5c3eb4305a8e817174b8e5fa1fde6e06ad4b61321c32a60",
             "reason": "Structured research against primary sources"
           }
         },
@@ -794,8 +794,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-09-23",
-            "approved_hash": "sha256:3c6d2011a221681e673f9a2f11844707e2c879ae909c5a828148d4ff3871b110",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:fd6364a4c6714b4978b23abcbb170eaddeb99da87f2efee1f6e9baf9dfc2a446",
             "reason": "PR description drafting workflow"
           }
         },
@@ -816,8 +816,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-09-23",
-            "approved_hash": "sha256:72831ec425699dd16d41827c5dcf6ac4b0dbbd32ce0c419d30f52ded735cf0ad",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:c50119e1da19b7e62161d96e00bc1e39e661ac48e522ce4904c362bccc90e72e",
             "reason": "Multi-subagent worktree concurrent implementation workflow"
           }
         },
@@ -873,8 +873,8 @@
             "approved": true,
             "auto_update": true,
             "approved_by": "dsl",
-            "approved_at": "2026-09-25",
-            "approved_hash": "sha256:388ec42c9551f47d12555b1723b1af67b8fe18a8afbea0a8db96cfb870eb3803",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:b40d655883ea462755ae12373b59833fce20ba256bc06b0bc4e08dc59ba2ca5d",
             "reason": "Official Ponytail simplicity guard"
           }
         },
@@ -1033,8 +1033,8 @@
           "gate": {
             "manual_approval": true,
             "approved": true,
-            "approved_hash": "sha256:1731f4f796c42877a7c1f2eb7abd0183f6a096e756829f51d90b1087937fab1b",
-            "reason": "User-requested upstream PPT editing Skill; byte-identical to previously installed copy apart from generated __pycache__"
+            "approved_hash": "sha256:411b9a07aa2f2561fbd71af977709a32d04b1197b83284b617ea15efd4fc632c",
+            "reason": "Upgraded v6.7.2→6.9.0: image OCR/layer/normalization, OpenAI Realtime TTS + GIF, source-overwrite/dir protection, new test suite; scripts audited"
           }
         }
       }
@@ -1106,8 +1106,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:0eb775b0d028aa9ae7e4ba3e045e5e102f4b83c1dc86fcf85240fcc0fc7c0567",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:b614d1b3b751a5cb0bedd7eace44cb47efbdbc50fcd3e244da2ea3f416d5f57c",
             "reason": "User-confirmed project skill; approved current quarantined version for mac-bootstrap"
           }
         },
@@ -1154,8 +1154,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:cfebd63654dbc0cd7d5519d545fa87d84f437607f58a0aa81d6e17ae550a1e70",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:e780ea6e330f82b2e2a2d3469d607cd7d8aaec0be4ee92e9da87ec4d2f0f7398",
             "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
           }
         },
@@ -1172,8 +1172,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:6ce7d432f83a1f4a160204f90f5782a8b02eae2d78f964448fe35f0de5da2d8a",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:00229b309a4b32b14d97e79c5143a7e0e5c06f9e93ef1841a9ffd5b933382784",
             "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
           }
         },
@@ -1190,8 +1190,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:ad03a02bce64ac15c27c4b282ad607f900137b598ac7f385092834d95bff9b71",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:e2b406e32adbd4442241a689d7d0aa8d6f35c2ac2c43c14e02ae1869435e586d",
             "reason": "User-confirmed project skill; approved current quarantined version for mac-bootstrap"
           }
         },
@@ -1207,8 +1207,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:d01f8e8c47e54cba12dd672dad54dfc1efa056cf8c9185179842f622bb34a026",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:7b141f909ba59a532423d8265bca990842895b34102e25911d23493b8b2ead04",
             "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
           }
         },
@@ -1225,8 +1225,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-07-10",
-            "approved_hash": "sha256:5aed4dedca64ad6d9d78a5d1a208aca866b51852c01a19916cf834a703d6298d",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:16ed3aea6c79d69f8fdccc7623be24818f3bfab746d3313a95d334193f8bb542",
             "reason": "User-confirmed project skill; approved current quarantined version for product_strategy"
           }
         }
@@ -1503,9 +1503,9 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-08-13",
-            "approved_hash": "sha256:ecf3060d32cc985e3d4a73fc39b0d3b901b5c8f53bf4770721b9843c0687beb3",
-            "reason": "User-approved after manual review of SKILL.md, bundled Node CLI, local git/Chrome/open subprocesses, output writes, and no network fetch path"
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:1ce5d8066e953be5ee92c84a6e75bb600e6ad348a10e54df67edcd3e095e1f79",
+            "reason": "Upgraded to upstream Apache-2.0 release: license MIT→Apache-2.0; adds LICENSE-MIT/NOTICE/software-notices.mjs; fixes piped-stdout exit flush; scripts audited"
           },
           "reason": "User-requested global architecture diagram skill; supports Codex, Claude Code, OpenCode, and cross-agent targets"
         }
@@ -1534,9 +1534,9 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-10-18",
-            "approved_hash": "sha256:1a7a051f68b51c00c06e25e60848028ab84995211d054429218a7e7fe3c8f2d8",
-            "reason": "User-approved Chinese ASD-STE100 reporting-convention skill after manual review of all 7 fetched files (SKILL.md, README.md, LICENSE, CHANGELOG.md, references/terminology.md, examples/task-summary.md, examples/result-report.md): Markdown-only text, no scripts, no network or subprocess calls, no external writes; content hash bound to the fetched quarantine tree; scanner audit unavailable, so allow_unaudited follows the existing text-only manual-review convention"
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:75cb1d1059fbb910b975fb5546dec2f72897f4ee8fd53d3e338e4a1a4e60c38f",
+            "reason": "User-approved upstream ste-zh update: skill now activates only on explicit user request (never auto-activated, including task reports); 7-file tree unchanged in shape, no scripts, no network/subprocess; text-only manual-review convention"
           },
           "reason": "User-approved Chinese reporting-style skill derived from ASD-STE100 (Simplified Technical English) principles; activated on demand with /ste, not always on; OMP shares it through the cross-agent target"
         }
@@ -2133,8 +2133,8 @@
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
-            "approved_at": "2026-10-25",
-            "approved_hash": "sha256:939cf884cb25b7669e00fa92502b8bb5d9fabcddba050e96c691e380168c6c7f",
+            "approved_at": "2026-11-10",
+            "approved_hash": "sha256:8db42775dd2aae841c99779ebd62fbbc05b6c4006ead15eae29bd577ffcf296d",
             "reason": "User-approved doubt-driven-development for s-skeptic adversarial framing; script-free text, LOW risk"
           }
         },
@@ -2197,23 +2197,19 @@
         "required": true,
         "allow_unaudited": false,
         "max_risk": "LOW",
-        "allow_scripts": true
+        "allow_scripts": false
       },
       "skills": {
         "create-verification-skill": {
-          "agents": [
-            "codex",
-            "opencode",
-            "reasonix",
-            "antigravity",
-            "cross-agent"
-          ],
+          "distribution_state": "disabled",
+          "reason": "Retired: OMP now uses community port pstack@pstack-claude; Claude uses official plugin pstack@cursor-plugins",
+          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:a5cdf1604b7284deb1f31036961d19c5959d6dec66b1c8e400fb30e4411d1ad2",
+            "approved_hash": "sha256:899ad7ee40ecc0d86cc5e4dbb6d6cfd2def863d99792e061d1fc0f767e7cb65c",
             "reason": "Official pstack verification generator; Claude handled via official plugin, non-Claude targets retain verified portable copy"
           },
           "audit": {
@@ -2224,19 +2220,15 @@
           }
         },
         "maintain-verification-skill": {
-          "agents": [
-            "codex",
-            "opencode",
-            "reasonix",
-            "antigravity",
-            "cross-agent"
-          ],
+          "distribution_state": "disabled",
+          "reason": "Retired: OMP now uses community port pstack@pstack-claude; Claude uses official plugin pstack@cursor-plugins",
+          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:11cf460ea255afb7a61852dfc82c974540f2fe4664b5c1aa949d5b4590eb42f6",
+            "approved_hash": "sha256:e5aed56ddfba37d0dafff7cee12875e761d7c566e6cdd47119791fe687709b9e",
             "reason": "Official pstack verification maintainer; portable copy distributed to non-Claude hosts"
           },
           "audit": {
@@ -2247,19 +2239,15 @@
           }
         },
         "create-formal-verification-skill": {
-          "agents": [
-            "codex",
-            "opencode",
-            "reasonix",
-            "antigravity",
-            "cross-agent"
-          ],
+          "distribution_state": "disabled",
+          "reason": "Retired: OMP now uses community port pstack@pstack-claude; Claude uses official plugin pstack@cursor-plugins",
+          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:9dfb120c3e538453dd1669f6b170fd0512514e9c90eae110875c75d29db074f8",
+            "approved_hash": "sha256:ac374f21de2ea831366fccdc114a9d55afa88fa86c6980f069d54a381d2aaacf",
             "reason": "Official pstack formal verification generator; portable copy distributed to non-Claude hosts"
           },
           "audit": {
@@ -2270,19 +2258,15 @@
           }
         },
         "maintain-formal-verification-skill": {
-          "agents": [
-            "codex",
-            "opencode",
-            "reasonix",
-            "antigravity",
-            "cross-agent"
-          ],
+          "distribution_state": "disabled",
+          "reason": "Retired: OMP now uses community port pstack@pstack-claude; Claude uses official plugin pstack@cursor-plugins",
+          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "gate": {
             "manual_approval": true,
             "approved": true,
             "approved_by": "dsl",
             "approved_at": "2026-11-05",
-            "approved_hash": "sha256:039e09da1e0d1ae2c5d83074556d024bc5b79eab5efcaed38ae90fd41d520f42",
+            "approved_hash": "sha256:935e55c6161e3b7988e3e49ecf4f17248e124f595cc7d626b398577317a6a8ed",
             "reason": "Official pstack formal verification maintainer; portable copy distributed to non-Claude hosts"
           },
           "audit": {
@@ -2293,17 +2277,12 @@
           }
         },
         "statechart": {
-          "agents": [
-            "codex",
-            "opencode",
-            "reasonix",
-            "antigravity",
-            "cross-agent"
-          ],
+          "distribution_state": "disabled",
+          "reason": "Retired: OMP now uses community port pstack@pstack-claude; Claude uses official plugin pstack@cursor-plugins",
+          "agents": ["codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "audit": {
-            "required": false,
-            "allow_unaudited": true,
-            "max_risk": "LOW",
+            "required": true,
+            "max_risk": "HIGH",
             "allow_scripts": true
           },
           "gate": {

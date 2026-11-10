@@ -16,7 +16,7 @@ DISPATCH_SOURCE ?= $(HOME)/.local/src/Dispatch
 .PHONY: help bootstrap check check-parallel repo-check repo-check-serial repo-check-parallel machine-check ci syntax-check pytest pytest-machine pytest-parallel pytest-all neat-freak-ci doctor clean-cache clean-cache-aggressive cache-report \
 	install-cache-agent organize-downloads install-downloads-agent install-maintenance-agents unload-maintenance-agents system-patrol \
 	install-antigravity-cli install agent-sync agent-tools agent-apply agent-refresh agent-rules-audit \
-	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-promote skill-update skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan \
+	skill-plan skill-fetch skill-fetch-bundle skill-ensure-bundles skill-ensure-skills skill-promote skill-update skill-update-skills skill-audit skill-diff skill-distribute skill-reconcile skill-snapshot skill-refresh skill-scan skill-check system-upgrade prompt-sync prompt-index prompt-list prompt-mcp security-scan \
 	package-migrate \
  	omp-extensions dispatch-install dispatch-upgrade dispatch-status dispatch-doctor dispatch-uninstall \
 	render-configs private-sync privacy-audit privacy-audit-history export-public publish-public \
@@ -363,16 +363,26 @@ skill-fetch-bundle:
 skill-ensure-bundles:
 	$(PYTHON) scripts/skill_supply_chain.py ensure-bundles
 
-## 4.14 Agent | skill-promote | Promote a staged bundle: SOURCE=id
+## 4.13b Agent | skill-ensure-skills | Promote staged non-bundle candidates missing quarantine source
+skill-ensure-skills:
+	$(PYTHON) scripts/skill_supply_chain.py ensure-skills
+
+## 4.14 Agent | skill-promote | Promote a staged bundle (SOURCE=id) or non-bundle skill (SOURCE=id SKILL=name)
 skill-promote:
-	@test -n "$(SOURCE)" || (echo "Usage: make skill-promote SOURCE=bundle-id" >&2; exit 2)
-	$(PYTHON) scripts/skill_supply_chain.py promote --source "$(SOURCE)"
+	@test -n "$(SOURCE)" || (echo "Usage: make skill-promote SOURCE=bundle-id [SKILL=name]" >&2; exit 2)
+	$(PYTHON) scripts/skill_supply_chain.py promote --source "$(SOURCE)" $(if $(SKILL),--skill "$(SKILL)",)
 
-## 4.15 Agent | skill-update | Fetch + safely promote bundle updates: SOURCE=id
+## 4.15 Agent | skill-update | Fetch + safely promote updates: SOURCE=id [SKILL=name]
 skill-update:
-	$(PYTHON) scripts/skill_supply_chain.py update-bundles --source "$(or $(SOURCE),mattpocock-skills)"
+	$(PYTHON) scripts/skill_supply_chain.py update-bundles --source "$(or $(SOURCE),mattpocock-skills)" $(if $(SKILL),--skill "$(SKILL)",)
 
-## 4.16 Agent | skill-audit | Audit one quarantined skill: SOURCE=id SKILL=name
+## 4.15b Agent | skill-update-skills | Fetch + safely promote non-bundle external skills: [SOURCE=id] [SKILL=name]
+skill-update-skills:
+	$(PYTHON) scripts/skill_supply_chain.py update-skills $(if $(SOURCE),--source "$(SOURCE)",) $(if $(SKILL),--skill "$(SKILL)",)
+
+## 4.15c Agent | skill-scan | Report enabled-skill source presence and approval drift
+skill-scan:
+	$(PYTHON) scripts/skill_supply_chain.py scan
 skill-audit:
 	@test -n "$(SOURCE)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
 	@test -n "$(SKILL)" || (echo "Usage: make skill-audit SOURCE=id SKILL=name" >&2; exit 2)
@@ -397,7 +407,7 @@ skill-snapshot:
 	$(PYTHON) scripts/skill_supply_chain.py snapshot --label "$${LABEL:-manual}"
 
 ## 4.21 Agent | skill-refresh | Validate + wire managed skills
-skill-refresh: skill-check skill-ensure-bundles skill-distribute
+skill-refresh: skill-check skill-ensure-bundles skill-ensure-skills skill-distribute
 
 ## 4.23 Agent | system-upgrade | Interactive system + manifest-managed npm upgrade + safe skill refresh
 system-upgrade:

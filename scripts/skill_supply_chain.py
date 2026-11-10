@@ -75,7 +75,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             print(result.stderr, file=sys.stderr)
         return result.returncode
     if not result.dry_run:
-        print(f"fetched external skill {skill.source_id}/{skill.name} -> {skill.quarantine_path}")
+        print(f"staged external skill {skill.source_id}/{skill.name} -> {result.destination}")
     return 0
 
 
@@ -118,10 +118,19 @@ def cmd_ensure_bundles(args: argparse.Namespace) -> int:
     return 0 if all(result.returncode == 0 for result in results) else 1
 
 
-def cmd_promote_bundle(args: argparse.Namespace) -> int:
+def cmd_promote(args: argparse.Namespace) -> int:
     registry = load_registry(args.registry)
-    if not args.source:
-        raise RegistryError("promote requires --source")
+    if args.skill:
+        skill = _selected_external_skill(args, registry)
+        result = promote_external_skill(registry, skill, ROOT, dry_run=args.dry_run)
+        mode = "DRY-RUN" if args.dry_run else "promoted"
+        print(
+            f"{mode} external skill {skill.source_id}/{skill.name}: "
+            f"promoted={len(result.promoted)} blocked={len(result.blocked)}"
+        )
+        if result.blocked:
+            print("blocked: " + ", ".join(result.blocked))
+        return 0 if args.dry_run or result.promoted or result.destination.exists() else 1
     bundle = select_bundle(registry, args.source)
     result = promote_external_bundle(registry, bundle, ROOT, dry_run=args.dry_run)
     mode = "DRY-RUN" if args.dry_run else "promoted"
@@ -260,7 +269,10 @@ def cmd_audit(args: argparse.Namespace) -> int:
     if args.dry_run:
         print(f"DRY-RUN audit external skill {skill.source_id}/{skill.name}")
         return 0
-    source = _skill_source_path(registry, skill, ROOT)
+    source = _skill_review_path(registry, skill, ROOT)
+    candidate = fetch_candidate_destination(registry, skill, ROOT)
+    if candidate.is_dir():
+        source = candidate
     inspection = inspect_skill_content(source) if source and source.is_dir() else None
     decision = evaluate_gate(skill, inspection, audit=None) if inspection else None
     write_run_log(
@@ -285,11 +297,53 @@ def cmd_diff(args: argparse.Namespace) -> int:
     if args.dry_run:
         print(f"DRY-RUN diff external skill {skill.source_id}/{skill.name}")
         return 0
-    source = _skill_source_path(registry, skill, ROOT)
+    source = _skill_review_path(registry, skill, ROOT)
+    candidate = fetch_candidate_destination(registry, skill, ROOT)
+    if candidate.is_dir():
+        source = candidate
     if source is None or not source.is_dir():
         raise RegistryError(f"external skill source is unavailable: {skill.source_id}/{skill.name}")
     inspection = inspect_skill_content(source)
     print(json.dumps({"source": skill.source_id, "skill": skill.name, "content_hash": inspection.content_hash}, indent=2))
+    return 0
+
+
+def cmd_ensure_skills(args: argparse.Namespace) -> int:
+    registry = load_registry(args.registry)
+    results = ensure_external_skills(registry, ROOT, dry_run=args.dry_run)
+    mode = "DRY-RUN" if args.dry_run else "ensured"
+    print(f"{mode} non-bundle external skills: {len(results)}")
+    return 0
+
+
+def cmd_update_skills(args: argparse.Namespace) -> int:
+    registry = load_registry(args.registry)
+    fetches, promotions = update_external_skills(
+        registry,
+        ROOT,
+        source_id=args.source,
+        skill_name=args.skill,
+        dry_run=args.dry_run,
+    )
+    failures = [result for result in fetches if result.returncode != 0]
+    for result in failures:
+        print(f"skill fetch failed: {result.destination.name} (exit {result.returncode})", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout, file=sys.stderr)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+    blocked = sum(len(result.blocked) for result in promotions)
+    print(
+        f"updated non-bundle external skills: fetched={len(fetches) - len(failures)} "
+        f"failed={len(failures)} blocked={blocked}"
+    )
+    return 1 if failures else 0
+
+
+def cmd_scan(args: argparse.Namespace) -> int:
+    registry = load_registry(args.registry)
+    report = build_health_report(registry, ROOT)
+    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 
 
@@ -302,8 +356,11 @@ def build_parser() -> argparse.ArgumentParser:
             "fetch",
             "fetch-bundle",
             "ensure-bundles",
+            "ensure-skills",
             "promote",
             "update-bundles",
+            "update-skills",
+            "scan",
             "audit",
             "diff",
             "distribute",
@@ -352,10 +409,16 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_fetch_bundle(args)
         if args.command == "ensure-bundles":
             return cmd_ensure_bundles(args)
+        if args.command == "ensure-skills":
+            return cmd_ensure_skills(args)
         if args.command == "promote":
-            return cmd_promote_bundle(args)
+            return cmd_promote(args)
         if args.command == "update-bundles":
             return cmd_update_bundles(args)
+        if args.command == "update-skills":
+            return cmd_update_skills(args)
+        if args.command == "scan":
+            return cmd_scan(args)
         if args.command == "audit":
             return cmd_audit(args)
         if args.command == "diff":

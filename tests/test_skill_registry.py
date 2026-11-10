@@ -367,6 +367,33 @@ def test_validate_registry_sources_rejects_approved_external_without_bound_hash(
     )
 
 
+def test_validate_registry_sources_rejects_missing_enabled_internal_source(tmp_path: Path) -> None:
+    registry_path = tmp_path / "skills-sources.jsonc"
+    registry_path.write_text(
+        '''{
+          "version": 2,
+          "paths": {
+            "local_root": "agent-skills/local",
+            "quarantine_root": "agent-skills/external/quarantine",
+            "lockfile": ".agent-state/skills-lock.json",
+            "run_log_root": ".agent-state/skill-sync-runs",
+            "snapshot_root": ".agent-state/skill-snapshots"
+          },
+          "defaults": {"internal": {"scope": "project", "audit": {"required": false}, "gate": {"approved": true}}},
+          "projects": {"mac-bootstrap": {"skills_dir": "${HOME}/work/config/mac-bootstrap/.agents/skills"}},
+          "sources": {"local-mac-bootstrap": {"type": "internal", "path": "agent-skills/local/mac-bootstrap", "skills": {"ghost": {"projects": ["mac-bootstrap"]}}}}
+        }''',
+        encoding="utf-8",
+    )
+    registry = load_registry(registry_path)
+
+    errors = validate_registry_sources(registry, tmp_path)
+
+    assert any(
+        "enabled internal skill source missing: local-mac-bootstrap/ghost" in error
+        for error in errors
+    )
+
 def test_validate_registry_targets_rejects_missing_global_agent_target():
     registry = load_registry(DEFAULT_REGISTRY)
     targets = load_targets(DEFAULT_TARGETS)

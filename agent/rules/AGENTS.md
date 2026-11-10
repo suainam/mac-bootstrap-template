@@ -114,7 +114,12 @@ Host and user restrictions on delegation always apply.
   blind downloads during execution.
 - **Task contract**: include outcome, exact read/write boundaries, verification,
   completion condition, blocking decisions, rationale for non-obvious choices,
-  and time cap. Tie evidence to requirements, not only test counts.
+  and time cap. Hand the child the parent's concluded investigation findings, the
+  explicit executable boundary (what it may and may not touch), and the Why behind
+  the slice: the child must not re-run discovery the parent already finished, wait
+  passively for the next instruction, or idle while unblocked — it should carry
+  everything needed to proceed autonomously to completion. Tie evidence to
+  requirements, not only test counts.
 - **Supervision & Progress heartbeat & deadlock prevention**: children report at
   milestones and at least every 60 seconds. Inspect silence of about 3 minutes
   using the host's status/output tools; distinguish a running command from a

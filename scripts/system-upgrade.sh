@@ -351,13 +351,14 @@ stage_skills() {
     return 1
   fi
 
-  echo "Refreshing approved external skill bundles..."
+  echo "Refreshing approved external bundles and non-bundle skills..."
   local update_ok=0
   if [[ -n "${SKILL_SOURCE}" ]]; then
     (cd "${ROOT_DIR}" && "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles --source "${SKILL_SOURCE}") && update_ok=1 || true
   else
     (cd "${ROOT_DIR}" && "${PYTHON_BIN}" scripts/skill_supply_chain.py update-bundles) && update_ok=1 || true
   fi
+  (cd "${ROOT_DIR}" && "${PYTHON_BIN}" scripts/skill_supply_chain.py update-skills) || true
 
   if [[ "$update_ok" -eq 0 ]]; then
     echo "Error: skill bundle update failed; skill distribute skipped" >&2

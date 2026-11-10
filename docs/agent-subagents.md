@@ -36,7 +36,11 @@ The authoritative contract lives in `agent/rules/AGENTS.md` under
 Every task text carries the contract fields, including the reporting duty: one
 line per milestone and at least every ~60 s, or the parent treats silence as a
 defect and intervenes. Liveness is separate from human interruptions: agents
-run async while the human coordinates at settled checkpoints.
+run async while the human coordinates at settled checkpoints. A task must also
+hand the child the parent's concluded findings, an explicit executable boundary
+(what it may and may not touch), and the Why behind the slice, so the child does
+not re-run discovery the parent finished, wait passively for the next
+instruction, or idle while it is unblocked.
 
 Concurrency and time caps belong to the authoritative contract above. They
 require supported host runtime controls and supervision; prose alone does not

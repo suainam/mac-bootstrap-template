@@ -17,9 +17,12 @@ from scripts.skill_supply_chain import (  # noqa: E402
     DEFAULT_REGISTRY,
     DEFAULT_TARGETS,
     BundleCatalogEntry,
+    build_health_report,
     discover_bundle_catalog,
     ensure_external_bundles,
+    ensure_external_skills,
     evaluate_gate,
+    fetch_candidate_destination,
     fetch_external_bundle,
     fetch_external_skill,
     inspect_skill_content,
@@ -27,6 +30,8 @@ from scripts.skill_supply_chain import (  # noqa: E402
     load_targets,
     main,
     promote_external_bundle,
+    promote_external_skill,
+
     write_run_log,
 )
 
@@ -86,7 +91,7 @@ def test_discover_bundle_catalog_hashes_each_skill_tree(tmp_path: Path) -> None:
 
 
 
-def test_fetch_external_skill_uses_registry_quarantine_root(tmp_path: Path) -> None:
+def test_fetch_external_skill_uses_registry_candidate_root(tmp_path: Path) -> None:
     registry_path = write_registry_for_external(tmp_path, "safe")
     raw = registry_path.read_text(encoding="utf-8").replace(
         '"quarantine_root": "agent-skills/external/quarantine"',
@@ -99,7 +104,7 @@ def test_fetch_external_skill_uses_registry_quarantine_root(tmp_path: Path) -> N
     result = fetch_external_skill(skill, registry, tmp_path, dry_run=True)
 
     assert result.cwd == tmp_path / "custom/quarantine/.tmp/external/safe/work"
-    assert result.destination == tmp_path / "custom/quarantine/external/safe"
+    assert result.destination == tmp_path / ".agent-state/skill-candidates/external/safe"
 
 
 def test_fetch_external_bundle_uses_bundle_quarantine_root(tmp_path: Path) -> None:
@@ -204,10 +209,10 @@ def test_mattpocock_commands_include_skills_sh_page_backed_skills():
         "cross-agent",
     )
     expected_hashes = {
-        "codebase-design": "sha256:826e65f8d718794b0647dd50122d3c388c6e860c608d6aa313d7d716ff535933",
-        "diagnosing-bugs": "sha256:3eaddfa5b028a2d4ca47731bb7a64cae28a0e8cb1ca802d201e754a1cc23d5a3",
-        "domain-modeling": "sha256:2cc88b237a4704f9fe2057492024856a48ea803a5b9257b1c1e3174eb1f13a09",
-        "grilling": "sha256:d5833e50e0081bbf5133b6c6b61aa8ba9ffae66e9071404b61e45b18f4cdb57e",
+        "codebase-design": "sha256:61f4936a45f334e894fe4c7e9b1bbaf509c1b451c2f8bddf91e563ac6ae82422",
+        "diagnosing-bugs": "sha256:29faf0d352422aa58beb0ce4666a49bdfdd5d2cc065c9dfe9be7b7e89fbdf584",
+        "domain-modeling": "sha256:18a9314d338b8135e4108d1d31d2fd57ad289cf8bf31d2acd6a6f3053ac22a38",
+        "grilling": "sha256:27f71f106a7062691b2982d4f847304a62930ebed8b50734f4d4fd498d60afa8",
     }
     for name, expected_hash in expected_hashes.items():
         skill = registry.skills[("mattpocock-skills", name)]
@@ -290,3 +295,85 @@ def test_gate_requires_approval_hash_to_match_current_content(tmp_path: Path):
     assert current_hash != "old"
     assert decision.allowed is False
     assert decision.approved_version_matches is False
+
+
+def test_promote_external_skill_forwards_staged_candidate_into_quarantine(tmp_path: Path) -> None:
+    registry = load_registry(write_registry_for_external(tmp_path, "safe"))
+    skill = registry.skills[("external", "safe")]
+    candidate = fetch_candidate_destination(registry, skill, tmp_path)
+    candidate.mkdir(parents=True)
+    (candidate / "SKILL.md").write_text(
+        "---\nname: safe\ndescription: Safe\n---\n\n# Safe\n",
+        encoding="utf-8",
+    )
+    current_hash = inspect_skill_content(candidate).content_hash
+    skill = replace(
+        skill,
+        gate=replace(skill.gate, approved=True, approved_hash=current_hash),
+        audit=replace(skill.audit, allow_unaudited=True),
+    )
+    registry = replace(registry, skills={**registry.skills, ("external", "safe"): skill})
+
+    result = promote_external_skill(registry, skill, tmp_path)
+
+    assert result.promoted == ("safe",)
+    assert result.blocked == ()
+    assert (tmp_path / skill.quarantine_path / "SKILL.md").is_file()
+
+
+def test_promote_external_skill_blocks_mismatched_approval(tmp_path: Path) -> None:
+    registry = load_registry(write_registry_for_external(tmp_path, "safe", approved_hash="old"))
+    skill = registry.skills[("external", "safe")]
+    candidate = fetch_candidate_destination(registry, skill, tmp_path)
+    candidate.mkdir(parents=True)
+    (candidate / "SKILL.md").write_text(
+        "---\nname: safe\ndescription: Safe\n---\n\n# Safe\n",
+        encoding="utf-8",
+    )
+    skill = replace(skill, audit=replace(skill.audit, allow_unaudited=True))
+    registry = replace(registry, skills={**registry.skills, ("external", "safe"): skill})
+    result = promote_external_skill(registry, skill, tmp_path)
+
+    assert result.promoted == ()
+
+    assert "approved hash does not match current content" in result.blocked[0]
+    assert not (tmp_path / skill.quarantine_path).exists()
+
+
+def test_build_health_report_flags_missing_and_drifted_enabled_sources(tmp_path: Path) -> None:
+    registry_path = write_registry_for_external(tmp_path, "safe", approved_hash="old")
+    registry = load_registry(registry_path)
+    skill = registry.skills[("external", "safe")]
+    candidate = fetch_candidate_destination(registry, skill, tmp_path)
+    candidate.mkdir(parents=True)
+    (candidate / "SKILL.md").write_text(
+        "---\nname: safe\ndescription: Safe\n---\n\n# Safe\n",
+        encoding="utf-8",
+    )
+    skill = replace(skill, audit=replace(skill.audit, allow_unaudited=True))
+    registry = replace(registry, skills={**registry.skills, ("external", "safe"): skill})
+    # stage candidate only; quarantine absent -> source missing
+    report = build_health_report(registry, tmp_path)
+    row = report["skills"][0]
+    assert row["source_present"] is False
+
+    # promote with a matching approval, then mutate quarantine to create drift
+    current_hash = inspect_skill_content(candidate).content_hash
+    skill = replace(
+        skill,
+        gate=replace(skill.gate, approved=True, approved_hash=current_hash),
+        audit=replace(skill.audit, allow_unaudited=True),
+    )
+    registry = replace(registry, skills={**registry.skills, ("external", "safe"): skill})
+    promote_external_skill(registry, skill, tmp_path)
+    row = build_health_report(registry, tmp_path)["skills"][0]
+    assert row["source_present"] is True
+    assert row["drift"] is False
+
+    (tmp_path / skill.quarantine_path / "SKILL.md").write_text(
+        "---\nname: safe\ndescription: Safe\n---\n\n# Safe edited\n",
+        encoding="utf-8",
+    )
+    row = build_health_report(registry, tmp_path)["skills"][0]
+    assert row["source_present"] is True
+    assert row["drift"] is True

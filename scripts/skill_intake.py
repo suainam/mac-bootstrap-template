@@ -93,6 +93,11 @@ def _find_fetched_skill_dir(work_dir: Path, skill_name: str) -> Path:
     raise RegistryError(f"skills.sh did not produce {skill_name}/SKILL.md under {work_dir}")
 
 
+def fetch_candidate_destination(registry: Registry, skill: SkillRef, root: Path = ROOT) -> Path:
+    """Non-bundle external skills stage into the candidate root, not quarantine."""
+    return root / registry.paths["candidate_root"] / skill.source_id / skill.name
+
+
 def fetch_external_skill(
     skill: SkillRef,
     registry: Registry,
@@ -110,10 +115,11 @@ def fetch_external_skill(
         / skill.name
         / "work"
     )
-    destination = root / skill.quarantine_path
+    destination = fetch_candidate_destination(registry, skill, root)
     if dry_run:
         print(
-            f"DRY-RUN fetch external skill {skill.source_id}/{skill.name} -> {skill.quarantine_path.as_posix()}"
+            f"DRY-RUN fetch external skill {skill.source_id}/{skill.name} -> "
+            f"{destination.relative_to(root).as_posix()}"
         )
         return CommandResult(
             command=tuple(command),
@@ -635,6 +641,164 @@ def update_external_bundles(
             else:
                 promotions.append(promote_external_bundle(registry, bundle, root))
     return tuple(fetches), tuple(promotions)
+
+
+def _skill_review_path(registry: Registry, skill: SkillRef, root: Path = ROOT) -> Path | None:
+    """Resolve the active source directory for a skill without distribution coupling."""
+    if skill.source_type == "internal":
+        return root / skill.source_path if skill.source_path is not None else None
+    if skill.local_shadow_path is not None:
+        shadow = root / skill.local_shadow_path
+        return shadow if shadow.is_dir() else None
+    if skill.quarantine_path is not None:
+        return root / skill.quarantine_path
+    return None
+
+
+def _nonbundle_external_skills(registry: Registry) -> list[SkillRef]:
+    return sorted(
+        (
+            skill
+            for skill in registry.skills.values()
+            if (
+                skill.source_type == "external"
+                and skill.bundle_id is None
+                and skill.local_shadow_path is None
+            )
+        ),
+        key=lambda skill: (skill.source_id, skill.name),
+    )
+
+
+def promote_external_skill(
+    registry: Registry,
+    skill: SkillRef,
+    root: Path = ROOT,
+    dry_run: bool = False,
+) -> BundlePromotionResult:
+    """Gate-promote a staged non-bundle candidate into active quarantine."""
+    candidate = fetch_candidate_destination(registry, skill, root)
+    if not (candidate / "SKILL.md").is_file():
+        raise RegistryError(f"non-bundle candidate is unavailable: {skill.source_id}/{skill.name}")
+
+    inspection = inspect_skill_content(candidate)
+    decision = evaluate_gate(skill, inspection, audit=None)
+    active = root / skill.quarantine_path
+    auto_update = (
+        active.is_dir()
+        and skill.gate.auto_update
+        and skill.gate.approved
+        and not inspection.has_scripts
+        and skill.audit.max_risk.upper() == "LOW"
+    )
+    blocked: list[str] = []
+    promoted: list[str] = []
+    if not decision.allowed or (not auto_update and skill.gate.approved_hash != inspection.content_hash):
+        blocked.append(f"{skill.name}:{','.join(decision.reasons) or 'approval-baseline-mismatch'}")
+    else:
+        promote_root = active.parent / f".{skill.source_id}.{skill.name}.promote"
+        if promote_root.exists():
+            shutil.rmtree(promote_root)
+        shutil.copytree(candidate, promote_root)
+        backup = active.parent / f".{skill.source_id}.{skill.name}.previous"
+        if backup.exists():
+            shutil.rmtree(backup)
+        if active.exists() or active.is_symlink():
+            active.replace(backup)
+        promote_root.replace(active)
+        if backup.exists():
+            shutil.rmtree(backup)
+        promoted.append(skill.name)
+
+    result = BundlePromotionResult(
+        source_id=skill.source_id,
+        destination=active,
+        promoted=tuple(sorted(promoted)),
+        blocked=tuple(sorted(blocked)),
+        dry_run=dry_run,
+    )
+    if not dry_run:
+        write_run_log(
+            {
+                "event": "skill-promote",
+                "source": skill.source_id,
+                "skill": skill.name,
+                "promoted": list(result.promoted),
+                "blocked": list(result.blocked),
+            },
+            registry,
+            root,
+        )
+    return result
+
+
+def ensure_external_skills(
+    registry: Registry,
+    root: Path = ROOT,
+    dry_run: bool = False,
+) -> tuple[BundlePromotionResult, ...]:
+    """Promote staged non-bundle candidates whose active quarantine source is absent."""
+    results: list[BundlePromotionResult] = []
+    for skill in _nonbundle_external_skills(registry):
+        if skill.distribution_state != "enabled":
+            continue
+        candidate = fetch_candidate_destination(registry, skill, root)
+        if (root / skill.quarantine_path).is_dir() or not (candidate / "SKILL.md").is_file():
+            continue
+        results.append(promote_external_skill(registry, skill, root, dry_run=dry_run))
+    return tuple(results)
+
+
+def update_external_skills(
+    registry: Registry,
+    root: Path = ROOT,
+    source_id: str | None = None,
+    skill_name: str | None = None,
+    dry_run: bool = False,
+) -> tuple[tuple[CommandResult, ...], tuple[BundlePromotionResult, ...]]:
+    """Fetch enabled non-bundle external skills, then promote only safe candidates."""
+    skills = _nonbundle_external_skills(registry)
+    if source_id is not None:
+        skills = [skill for skill in skills if skill.source_id == source_id]
+    if skill_name is not None:
+        skills = [skill for skill in skills if skill.name == skill_name]
+    fetches: list[CommandResult] = []
+    promotions: list[BundlePromotionResult] = []
+    for skill in skills:
+        if skill.distribution_state != "enabled":
+            continue
+        result = fetch_external_skill(skill, registry, root, dry_run=dry_run)
+        fetches.append(result)
+        if result.returncode == 0:
+            if dry_run:
+                print(f"DRY-RUN promote external skill {skill.source_id}/{skill.name}")
+            else:
+                promotions.append(promote_external_skill(registry, skill, root))
+    return tuple(fetches), tuple(promotions)
+
+
+def build_health_report(registry: Registry, root: Path = ROOT) -> dict:
+    """Report source presence and approval drift for every enabled skill."""
+    rows: list[dict] = []
+    for skill in sorted(registry.skills.values(), key=lambda s: (s.source_id, s.name)):
+        if skill.distribution_state != "enabled":
+            continue
+        source = _skill_review_path(registry, skill, root)
+        inspection = inspect_skill_content(source) if source is not None and source.is_dir() else None
+        row = {
+            "source_id": skill.source_id,
+            "skill": skill.name,
+            "type": skill.source_type,
+            "bundle": skill.bundle_id,
+            "source": source.relative_to(root).as_posix() if source is not None else None,
+            "source_present": inspection is not None,
+            "approved_hash": skill.gate.approved_hash,
+            "content_hash": inspection.content_hash if inspection else None,
+        }
+        if inspection is not None and skill.gate.approved_hash:
+            row["drift"] = skill.gate.approved_hash != inspection.content_hash
+        rows.append(row)
+    return {"skills": rows}
 
 
 def write_run_log(event: dict, registry: Registry, root: Path = ROOT) -> Path:
