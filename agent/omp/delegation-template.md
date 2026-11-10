@@ -12,8 +12,8 @@ context and do not inherit the caller's conversation.
 - The executable boundary: what the child may and may not touch.
 
 ## Acceptance
-- A falsifiable completion criterion, plus the exact command or evidence that
-  proves it. Without this, the child cannot know when to stop.
+- A falsifiable completion criterion, plus the exact tool call, command, or
+  evidence check that proves it. Without this, the child cannot know when to stop.
 
 ## Context
 - The main session's concluded findings (so the child does not re-run

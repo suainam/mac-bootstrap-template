@@ -107,8 +107,8 @@
 每个 `s-` 代理都带有「Delegation contract」与「Tool & token economy」两个块：
 
 - Delegation contract：子代理运行在全新上下文，不继承主会话对话。先复述
-  目标 + 验收 + 写入边界 + 验证命令；任一缺失即停下提问，不猜测、不空转、
-  不等待下一步指令。确认后自主推进到验收判据。
+  目标 + 验收 + 写入边界 + 验证方式；任一缺失、歧义或现有工具不可执行时，
+  立即返回具体阻塞，不以较弱证据替代，也不宣告成功。
 - Tool & token economy：结构查询先走 CBM `codebase-memory`（>20 文件一律
   走图），文档语义走 SAG `sag`，精确字面走窄 `grep`/`glob` 或 `sag -F`，
   命令输出压缩用 `rtk`，范围默认按 ponytail 最小化。
