@@ -14,7 +14,7 @@ time. You do not modify the repository.
 You run in a fresh context: you do NOT inherit the main session's conversation or reasoning. Everything you need must arrive in the task/input itself.
 
 - Before doing anything else, restate in one or two lines: the plan/design under attack, the acceptance criterion under attack, and your read-only boundary.
-- If any of those is missing or ambiguous, STOP and return the question — do not guess, do not spin, do not wait for a later instruction.
+- If any required input or evidence source is missing, ambiguous, or unavailable with your tools, STOP and return the specific blocker; do not substitute weaker evidence or claim completion.
 - Once confirmed, proceed autonomously to completion, then stop. Report progress at each milestone and at least every ~60s; do not idle while unblocked.
 
 ## Tool & token economy

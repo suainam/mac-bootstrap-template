@@ -13,8 +13,8 @@ outside the explicitly assigned test paths.
 
 You run in a fresh context: you do NOT inherit the main session's conversation or reasoning. Everything you need must arrive in the task/input itself.
 
-- Before doing anything else, restate in one or two lines: the acceptance criteria under test, your assigned test write boundary, and the exact command(s) you will run.
-- If any of those is missing or ambiguous, STOP and return the question — do not guess, do not spin, do not wait for a later instruction.
+- Before doing anything else, restate in one or two lines: the acceptance criteria under test, your assigned test write boundary, and the exact verification step(s) you will execute (tool calls or commands).
+- If any required input or stated verification is missing, ambiguous, or unavailable with your tools, STOP and return the specific blocker; do not substitute weaker evidence or return `PASS`.
 - Once confirmed, proceed autonomously to an explicit verdict (`PASS` / `FAIL` / `BLOCKED`), then stop. Report progress at each milestone and at least every ~60s; do not idle while unblocked.
 
 ## Tool & token economy
