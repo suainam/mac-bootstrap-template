@@ -209,7 +209,7 @@ export async function directSavePrd(client, tabId, markdownContent, options = {}
     // 2. 提取认证 Token
     const token = localStorage.getItem("Agent-Token") || "";
     const devopsToken = localStorage.getItem("Devops-Platform-Token") || "";
-    const username = localStorage.getItem("username") || localStorage.getItem("user") || "suai";
+    const username = localStorage.getItem("username") || localStorage.getItem("user") || "unknown";
 
     const headers = {
       "Content-Type": "application/json",
