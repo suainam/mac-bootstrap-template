@@ -74,6 +74,15 @@ Official discovery references, verified 2026-08-13:
 - [OpenCode Agent Skills](https://opencode.ai/docs/skills/)
 - [OMP Skills](https://github.com/can1357/oh-my-pi/blob/main/docs/skills.md)
 
+## SAG document retrieval
+
+The official [`sag` Skill](https://github.com/Zleap-AI/SAG-Wiki/tree/main/cli/skills/sag)
+is distributed through the cross-agent view, which OMP discovers. It uses the
+`@zleap-ai/sag` CLI and an independently configured Jev endpoint. Register only
+the intended document directories with `sag add`; `sag check` reports coverage.
+Semantic queries send the question and candidate text to the configured service.
+Exact text and structural code queries continue to use their existing tools.
+
 ## Reviewed architecture diagram skill
 
 `archify` is registered as a hash-bound external Skill from
