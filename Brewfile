@@ -80,6 +80,7 @@ npm "pnpm"
 npm "@monid-ai/cli"
 npm "@moonrepo/cli"
 npm "@upstash/context7-mcp"
+npm "@zleap-ai/sag"
 npm "js-yaml"
 # 见 python/requirements-common.txt
 

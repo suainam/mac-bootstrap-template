@@ -86,6 +86,17 @@
     }
   },
   "sources": {
+    "sag-wiki": {
+      "type": "internal",
+      "path": "agent-skills/local/shadows/sag-wiki",
+      "skills": {
+        "sag": {
+          "scope": "global",
+          "agents": ["cross-agent"],
+          "reason": "Semantic retrieval over indexed local documents via the installed SAG CLI; pinned local shadow of upstream Zleap-AI/SAG-Wiki commit 61f63c660c66f9600bee6c236c3e9b079f90e105"
+        }
+      }
+    },
     "typesafe-ai-skills": {
       "type": "external",
       "fetcher": "skills.sh",

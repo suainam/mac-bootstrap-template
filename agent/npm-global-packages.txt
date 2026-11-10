@@ -11,4 +11,5 @@ reasonix
 @monid-ai/cli
 @moonrepo/cli
 pnpm
+@zleap-ai/sag
 js-yaml
