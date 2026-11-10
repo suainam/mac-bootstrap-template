@@ -104,6 +104,18 @@
 `s-retro` 不派生子代理，清理范围限于本会话创建且能点名的产物。
 嵌套深度受 `task.maxRecursionDepth`（默认 2）限制：主会话 → 规划/设计代理 → 对抗审查。
 
+每个 `s-` 代理都带有「Delegation contract」与「Tool & token economy」两个块：
+
+- Delegation contract：子代理运行在全新上下文，不继承主会话对话。先复述
+  目标 + 验收 + 写入边界 + 验证命令；任一缺失即停下提问，不猜测、不空转、
+  不等待下一步指令。确认后自主推进到验收判据。
+- Tool & token economy：结构查询先走 CBM `codebase-memory`（>20 文件一律
+  走图），文档语义走 SAG `sag`，精确字面走窄 `grep`/`glob` 或 `sag -F`，
+  命令输出压缩用 `rtk`，范围默认按 ponytail 最小化。
+
+主会话 spawn 时使用 [`delegation-template.md`](delegation-template.md)
+填写必备字段，并要求子代理先回显契约。
+
 技能路由按需引用，不复制既有契约：
 
 - 分析类需求按阶段归属代理，不整条链路交给一个代理：`analytics-demand-intake`
