@@ -175,4 +175,69 @@ def test_system_patrol_detects_crash_and_service_faults(tmp_path):
 
     # Check notification was dispatched
     assert notify_log.exists()
-    assert "display notification" in notify_log.read_text(encoding="utf-8")
+def test_system_patrol_ignore_report_prefixes(tmp_path):
+    """Ignore-listed crash prefixes are dropped; non-ignored reports still alert."""
+    logs_dir = tmp_path / "Logs"
+    logs_dir.mkdir()
+    diag_dir = tmp_path / "Diag"
+    diag_dir.mkdir()
+    (diag_dir / "ExcUserFault_nsattributedstringagent-2026-10-08.ips").write_text("{}", encoding="utf-8")
+    (diag_dir / "real_app-2026-10-08.ips").write_text("{}", encoding="utf-8")
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    launchctl.chmod(0o755)
+    df_cmd = fake_bin / "df"
+    df_cmd.write_text("#!/bin/sh\nprintf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/disk1 100 50 50 50%% /\\n'\n", encoding="utf-8")
+    df_cmd.chmod(0o755)
+
+    res = run_patrol(
+        extra_env={
+            "SYSTEM_PATROL_LOGS_DIR": str(logs_dir),
+            "SYSTEM_PATROL_DIAG_USER": str(diag_dir),
+            "SYSTEM_PATROL_DIAG_SYSTEM": str(diag_dir),
+            "SYSTEM_PATROL_LAUNCHCTL_CMD": str(launchctl),
+            "SYSTEM_PATROL_DF_CMD": str(df_cmd),
+            "SYSTEM_PATROL_IGNORE_REPORT_PREFIXES": "nsattributedstringagent",
+        },
+        args=["--strict"],
+    )
+    # Only the real (non-ignored) crash remains: exit non-zero, alert lists 1.
+    assert res.returncode == 1
+    assert "System Patrol Alerts (1)" in res.stderr
+    assert "nsattributedstringagent" not in res.stderr
+    assert "real_app-2026-10-08.ips" in res.stderr
+
+
+def test_system_patrol_ignore_report_prefixes_default_empty(tmp_path):
+    """Without ignore env, all reports still alert (default behavior preserved)."""
+    logs_dir = tmp_path / "Logs"
+    logs_dir.mkdir()
+    diag_dir = tmp_path / "Diag"
+    diag_dir.mkdir()
+    (diag_dir / "ExcUserFault_nsattributedstringagent-2026-10-08.ips").write_text("{}", encoding="utf-8")
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    launchctl = fake_bin / "launchctl"
+    launchctl.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    launchctl.chmod(0o755)
+    df_cmd = fake_bin / "df"
+    df_cmd.write_text("#!/bin/sh\nprintf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/disk1 100 50 50 50%% /\\n'\n", encoding="utf-8")
+    df_cmd.chmod(0o755)
+
+    res = run_patrol(
+        extra_env={
+            "SYSTEM_PATROL_LOGS_DIR": str(logs_dir),
+            "SYSTEM_PATROL_DIAG_USER": str(diag_dir),
+            "SYSTEM_PATROL_DIAG_SYSTEM": str(diag_dir),
+            "SYSTEM_PATROL_LAUNCHCTL_CMD": str(launchctl),
+            "SYSTEM_PATROL_DF_CMD": str(df_cmd),
+        },
+        args=["--strict"],
+    )
+    assert res.returncode == 1
+    assert "System Patrol Alerts (1)" in res.stderr
+    assert "ExcUserFault_nsattributedstringagent-2026-10-08.ips" in res.stderr

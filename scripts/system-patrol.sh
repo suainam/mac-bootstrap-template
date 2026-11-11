@@ -59,6 +59,7 @@ done
 
 # Test injection overrides
 LOGS_DIR="${SYSTEM_PATROL_LOGS_DIR:-$HOME/Library/Logs}"
+IGNORE_REPORT_PREFIXES="${SYSTEM_PATROL_IGNORE_REPORT_PREFIXES:-}"
 DIAG_USER="${SYSTEM_PATROL_DIAG_USER:-$HOME/Library/Logs/DiagnosticReports}"
 DIAG_SYS="${SYSTEM_PATROL_DIAG_SYSTEM:-/Library/Logs/DiagnosticReports}"
 MAX_LOG_MB="${SYSTEM_PATROL_MAX_LOG_MB:-15}"
@@ -164,6 +165,18 @@ for diag_dir in "$DIAG_USER" "$DIAG_SYS"; do
     base="$(basename "$rpt")"
     case "$base" in
       *.ips|*.cpu_resource.diag|*.gpu_resource.diag)
+        if [ -n "$IGNORE_REPORT_PREFIXES" ]; then
+          skip=false
+          for prefix in ${IGNORE_REPORT_PREFIXES//,/ }; do
+            if [[ "$base" == *"$prefix"* ]]; then
+              skip=true
+              break
+            fi
+          done
+          if [ "$skip" = true ]; then
+            continue
+          fi
+        fi
         RECENT_REPORTS+=("$base")
         ;;
     esac
