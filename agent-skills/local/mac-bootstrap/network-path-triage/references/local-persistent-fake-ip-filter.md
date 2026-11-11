@@ -9,10 +9,10 @@ you may not control).
 
 Typical symptom that lands here:
 
-- `di +short <domain> A` returns `198.19.0.x` (fake-ip) even after TUN
+- `dig +short <domain> A` returns `198.19.0.x` (fake-ip) even after TUN
   exclusions were added, because DNS is still hijacked by Mihomo's fake-ip
   resolver.
-- Browser/CLI fail with `T_CONNECTION_CLOSED` / `SSL_ERROR_SYSCALL` while the
+- Browser/CLI fail with `ERR_CONNECTION_CLOSED` / `SSL_ERROR_SYSCALL` while the
   underlying route is already correct (see `corplink-experience.md` §13).
 
 ## Ownership boundary (the critical rule)
