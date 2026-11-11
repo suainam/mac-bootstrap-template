@@ -105,11 +105,11 @@ resp, key = send_jev(
 针对 QA 测试工作台（`next.dslbuy.com` 等用例执行面板）的批量自动化执行、状态推进与阶段门禁流转：
 
 1. **宿主外层紧凑循环 (*tight-loop*)**：由 Node.js 驱动步进循环，每步执行轻量原子同步 eval（单步间隔 300~400ms）。**严禁在 Chrome 内部长循环或 `await sleep`**，避免触发 30s 扩展超时（`TIMEOUT`）。
-2. **动效遮罩防护 (*mask-guard*)**：卡片切换时检测 `.el-loading-mask` 渐隐状态，等待 200ms 避免 `[NOT_INTERACTABLE]`；优先触发 `.result-btn.passed-btn.click()`。
+2. **动效遮罩防护 (*mask-guard*)**：仅当遮罩「非 `fade-leave` 过渡态且计算样式可见」时才等待 200ms；残留的 `.el-loading-fade-leave` 遮罩不阻塞（实测 next.dslbuy.com 会残留，旧版按 `style` 字符串判定会永远空转）。优先触发 `.result-btn.passed-btn.click()`。循环带**停滞熔断**（连续 10 步 passed 不增长即返回 `stalled`）。
 3. **末尾失焦主动补偿 (*tail-compensation*)**：若用例详情未自动载入「通过」按钮，主动执行 `pendingCards[0].click()` 显式激活。
 4. **动态用例扩增与阶段门禁 (*stage-gate*)**：冒烟通过（P0）后重新获取扩充后的系统用例；阶段流转按钮（「冒烟通过」「完成测试」）及模态弹窗确认遵循 Four-Gate 人机终审。
 
-标准实现在 `scripts/test_case_runner.mjs`。详见 `references/interaction-patterns-def.md#模式-g`。
+标准实现在 `scripts/test_case_runner.mjs`：选择器集中在导出的 `SELECTORS` 常量；CLI 目标可传 `tabId` / `Story-XXXXXX` / 完整 URL（已开则复用，未开则新开）；阶段按钮与确认弹窗按结构定位，弹窗正文必须含触发按钮文案才确认（Gate 2）；确认后回读 Story 状态（`.twf-status-tag`，如「验证中」）判定流转生效。详见 `references/interaction-patterns-def.md#模式-g`。
 
 ### 模式 H: 企业统一身份认证 SSO 自动登录 *(sso-passport-injection + credential-decoupling + redirect-settle)*
 
