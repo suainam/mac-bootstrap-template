@@ -135,6 +135,7 @@ resp, key = send_jev(
 
 ## 工具脚本
 
+`scripts/prd_workbench.mjs` 支持 `dump`（返回 versionMeta/editMode）、`save`（返回 module_id，取自 file_path）、`fetch --path <OSS url>`（回读持久化 md）、`score`；`audit` 仅为格式参考，非平台真实评分（评分以 `recalculate` 接口为准）。
 `scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/prd_workbench.mjs`（AI 产品工作台 PRD 静态审计、直写保存与评分轮询）、`scripts/sso_login.mjs`（企业 SSO 账号密码自动登录与重定向判定）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
 
 ## 避坑指南
