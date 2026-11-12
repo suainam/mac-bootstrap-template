@@ -45,6 +45,7 @@ make skill-reconcile
 Managed Skills format: one-level `<name>/SKILL.md`, lowercase-hyphenated `name`
 (1–64 chars), non-empty `description` (≤1024 chars); `scripts/`, `references/`,
 `assets/` stay inside the same source directory.
+- `prd-score-optimization` 源目录 `agent-skills/local/global/prd-score-optimization/`；迭代重算流程与缓存/fiber/module_id 等踩坑记录于其 `references/lessons.md`。
 ### Issue tracker
 
 GitHub Issues in `suainam/mac-bootstrap-template` are the source for specs and

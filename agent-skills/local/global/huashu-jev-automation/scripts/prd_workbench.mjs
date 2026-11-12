@@ -1,6 +1,28 @@
 import fs from "fs";
 import path from "path";
-import { getHuashuClient } from "./huashu_driver.mjs";
+import { getHuashuClient, callTopFetch } from "./huashu_driver.mjs";
+
+/**
+ * 从后端返回的 OSS file_path 中提取 module_id（如 .../module_28311/prd.md -> 28311）
+ */
+export function extractModuleId(filePath) {
+  const m = String(filePath || "").match(/module_(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * 从扩展 eval 返回中稳健提取 JSON 结果。
+ * 扩展有时在 JSON 前后附带提示文本（如"⚠️ ..."、"（提示：...）"），直接 JSON.parse 会失败；
+ * 这里定位首个 '{' 与末个 '}' 截取 JSON 主体。
+ */
+export function parseEvalReturn(res) {
+  const raw = (res && typeof res === "object") ? (res.text ?? res) : String(res ?? "");
+  const s = String(raw);
+  const i = s.indexOf("{");
+  const j = s.lastIndexOf("}");
+  if (i < 0 || j <= i) throw new Error("eval 返回中未找到 JSON：\n" + s.slice(0, 300));
+  return JSON.parse(s.slice(i, j + 1));
+}
 
 /**
  * 32 项 PRD 标准必填字段规约（必须使用全角中文括号）
@@ -47,7 +69,9 @@ export const REQUIRED_32_FIELDS = [
 ];
 
 /**
- * 本地静态校验 PRD Markdown 是否满足 32 项必填项
+ * 【格式参考】32 项标准字段存在性检查。
+ * 注意：该检查不代表平台真实评分（评分以 POST /api/product-agent/analysis/score/<id>/recalculate 为准），
+ * 仅用于提示字段标题/全角括号等格式规范；isCompliant=false 不表示 PRD 不合格。
  */
 export function auditLocalPrdMarkdown(content) {
   const missing = [];
@@ -74,12 +98,13 @@ export function auditLocalPrdMarkdown(content) {
     matchedCount: REQUIRED_32_FIELDS.length - missing.length,
     missing,
     warnings,
-    isCompliant: missing.length === 0 && warnings.length === 0
+    isCompliant: missing.length === 0 && warnings.length === 0,
+    note: "格式参考，非平台真实评分；评分以 POST /api/product-agent/analysis/score/<id>/recalculate 为准"
   };
 }
 
 /**
- * 提取页面当前的 PRD 元数据与评分详情
+ * 提取页面当前的 PRD 元数据、评分详情与版本元数据
  */
 export async function dumpPrdStatus(client, tabId) {
   const expr = `(async () => {
@@ -155,6 +180,28 @@ export async function dumpPrdStatus(client, tabId) {
       }
     }
 
+    // 附带读取版本元数据与编辑态标记（保持轻量，不携带全量正文）
+    const storyPath = location.hash.match(/Story-\\d+/);
+    const sc = storyPath ? storyPath[0] : storyCode;
+    const token = localStorage.getItem("Agent-Token") || "";
+    const devopsToken = localStorage.getItem("Devops-Platform-Token") || "";
+    let versionMeta = null;
+    if (sc) {
+      try {
+        const vr = await fetch(\`/api/product-agent/version/list?story_code=\${sc}\`, {
+          headers: { "Authorization": "Bearer " + token, "Agent-Token": token, "Devops-Platform-Token": devopsToken }
+        });
+        if (vr.ok) {
+          const vj = await vr.json();
+          if (Array.isArray(vj.versions) && vj.versions.length > 0) {
+            const v0 = vj.versions[0];
+            versionMeta = { version: v0.version, label: v0.version_label, status: v0.status, moduleCount: v0.module_count };
+          }
+        }
+      } catch {}
+    }
+    const editMode = !!document.querySelector(".vditor-ir");
+
     return {
       version,
       score,
@@ -162,17 +209,20 @@ export async function dumpPrdStatus(client, tabId) {
       qualityScore,
       prdId,
       storyCode,
+      editMode,
+      versionMeta,
       unfilledFields: fields.filter(f => !f.includes("已填写")),
       suggestionsSnippet: suggestions.slice(0, 1000)
     };
   })()`;
 
   const res = await client.call("eval", { expr, tabId });
-  return JSON.parse(res.text.split("\n\n（提示：")[0].trim());
+  return parseEvalReturn(res);
 }
 
 /**
- * 直写 PRD 内容到后端存储并同步 Fiber 状态
+ * 直写 PRD 内容到后端存储并同步 Fiber 状态。
+ * 返回中附带 module_id（从后端返回的 OSS file_path 解析）。
  */
 export async function directSavePrd(client, tabId, markdownContent, options = {}) {
   const expr = `(async () => {
@@ -203,13 +253,13 @@ export async function directSavePrd(client, tabId, markdownContent, options = {}
     }
 
     if (!prdId) {
-      return { ok: false, error: "未找到 PRD 实体 ID，请确认当前处于原型设计工作台" };
+      return { ok: false, error: "未找到 PRD 实体 ID，请确认当前处于原型设计工作台（可先点「编辑」恢复 fiber）" };
     }
 
     // 2. 提取认证 Token
     const token = localStorage.getItem("Agent-Token") || "";
     const devopsToken = localStorage.getItem("Devops-Platform-Token") || "";
-    const username = localStorage.getItem("username") || localStorage.getItem("user") || "unknown";
+    const username = localStorage.getItem("Operator-Name") || localStorage.getItem("user") || "unknown";
 
     const headers = {
       "Content-Type": "application/json",
@@ -241,17 +291,16 @@ export async function directSavePrd(client, tabId, markdownContent, options = {}
   })()`;
 
   const res = await client.call("eval", { expr, tabId });
-  return JSON.parse(res.text.split("\n\n（提示：")[0].trim());
+  return parseEvalReturn(res);
 }
 
 /**
  * 触发重新检测并轮询直到评分出炉
  */
-export async function triggerAndPollScore(client, tabId, maxWaitSec = 45) {
-  // 点击重新检测按钮
+export async function triggerAndPollScore(client, tabId, maxWaitSec = 60) {
   const clickExpr = `(() => {
-    const btn = Array.from(document.querySelectorAll("button")).find(b => b.innerText.trim() === "重新检测");
-    if (!btn) return { ok: false, error: "未找到'重新检测'按钮" };
+    const btn = Array.from(document.querySelectorAll("button")).find(b => /重新评分|重新检测/.test(b.innerText.trim()));
+    if (!btn) return { ok: false, error: "未找到'重新评分/重新检测'按钮" };
     
     // 优先调用 React onClick 避开 DOM 穿透限制
     const k = Object.keys(btn).find(k => k.startsWith("__reactFiber"));
@@ -268,28 +317,30 @@ export async function triggerAndPollScore(client, tabId, maxWaitSec = 45) {
   })()`;
 
   const clickRes = await client.call("eval", { expr: clickExpr, tabId });
-  const parsedClick = JSON.parse(clickRes.text.split("\n\n（提示：")[0].trim());
+  const parsedClick = parseEvalReturn(clickRes);
   if (!parsedClick.ok) return parsedClick;
 
-  // 轮询评分计算状态
+  // 轮询评分计算状态，连续两次读到相同分数视为稳定（评分器可能缓存旧分，需等待刷新）
   const start = Date.now();
+  let lastScore = null;
   while ((Date.now() - start) < maxWaitSec * 1000) {
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 5000));
     const status = await dumpPrdStatus(client, tabId);
-    
     const checkCalculating = `(() => {
       const text = document.body.innerText;
-      return text.includes("正在重新检测") || text.includes("正在计算评分") || text.includes("检测中");
+      return text.includes("正在重新检测") || text.includes("正在计算评分") || text.includes("检测中") || text.includes("评分中");
     })()`;
     const checkRes = await client.call("eval", { expr: checkCalculating, tabId });
-    const isCalculating = JSON.parse(checkRes.text.split("\n\n（提示：")[0].trim());
-
+    const isCalculating = parseEvalReturn(checkRes);
     if (!isCalculating && status.score) {
-      return { ok: true, status };
+      if (status.score === lastScore) return { ok: true, status, stable: true };
+      lastScore = status.score;
     }
   }
-
-  return { ok: false, error: "评分检测超时" };
+  const finalStatus = await dumpPrdStatus(client, tabId);
+  return finalStatus.score
+    ? { ok: true, status: finalStatus, stable: false }
+    : { ok: false, error: "评分检测超时" };
 }
 
 // CLI 执行模式
@@ -298,9 +349,10 @@ if (process.argv[1] && process.argv[1].endsWith("prd_workbench.mjs")) {
   if (!cmd || cmd === "--help" || cmd === "-h") {
     console.log("用法: node prd_workbench.mjs <cmd> [options]");
     console.log("命令:");
-    console.log("  audit <file.md>                 静态检查 PRD Markdown 是否符合 32 项标准目录与规约");
-    console.log("  dump --tabId <id>               抓取当前页面的 PRD 评分、版本、未填项与修改建议");
-    console.log("  save --tabId <id> --file <md>   直写 Markdown 文件至平台存储并同步状态");
+    console.log("  audit <file.md>                 【格式参考】检查 PRD Markdown 32 项字段标题与全角括号（非平台真实评分）");
+    console.log("  dump --tabId <id>               抓取当前页面的 PRD 评分、版本、module 元数据与编辑态");
+    console.log("  save --tabId <id> --file <md>   直写 Markdown 文件并返回 module_id（取自 file_path）");
+    console.log("  fetch --tabId <id> --path <url> 读取持久化 prd.md（OSS），用于保存后回读核对");
     console.log("  score --tabId <id>              触发重新检测并轮询评分结果");
     process.exit(0);
   }
@@ -319,7 +371,7 @@ if (process.argv[1] && process.argv[1].endsWith("prd_workbench.mjs")) {
     const content = fs.readFileSync(filePath, "utf8");
     const result = auditLocalPrdMarkdown(content);
     console.log(JSON.stringify(result, null, 2));
-    process.exit(result.isCompliant ? 0 : 1);
+    process.exit(0);
   }
 
   const tabIdStr = getArg("--tabId");
@@ -342,7 +394,25 @@ if (process.argv[1] && process.argv[1].endsWith("prd_workbench.mjs")) {
       }
       const content = fs.readFileSync(filePath, "utf8");
       const saveResult = await directSavePrd(client, tabId, content);
+      if (saveResult.ok && saveResult.saveRes) {
+        saveResult.moduleId = extractModuleId(saveResult.saveRes.file_path);
+      }
       console.log(JSON.stringify(saveResult, null, 2));
+      process.exit(0);
+    } else if (cmd === "fetch") {
+      const url = getArg("--path");
+      if (!url) {
+        console.error("请通过 --path 提供持久化 prd.md 的 OSS URL（来自 save 返回的 file_path）");
+        process.exit(1);
+      }
+      const fetchExpr = `(async () => { const r = await fetch(${JSON.stringify(url)}); const t = await r.text(); return { status: r.status, text: t }; })()`;
+      const res = await client.call("eval", { expr: fetchExpr, tabId });
+      const out = parseEvalReturn(res);
+      if (out.status && out.status !== 200) {
+        console.error("读取持久化 PRD 失败 HTTP " + out.status);
+        process.exit(1);
+      }
+      process.stdout.write(out.text ?? "");
       process.exit(0);
     } else if (cmd === "score") {
       const scoreResult = await triggerAndPollScore(client, tabId);

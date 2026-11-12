@@ -43,11 +43,11 @@ rtk sed -n '1,260p' private/clash/work-mac.yaml
 # active profile
 rtk sed -n '1,220p' ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/profiles.yaml
 
-# selected local profile body
-rtk sed -n '1,260p' ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/profiles/LFYEU2DnJ6qB.yaml
+# selected local profile body (resolve current uid from profiles.yaml -> current)
+rtk sed -n '1,260p' ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/profiles/<current-uid>.yaml
 
-# bound profile script
-rtk sed -n '1,200p' ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/profiles/sbzhF1r8fVFA.js
+# bound profile script (resolve from profiles.yaml -> current -> option.script)
+rtk sed -n '1,200p' ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/profiles/<script-uid>.js
 
 # final runtime config
 rtk sed -n '1,260p' ~/Library/Application\ Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml

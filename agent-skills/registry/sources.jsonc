@@ -1673,6 +1673,11 @@
             "cross-agent"
           ],
           "reason": "\u4f7f\u7528 huashu-chrome \u4e0e TypeSafe Jev \u5b9e\u73b0\u4f4e\u5ef6\u8fdf\u3001\u4f4e token \u6d88\u8017\u7684\u6d4f\u89c8\u5668\u4ea4\u4e92\u5185\u73af\u4e0e\u8868\u5355\u81ea\u52a8\u5316"
+        },
+        "prd-score-optimization": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "ai-devops PRD 评分优化：锁定版本与评分模块、依据问题定点修订并迭代重算；已验证踩坑（缓存等待/fiber恢复/module_id来源/Operator-Name）见 references/lessons.md"
         }
       }
     },

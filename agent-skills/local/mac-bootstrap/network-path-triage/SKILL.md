@@ -1,12 +1,11 @@
 ---
 name: network-path-triage
 description: >
-  Path-first troubleshooting for enterprise access, proxy, PAC, TUN, DNS, and
-  route anomalies across macOS, Windows, and WSL. Use when the user reports
-  飞连/CorpLink, 无影云/UURemote, Clash Verge, WSL proxy failures, PAC/TUN
-  conflicts, "内网不通", "外网正常但公司站点异常", or asks which layer owns a
-  failing connection path. Also use when another skill needs real route/config
-  diagnosis before changing network settings.
+  Path-first triage for failing connections: prove which layer owns the bad
+  path before changing config. Use when enterprise sites fail while outside
+  works, or when PAC/TUN/DNS/Mihomo/helper-process ownership is unclear across
+  macOS host, Windows host, or WSL guest. Also use when another skill needs a
+  real route/config diagnosis before editing network settings.
 ---
 
 # Network Path Triage
@@ -106,6 +105,8 @@ whether the browser socket pool was flushed (`Shift + Cmd + R`).
 
 ## Rules
 
+Path-first guardrails. Breaking one means you guessed, not diagnosed.
+
 1. Do not assume quitting the GUI exits CorpLink, UURemote, Clash, or platform
    helpers.
 2. Do not assume `DIRECT` means "did not pass through Mihomo".
@@ -114,16 +115,13 @@ whether the browser socket pool was flushed (`Shift + Cmd + R`).
 5. Do not trust repo copies over live runtime files when the task is diagnosis.
 6. If sandbox blocks DNS or route observation, say which live check is still
    unverified instead of inventing the result.
-7. In Clash Verge Rev (v2.5.5+), manage `route-exclude-address` via GUI Settings ->
-   TUN Mode (⚙️), not extension scripts (`Script.js` writes to `tun.*` are dropped
-   as app-owned fields).
-8. Browser web targets: never diagnose failure on `ERR_SSL_PROTOCOL_ERROR` without
-   first flushing browser socket pools (`Shift + Cmd + R`).
-9. `tun.route-exclude-address` is GUI-owned (script writes are dropped); but
-   `dns.fake-ip-filter` has no GUI list editor and IS script-writable.
-   Persist company-domain DNS exemptions via `Script.js` injection (see
-   `references/local-persistent-fake-ip-filter.md`), never by editing the cloud
-   subscription. Keep repo source + Global Script + profile-bound script in sync.
+7. Browser web targets: never call a failure on `ERR_SSL_PROTOCOL_ERROR` before
+   flushing browser socket pools (`Shift + Cmd + R`).
+8. Clash Verge Rev (v2.5.5+) ownership: `tun.route-exclude-address` is
+   GUI-owned; `dns.fake-ip-filter` is script-writable. Follow
+   `references/local-persistent-fake-ip-filter.md` for the split and the
+   three-copy sync requirement.
+
 ## Reference Routing
 
 - Read `REFERENCE.md` for the command set, path map, and interpretation checklist.
