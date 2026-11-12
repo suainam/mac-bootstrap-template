@@ -105,11 +105,11 @@ resp, key = send_jev(
 针对 QA 测试工作台（`next.dslbuy.com` 等用例执行面板）的批量自动化执行、状态推进与阶段门禁流转：
 
 1. **宿主外层紧凑循环 (*tight-loop*)**：由 Node.js 驱动步进循环，每步执行轻量原子同步 eval（单步间隔 300~400ms）。**严禁在 Chrome 内部长循环或 `await sleep`**，避免触发 30s 扩展超时（`TIMEOUT`）。
-2. **动效遮罩防护 (*mask-guard*)**：卡片切换时检测 `.el-loading-mask` 渐隐状态，等待 200ms 避免 `[NOT_INTERACTABLE]`；优先触发 `.result-btn.passed-btn.click()`。
+2. **动效遮罩防护 (*mask-guard*)**：仅当遮罩「非 `fade-leave` 过渡态且计算样式可见」时才等待 200ms；残留的 `.el-loading-fade-leave` 遮罩不阻塞（实测 next.dslbuy.com 会残留，旧版按 `style` 字符串判定会永远空转）。优先触发 `.result-btn.passed-btn.click()`。循环带**停滞熔断**（连续 10 步 passed 不增长即返回 `stalled`）。
 3. **末尾失焦主动补偿 (*tail-compensation*)**：若用例详情未自动载入「通过」按钮，主动执行 `pendingCards[0].click()` 显式激活。
 4. **动态用例扩增与阶段门禁 (*stage-gate*)**：冒烟通过（P0）后重新获取扩充后的系统用例；阶段流转按钮（「冒烟通过」「完成测试」）及模态弹窗确认遵循 Four-Gate 人机终审。
 
-标准实现在 `scripts/test_case_runner.mjs`。详见 `references/interaction-patterns-def.md#模式-g`。
+标准实现在 `scripts/test_case_runner.mjs`：选择器集中在导出的 `SELECTORS` 常量；CLI 目标可传 `tabId` / `Story-XXXXXX` / 完整 URL（已开则复用，未开则新开）；阶段按钮与确认弹窗按结构定位，弹窗正文必须含触发按钮文案才确认（Gate 2）；确认后回读 Story 状态（`.twf-status-tag`，如「验证中」）判定流转生效。详见 `references/interaction-patterns-def.md#模式-g`。
 
 ### 模式 H: 企业统一身份认证 SSO 自动登录 *(sso-passport-injection + credential-decoupling + redirect-settle)*
 
@@ -129,12 +129,11 @@ resp, key = send_jev(
 1. **32 项标准目录与标点敏感性 (*pre-flight-audit*)**：平台解析器强依赖全角括号。如 `### 边界场景（edge_cases）` 误用半角括号会直接判未填扣 10 分；`### 每个功能的详细说明` 下必须包含 `#### N.` 逐一对应功能清单；数据模型中避免出现“示例/依契约”等模糊字样。
 2. **React Fiber 探针与状态同步 (*fiber-sync*)**：富文本编辑器（Vditor）修改 DOM 不影响底层状态；从 `.vditor` 向上遍历 Fiber 节点提取 `onSavePrd`，并同步更新 `qiFiber.memoizedProps.setTempPrdContent`。
 3. **顶层接口持久化直写 (*direct-api-save*)**：长文档通过聊天流式生成极易发生截断遗漏。直接提取 localStorage 会话 Token，调用原生 `POST /api/product-agent/prd/save` 直写 Markdown 实体。
-4. **评分检测与真源对账过滤 (*grounding-filter*)**：通过 `fiber.memoizedProps.onClick()` 触发「重新检测」并轮询分数；对评审器提出的“增加上传接口/强制全量店退货”等脱离数仓实际的建议坚决按仓库真实事实过滤，在不做范围（Non-Goals）中说明防御，绝不盲目迎合捏造需求。
-
-标准实现在 `scripts/prd_workbench.mjs`。详见 `references/interaction-patterns-def.md#模式-i`。
+4. **评分检测与真源对账过滤 (*grounding-filter*)**：通过 `fiber.memoizedProps.onClick()` 触发「重新评分/重新检测」（兼容两文案）并轮询分数；保存后 40~60s 内首次重算常返回缓存旧分，需等待刷新或二次重算（见 `references/score-iteration-loop.md`）；对评审器提出的“增加上传接口/强制全量店退货”等脱离数仓实际的建议坚决按仓库真实事实过滤，在不做范围（Non-Goals）中说明防御，绝不盲目迎合捏造需求。
 
 ## 工具脚本
 
+命令清单与参数以脚本自身为唯一真源：`node scripts/prd_workbench.mjs --help`（含 `audit` 仅为格式参考、非平台真实评分，评分以 `recalculate` 接口为准）。
 `scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/prd_workbench.mjs`（AI 产品工作台 PRD 静态审计、直写保存与评分轮询）、`scripts/sso_login.mjs`（企业 SSO 账号密码自动登录与重定向判定）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
 
 ## 避坑指南
@@ -151,5 +150,7 @@ resp, key = send_jev(
 10. **SSO 凭据隔离与权限**：凭据文件由 `private/sso-tech-committee.env` 管理并软链接至 `~/.sso-tech-committee.env`，文件权限强制保持 `600`（通过 `harden-secret-permissions.sh` 校验）。
 11. **PRD 32 项标题全角标点敏感**：`ai-devops` 原型工作台对字段正则极其严格，`边界场景（edge_cases）` 与 `量化目标（baseline→target）` 严禁写成英文半角括号，否则会被判定为“未填写”直接扣 10 分。
 12. **评审器建议过度迎合与业务失真**：通用 LLM 评审建议常机械套用 Web 系统规范，对离线数仓/算法类需求提出“补充上传接口/回写状态”等违背实际的建议。必须坚持以仓库代码与调研文档为 SSOT，在 Non-Goals 中申明边界，严禁为提分虚构业务逻辑。
+13. **连接浏览器必须用 huashu BridgeClient，勿用 omp `browser.open(relay)`**：在 Eval 里驱动本技能时，直接 `import { getHuashuClient } from "<skill>/scripts/huashu_driver.mjs"` 建 `client`，走扩展通道（`client.call("tabs"/"snapshot"/"eval"/"fetch", params, { tabId })`）连已登录 Chrome。**严禁改用 omp 的 `browser.open({app:{relay:true}})`**——那走宿主 relay 会命中操作边界 `Operation boundary: browser`，且只能由 operator 执行 `/operation-boundary allow browser` 放行、无绕过路径，会浪费多轮。正确顺序：先 `client.call("tabs", {action:"list"})` 定位已开的 `tabId`（避免盲目新建标签），再在该 `tabId` 上执行 snapshot/eval。Eval 报 `(el.value ?? el.innerText ?? "").trim is not a function` 属扩展 rpc 解析异常，换 `eval` 或缩小选择器重试，不要换驱动方式。
+14. **ai-devops 需求拆解**：目标是 `ai-devops.dslbuy.com/#/demand/decompose/<id>`，或用户要“拆 Story/拆分/AI拆解/重新拆解/挂工时”时，遵循 `skill://story-decompose-ai-devops`（含四必填选择器交互：产品线/子系统/到期日/人员四岗）。
 
 架构职责分工见 `references/architecture.md`。

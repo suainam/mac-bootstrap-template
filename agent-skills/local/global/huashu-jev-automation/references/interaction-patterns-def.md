@@ -97,7 +97,8 @@ client.call("fetch", { url, init }, { tabId })
 用例卡片切换与详情渲染时常伴有 ElementUI `el-loading-mask` 渐隐动效（~200-300ms）。在此期间如果直接调用坐标点击，会被遮罩拦截报 `[NOT_INTERACTABLE]`。
 防护策略：
 1. 优先调用 `.result-btn.passed-btn.click()` 触发原生事件。
-2. 每步执行前检测 `.el-loading-mask:not([style*="display: none"])`，存在时等待 200ms 渐隐完成。
+2. 遮罩判定用 `getComputedStyle` + 尺寸：`!/fade-leave/.test(className) && display≠none && visibility≠hidden && 宽高>0`。**不要**用 `:not([style*="display: none"])`——页面会残留带 `el-loading-fade-leave` 的遮罩且无 inline style，导致永远判为「有遮罩」而空转（2026-11 Story-288904 实测）。
+3. 循环自带停滞熔断（`stallLimit`，默认 10 步 passed 不增长则返回 `reason: "stalled"`），避免空转到 maxSteps。
 
 ### G.2 宿主外层紧凑驱动循环 (tight-loop vs 30s timeout)
 
@@ -121,9 +122,9 @@ huashu-chrome 扩展对单次 `eval` 命令有约 30s 响应时限。**严禁在
 阶段流转（冒烟通过、完成测试）会导致工单流转、邮件通知与测试报告生成，具有业务副作用。
 必须严格执行 Four-Gate 规范：
 1. 自动化负责把所有待执行用例批量通过，直到流转按钮点亮。
-2. 阶段流转按钮（`冒烟通过` / `完成测试`）及模态确认弹窗（`确认通过` / `确认完成`）须在获得人机终审授权后，通过 `confirmStageTransition` 精确触发。
+2. 阶段流转按钮（`冒烟通过` / `完成测试`）及模态确认弹窗须在获得人机终审授权后，通过 `confirmStageTransition` 触发。动作按钮在 `.bottom-smoke-actions` 内按 `STAGE_ACTIONS` 匹配；确认按钮按结构定位（弹窗主按钮），不硬编码「确认通过/确认完成」；弹窗正文必须包含触发按钮文案才点确认，否则自动取消并返回 `modal_text_mismatch`。确认后轮询 Story 状态标签 `.twf-status-tag` / 阶段按钮变化，未变化返回 `no_state_change_after_confirm`。
 
-标准工具脚本已实现于 `scripts/test_case_runner.mjs`。
+标准工具脚本已实现于 `scripts/test_case_runner.mjs`；页面改版时只改导出的 `SELECTORS`。CLI：`node test_case_runner.mjs <status|pass-all|confirm-stage> <tabId|Story-XXXX|URL> [actionText]`。
 
 ---
 
@@ -250,17 +251,9 @@ while (fiber) {
 
 ### I.3 标准工具实现
 
-完整能力封装在 `scripts/prd_workbench.mjs`：
+完整能力封装在 `scripts/prd_workbench.mjs`。命令清单与参数以脚本自身为唯一真源，不在此重复：
 ```bash
-# 1. 本地静态检查 32 项标准字段与标点规范
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs audit <file.md>
-
-# 2. 读取指定标签页当前的 PRD 评分与修改建议
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs dump --tabId <id>
-
-# 3. 直写高质量 Markdown 实体并完成持久化
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs save --tabId <id> --file <file.md>
-
-# 4. 触发重新检测并轮询最终评分
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs score --tabId <id>
+node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs --help
 ```
+评分死锁与迭代闭环详见 `references/score-iteration-loop.md`。
+
