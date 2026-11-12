@@ -287,8 +287,7 @@ export async function directSavePrd(client, tabId, markdownContent, options = {}
       qiFiber.memoizedProps.setTempPrdContent(${JSON.stringify(markdownContent)});
     }
 
-    const moduleId = extractModuleId(saveRes?.file_path);
-    return { ok: true, prdId, moduleId, saveRes };
+    return { ok: true, prdId, saveRes };
   })()`;
 
   const res = await client.call("eval", { expr, tabId });
@@ -298,11 +297,10 @@ export async function directSavePrd(client, tabId, markdownContent, options = {}
 /**
  * 触发重新检测并轮询直到评分出炉
  */
-export async function triggerAndPollScore(client, tabId, maxWaitSec = 45) {
-  // 点击重新检测按钮
+export async function triggerAndPollScore(client, tabId, maxWaitSec = 60) {
   const clickExpr = `(() => {
-    const btn = Array.from(document.querySelectorAll("button")).find(b => b.innerText.trim() === "重新检测");
-    if (!btn) return { ok: false, error: "未找到'重新检测'按钮" };
+    const btn = Array.from(document.querySelectorAll("button")).find(b => /重新评分|重新检测/.test(b.innerText.trim()));
+    if (!btn) return { ok: false, error: "未找到'重新评分/重新检测'按钮" };
     
     // 优先调用 React onClick 避开 DOM 穿透限制
     const k = Object.keys(btn).find(k => k.startsWith("__reactFiber"));
@@ -322,25 +320,27 @@ export async function triggerAndPollScore(client, tabId, maxWaitSec = 45) {
   const parsedClick = parseEvalReturn(clickRes);
   if (!parsedClick.ok) return parsedClick;
 
-  // 轮询评分计算状态
+  // 轮询评分计算状态，连续两次读到相同分数视为稳定（评分器可能缓存旧分，需等待刷新）
   const start = Date.now();
+  let lastScore = null;
   while ((Date.now() - start) < maxWaitSec * 1000) {
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 5000));
     const status = await dumpPrdStatus(client, tabId);
-    
     const checkCalculating = `(() => {
       const text = document.body.innerText;
-      return text.includes("正在重新检测") || text.includes("正在计算评分") || text.includes("检测中");
+      return text.includes("正在重新检测") || text.includes("正在计算评分") || text.includes("检测中") || text.includes("评分中");
     })()`;
     const checkRes = await client.call("eval", { expr: checkCalculating, tabId });
     const isCalculating = parseEvalReturn(checkRes);
-
     if (!isCalculating && status.score) {
-      return { ok: true, status };
+      if (status.score === lastScore) return { ok: true, status, stable: true };
+      lastScore = status.score;
     }
   }
-
-  return { ok: false, error: "评分检测超时" };
+  const finalStatus = await dumpPrdStatus(client, tabId);
+  return finalStatus.score
+    ? { ok: true, status: finalStatus, stable: false }
+    : { ok: false, error: "评分检测超时" };
 }
 
 // CLI 执行模式
@@ -394,6 +394,9 @@ if (process.argv[1] && process.argv[1].endsWith("prd_workbench.mjs")) {
       }
       const content = fs.readFileSync(filePath, "utf8");
       const saveResult = await directSavePrd(client, tabId, content);
+      if (saveResult.ok && saveResult.saveRes) {
+        saveResult.moduleId = extractModuleId(saveResult.saveRes.file_path);
+      }
       console.log(JSON.stringify(saveResult, null, 2));
       process.exit(0);
     } else if (cmd === "fetch") {

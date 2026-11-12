@@ -265,3 +265,5 @@ node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs save --tab
 # 4. 触发重新检测并轮询最终评分
 node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs score --tabId <id>
 ```
+- 评分死锁与迭代闭环详见 `references/score-iteration-loop.md`。
+
