@@ -251,19 +251,9 @@ while (fiber) {
 
 ### I.3 标准工具实现
 
-完整能力封装在 `scripts/prd_workbench.mjs`：
+完整能力封装在 `scripts/prd_workbench.mjs`。命令清单与参数以脚本自身为唯一真源，不在此重复：
 ```bash
-# 1. 本地静态检查 32 项标准字段与标点规范
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs audit <file.md>
-
-# 2. 读取指定标签页当前的 PRD 评分与修改建议
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs dump --tabId <id>
-
-# 3. 直写高质量 Markdown 实体并完成持久化
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs save --tabId <id> --file <file.md>
-
-# 4. 触发重新检测并轮询最终评分
-node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs score --tabId <id>
+node ~/.agents/skills/huashu-jev-automation/scripts/prd_workbench.mjs --help
 ```
-- 评分死锁与迭代闭环详见 `references/score-iteration-loop.md`。
+评分死锁与迭代闭环详见 `references/score-iteration-loop.md`。
 

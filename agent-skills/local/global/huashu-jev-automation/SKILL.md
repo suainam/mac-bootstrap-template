@@ -131,11 +131,9 @@ resp, key = send_jev(
 3. **顶层接口持久化直写 (*direct-api-save*)**：长文档通过聊天流式生成极易发生截断遗漏。直接提取 localStorage 会话 Token，调用原生 `POST /api/product-agent/prd/save` 直写 Markdown 实体。
 4. **评分检测与真源对账过滤 (*grounding-filter*)**：通过 `fiber.memoizedProps.onClick()` 触发「重新评分/重新检测」（兼容两文案）并轮询分数；保存后 40~60s 内首次重算常返回缓存旧分，需等待刷新或二次重算（见 `references/score-iteration-loop.md`）；对评审器提出的“增加上传接口/强制全量店退货”等脱离数仓实际的建议坚决按仓库真实事实过滤，在不做范围（Non-Goals）中说明防御，绝不盲目迎合捏造需求。
 
-`scripts/prd_workbench.mjs` 的评分死锁与迭代闭环详见 `references/score-iteration-loop.md`。
-
 ## 工具脚本
 
-`scripts/prd_workbench.mjs` 支持 `dump`（返回 versionMeta/editMode）、`save`（返回 module_id，取自 file_path）、`fetch --path <OSS url>`（回读持久化 md）、`score`（触发重新评分并轮询至稳定）；`audit` 仅为格式参考，非平台真实评分（评分以 `recalculate` 接口为准）。
+命令清单与参数以脚本自身为唯一真源：`node scripts/prd_workbench.mjs --help`（含 `audit` 仅为格式参考、非平台真实评分，评分以 `recalculate` 接口为准）。
 `scripts/huashu_driver.mjs`（Node.js 驱动，`tabId` 槽位保护，含 `callTopFetch`/`uploadAttachmentToPage`）、`scripts/prd_workbench.mjs`（AI 产品工作台 PRD 静态审计、直写保存与评分轮询）、`scripts/sso_login.mjs`（企业 SSO 账号密码自动登录与重定向判定）、`scripts/test_case_runner.mjs`（测试工作台用例批量推进与阶段流转确认）、`scripts/form_injector.mjs`（受控注入与单实例断言）、`scripts/typesafe_jev.py`（双 key 回退客户端）。主备 key 路由详情见 `references/key-routing.md`。
 
 ## 避坑指南
