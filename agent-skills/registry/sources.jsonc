@@ -1678,6 +1678,11 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "ai-devops PRD 评分优化：锁定版本与评分模块、依据问题定点修订并迭代重算；已验证踩坑（缓存等待/fiber恢复/module_id来源/Operator-Name）见 references/lessons.md"
+        },
+        "claim-first": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "First-party merge of Kiterlin/anti-defensive-writing (calibrated assertiveness, positive scope, uncertainty calibration) and Adkid-Zephyr/anti-defensive-writing-Skill (press-release narrative for papers); MIT sources; upstream tracked for future absorption. No external fetch: content lives here. Routing splits from ste (agent replies) and humanizer-zh (generic Chinese AI-slop cleanup)"
         }
       }
     },

@@ -142,6 +142,9 @@ stay explicit and outrank compression.
 
 - `/ste`: load `~/.agents/skills/ste/SKILL.md`. Explicit trigger only, active until
   "stop ste" or "normal mode"; never a global default.
+- Academic, technical, or professional prose you are drafting or revising:
+  `claim-first` owns the defensiveness judgement. `ste` still owns
+  the agent's own replies; `humanizer-zh` still owns generic Chinese cleanup.
 - Complex explanation with real visual payoff, or an explicit request: the
   `answer-me-with-html` page is the single main deliverable; summarize in chat,
   never duplicate the page text. A list or table alone is not a reason; trigger on

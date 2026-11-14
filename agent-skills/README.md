@@ -131,6 +131,17 @@ detail and is read on demand, not every turn.
   HTML artifact wording follows the HTML CLI's own lint. A user request can put
   an explicit page under STE, but STE is not a default constraint on project
   artifacts.
+- **`claim-first`** (first-party merge of the two upstream
+  anti-defensive-writing Skills; upstreams tracked for future absorption):
+  draft and revision of academic, technical, and professional prose (papers,
+  grant proposals, SOPs, reports, rebuttals). It
+  owns the delete-the-disclaimer and calibrate-the-hedge decisions, plus the
+  paper narrative branch. Distinct from `ste` (the agent's own replies) and
+  `humanizer-zh` (generic Chinese AI-slop cleanup). The three do not restate
+  each other: `ste` owns the status vocabulary, `humanizer-zh` owns the pattern
+  catalog, and this Skill owns the defensiveness judgement. `scripts/check_rewrite.py`
+  verifies a rewrite against a case's invariants (kept facts, dropped patterns,
+  no invented or dropped figures).
 - **Complex explanation**: `answer-me-with-html` is the main deliverable when
   the user asks for it or when visuals genuinely carry the content; a
   list/table alone is not enough reason. Chat carries a short orientation, not

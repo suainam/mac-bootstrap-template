@@ -1,0 +1,132 @@
+{
+  "description": "Golden rewrite pairs for the claim-first Skill. Each case pins the invariants: `must_keep` facts that survive, `must_drop` defensive patterns that go. Numeric tokens are checked both ways at test time, so a dropped figure or an invented one fails.",
+  "cases": [
+    {
+      "id": "zh-abstract-hedge-stack",
+      "genre": "中文论文摘要",
+      "source": "虽然本文的方法在某种程度上或许可能潜在地改善了检索效果，但必须承认，我们仅仅在两个数据集上做了初步尝试，所获结论只能提供非常有限的参考。此外，本文并不声称该方法能够代表所有语言场景，跨语言泛化尚未评估。",
+      "expected": "实验结果显示，本文方法改善了检索效果，在两个数据集上评估。跨语言泛化尚未评估。",
+      "must_keep": [
+        "两个",
+        "尚未评估",
+        "跨语言泛化"
+      ],
+      "must_drop": [
+        "或许",
+        "可能",
+        "潜在地",
+        "某种程度上",
+        "仅仅",
+        "只能提供",
+        "并不声称",
+        "必须承认"
+      ],
+      "note": "叠加模态词压成一个证据锚点「实验结果显示」，不压成零；数据集数量与「尚未评估」这一真实缺口保留。"
+    },
+    {
+      "id": "zh-sop-admonitory",
+      "genre": "中文技术 SOP",
+      "source": "切记在标定前务必检查探头零位，若未归零则测量结果不可用。在条件允许时，建议对样品进行温度的测量。注意：两种夹具不可互相替代。",
+      "expected": "标定前检查探头零位。未归零时，测量结果不可用。样品温度测量：原稿未给出前提条件，需补充。两种夹具不可互相替代。",
+      "must_keep": [
+        "标定",
+        "零位",
+        "不可用",
+        "温度",
+        "不可互相替代"
+      ],
+      "must_drop": [
+        "切记",
+        "务必",
+        "建议",
+        "条件允许",
+        "视情况",
+        "必要时",
+        "酌情",
+        "进行.{0,8}测量"
+      ],
+      "note": "「不可互相替代」是真实限制，保留；含糊前提换成缺失信息标注，不得删成无条件动作。"
+    },
+    {
+      "id": "en-intro-not-x-but-y",
+      "genre": "English paper introduction",
+      "source": "This paper is not intended to provide a comprehensive theory of platform governance, but rather to examine one specific mechanism. These results may potentially suggest that content moderation could possibly reshape participation. We do not claim that these cases are representative of all contexts.",
+      "expected": "This paper examines one specific mechanism of platform governance. The results suggest that content moderation reshapes participation in these cases. The cases are drawn from one governance setting; generalization beyond it is untested.",
+      "must_keep": [
+        "mechanism",
+        "participation",
+        [
+          "cases",
+          "contexts",
+          "settings",
+          "data"
+        ]
+      ],
+      "must_drop": [
+        "may potentially",
+        "could possibly",
+        "We do not claim",
+        "is not intended to provide",
+        "but rather"
+      ],
+      "note": "三条防御句改写成正向陈述；限制保留一次并写成陈述式范围，不引入原稿没有的情境数量。"
+    },
+    {
+      "id": "zh-metric-as-verdict",
+      "genre": "中文实验章节",
+      "source": "相同测试条件下，准确率从 90% 降到 89%，延迟从 100 ms 降到 60 ms。准确率较低，说明该方法仍存在明显局限。",
+      "expected": "相同测试条件下，该方法把延迟从 100 ms 降到 60 ms，准确率为 89%，基线为 90%。",
+      "must_keep": [
+        "90%",
+        "89%",
+        "100 ms",
+        "60 ms"
+      ],
+      "must_drop": [
+        "明显局限",
+        "准确率较低，说明"
+      ],
+      "note": "两个指标并列成权衡；单个指标落后不再充当对整个方法的判决。"
+    },
+    {
+      "id": "zh-rebuttal-apology",
+      "genre": "中文 rebuttal",
+      "source": "感谢审稿人的宝贵意见。我们非常抱歉之前没有说清楚，这确实是我们的疏忽。我们承认本文的实验还不够充分，未能超过基线，性能有所下降，效果有限。",
+      "expected": "本文方法的准确率未超过基线。",
+      "must_keep": [
+        "基线"
+      ],
+      "must_drop": [
+        "非常抱歉",
+        "疏忽",
+        "实验还不够充分",
+        "性能有所下降",
+        "效果有限",
+        "承认",
+        "将补充",
+        "后续补充",
+        "补充这些结论",
+        "我们会补"
+      ],
+      "note": "道歉与整体判决删除；「未超过基线」是具体事实，必须留下。礼貌用语可以留，但不能承诺原稿没有的补做计划。"
+    },
+    {
+      "id": "agent-report-stale-name",
+      "genre": "Agent 任务结果汇报",
+      "source": "改名完成：claim-first，全部绿灯。契约测试 tests/test_anti_defensive_writing.py 25 passed。技能是 model-invoked，不想要就改 disable-model-invocation: true 变成纯手动 /anti-defensive-writing。改动只在 template/ 子仓工作区，未提交、未推送。父仓 pointer 也没动。",
+      "expected": "改名完成：claim-first，全部绿灯。契约测试 25 passed。技能是 model-invoked；改成纯手动时设 disable-model-invocation: true。改动只在 template/ 子仓工作区，未提交、未推送。父仓 pointer 未动。",
+      "must_keep": [
+        "claim-first",
+        "25 passed",
+        "model-invoked",
+        "disable-model-invocation",
+        "未提交、未推送"
+      ],
+      "must_drop": [
+        "anti-defensive-writing",
+        "test_anti_defensive_writing"
+      ],
+      "note": "改名后旧技能名与旧测试文件名是过期标识符，必须清除；数字与未推送事实保留。"
+    }
+  ]
+}
