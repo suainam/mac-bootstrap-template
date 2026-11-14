@@ -50,3 +50,67 @@ def test_brewfile_includes_devspace_npm_package():
     content = open(os.path.join(TEMPLATE, "Brewfile")).read()
     assert 'npm "@waishnav/devspace"' in content
     assert 'brew "cloudflared"' in content
+
+
+def test_configure_antigravity_settings_merges_template_and_private(tmp_path):
+    import json
+
+    settings_path = tmp_path / ".gemini/antigravity-cli/settings.json"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        json.dumps(
+            {
+                "model": "Gemini 4 Hydrogen (Medium)",
+                "trustedWorkspaces": ["/tmp/existing"],
+                "permissions": {"allow": ["command(git)"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    private_dir = tmp_path / "private"
+    sample_work = str(tmp_path / "work")
+    (private_dir / "agent/agy").mkdir(parents=True)
+    (private_dir / "agent/agy/settings.json").write_text(
+        json.dumps(
+            {
+                "showTips": False,
+                "trustedWorkspaces": [sample_work],
+                "permissions": {"allow": [f"read_file({sample_work})"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    env = {
+        "HOME": str(tmp_path),
+        "PATH": os.environ.get("PATH", ""),
+        "BOOTSTRAP": TEMPLATE,
+        "MAC_BOOTSTRAP_PRIVATE_DIR": str(private_dir),
+        "ANTIGRAVITY_SETTINGS": str(settings_path),
+    }
+    script = (
+        "set -euo pipefail\n"
+        f'BOOTSTRAP="{TEMPLATE}"\n'
+        f'. "{TEMPLATE}/scripts/lib/agent-shared.sh"\n'
+        f'. "{TEMPLATE}/scripts/lib/agent-mcp.sh"\n'
+        "configure_antigravity_settings_file\n"
+    )
+    result = subprocess.run(
+        ["bash", "-c", script], env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    merged = json.loads(settings_path.read_text(encoding="utf-8"))
+    assert merged["agentMode"] == "auto"
+    assert merged["enableTerminalSandbox"] is True
+    assert merged["toolPermission"] == "proceed-in-sandbox"
+    assert merged["artifactReviewPolicy"] == "always-proceed"
+    assert merged["showTips"] is False
+    assert merged["model"] == "Gemini 4 Hydrogen (Medium)"
+    assert merged["trustedWorkspaces"] == ["/tmp/existing", sample_work]
+    assert merged["permissions"]["allow"] == [
+        "command(git)",
+        "mcp(*)",
+        "read_url(*)",
+        f"read_file({sample_work})",
+    ]
+    assert str(tmp_path / ".gemini/antigravity-cli/skills") in merged["skills"]
+

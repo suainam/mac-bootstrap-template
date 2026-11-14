@@ -1,0 +1,14 @@
+{
+  "agentMode": "auto",
+  "enableTerminalSandbox": true,
+  "toolPermission": "proceed-in-sandbox",
+  "artifactReviewPolicy": "always-proceed",
+  "permissions": {
+    "allow": [
+      "mcp(*)",
+      "read_url(*)"
+    ],
+    "ask": [],
+    "deny": []
+  }
+}

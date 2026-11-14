@@ -92,12 +92,53 @@ configure_reasonix_mcp() {
 }
 
 configure_antigravity_settings_file() {
+  local template_settings="${BOOTSTRAP}/agent/agy/settings.json"
+  local private_dir="${MAC_BOOTSTRAP_PRIVATE_DIR:-}"
+  if [ -z "$private_dir" ] && [ -d "${BOOTSTRAP}/../private" ]; then
+    private_dir="$(cd "${BOOTSTRAP}/../private" && pwd)"
+  fi
+  local private_settings="${private_dir:+$private_dir/agent/agy/settings.json}"
+
+  AGY_TEMPLATE_SETTINGS="$template_settings" \
+  AGY_PRIVATE_SETTINGS="$private_settings" \
   write_json_file "$ANTIGRAVITY_SETTINGS" '
-let cfg = {};
-if (fs.existsSync(path)) {
-  const raw = fs.readFileSync(path, "utf8").trim();
-  if (raw) cfg = JSON.parse(raw);
-}
+const readJson = (p) => {
+  if (!p || !fs.existsSync(p)) return null;
+  const raw = fs.readFileSync(p, "utf8").trim();
+  return raw ? JSON.parse(raw) : {};
+};
+const uniq = (arr) => Array.from(new Set(arr));
+
+let cfg = readJson(path) || {};
+const tmpl = readJson(process.env.AGY_TEMPLATE_SETTINGS);
+const priv = readJson(process.env.AGY_PRIVATE_SETTINGS);
+
+const mergeLayer = (layer) => {
+  if (!layer || typeof layer !== "object") return;
+  for (const [k, v] of Object.entries(layer)) {
+    if (k === "permissions" && v && typeof v === "object") {
+      cfg.permissions = cfg.permissions && typeof cfg.permissions === "object" ? cfg.permissions : {};
+      for (const listKey of ["allow", "ask", "deny"]) {
+        if (Array.isArray(v[listKey])) {
+          const prev = Array.isArray(cfg.permissions[listKey]) ? cfg.permissions[listKey] : [];
+          cfg.permissions[listKey] = uniq([...prev, ...v[listKey]]);
+        }
+      }
+    } else if (k === "trustedWorkspaces" && Array.isArray(v)) {
+      const prev = Array.isArray(cfg.trustedWorkspaces) ? cfg.trustedWorkspaces : [];
+      cfg.trustedWorkspaces = uniq([...prev, ...v]);
+    } else if (k === "skills" && Array.isArray(v)) {
+      const prev = Array.isArray(cfg.skills) ? cfg.skills : [];
+      cfg.skills = uniq([...prev, ...v]);
+    } else {
+      cfg[k] = v;
+    }
+  }
+};
+
+mergeLayer(tmpl);
+mergeLayer(priv);
+
 cfg.skills = Array.isArray(cfg.skills) ? cfg.skills : [];
 const skillsPath = process.env.HOME + "/.gemini/antigravity-cli/skills";
 if (!cfg.skills.includes(skillsPath)) cfg.skills.push(skillsPath);
