@@ -1,6 +1,7 @@
 ---
 name: claim-first
-description: Remove defensive writing from Chinese and English academic, technical, and professional prose — unnecessary disclaimers, stacked hedges, apology framing, reflexive "not X but Y", and self-weakening contribution statements — while keeping evidence, scope, negation, and real uncertainty. Branches: 论文摘要与引言, 贡献陈述, 结论, 实验章节组织, rebuttal, 指标不利时的写法, 技术方案与 SOP, 报告, 投稿前自查. Use when drafting or revising papers, grant proposals, technical plans, SOPs, reports, or policy text. Not for the agent's own replies (use ste) and not for generic Chinese AI-slop cleanup (use humanizer-zh).
+description: >-
+  Remove defensive writing from Chinese and English academic, technical, and professional prose — unnecessary disclaimers, stacked hedges, apology framing, reflexive "not X but Y", and self-weakening contribution statements — while keeping evidence, scope, negation, and real uncertainty. Branches: 论文摘要与引言, 贡献陈述, 结论, 实验章节组织, rebuttal, 指标不利时的写法, 技术方案与 SOP, 报告, 投稿前自查. Use when drafting or revising papers, grant proposals, technical plans, SOPs, reports, or policy text. Not for the agent's own replies (use ste) and not for generic Chinese AI-slop cleanup (use humanizer-zh).
 ---
 
 # 先亮主张（claim-first）
