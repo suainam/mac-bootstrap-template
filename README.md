@@ -1,6 +1,6 @@
 # mac-bootstrap 模板
 
-> 中文导航：模板架构与公共边界见 `CONTEXT.md`；agent 修改规则见 `CLAUDE.md`；可复用专题说明见 `docs/README.md`。当前机器的真实配置、私有地址、订阅与实例运维说明属于私有父仓。
+> 中文导航：模板架构与公共边界见 [CONTEXT.md](CONTEXT.md)；Agent 修改规则见 [AGENTS.md](AGENTS.md)；专题操作见 [docs/README.md](docs/README.md)。当前机器的真实配置、私有地址、订阅与实例运维说明属于私有父仓。
 
 New-machine bootstrap for this Mac setup.
 
@@ -47,18 +47,17 @@ curl -fsSL https://s.suainam.eu.org/clash | bash
 ### Step 2: Clone Repository
 ```bash
 mkdir -p ~/work/config && cd ~/work/config
-git clone --recursive git@github.com:suainam/mac-bootstrap.git
-cd mac-bootstrap
+git clone --recursive https://github.com/suainam/mac-bootstrap-template.git
+cd mac-bootstrap-template
 ```
 
-### Step 3: Run Bootstrap with Machine Profile
+### Step 3: Run Bootstrap
+
 ```bash
-# For work machine:
-make bootstrap PROFILE=work
-
-# For home machine:
-make bootstrap PROFILE=home
+make bootstrap
 ```
+
+For a machine profile and private overlay, use the private parent checkout's bootstrap entrypoint.
 
 Preview mode (no install):
 

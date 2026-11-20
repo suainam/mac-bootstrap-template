@@ -8,8 +8,8 @@
 
 ## Bootstrap 入口
 
-- `Brewfile`、`brew-bundle.sh`：formula、cask、npm 包与字体。
-- `install.sh`：zsh、git、vim、neovim、tmux 与 VS Code。
+- `Brewfile`、`scripts/brew-bundle.sh`：formula、cask、npm 包与字体。
+- `install.sh`：zsh、git、vim、neovim、Herdr 与 VS Code。
 - `scripts/setup-python-venv.sh`：Brewfile 之后用 `uv sync --locked --group dev` 生成 `template/.venv`；解释器由 `.python-version` 固定。测试、doctor 与 agent 工具链共用该 venv，不得自行临时搭建。
 - `infra/docker/install.sh`：Colima、代理与 Docker Compose。
 - `scripts/install-agent-tooling.sh`：skills、MCP、RTK、caveman、OMP、Pi 兼容层与 Codebase Memory；OpenCode V2 的 RTK 插件和配置迁移也由该入口负责。
@@ -17,8 +17,8 @@
 
 ## 控制边界
 
-- 终端多路复用与工作区由 Herdr 承担（`template/multiplexer/herder/`）；tmux 已弃用，模板不再安装或自动挂载。
-- Hammerspoon 负责全局快捷键、窗口编排、剪贴板辅助与终端启动；全局快捷键以 Hyper 为主，不能与 tmux pane 快捷键竞争。
+- 终端多路复用与工作区由 Herdr 承担（[`multiplexer/herder/`](multiplexer/herder/)）；tmux 已弃用，模板不再安装或自动挂载。
+- Hammerspoon 负责全局快捷键、窗口编排、剪贴板辅助与终端启动；全局快捷键以 Hyper 为主。
 - 输入法由 macOS 与用户控制；模板不引入自动切换行为。
 
 ## 公共权威来源
