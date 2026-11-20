@@ -35,7 +35,7 @@ await c.updatePage(p.title, storageHtml, p.version, "自动化同步策略口径
 ```
 
 `getPage` / `updatePage` / `replaceOnce` / `viewFileMacro` 均定义于
-[`scripts/wiki_sync_helper.js`](../../scripts/wiki_sync_helper.js)（同一目录下），文档不再另抄一份实现。
+[`scripts/wiki_sync_helper.js`](../scripts/wiki_sync_helper.js)（同一目录下），文档不再另抄一份实现。
 
 #### 附件上传与 View-File 宏自动绑定
 
