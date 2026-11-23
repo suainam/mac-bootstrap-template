@@ -37,7 +37,6 @@ def inputs(**overrides):
 def test_desired_servers_has_one_normalized_catalog():
     servers = runtime.desired_servers(inputs())
     assert list(servers) == [
-        "context-mode",
         "codebase-memory-mcp",
         "context7",
     ]
@@ -47,7 +46,6 @@ def test_desired_servers_has_one_normalized_catalog():
         "/repo/scripts/context7-mcp-bridge.py"
     )
     assert servers["context7"].host_args["codex"] == ()
-    assert servers["context-mode"].hosts == ("codex", "opencode")
     assert servers["codebase-memory-mcp"].tool_approvals == (
         "search_graph",
         "trace_path",
@@ -161,7 +159,6 @@ def test_opencode_audit_rejects_v1_mcp_layout():
     v1 = {"mcp": v2["mcp"]["servers"]}
     assert [(issue.code, issue.server) for issue in runtime.audit_config("opencode", v1, desired)] == [
         ("legacy_mcp_layout", ""),
-        ("missing_server", "context-mode"),
         ("missing_server", "codebase-memory-mcp"),
         ("missing_server", "context7"),
     ]
@@ -190,11 +187,6 @@ def test_opencode_adapter_uses_v2_mcp_shape():
         "disabled": False,
         "type": "local",
         "command": ["codebase-memory-mcp"],
-    }
-    assert result["mcp"]["servers"]["context-mode"] == {
-        "disabled": False,
-        "type": "local",
-        "command": ["context-mode"],
     }
 
 
@@ -266,7 +258,6 @@ def test_non_codex_context7_hosts_remain_keyless():
 
 def test_managed_server_names_are_agent_owned():
     assert runtime.managed_server_names() == (
-        "context-mode",
         "codebase-memory-mcp",
         "context7",
     )
@@ -317,7 +308,6 @@ def test_codex_audit_accepts_live_projection_without_optional_tool_policy():
     desired = runtime.desired_servers(inputs())
     config = {
         "mcp_servers": {
-            "context-mode": {"command": "context-mode"},
             "codebase-memory-mcp": {"command": "codebase-memory-mcp"},
             "context7": {
                 "command": "npx",
@@ -345,7 +335,7 @@ def test_policy_disables_optional_codex_servers_and_renders_profiles(tmp_path):
             {
                 "version": 1,
                 "default_enabled": {
-                    "context-mode": True,
+                    "codebase-memory-mcp": True,
                     "context7": False,
                 },
                 "profiles": {"docs": ["context7"]},
@@ -359,7 +349,7 @@ def test_policy_disables_optional_codex_servers_and_renders_profiles(tmp_path):
         ),
         policy,
     )
-    assert desired["context-mode"].enabled is True
+    assert desired["codebase-memory-mcp"].enabled is True
     assert desired["context7"].enabled is False
 
 
@@ -431,10 +421,10 @@ def test_audit_distinguishes_missing_executable_from_semantic_drift():
         "codex",
         config,
         desired,
-        executable_resolver=lambda command: None if command == "context-mode" else command,
+        executable_resolver=lambda command: None if command == "codebase-memory-mcp" else command,
     )
     assert [(issue.code, issue.server) for issue in issues] == [
-        ("missing_executable", "context-mode")
+        ("missing_executable", "codebase-memory-mcp")
     ]
 
 

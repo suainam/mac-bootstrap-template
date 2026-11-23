@@ -134,9 +134,6 @@ print_step_header "Step 3 — RTK"
 configure_rtk_step
 RTK_SOURCE="$(pick_rtk_source)"
 
-print_step_header "Step 4 — Context Mode"
-configure_context_mode_step
-
 print_step_header "Step 4b — OpenCode V2"
 configure_opencode_v2_step
 

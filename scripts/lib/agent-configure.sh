@@ -8,7 +8,7 @@ print_step_header() {
 log_agent_binaries() {
   echo "=== Agent tool binaries ==="
   local tool
-  for tool in rtk context-mode claude codex opencode; do
+  for tool in rtk claude codex opencode; do
     if have "$tool"; then
       run "$tool" --version < /dev/null 2>&1 | head -1 || echo "  $tool: version check skipped"
     else
@@ -134,14 +134,6 @@ NODE
     echo "DRY-RUN: migrate OpenCode plugin config in $OPENCODE_CONFIG"
   fi
   echo "  OpenCode V2 RTK plugin configured"
-}
-
-configure_context_mode_step() {
-  if [ "${LOCAL_APPLY:-0}" -eq 0 ] && have context-mode && have claude; then
-    run claude plugin marketplace add mksglu/context-mode
-    run claude plugin install context-mode@context-mode
-    try_run context-mode upgrade
-  fi
 }
 
 configure_caveman_step() {
@@ -279,16 +271,6 @@ const cavemanHook = {
   }]
 };
 
-const contextModeSopHook = {
-  matcher: "startup|resume",
-  hooks: [{
-    type: "command",
-    command: "echo 'CONTEXT-MODE SOP: CRG first for code discovery. Use ctx_batch_execute for parallel capture, ctx_search for follow-up, ctx_execute/ctx_execute_file for filtering and counts. Avoid curl/wget/rsync in bash.'",
-    timeout: 5,
-    statusMessage: "Loading context-mode SOP..."
-  }]
-};
-
 function ensureSessionStartHook(entry, marker, addedMsg, existsMsg) {
   const ss = hooks.hooks.SessionStart || [];
   const exists = ss.some(e =>
@@ -334,12 +316,6 @@ const changed = [
     "CAVEMAN MODE ACTIVE",
     "  Added caveman hook to Codex hooks.json",
     "  Caveman hook already in Codex hooks.json"
-  ),
-  ensureSessionStartHook(
-    contextModeSopHook,
-    "CONTEXT-MODE SOP:",
-    "  Added context-mode SOP hook to Codex hooks.json",
-    "  Context-mode SOP hook already in Codex hooks.json"
   ),
   removeUserPromptHooks(
     ["QUALITY GATE PRE-COMMIT", "QUALITY GATE PRE-PUSH"],
