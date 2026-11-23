@@ -165,3 +165,41 @@ leave `.bak/.old/.tmp` copies with `SKILL.md` (duplicate registration). Authorit
 rules and roll-out commands live in `config/mac-bootstrap/template/AGENTS.md` →
 `Agent skills` and `agent-skills/README.md`. Add/adjust a Skill in the source tree
 and roll out via the registry CLI, not by writing runtime directories.
+
+## Delegation Brief Template
+
+Fill one block per change. Parent owns scope, boundaries, verification. Child must not re-run finished discovery.
+
+### Roles & Models
+
+Fill from the deployment's model catalog; the table below shows the expected shape, not fixed values.
+
+| Role       | Model selector (instance/model) | Reasoning Effort | Permission |
+|------------|--------------------------------|------------------|------------|
+| Lead       | lead instance, planning model  | medium/high      | Supervised |
+| Builder    | one or more fast build models | low/medium       | Worktree isolation; one writer per checkout |
+| Playtester | a different model family than the Builder | medium | Supervised, read-only prompt, max 3 review rounds |
+| Copywriter | cheapest text model           | low/medium       | Supervised |
+
+Cross-family review is the point of the Playtester: never review your Builder's family with itself.
+
+### Threads
+
+- New threads default to **Supervised** (not Full access).
+- More than one concurrent writer → new thread or delegated task with explicit worktree isolation.
+- Give every child the full brief: goal, read/write file boundaries, verification commands, completion condition, blocking decisions, time cap. Subagents start with zero parent history.
+
+### Completion Criteria
+
+- [ ] Code changes: tests pass at the repo's configured coverage gate (skip for config/docs-only changes).
+- [ ] Code changes with a guarded invariant: red-then-green — inject one fault, watch the suite fail, restore, watch it pass.
+- [ ] Config/docs changes: audit and smoke gates instead of coverage.
+- [ ] Deleted symbol refs cleaned from tests/docs.
+
+### Edit Boundaries
+
+Fill per task; the brief, not a global rule, owns these. Example placeholders:
+
+- May write: `<files>`
+- Must not touch: `<files>`
+- Durable memory writes only on explicit user request.
