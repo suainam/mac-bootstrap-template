@@ -129,6 +129,9 @@ def test_system_patrol_detects_crash_and_service_faults(tmp_path):
     diag_dir = tmp_path / "Diag"
     diag_dir.mkdir()
 
+    empty_sys_diag = tmp_path / "SysDiag"
+    empty_sys_diag.mkdir()
+
     # Create mock crash report
     crash_file = diag_dir / "test_app-2026-10-08.ips"
     crash_file.write_text("{}", encoding="utf-8")
@@ -136,9 +139,9 @@ def test_system_patrol_detects_crash_and_service_faults(tmp_path):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     launchctl = fake_bin / "launchctl"
-    # Mock launchctl returning 1 failed user service
+    # Mock launchctl returning 1 failed service; pid "-" means not running
     launchctl.write_text(
-        "#!/bin/sh\nprintf '1234\\t1\\tio.local.mac-bootstrap.bad-service\\n'\n",
+        "#!/bin/sh\nprintf -- '-\\t1\\tio.local.mac-bootstrap.bad-service\\n'\n",
         encoding="utf-8",
     )
     launchctl.chmod(0o755)
@@ -159,7 +162,7 @@ def test_system_patrol_detects_crash_and_service_faults(tmp_path):
         extra_env={
             "SYSTEM_PATROL_LOGS_DIR": str(logs_dir),
             "SYSTEM_PATROL_DIAG_USER": str(diag_dir),
-            "SYSTEM_PATROL_DIAG_SYSTEM": str(diag_dir),
+            "SYSTEM_PATROL_DIAG_SYSTEM": str(empty_sys_diag),
             "SYSTEM_PATROL_LAUNCHCTL_CMD": str(launchctl),
             "SYSTEM_PATROL_DF_CMD": str(df_cmd),
             "SYSTEM_PATROL_NOTIFY_CMD": str(notify_cmd),
