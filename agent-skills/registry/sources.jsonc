@@ -1674,6 +1674,11 @@
           ],
           "reason": "\u4f7f\u7528 huashu-chrome \u4e0e TypeSafe Jev \u5b9e\u73b0\u4f4e\u5ef6\u8fdf\u3001\u4f4e token \u6d88\u8017\u7684\u6d4f\u89c8\u5668\u4ea4\u4e92\u5185\u73af\u4e0e\u8868\u5355\u81ea\u52a8\u5316"
         },
+        "story-decompose-ai-devops": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "ai-devops 需求拆解页 Story 草稿创建与改写：卡片绑定、四岗认领、必填选择器、保存核验"
+        },
         "prd-score-optimization": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
