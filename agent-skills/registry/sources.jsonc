@@ -1674,6 +1674,11 @@
           ],
           "reason": "\u4f7f\u7528 huashu-chrome \u4e0e TypeSafe Jev \u5b9e\u73b0\u4f4e\u5ef6\u8fdf\u3001\u4f4e token \u6d88\u8017\u7684\u6d4f\u89c8\u5668\u4ea4\u4e92\u5185\u73af\u4e0e\u8868\u5355\u81ea\u52a8\u5316"
         },
+        "story-decompose-ai-devops": {
+          "scope": "global",
+          "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
+          "reason": "ai-devops 需求拆解页 Story 草稿创建与改写：卡片绑定、四岗认领、必填选择器、保存核验"
+        },
         "prd-score-optimization": {
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
@@ -1894,6 +1899,13 @@
           "scope": "global",
           "agents": ["claude", "codex", "opencode", "reasonix", "antigravity", "cross-agent"],
           "reason": "DevOps工时、WBS推进表同步与平台自动化协同 (全局基础能力)"
+        },
+        "dashenlin-ppt-polish": {
+          "scope": "project",
+          "projects": [
+            "product_strategy"
+          ],
+          "reason": "大参林汇报 PPT round-trip 逐页精修、claim-first/SMART/humanizer-zh 文案与视觉门禁工作流"
         },
         "full-stack-story-standardization": {
           "scope": "global",
@@ -2206,6 +2218,106 @@
             "approved_at": "2026-10-25",
             "approved_hash": "sha256:871f42eed5883ead65d2e1be770f0dc888b6199602b8b9e56d92144d6d291b98",
             "reason": "User-approved adversarial-review for s-skeptic/s-acceptor cross-model lens framing; text-only skill, LOW risk"
+          }
+        }
+      }
+    },
+    "google-gemini-skills": {
+      "type": "external",
+      "fetcher": "skills.sh",
+      "ref": "https://github.com/google-gemini/gemini-skills",
+      "bundle": {
+        "install_mode": "all",
+        "distribution_state": "enabled",
+        "catalog_path": ".agent-state/skill-bundles/google-gemini-skills.json"
+      },
+      "skills": {
+        "gemini-api-cli": {
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": false
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "user",
+            "approved_at": "2026-11-26",
+            "approved_hash": "sha256:a4cff4e7a1f963d271be79161737e62a1be966b890f4d88a7d7db46bb72acb20",
+            "reason": "User-approved official Google Gemini API CLI skill; script-free"
+          }
+        },
+        "gemini-api-dev": {
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": false
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "user",
+            "approved_at": "2026-11-26",
+            "approved_hash": "sha256:14951a21b4ee0a96e1c419683e8e7d42b90efdf93fd94a1b44d897444a268f6b",
+            "reason": "User-approved official Google Gemini API SDK skill; script-free"
+          }
+        },
+        "gemini-live-api-dev": {
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": false
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "user",
+            "approved_at": "2026-11-26",
+            "approved_hash": "sha256:96a6df48d6d2fc668064e601bacfd095fdd616b85bd514946ecf013d1e0aaf78",
+            "reason": "User-approved official Google Gemini Live API skill; script-free"
+          }
+        },
+        "gemini-omni-flash-api": {
+          "agents": [
+            "claude",
+            "codex",
+            "opencode",
+            "reasonix",
+            "antigravity",
+            "cross-agent"
+          ],
+          "audit": {
+            "allow_unaudited": true,
+            "allow_scripts": true
+          },
+          "gate": {
+            "manual_approval": true,
+            "approved": true,
+            "approved_by": "user",
+            "approved_at": "2026-11-26",
+            "approved_hash": "sha256:a2991071e6830862665246379f8ac984ac49694fb9840e1809875c836065c13c",
+            "reason": "User-approved official Google Gemini Omni Flash video skill; Python helper scripts audited"
           }
         }
       }

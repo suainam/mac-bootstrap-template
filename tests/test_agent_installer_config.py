@@ -110,6 +110,7 @@ def test_configure_antigravity_settings_merges_template_and_private(tmp_path):
         "command(git)",
         "mcp(*)",
         "read_url(*)",
+        "command(gemini-api)",
         f"read_file({sample_work})",
     ]
     assert str(tmp_path / ".gemini/antigravity-cli/skills") in merged["skills"]

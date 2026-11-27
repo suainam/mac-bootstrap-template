@@ -17,7 +17,6 @@ def test_npm_global_manifest_tracks_agent_clis_without_openwiki():
         "@upstash/context7-mcp",
         "@waishnav/devspace",
         "codebase-memory-mcp",
-        "context-mode",
         "reasonix",
     ]:
         assert package in content

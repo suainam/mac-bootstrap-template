@@ -52,8 +52,7 @@ Keep server connection definitions in `scripts/agent_mcp_runtime.py`; use the
 policy file only for default enablement and named profiles. Run `make
 agent-apply` after changing either source.
 
-The base Codex session starts context-mode, codebase-memory-mcp, and Context7.
-The only retained profile is a compatibility override for Context7. DevSpace is
+The base Codex session starts codebase-memory-mcp; Context7 is enabled on demand via `codex-mcp docs`. DevSpace is
 intentionally not in this list: it is a browser-facing local service, not an
 agent MCP. The prompt-library MCP is local-only and is not distributed to hosts.
 
@@ -369,7 +368,7 @@ Pi uses:
 
 **Important**: Extensions must be registered with `pi install` (not just copied).
 The install script runs `pi install ~/.pi/agent/extensions/rtk.ts` and
-`pi install npm:pi-mcp-extension` automatically. MCP servers live in `mcp.json`,
+`pi install npm:pi-mcp-adapter` automatically. MCP servers live in `mcp.json`,
 not `settings.toml`.
 
 ## Third-Party Codex Plugins (omo / lazycodex)

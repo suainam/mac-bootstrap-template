@@ -67,14 +67,14 @@ def test_render_codex_mcp_block_keeps_context7_direct():
     )
     assert result.returncode == 0, result.stderr
     assert (
-        '[mcp_servers.context7]\nenabled = true\n'
+        '[mcp_servers.context7]\nenabled = false\n'
         f'command = "{TEMPLATE}/scripts/context7-mcp-bridge.py"\nargs = []'
     ) in result.stdout
     assert '[mcp_servers.context7.env]' not in result.stdout
     assert '[mcp_servers.agent-prompt-library]' not in result.stdout
     assert str(Path.home() / ".local/bin/agent-prompt-mcp") not in result.stdout
     assert 'default_tools_approval_mode = "approve"' in result.stdout
-    assert '[mcp_servers.context7]\nenabled = true' in result.stdout
+    assert '[mcp_servers.context7]\nenabled = false' in result.stdout
 
 
 def test_render_codex_mcp_block_excludes_web_only_devspace():

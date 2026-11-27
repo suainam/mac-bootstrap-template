@@ -328,7 +328,6 @@ else
   echo "  MISS AGENTS.md canonical rules content"
   ERRORS=$((ERRORS + 1))
 fi
-check_contains "AGENTS.md context-mode SOP" "$CODEX_AGENTS" '## Context Mode SOP'
 if "$PYTHON_BIN" "$BOOTSTRAP/scripts/context7-mcp-bridge.py" --validate-private-config; then
   echo "  OK   Context7 private config and permissions"
 else
@@ -336,7 +335,6 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 audit_mcp_config codex "$CODEX_TOML" --hooks-path "$CODEX_HOOKS"
-check_contains "hooks.json context-mode SOP reminder" "$CODEX_HOOKS" 'CONTEXT-MODE SOP:'
 HOOKS_PATH="$(git -C "$BOOTSTRAP/.." config --get core.hooksPath 2>/dev/null || true)"
 if [ "$HOOKS_PATH" = "template/agent/quality-gates/hooks" ]; then
   echo "  WARN core.hooksPath is legacy self-hook (run: make quality-gate-hook-install)"
@@ -507,7 +505,7 @@ fi
 
 echo ""
 echo "--- Agent Tools ---"
-for tool in rtk context-mode codebase-memory-mcp; do
+for tool in rtk codebase-memory-mcp; do
   if command -v "$tool" &>/dev/null; then
     echo "  OK   $tool ($(command -v "$tool"))"
   else

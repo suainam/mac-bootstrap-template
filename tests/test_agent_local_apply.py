@@ -50,7 +50,7 @@ def test_local_apply_is_offline_and_repeatable(tmp_path):
     (bin_dir / 'python3').symlink_to(sys.executable)
     (bin_dir / 'node').symlink_to(node)
     calls = tmp_path / 'calls'
-    for name in ('npm', 'npx', 'claude', 'context-mode', 'git', 'curl', 'wget',
+    for name in ('npm', 'npx', 'claude', 'git', 'curl', 'wget',
                  'brew', 'rtk', 'codex', 'opencode', 'agy', 'reasonix', 'omp',
                  'codebase-memory-mcp', 'context7-mcp'):
         stub = bin_dir / name
@@ -86,6 +86,5 @@ def test_local_apply_is_offline_and_repeatable(tmp_path):
 
     full = apply('--configure', '--dry-run')
     assert full.returncode == 0, full.stdout + full.stderr
-    for operation in ('ensure-bundles', 'replace @opencode-ai/plugin', 'claude plugin install',
-                      'context-mode upgrade', 'npx -y github:'):
+    for operation in ('ensure-bundles', 'replace @opencode-ai/plugin', 'npx -y github:'):
         assert operation in full.stdout

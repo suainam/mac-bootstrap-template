@@ -16,11 +16,11 @@ from typing import Any, Callable, Mapping
 
 
 MANAGED_NAMES = (
-    "context-mode",
     "codebase-memory-mcp",
     "context7",
 )
 RETIRED_ALIASES = (
+    "context-mode",
     "code-review-graph",
     "codebase-memory",
     "x-docs",
@@ -59,8 +59,6 @@ CBM_TOOLS = (
     "get_file_outline",
     "delete_project",
 )
-
-CONTEXT_MODE_TOOLS = ("ctx_stats", "ctx_search", "ctx_index", "ctx_doctor")
 
 
 @dataclass(frozen=True)
@@ -150,13 +148,6 @@ def desired_servers(inputs: RuntimeInputs) -> dict[str, ServerSpec]:
         }
 
     servers = {
-        "context-mode": ServerSpec(
-            "context-mode",
-            "local",
-            command="context-mode",
-            tool_approvals=CONTEXT_MODE_TOOLS,
-            hosts=("codex", "opencode"),
-        ),
         "codebase-memory-mcp": ServerSpec(
             "codebase-memory-mcp",
             "local",
@@ -399,7 +390,7 @@ def _codex_server_matches(name: str, observed: Any, expected: Any) -> bool:
 
     observed_view = _stable_server_view(name, observed, codex=True)
     expected_view = _stable_server_view(name, expected, codex=True)
-    if name in {"context-mode", "codebase-memory-mcp"}:
+    if name == "codebase-memory-mcp":
         if isinstance(observed_view, dict) and all(
             key not in observed_view
             for key in ("enabled_tools", "default_tools_approval_mode")
