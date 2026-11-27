@@ -2,7 +2,7 @@
   "version": 1,
   "default_enabled": {
     "codebase-memory-mcp": true,
-    "context7": true
+    "context7": false
   },
   "profiles": {
     "docs": ["context7"]

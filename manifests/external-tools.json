@@ -14,6 +14,12 @@
       "target": "~/.local/bin/imgup",
       "installer": "scripts/install-imgup.sh",
       "description": "ImgBed uploader"
+    },
+    {
+      "name": "gemini-api",
+      "target": "~/.local/bin/gemini-api",
+      "installer": "scripts/install-gemini-api.sh",
+      "description": "Google Gemini API CLI"
     }
   ],
   "external_apps": []

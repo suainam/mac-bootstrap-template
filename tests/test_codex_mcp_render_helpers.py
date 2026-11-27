@@ -32,7 +32,7 @@ def test_renderer_keeps_context7_direct_without_api_key_argument():
     result = run_renderer(env=env)
     assert result.returncode == 0, result.stderr
     assert (
-        '[mcp_servers.context7]\nenabled = true\n'
+        '[mcp_servers.context7]\nenabled = false\n'
         f'command = "{ROOT / "scripts" / "context7-mcp-bridge.py"}"\nargs = []'
     ) in result.stdout
     assert "abc" not in result.stdout

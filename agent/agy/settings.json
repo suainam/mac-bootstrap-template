@@ -6,7 +6,8 @@
   "permissions": {
     "allow": [
       "mcp(*)",
-      "read_url(*)"
+      "read_url(*)",
+      "command(gemini-api)"
     ],
     "ask": [],
     "deny": []
